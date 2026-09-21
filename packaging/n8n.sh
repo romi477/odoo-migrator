@@ -31,10 +31,30 @@ die() { echo "$@" >&2; exit 1; }
 # script carried on to hand docker a mangled command line.
 key=""
 require_key() {
-    [ -f "$KEY_FILE" ] || die "no $KEY_FILE yet. Start the app once (packaging/serve.sh) — it mints the key on first run."
+    # Mint it here if the app has not run yet, through the app's own
+    # function rather than a second implementation: same path, same 0600,
+    # same value the app will read back. Otherwise this script would only
+    # work after someone had started the app once, which is an ordering
+    # rule for no reason.
+    if [ ! -f "$KEY_FILE" ]; then
+        python_run -c 'from odoo_migrator.authkey import KEY_FILENAME, load_or_create
+from odoo_migrator.db import default_db_path
+load_or_create(default_db_path().parent / KEY_FILENAME)' >/dev/null
+    fi
+    [ -f "$KEY_FILE" ] || die "could not mint $KEY_FILE. Run: uv sync"
     # Read, never print: this tool gets demonstrated on a projector.
     key="$(cat "$KEY_FILE")"
     [ -n "$key" ] || die "$KEY_FILE is empty. Delete it and start the app again."
+}
+
+python_run() {
+    if command -v uv >/dev/null 2>&1; then
+        uv run python "$@"
+    elif [ -x .venv/bin/python ]; then
+        .venv/bin/python "$@"
+    else
+        die "no uv and no .venv/bin/python. Run: uv sync"
+    fi
 }
 
 compose() {
@@ -62,9 +82,35 @@ wait_ready() {
     die "n8n did not become ready at $BASE_URL. Try: packaging/n8n.sh logs"
 }
 
+# Refuse before touching anything. `up` recreates the container and only
+# then fails on the bind, so a port clash leaves the stack in a worse
+# state than it started in. On this machine 5678 is an Odoo container's.
+port_is_free() {
+    if command -v lsof >/dev/null 2>&1; then
+        ! lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1
+    elif command -v nc >/dev/null 2>&1; then
+        ! nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1
+    else
+        return 0
+    fi
+}
+
+require_port() {
+    port_is_free && return 0
+    # Ours already serving there is not a clash: `up` is idempotent.
+    if [ -n "$(compose ps -q n8n 2>/dev/null)" ] && compose ps n8n 2>/dev/null | grep -q "Up "; then
+
+        return 0
+    fi
+    die "port $PORT is already listening, and it is not our n8n.
+  Pick another: N8N_HOST_PORT=5679 $0 up
+  The address n8n builds its webhook URLs from follows it, so the two cannot drift."
+}
+
 case "${1:-up}" in
     up)
         require_key
+        require_port
         compose up -d
         wait_ready
         echo
@@ -74,11 +120,11 @@ case "${1:-up}" in
     publish)
         [ -n "${N8N_API_KEY:-}" ] || die "N8N_API_KEY is unset. n8n mints it in its own UI (Settings > n8n API)."
         wait_ready
-        if command -v uv >/dev/null 2>&1; then
-            N8N_BASE_URL="$BASE_URL" uv run python packaging/publish_stock.py
-        else
-            N8N_BASE_URL="$BASE_URL" .venv/bin/python packaging/publish_stock.py
-        fi
+        # Exported, not an assignment prefix: a prefix on a function call
+        # is not portable and leaks into the shell in some of them.
+        N8N_BASE_URL="$BASE_URL"
+        export N8N_BASE_URL
+        python_run packaging/publish_stock.py
         ;;
     status) compose ps ;;
     logs)   compose logs -f ;;

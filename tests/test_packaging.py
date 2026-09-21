@@ -52,13 +52,14 @@ def test_serve_defaults_to_loopback_and_widens_only_when_asked(tmp_path):
     assert "--for-n8n" not in widened.stdout
 
 
-def test_n8n_refuses_before_the_key_exists(tmp_path):
-    """`die` inside a command substitution kills the subshell and nothing
-    else, so a missing key file printed its complaint and the script carried
-    on to hand docker a mangled command line."""
+def test_n8n_mints_the_key_when_the_app_has_not_run(tmp_path):
+    """It used to demand that the app had been started once. Two notes on
+    this test: HOME is what the key path is built from, and overriding it
+    also hides docker's CLI plugins, so the compose step after this fails —
+    which is fine, the key is minted before anything reaches docker."""
     env = {**os.environ, "HOME": str(tmp_path)}
 
-    refused = subprocess.run(
+    subprocess.run(
         [str(_script("n8n.sh")), "up"],
         capture_output=True,
         text=True,
@@ -66,9 +67,11 @@ def test_n8n_refuses_before_the_key_exists(tmp_path):
         check=False,
     )
 
-    assert refused.returncode != 0
-    assert "Start the app once" in refused.stderr
-    assert "docker" not in refused.stdout
+    minted = tmp_path / ".odoo-migrator" / "api.key"
+
+    assert minted.is_file()
+    assert minted.stat().st_mode & 0o077 == 0
+    assert len(minted.read_text(encoding="utf-8").strip()) >= 32
 
 
 def test_down_never_removes_the_volume():
@@ -86,3 +89,29 @@ def test_the_key_is_never_echoed():
     assert "echo $key" not in body
     assert 'echo "$key"' not in body
     assert "cat \"$KEY_FILE\"" in body
+
+
+def test_up_refuses_a_taken_port_before_touching_the_stack():
+    """`docker compose up` recreates the container and only then fails on
+    the bind, so a clash left the stack worse than it started. On the
+    machine this was written on, 5678 belongs to an Odoo container."""
+    body = _script("n8n.sh").read_text(encoding="utf-8")
+
+    assert "require_port" in body
+    assert body.index("require_port\n") < body.index("compose up -d")
+    assert "N8N_HOST_PORT" in body
+
+
+def test_the_key_is_minted_rather_than_demanded(tmp_path):
+    """Requiring the app to have been started once was an ordering rule for
+    no reason: the key is a file, and the app's own function makes it."""
+    body = _script("n8n.sh").read_text(encoding="utf-8")
+
+    assert "load_or_create" in body
+
+    from odoo_migrator.authkey import KEY_FILENAME, load_or_create
+
+    minted = load_or_create(tmp_path / KEY_FILENAME)
+
+    assert (tmp_path / KEY_FILENAME).stat().st_mode & 0o077 == 0
+    assert load_or_create(tmp_path / KEY_FILENAME) == minted

@@ -197,9 +197,17 @@ packaging/n8n.sh up                          # start it, wait until really ready
 N8N_API_KEY=... packaging/n8n.sh publish     # create and activate the workflows
 ```
 
+Order does not matter: `n8n.sh` mints `~/.odoo-migrator/api.key` itself if
+the app has not run yet, through the same function the app uses.
+
 `up` waits for `/rest/settings` to return JSON, because `/healthz` answers
-200 while n8n is still starting. `down` keeps the volume: the workflows live
-in n8n's database, not in this repo.
+200 while n8n is still starting, and refuses a port that is already
+listening rather than recreating the container and failing on the bind —
+`N8N_HOST_PORT=5679` moves it, and the webhook address follows. `down`
+keeps the volume: the workflows live in n8n's database, not in this repo.
+
+The one manual step is inside n8n: create the owner account, then mint an
+API key under Settings → n8n API. A fresh n8n has no API before that.
 
 Compose, the webhook contract, Wait/resume, and the wrappers:
 [docs/n8n.md](docs/n8n.md).
