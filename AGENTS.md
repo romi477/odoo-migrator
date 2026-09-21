@@ -13,6 +13,7 @@ development); `uv run pytest`.
 | Document | What it holds |
 |---|---|
 | `README.md` | install, quick start, API table, security short version |
+| `packaging/` | shell entry points for the app and the n8n stack; the desktop build goes here later, same shape as odoo-sheller |
 | `docs/` | product docs in the Sheller template: architecture, UI, n8n, security, FAQ (en/ru) |
 | `docs_/superpowers/specs/2026-09-20-odoo-migrator-design.md` | the design of record |
 | `docs_/n8n-workflow-flow.md` | the workflow graph, node by node, and how nodes are built |

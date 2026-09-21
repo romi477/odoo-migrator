@@ -130,6 +130,9 @@ Start the app from the project root:
 uv run odoo-migrator
 ```
 
+Or `packaging/serve.sh`, which is the same thing without the flags to
+remember (`--for-n8n` widens the bind; `PORT=` moves the port).
+
 Without uv: `.venv/bin/odoo-migrator`, or `python -m odoo_migrator`. Flags:
 `--host` (default `127.0.0.1`), `--port` (default `8000`), and `--reload`
 for development. Files under `odoo_migrator/web/` are excluded from the
@@ -188,6 +191,15 @@ or the parent is 400 and the production webhook stays 404.
 The webhook path is chosen per batch (`migrate-module`, or a thin wrapper
 `migrate-module-openai` / `migrate-module-claude`). A smoke-run that has
 not passed blocks a batch once a cartridge is installed.
+
+```bash
+packaging/n8n.sh up                          # start it, wait until really ready
+N8N_API_KEY=... packaging/n8n.sh publish     # create and activate the workflows
+```
+
+`up` waits for `/rest/settings` to return JSON, because `/healthz` answers
+200 while n8n is still starting. `down` keeps the volume: the workflows live
+in n8n's database, not in this repo.
 
 Compose, the webhook contract, Wait/resume, and the wrappers:
 [docs/n8n.md](docs/n8n.md).
@@ -268,6 +280,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `rules/` | `16.0.md` … `19.0.md` at the repo root, not inside the package |
 | `prompts/system.md` | System prompt, resolved into the payload |
 | `n8n/stock/` | Stock cartridge JSON + `manifest.json` |
+| `packaging/` | `serve.sh`, `n8n.sh`, `publish_stock.py`. The desktop build lands here later, as in odoo-sheller |
 | `tests/` | Suite; no live Docker required except `@pytest.mark.live` |
 
 Code, comments, docs and commits are in English. Discussion happens in

@@ -40,9 +40,12 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    print(f"ui: http://{args.host}:{args.port}/")
+    # flush: with stdout on a pipe — a packaging script, a log file, the
+    # desktop app later — these sit in the buffer and surface after
+    # uvicorn's banner, or not at all if the process is killed.
+    print(f"ui: http://{args.host}:{args.port}/", flush=True)
     # Path, never the value: this tool is demonstrated on a projector.
-    print(f"api key: {default_db_path().parent / KEY_FILENAME}")
+    print(f"api key: {default_db_path().parent / KEY_FILENAME}", flush=True)
     if args.host not in LOOPBACK:
         # 0.0.0.0 is every interface, not "the container gateway". Behind the
         # File API and the Sheller proxy sit host file writes and Python as
@@ -51,7 +54,8 @@ def main() -> None:
             f"warning: {args.host} serves every network this machine is on. "
             f"The API key in {default_db_path().parent / KEY_FILENAME} is the "
             "only thing in front of the File API and the Sheller proxy, and "
-            "the pages have nothing in front of them at all."
+            "the pages have nothing in front of them at all.",
+            flush=True,
         )
 
     if args.reload:
