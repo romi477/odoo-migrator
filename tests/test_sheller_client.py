@@ -339,7 +339,14 @@ def test_live_session_round_trip():
         # one of those starts a process that dies immediately (HTTP 410,
         # "process ended"). db_name is the database this container is
         # configured for.
-        if candidate.get("ok") and candidate.get("db_name"):
+        # The probe reports the database the container is configured for,
+        # which is not the same as one that exists: opening a shell on a
+        # missing database starts a process that dies at once (410).
+        if (
+            candidate.get("ok")
+            and candidate.get("db_name")
+            and candidate["db_name"] in (candidate.get("databases") or [])
+        ):
             probed = (entry["name"], candidate)
             break
     if probed is None:

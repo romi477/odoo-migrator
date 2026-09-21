@@ -12,7 +12,8 @@
       {% if current %}
       <p>Graph for <span class="name mono">{{ current.name }}</span>
       <span class="mono">{{ current.source_version }} → {{ current.target_version }}</span>.
-      Resolve asks the old Odoo; strike-out and batches persist here.</p>
+      Resolve asks the old Odoo and groups modules into dependency steps;
+      a later step cannot start until the previous one is migrated.</p>
       {% else %}
       <p>Open a migration to load its dependency graph.</p>
       {% endif %}
@@ -30,11 +31,11 @@
               title="Resolve the module graph from the old container"
               aria-label="Resolve the module graph from the old container">Resolve</button>
     </form>
-    {# Strike is its own undo: it decides one way for the whole selection,
+    {# Skip is its own undo: it decides one way for the whole selection,
        so pressing it twice on the same nodes leaves them as they were. #}
     <button type="button" id="tree-strike"
-            title="Strike out the selected modules, or bring them back if they are all struck"
-            aria-label="Strike out the selected modules, or bring them back if they are all struck">Strike</button>
+            title="Skip the selected modules, or bring them back if they are all skipped"
+            aria-label="Skip the selected modules, or bring them back if they are all skipped">Skip</button>
     <button type="button" id="tree-group"
             title="Group the selected modules as a batch"
             aria-label="Group the selected modules as a batch">Group</button>
@@ -55,41 +56,45 @@
     </form>
   </div>
   <script type="application/json" id="module-graph">{{ modules | tojson }}</script>
-  <div id="graph-canvas" class="graph-canvas" data-box-select="true"></div>
-  {% if modules %}
-  <ul class="module-rows">
-    {% for module in modules %}
-    <li class="row-card{% if module.has_assumptions %} has-assumptions{% endif %}"
-        data-module-id="{{ module.id }}">
+  <div class="graph-stage">
+    <div id="graph-canvas" class="graph-canvas" data-box-select="true"></div>
+    <div class="graph-badges" id="graph-badges" aria-hidden="true"></div>
+  </div>
+  <aside class="row-card node-card" id="node-card"
+         data-module-id="{% if selected %}{{ selected.id }}{% endif %}">
+    <p class="node-card-empty" id="node-card-empty"{% if selected %} hidden{% endif %}>
+      Select a module to leave it out of the migration, or bring it back.
+    </p>
+    <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
       <span class="identity">
         <span class="name-line">
-          <span class="name mono">{{ module.technical_name }}</span>
-          <span class="badge {{ module.status }}">{{ module.status }}</span>
-          {% if module.has_assumptions %}
-          <span class="badge assumptions">assumptions</span>
+          <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.node_id }}/{{ selected.step }}{% endif %}</span>
+          <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
+          <span class="badge{% if selected %} {{ selected.status }}{% endif %}" id="node-card-status">{% if selected %}{{ selected.status }}{% endif %}</span>
+          {% if selected and selected.has_assumptions %}
+          <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
+          {% else %}
+          <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
           {% endif %}
         </span>
-        <span class="mono" data-stage></span>
+        <span class="mono" data-stage id="node-card-stage"></span>
       </span>
-      <form class="notes" method="post" action="/tree/modules/{{ module.id }}/notes">
-        <label>
-          Notes
-          <textarea name="notes" aria-label="Notes for {{ module.technical_name }}">{{ module.notes }}</textarea>
-        </label>
-        <button type="submit" aria-label="Save notes for {{ module.technical_name }}">Save</button>
-      </form>
-      <form class="ask" method="post" action="/tree/modules/{{ module.id }}/answer"{% if module.status != "waiting_for_human" %} hidden{% endif %}>
-        <p class="question">{{ module.question or "" }}</p>
+      <button type="button" id="node-card-skip">{% if selected and selected.struck_out %}Undo skip{% else %}Skip{% endif %}</button>
+      <p class="form-error" id="node-card-error" hidden></p>
+      <form class="ask" id="node-card-ask" method="post"
+            action="{% if selected %}/tree/modules/{{ selected.id }}/answer{% endif %}"
+            {% if not selected or selected.status != "waiting_for_human" %}hidden{% endif %}>
+        <p class="question" id="node-card-question">{% if selected %}{{ selected.question or "" }}{% endif %}</p>
         <label>
           Answer
-          <textarea name="answer" required aria-label="Answer for {{ module.technical_name }}"></textarea>
+          <textarea name="answer" required
+                    aria-label="Answer{% if selected %} for {{ selected.technical_name }}{% endif %}"></textarea>
         </label>
-        <button type="submit" class="primary" aria-label="Answer {{ module.technical_name }}">Answer</button>
+        <button type="submit" class="primary"
+                aria-label="Answer{% if selected %} {{ selected.technical_name }}{% endif %}">Answer</button>
       </form>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
+    </div>
+  </aside>
   {% endif %}
 </section>
 {% endblock %}

@@ -10,17 +10,164 @@
   const names = new Set(modules.map(function (row) {
     return row.technical_name;
   }));
+
+  function stepsFromDepends(rows) {
+    const known = new Set(rows.map(function (row) {
+      return row.technical_name;
+    }));
+    const children = {};
+    rows.forEach(function (row) {
+      children[row.technical_name] = [];
+    });
+    rows.forEach(function (row) {
+      (row.depends || []).forEach(function (dep) {
+        if (known.has(dep)) {
+          children[dep].push(row.technical_name);
+        }
+      });
+    });
+    const roots = rows
+      .filter(function (row) {
+        return !(row.depends || []).some(function (dep) {
+          return known.has(dep);
+        });
+      })
+      .map(function (row) {
+        return row.technical_name;
+      })
+      .sort();
+    const rank = {};
+    roots.forEach(function (name) {
+      rank[name] = 1;
+    });
+    const queue = roots.slice();
+    while (queue.length) {
+      const name = queue.shift();
+      (children[name] || []).forEach(function (child) {
+        if (rank[child] == null) {
+          rank[child] = rank[name] + 1;
+          queue.push(child);
+        }
+      });
+    }
+    const leftover = rows
+      .map(function (row) {
+        return row.technical_name;
+      })
+      .filter(function (name) {
+        return rank[name] == null;
+      });
+    if (leftover.length) {
+      let bump = 1;
+      Object.keys(rank).forEach(function (name) {
+        if (rank[name] >= bump) {
+          bump = rank[name] + 1;
+        }
+      });
+      leftover.forEach(function (name) {
+        rank[name] = bump;
+      });
+    }
+
+    return rank;
+  }
+
+  const ranks = stepsFromDepends(modules);
+  modules.forEach(function (row) {
+    row.step = ranks[row.technical_name];
+  });
+  /* Cytoscape's colour parser does not understand oklch(); a custom
+     property from getComputedStyle is still the specified oklch string.
+     Paint it onto a probe so the browser resolves rgb(), which it does
+     parse. Hex is the fallback if the token is missing. */
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;";
+  document.body.appendChild(probe);
+  const STEP_COLOURS = {
+    1: { fill: "#1a8fb0", edge: "#5ecde8" },
+    2: { fill: "#1a9a4a", edge: "#4edc7a" },
+    3: { fill: "#d48a14", edge: "#f0c040" },
+    4: { fill: "#d04098", edge: "#f070c0" },
+    5: { fill: "#5a4ad4", edge: "#9080f0" },
+    6: { fill: "#d04038", edge: "#f07068" },
+    7: { fill: "#d4b014", edge: "#f0d050" },
+    8: { fill: "#9030d0", edge: "#c070f0" },
+    more: { fill: "#4a5870", edge: "#8a9ab0" },
+  };
+
+  function toHex(rgb) {
+    const match = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
+    if (!match) {
+      return "";
+    }
+
+    return (
+      "#" +
+      [match[1], match[2], match[3]]
+        .map(function (part) {
+          return ("0" + Number(part).toString(16)).slice(-2);
+        })
+        .join("")
+    );
+  }
+
+  function paint(value) {
+    probe.style.color = "rgb(1, 2, 3)";
+    probe.style.color = value;
+    const resolved = getComputedStyle(probe).color;
+    if (!resolved || resolved === "rgb(1, 2, 3)") {
+      return "";
+    }
+
+    return toHex(resolved);
+  }
+
+  const text = paint("var(--text)") || "#e4dff0";
+  const muted = paint("var(--muted)") || "#9a90b0";
+  const border = paint("var(--border)") || "#3a3550";
+  const panel = paint("var(--panel-raised)") || "#2a2540";
+  const cyan = paint("var(--cyan)") || "#4eb8d0";
+
+  function colourForStep(step, kind) {
+    const key = kind === "edge" ? "edge" : "fill";
+    if (step == null) {
+      return kind === "edge" ? border : panel;
+    }
+    const pair = STEP_COLOURS[step] || STEP_COLOURS.more;
+
+    return pair[key];
+  }
+
+  function indexText(row) {
+    const serialNum =
+      Number(row.node_id) >= 1 ? row.node_id : Number(row.module_id || row.id);
+    const serial = Number(serialNum) >= 1 ? "#" + serialNum : "";
+    const step = row.step == null ? "" : String(row.step);
+    if (serial && step) {
+      return serial + "/" + step;
+    }
+
+    return serial || (step ? "/" + step : "");
+  }
+
   const elements = [];
   modules.forEach(function (row) {
     elements.push({
       data: {
         id: row.technical_name,
         module_id: row.id,
+        node_id: row.node_id,
         label: row.technical_name,
         struck_out: row.struck_out,
         absent: row.absent_from_odoo,
         batch_group: row.batch_group,
         status: row.status,
+        step: row.step,
+        notes: row.notes || "",
+        question: row.question || "",
+        has_assumptions: row.has_assumptions,
+        step_color: colourForStep(row.step, "fill"),
+        step_edge: colourForStep(row.step, "edge"),
       },
     });
     /* One edge per dependency. A single parent drew one of them: on a real
@@ -39,14 +186,6 @@
     });
   });
 
-  const styles = getComputedStyle(document.documentElement);
-  const text = styles.getPropertyValue("--text").trim();
-  const muted = styles.getPropertyValue("--muted").trim();
-  const border = styles.getPropertyValue("--border").trim();
-  const panel = styles.getPropertyValue("--panel-raised").trim();
-  const cyan = styles.getPropertyValue("--cyan").trim();
-  const amber = styles.getPropertyValue("--amber").trim();
-
   const cy = cytoscape({
     container: canvas,
     elements: elements,
@@ -58,16 +197,18 @@
         style: {
           label: "data(label)",
           color: text,
-          "background-color": panel,
-          "border-color": border,
-          "border-width": 1,
+          "background-color": "data(step_color)",
+          "border-color": "data(step_edge)",
+          "border-width": 2,
           "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
           "font-size": 11,
           "text-valign": "center",
           "text-halign": "center",
+          "text-wrap": "wrap",
+          "text-max-width": 140,
           width: "label",
           height: "label",
-          padding: "8px",
+          padding: "18px 12px 10px",
           shape: "round-rectangle",
         },
       },
@@ -82,10 +223,6 @@
           color: muted,
           opacity: 0.55,
         },
-      },
-      {
-        selector: "node[batch_group]",
-        style: { "border-color": amber },
       },
       {
         selector: "edge",
@@ -106,13 +243,78 @@
     },
   });
 
-  /* The lamp sends the module id here. Opening the right migration and
-     then leaving the human to find one stalled node in a hundred is not
-     opening the module. */
-  const focus = new URLSearchParams(window.location.search).get("focus");
+  const steps = [];
+  modules.forEach(function (row) {
+    if (row.step != null && steps.indexOf(row.step) === -1) {
+      steps.push(row.step);
+    }
+  });
+  steps.sort(function (a, b) {
+    return a - b;
+  });
+  if (steps.length) {
+    const legend = document.createElement("ul");
+    legend.className = "step-legend";
+    steps.forEach(function (step) {
+      const item = document.createElement("li");
+      item.className = "graph-node step-" + step;
+      item.textContent = "step " + step;
+      legend.appendChild(item);
+    });
+    const stage = canvas.closest(".graph-stage") || canvas;
+    stage.after(legend);
+  }
+
+  const badges = document.getElementById("graph-badges");
+  function placeBadges() {
+    if (!badges) {
+      return;
+    }
+    badges.replaceChildren();
+    cy.nodes().forEach(function (node) {
+      const text = indexText({
+        node_id: node.data("node_id"),
+        module_id: node.data("module_id"),
+        step: node.data("step"),
+      });
+      if (!text) {
+        return;
+      }
+      const box = node.renderedBoundingBox({
+        includeLabels: false,
+        includeOverlays: false,
+      });
+      const width = box.x2 - box.x1;
+      const height = box.y2 - box.y1;
+      /* Sit inside the rounded rect. A 2px inset lands on the curve and
+         reads as text outside the card, and a second copy in the label
+         put the same index in the centre once zoomed. */
+      const insetX = Math.max(10, width * 0.08);
+      const insetY = Math.max(8, height * 0.18);
+      const font = Math.max(9, Math.min(height * 0.2, 14));
+      const badge = document.createElement("span");
+      badge.className = "graph-node-index";
+      badge.textContent = text;
+      badge.style.setProperty("--x", Math.round(box.x1 + insetX) + "px");
+      badge.style.setProperty("--y", Math.round(box.y1 + insetY) + "px");
+      badge.style.setProperty("--index-size", Math.round(font) + "px");
+      badges.appendChild(badge);
+    });
+  }
+  cy.on("render", placeBadges);
+  placeBadges();
+
+  /* The lamp sends the module id here. A module waiting for a human is
+     already on the card. Opening the right migration and then leaving
+     the human to find one stalled node in a hundred is not opening it. */
+  const opened = document.getElementById("node-card");
+  const focus =
+    new URLSearchParams(window.location.search).get("focus") ||
+    (opened && opened.getAttribute("data-module-id")) ||
+    "";
   if (focus) {
     const stalled = cy.nodes().filter(function (node) {
-      return String(node.data("module_id")) === focus;
+      return String(node.data("module_id")) === String(focus);
     });
     if (stalled.length) {
       cy.nodes().unselect();
@@ -147,12 +349,108 @@
     });
   }
 
-  function post(url, body) {
-    return fetch(url, {
+  function applySkip(moduleId, wanted) {
+    return fetch("/tree/modules/" + moduleId + "/strike", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: "struck=" + wanted,
+    }).then(function (response) {
+      return response.json().then(function (body) {
+        const error = document.getElementById("node-card-error");
+        if (!response.ok) {
+          if (error) {
+            error.hidden = false;
+            error.textContent = body.error || "Could not update the module.";
+          }
+
+          return;
+        }
+        if (error) {
+          error.hidden = true;
+          error.textContent = "";
+        }
+        (body.modules || []).forEach(function (row) {
+          cy.nodes()
+            .filter(function (node) {
+              return String(node.data("module_id")) === String(row.id);
+            })
+            .data("struck_out", row.struck_out);
+        });
+        const open = selectedModules();
+        if (open.length === 1) {
+          fillCard(open[0]);
+        }
+      });
     });
+  }
+
+  const card = document.getElementById("node-card");
+  const cardEmpty = document.getElementById("node-card-empty");
+  const cardBody = document.getElementById("node-card-body");
+
+  function fillCard(node) {
+    if (!card || !cardBody || !cardEmpty || !node || !node.data("module_id")) {
+      return;
+    }
+    const moduleId = node.data("module_id");
+    const idx = indexText({
+      node_id: node.data("node_id"),
+      module_id: node.data("module_id"),
+      step: node.data("step"),
+    });
+    card.setAttribute("data-module-id", String(moduleId));
+    cardEmpty.hidden = true;
+    cardBody.hidden = false;
+    const indexEl = document.getElementById("node-card-index");
+    const nameEl = document.getElementById("node-card-name");
+    const statusEl = document.getElementById("node-card-status");
+    const skipEl = document.getElementById("node-card-skip");
+    const askForm = document.getElementById("node-card-ask");
+    const questionEl = document.getElementById("node-card-question");
+    const assumptionsEl = document.getElementById("node-card-assumptions");
+    if (indexEl) {
+      indexEl.textContent = idx;
+    }
+    if (nameEl) {
+      nameEl.textContent = node.id();
+    }
+    if (statusEl) {
+      statusEl.className = "badge " + (node.data("status") || "queued");
+      statusEl.textContent = node.data("status") || "queued";
+    }
+    if (skipEl) {
+      skipEl.textContent = node.data("struck_out") ? "Undo skip" : "Skip";
+    }
+    if (askForm) {
+      askForm.action = "/tree/modules/" + moduleId + "/answer";
+      askForm.hidden = node.data("status") !== "waiting_for_human";
+      const answerBox = askForm.querySelector("textarea[name='answer']");
+      const answerBtn = askForm.querySelector("button[type='submit']");
+      if (answerBox) {
+        answerBox.setAttribute("aria-label", "Answer for " + node.id());
+      }
+      if (answerBtn) {
+        answerBtn.setAttribute("aria-label", "Answer " + node.id());
+      }
+    }
+    if (questionEl) {
+      questionEl.textContent = node.data("question") || "";
+    }
+    if (assumptionsEl) {
+      assumptionsEl.hidden = !node.data("has_assumptions");
+    }
+  }
+
+  function hideCard() {
+    if (!card || !cardBody || !cardEmpty) {
+      return;
+    }
+    card.setAttribute("data-module-id", "");
+    cardEmpty.hidden = false;
+    cardBody.hidden = true;
   }
 
   const strike = document.getElementById("tree-strike");
@@ -174,14 +472,9 @@
         : "0";
       Promise.all(
         picks.map(function (node) {
-          return post(
-            "/tree/modules/" + node.data("module_id") + "/strike",
-            "struck=" + wanted
-          );
+          return applySkip(node.data("module_id"), wanted);
         })
-      ).then(function () {
-        window.location.reload();
-      });
+      );
     });
   }
 
@@ -248,6 +541,14 @@
     Promise.all(writes);
   });
 
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body,
+    });
+  }
+
   const migrate = document.getElementById("tree-migrate");
   const migrateCount = document.getElementById("tree-migrate-count");
   if (migrate) {
@@ -284,6 +585,32 @@
         }
       });
       batchGroup.value = groups.length === 1 ? String(groups[0]) : "";
+    });
+  }
+
+  cy.on("select unselect", "node", function () {
+    const picks = selectedModules();
+    if (picks.length === 1) {
+      fillCard(picks[0]);
+    } else {
+      hideCard();
+    }
+  });
+
+  if (card && selectedModules().length === 1) {
+    fillCard(selectedModules()[0]);
+  }
+
+  const cardSkip = document.getElementById("node-card-skip");
+  if (cardSkip) {
+    cardSkip.addEventListener("click", function () {
+      const picks = selectedModules();
+      if (picks.length !== 1) {
+        return;
+      }
+      const node = picks[0];
+      const wanted = node.data("struck_out") ? "0" : "1";
+      applySkip(node.data("module_id"), wanted);
     });
   }
 })();

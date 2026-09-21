@@ -22,6 +22,25 @@
   --warning: oklch(0.76 0.12 82);
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: system-ui, -apple-system, sans-serif;
+  /* Module-tree steps. Hues sit on opposite sides of the wheel so four
+     waves cannot collapse into two greys. --step-more is anything past eight. */
+  --step-1: oklch(0.58 0.12 205);
+  --step-1-edge: oklch(0.78 0.12 205);
+  --step-2: oklch(0.58 0.16 145);
+  --step-2-edge: oklch(0.76 0.16 145);
+  --step-3: oklch(0.68 0.16 55);
+  --step-3-edge: oklch(0.82 0.16 55);
+  --step-4: oklch(0.58 0.18 330);
+  --step-4-edge: oklch(0.76 0.16 330);
+  --step-5: oklch(0.55 0.14 275);
+  --step-5-edge: oklch(0.72 0.12 275);
+  --step-6: oklch(0.58 0.16 25);
+  --step-6-edge: oklch(0.72 0.16 25);
+  --step-7: oklch(0.70 0.16 90);
+  --step-7-edge: oklch(0.84 0.14 90);
+  --step-8: oklch(0.55 0.16 305);
+  --step-8-edge: oklch(0.72 0.14 305);
+  --step-more: oklch(0.50 0.04 250);
 }
 
 * {
@@ -774,6 +793,15 @@ h2 {
   padding: 0;
 }
 
+.graph-stage {
+  position: relative;
+  height: min(78vh, 760px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
 .graph-canvas {
   height: min(70vh, 640px);
   border: 1px solid var(--border);
@@ -781,18 +809,108 @@ h2 {
   background: var(--panel);
 }
 
+.graph-stage .graph-canvas {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.graph-badges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .graph-node {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px;
+  padding: 14px 12px 6px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--panel-raised);
 }
 
+.graph-node-index {
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  font-size: var(--index-size, 9px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  opacity: 0.85;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
+
+.node-card .graph-node-index {
+  position: static;
+  pointer-events: auto;
+  margin-right: 6px;
+}
+
+.node-card-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.node-card-body {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-card-body[hidden],
+.node-card-empty[hidden] {
+  display: none;
+}
+
+.graph-badges .graph-node-index {
+  top: var(--y);
+  left: var(--x);
+}
+
 .graph-node.struck {
   opacity: 0.55;
+}
+
+.graph-node.step-1 {
+  background: var(--step-1);
+  border-color: var(--step-1-edge);
+}
+
+.graph-node.step-2 {
+  background: var(--step-2);
+  border-color: var(--step-2-edge);
+}
+
+.graph-node.step-3 {
+  background: var(--step-3);
+  border-color: var(--step-3-edge);
+}
+
+.graph-node.step-4 {
+  background: var(--step-4);
+  border-color: var(--step-4-edge);
+}
+
+.step-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-legend .graph-node {
+  padding: 4px 10px;
 }
 
 .graph-node.struck .name {

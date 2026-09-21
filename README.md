@@ -148,7 +148,7 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    `http://127.0.0.1:8765`), optional n8n base URL and API key.
 3. **This migration** — attach or Up the two compose projects, pin a
    cartridge and a model wrapper, smoke-run one module before a batch.
-4. **Tree** — Resolve the graph from the live old Odoo. Strike, group,
+4. **Tree** — Resolve the graph from the live old Odoo. Skip, group,
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, open n8n in its own tab, observe Sheller
    without a write key. At checkpoint: diffs, attempts, findings to
@@ -318,4 +318,6 @@ custom properties (`--accent`).
 | `A smoke-run must pass before a batch.` | An installed cartridge whose smoke-run is not `passed`. With nothing installed the stub is allowed |
 | File API 403 | Path left the old or new project root, including a `..` that would have clamped back inside |
 | `database is locked` | A Peewee connection crossed a thread. Every operation is its own `connection_context()` |
+| `address already in use` on start | Another copy is already serving. uvicorn prints "Application startup complete" before it reports the bind failure, so a failed start reads like a successful one — check `lsof -nP -iTCP:8000 -sTCP:LISTEN` |
+| The process survives Ctrl-C / SIGTERM | Fixed: open SSE streams are woken on the signal. Before that the port was freed and the process stayed up for the rest of the stream's window |
 | Pages on `0.0.0.0` reachable from the LAN | `--host` was widened for n8n. The pages have no key. Bind loopback when n8n is not in the picture |

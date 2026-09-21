@@ -36,6 +36,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+class _Server(uvicorn.Server):
+    """Wake the SSE streams the moment the signal arrives.
+
+    uvicorn waits for in-flight requests before it runs lifespan shutdown,
+    and an SSE stream is in-flight for its whole window — so closing the
+    hub from lifespan is too late to help, and SIGTERM looked like a hang
+    that ended in SIGKILL. handle_exit runs first.
+    """
+
+    def handle_exit(self, sig, frame):
+        hub = getattr(getattr(self.config.app, "state", None), "hub", None)
+        if hub is not None:
+            hub.close()
+        super().handle_exit(sig, frame)
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -73,11 +89,18 @@ def main() -> None:
 
     from odoo_migrator.api import create_app
 
-    uvicorn.run(
-        create_app(),
-        host=args.host,
-        port=args.port,
+    app = create_app()
+    server = _Server(
+        uvicorn.Config(
+            app,
+            host=args.host,
+            port=args.port,
+            # A backstop. Nothing should reach it now that the streams are
+            # woken on the signal, but a hung request must not mean SIGKILL.
+            timeout_graceful_shutdown=10,
+        )
     )
+    server.run()
 
 
 if __name__ == "__main__":

@@ -66,6 +66,12 @@ one opens after it. The old container is read-only for the whole run, so
 one session opened at the start stays valid — do not apply the stricter
 rule to both sides.
 
+Resolve groups the module tree into **steps** (in-graph edges from a
+root, plus one — the same row the canvas draws). A later step cannot
+start until every module on an earlier step is passed or struck.
+Group/Ungroup still overlay a custom cut of this snapshot; Resolve
+redraws the waves from Odoo.
+
 ## Rules are per version, not per pair
 
 `rules/18.0.md` is the document for landing on 18.0. A 17→18 migration

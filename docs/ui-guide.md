@@ -47,8 +47,8 @@ The top bar is on every page.
   flight. It is a number, not a button.
 
 SSE is hooked on every page (`/static/sse.js`). Stage patches land on
-the module row and the Run pipeline without a reload. Reloading would
-wipe a half-typed notes field.
+the selected node card and the Run pipeline without a reload. Reloading
+would wipe a half-typed notes field.
 
 ## Overview
 
@@ -73,36 +73,48 @@ Settings and Tree.
 
 ## Tree
 
-The dependency graph for the open migration, plus a row per module.
+The dependency graph for the open migration. The canvas is the list.
 
 **Resolve** asks the old Odoo (through Sheller) for installed custom
-modules and their `depends`. The edges are the batch order: a single
-parent that dropped half of them on a real database also broke the
-queue. Resolve again after the old container changes.
+modules and their `depends`, then **groups them into steps**: a module's
+step is the number of in-graph edges from a root, plus one — the same
+row the canvas draws. Step 3 cannot start until every module on step 2
+is passed or struck. The edges are still the order *inside* a step.
+Each step has its own colour; the layout is the same dependency tree
+as before. Resolve again after the old container changes; that redraws
+the waves from the live graph.
 
 The canvas is Cytoscape. Box-select is on. Selection is additive.
+Each node shows its technical name. `#12/2` stays in the corner of the
+card, inside the shape; it is not repeated in the centre when you zoom.
+Colour follows the step, not a Group overlay, so a hand-drawn batch
+cannot collapse four waves into two. The number is assigned once and
+never reused if that module leaves the graph.
+
+Click a node. The card under the graph is that module and one action:
+**Skip** leaves it out of the migration, and every module that depends
+on it. **Undo skip** brings that subtree back, except a module that
+still depends on another skipped parent. When the status is
+`waiting_for_human` the same card has an **Answer** form. There is no
+row per module under the tree.
 
 | Control | What it does |
 |---|---|
-| **Strike** | One decision for the whole selection, not a toggle each. Anything unstruck in the pick means strike; otherwise bring them back. Pressing again is then an exact undo. A marquee that mixed an earlier mistake used to make it worse. Struck modules cannot start. |
-| **Group** | Assigns the selection the next batch number. Amber border. |
-| **Ungroup** | Clears the batch number. Group only ever assigned the next number, so a wrong grouping could not be undone — regrouping just climbed. |
-| **Migrate** | Exactly one unstruck module. Two is an error named on the next page, not a silent first-of-two. SSE patches the row; the page does not reload. |
-| **Batch** | The selected group's number. A smoke-run that has not passed blocks this once a cartridge is installed. Review the last checkpoint before starting another. |
+| **Skip** | One decision for the whole selection. Anything still in the pick means skip; otherwise bring them back. Skipping a module also skips every module that depends on it. Undo skip restores that subtree, except where another skipped parent still holds a module out. |
+| **Group** | Assigns the selection the next batch number, overlaying the step Resolve drew. Colour stays with the dependency step. |
+| **Ungroup** | Clears the batch number. Resolve will put the waves back. |
+| **Migrate** | Exactly one module that is not skipped. Two is an error named on the next page, not a silent first-of-two. SSE patches the selected card; the page does not reload. A later step is refused while an earlier one is still unfinished. |
+| **Batch** | The selected module's step. A later step is refused while an earlier one is still unfinished. A smoke-run that has not passed blocks this once a cartridge is installed. Review the last checkpoint before starting another. |
 
 Dragging a node onto another puts both in the same group (creating one
 if the target had none).
 
-Each module row: technical name, status, live stage from SSE, **Notes**
-(saved here, sent as `module_notes` in the next trigger), and when the
-status is `waiting_for_human` an **Answer** form. Answering POSTs to the
-job's resume webhook. A module that recorded assumptions at
-`batch_defer` keeps an `assumptions` badge until you read them at
-checkpoint.
+A module that recorded assumptions at `batch_defer` keeps an
+`assumptions` badge until you read them at checkpoint.
 
-The lamp's `?focus=` selects and centres that node. Opening the right
-migration and then leaving you to find one stalled node in a hundred is
-not opening the module.
+The lamp's `?focus=` selects and centres that node and opens its card.
+Opening the right migration and then leaving you to find one stalled
+node in a hundred is not opening the module.
 
 ## Run
 

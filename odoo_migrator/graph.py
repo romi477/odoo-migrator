@@ -79,12 +79,30 @@ def _module_row(module: Module, question: str | None = None) -> dict:
         "absent_from_odoo": bool(module.absent_from_odoo),
         "struck_out": bool(module.struck_out),
         "batch_group": module.batch_group,
+        "node_id": module.node_id,
         "status": module.status,
         "has_assumptions": bool(module.has_assumptions),
         "notes": module.notes or "",
         "question": question,
         "position": module.position,
     }
+
+
+def steps_for_migration(migration_id: str) -> dict[str, int]:
+    with database.connection_context():
+        rows = list(Module.select().where(Module.migration == migration_id))
+
+    return topological_steps(
+        {row.technical_name: json.loads(row.depends or "[]") for row in rows}
+    )
+
+
+def _attach_steps(listed: list[dict]) -> None:
+    ranks = topological_steps(
+        {row["technical_name"]: row["depends"] for row in listed}
+    )
+    for row in listed:
+        row["step"] = ranks.get(row["technical_name"])
 
 
 def list_modules(migration_id: str) -> list[dict]:
@@ -94,6 +112,12 @@ def list_modules(migration_id: str) -> list[dict]:
             .where(Module.migration == migration_id)
             .order_by(Module.technical_name)
         )
+        next_id = max((row.node_id for row in rows), default=0)
+        for row in rows:
+            if row.node_id == 0:
+                next_id += 1
+                row.node_id = next_id
+                row.save()
         waiting = [row.id for row in rows if row.status == "waiting_for_human"]
         questions: dict[int, str | None] = {}
         if waiting:
@@ -101,8 +125,10 @@ def list_modules(migration_id: str) -> list[dict]:
                 (Job.module.in_(waiting)) & (Job.status == "waiting_for_human")
             ):
                 questions[job.module_id] = job.question
+        listed = [_module_row(row, questions.get(row.id)) for row in rows]
+    _attach_steps(listed)
 
-        return [_module_row(row, questions.get(row.id)) for row in rows]
+    return listed
 
 
 # Odoo Enterprise Edition License. Measured on a real database: it marked
@@ -135,12 +161,16 @@ def is_odoos_own(row: dict) -> bool:
 
 
 def carries_human_work(module: Module) -> bool:
-    """Anything a person put on this module by hand."""
+    """Anything a person put on this module by hand.
+
+    ``batch_group`` is not this: Resolve draws the waves from the graph,
+    and a derived grouping is not a reason to keep a module Odoo no
+    longer reports.
+    """
 
     return bool(
         module.struck_out
         or module.notes
-        or module.batch_group is not None
         or module.has_assumptions
         or module.status != "queued"
     )
@@ -165,12 +195,14 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
             row.technical_name: row
             for row in Module.select().where(Module.migration == migration_id)
         }
+        next_id = max((row.node_id for row in existing.values()), default=0)
         for position, row in enumerate(kept):
             name = row["name"]
             # Every dependency inside the kept set, not one arbitrary parent.
             depends = json.dumps([dep for dep in (row.get("depends") or []) if dep in names])
             stored = existing.get(name)
             if stored is None:
+                next_id += 1
                 Module.create(
                     migration=migration_id,
                     technical_name=name,
@@ -179,8 +211,12 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
                     author=row.get("author") or "",
                     license=row.get("license") or "",
                     position=position,
+                    node_id=next_id,
                 )
             else:
+                if stored.node_id == 0:
+                    next_id += 1
+                    stored.node_id = next_id
                 stored.depends = depends
                 stored.addons_root = row.get("addons_root") or ""
                 stored.author = row.get("author") or ""
@@ -199,6 +235,24 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
                 stored.save()
             else:
                 stored.delete_instance()
+        if names:
+            kept_rows = list(
+                Module.select().where(
+                    (Module.migration == migration_id)
+                    & (Module.technical_name.in_(list(names)))
+                )
+            )
+            steps = topological_steps(
+                {
+                    row.technical_name: json.loads(row.depends or "[]")
+                    for row in kept_rows
+                }
+            )
+            for row in kept_rows:
+                step = steps[row.technical_name]
+                if row.batch_group != step:
+                    row.batch_group = step
+                    row.save()
 
     return list_modules(migration_id)
 
@@ -212,6 +266,107 @@ def set_struck(module_id: int, struck: bool | None = None) -> dict:
         module.save()
 
         return _module_row(module)
+
+
+def _downstream(rows: list[Module], start: str) -> list[str]:
+    by_name = {row.technical_name: row for row in rows}
+    children: dict[str, list[str]] = {name: [] for name in by_name}
+    for row in rows:
+        for dep in json.loads(row.depends or "[]"):
+            if dep in by_name:
+                children[dep].append(row.technical_name)
+    seen: set[str] = set()
+    order: list[str] = []
+    queue = [start]
+    while queue:
+        name = queue.pop(0)
+        if name in seen or name not in by_name:
+            continue
+        seen.add(name)
+        order.append(name)
+        queue.extend(children[name])
+
+    return order
+
+
+def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
+    """Leave a module out of the migration, and everything that depends on it.
+
+    Restoring brings that same downstream set back, except a module that
+    still depends on some other skipped parent.
+    """
+    with database.connection_context():
+        module = Module.get_or_none(Module.id == module_id)
+        if module is None:
+            raise GraphError("unknown module")
+        rows = list(Module.select().where(Module.migration == module.migration_id))
+        by_name = {row.technical_name: row for row in rows}
+        parents: dict[str, list[str]] = {name: [] for name in by_name}
+        for row in rows:
+            for dep in json.loads(row.depends or "[]"):
+                if dep in by_name:
+                    parents[row.technical_name].append(dep)
+        order = _downstream(rows, module.technical_name)
+        downstream = set(order)
+        wanted = (not module.struck_out) if struck is None else bool(struck)
+        if not wanted:
+            blocking = [
+                parent
+                for parent in parents[module.technical_name]
+                if by_name[parent].struck_out
+            ]
+            if blocking:
+                raise GraphError(
+                    f"Bring {blocking[0]} back before {module.technical_name}."
+                )
+        updated: list[Module] = []
+        for name in order:
+            row = by_name[name]
+            if not wanted and any(
+                by_name[parent].struck_out and parent not in downstream
+                for parent in parents[name]
+            ):
+                continue
+            if row.struck_out != wanted:
+                row.struck_out = wanted
+                row.save()
+            updated.append(row)
+
+        return [_module_row(row) for row in updated]
+
+
+def topological_steps(depends_by_name: dict[str, list[str]]) -> dict[str, int]:
+    """Visual row: in-graph edges from a root, plus one.
+
+    Roots (no parent in the kept set) are step 1. A child is one more
+    than the nearest parent — the same rank breadthfirst paints.
+    """
+    names = set(depends_by_name)
+    children: dict[str, list[str]] = {name: [] for name in names}
+    for name, deps in depends_by_name.items():
+        for dep in deps:
+            if dep in names:
+                children[dep].append(name)
+    roots = sorted(
+        name
+        for name, deps in depends_by_name.items()
+        if not any(dep in names for dep in deps)
+    )
+    rank = {name: 1 for name in roots}
+    queue = list(roots)
+    while queue:
+        name = queue.pop(0)
+        for child in children[name]:
+            if child not in rank:
+                rank[child] = rank[name] + 1
+                queue.append(child)
+    leftover = [name for name in names if name not in rank]
+    if leftover:
+        bump = max(rank.values(), default=0) + 1
+        for name in leftover:
+            rank[name] = bump
+
+    return rank
 
 
 def modules_in_batch_order(migration_id: str, batch_group: int) -> list[dict]:
@@ -255,6 +410,37 @@ def modules_in_batch_order(migration_id: str, batch_group: int) -> list[dict]:
     ordered.extend(leftover)
 
     return [_module_row(row) for row in ordered]
+
+
+def earlier_steps_blocking(migration_id: str, step: int | None) -> str | None:
+    """A later wave does not start while an earlier one is still unfinished.
+
+    Struck modules are out of the plan. Failed, queued, running and
+    waiting_for_human on a previous step all block.
+    """
+    if step is None or step <= 1:
+
+        return None
+    with database.connection_context():
+        rows = list(
+            Module.select().where(
+                (Module.migration == migration_id) & (Module.struck_out == False)
+            )
+        )
+    ranks = topological_steps(
+        {row.technical_name: json.loads(row.depends or "[]") for row in rows}
+    )
+    blockers = [
+        row
+        for row in rows
+        if row.status != "passed" and ranks.get(row.technical_name, 1) < step
+    ]
+    if not blockers:
+
+        return None
+    earliest = min(ranks[row.technical_name] for row in blockers)
+
+    return f"Step {step} cannot start until step {earliest} is migrated."
 
 
 def set_batch_group(module_id: int, batch_group: int | None) -> dict:

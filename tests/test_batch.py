@@ -20,6 +20,10 @@ def _prepared(client, name="Acme"):
     save_side_container(row.id, "old", "odoo-old")
     save_side_container(row.id, "new", "odoo-new")
     client.post("/tree/resolve", follow_redirects=True)
+    helper = _named(row.id, "web_enterprise_helper")
+    # Resolve puts the helper on step 1 with sale_custom. Tests that then
+    # group sale+stock as a two-module batch would otherwise pick it up.
+    client.post(f"/tree/modules/{helper['id']}/batch", data={"batch_group": ""})
 
     return row, _named(row.id, "sale_custom")
 
@@ -272,6 +276,23 @@ def test_a_restart_does_not_leave_a_batch_running_for_ever(client):
     )
 
     assert "already running" not in again.text
+
+
+def test_a_later_step_cannot_run_until_earlier_steps_are_done(client):
+    """Resolve already grouped sale_custom as step 1 and stock_custom as
+    step 2. Starting the second wave while the first is still queued is
+    the thing grouping exists to prevent."""
+    row, _sale = _prepared(client)
+    stock = _named(row.id, "stock_custom")
+
+    page = client.post(
+        "/tree/batch/run", data={"batch_group": "2"}, follow_redirects=True
+    )
+
+    assert page.status_code == 200
+    assert "cannot start until step" in page.text.lower()
+    with database.connection_context():
+        assert Job.select().join(Module).where(Module.id == stock["id"]).count() == 0
 
 
 def test_the_lamp_points_at_the_stalled_module_not_only_its_migration(client):

@@ -97,11 +97,12 @@ side that contained the module's technical name as a folder. Stock
 `Mark passed` logs an attempt; File API writes fill an empty `diff`.
 Writes to the old project are not this job's diff.
 
-**Strike vs archive?**
+**Skip vs archive?**
 
-Strike hides modules from Migrate/Batch (and is its own undo). Archive
-takes a whole migration off Overview. Opening another migration never
-archives the one you left.
+Skip (the tree button; the row flag is still `struck_out`) hides
+modules from Migrate/Batch and is its own undo. Archive takes a whole
+migration off Overview. Opening another migration never archives the
+one you left.
 
 ## n8n
 

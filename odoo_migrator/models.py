@@ -100,6 +100,9 @@ class Module(BaseModel):
     author = TextField(default="")
     license = TextField(default="")
     batch_group = IntegerField(null=True)
+    # Stable serial on the canvas. Assigned once, max+1, never compacted
+    # when a module leaves the graph.
+    node_id = IntegerField(default=0)
     position = IntegerField(default=0)
     strictness = CharField(null=True)
 

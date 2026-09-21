@@ -131,13 +131,81 @@ def test_tree_script_enables_marquee_and_batch_drag(client):
     assert "batch_group" in script.text
 
 
+def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
+    """Compound boxes made the tree unreadable. The old layout stays;
+    each step gets its own colour from the stylesheet."""
+    script = client.get("/static/tree.js")
+    css = client.get("/static/style.css")
+
+    assert script.status_code == 200
+    assert "breadthfirst" in script.text
+    assert "preset" not in script.text
+    assert ":parent" not in script.text
+    assert "step_color" in script.text
+    # Cytoscape's colour parser drops oklch(); the script must resolve to rgb/hex.
+    assert "oklch" in script.text
+    assert "rgb(1, 2, 3)" in script.text
+    assert "--step-1" in css.text
+    assert "--step-2" in css.text
+    assert "--step-3" in css.text
+    assert "--step-4" in css.text
+    assert "step-legend" in script.text
+    assert "node_id" in script.text
+    assert "graph-node-index" in script.text
+    assert " · step " not in script.text
+    assert "colourForStep(row.step" in script.text
+    assert "Number(row.node_id)" in script.text
+    assert "module_id || row.id" in script.text
+    assert "serial + \"/\" +" in script.text
+    assert ".graph-node-index" in css.text
+    assert "stepsFromDepends" in script.text
+    assert "node-card" in script.text
+    assert "INDEX_ZOOM" not in script.text
+    assert "skip_subtree" not in script.text
+    assert "Accept" in script.text
+    assert "application/json" in script.text
+
+
+def test_tree_json_carries_node_id_and_step(client):
+    _resolved(client)
+    html = client.get("/tree").text
+
+    assert '"node_id": 1' in html or '"node_id":1' in html
+    assert '"step": 1' in html or '"step":1' in html
+    assert '"step": 2' in html or '"step":2' in html
+    assert 'id="graph-badges"' in html
+    assert "graph-stage" in html
+    assert "module-rows" not in html
+    assert 'id="node-card"' in html
+    assert ">Skip<" in html
+
+
 def test_styleguide_has_a_graph_node_and_a_struck_node(client):
     html = client.get("/styleguide").text
 
     assert "Module graph" in html
     assert "graph-node" in html
     assert "struck" in html
+    assert "mig_test_base" in html
+    assert "graph-node step-1" in html
+    assert "graph-node step-2" in html
+    assert "step-legend" in html
+    assert "graph-node-index" in html
+    assert "#1/1" in html
+    assert ">Skip<" in html
+    assert 'id="node-card"' in html or "node-card" in html
+
+
+def test_focus_opens_the_node_card_for_that_module(client):
+    """The lamp used to land on a hundred-row list. The graph is the
+    list; focus fills the one card for that module."""
+    _id, modules = _resolved(client)
+    custom = modules["sale_custom"]
+    html = client.get(f"/tree?focus={custom['id']}").text
+
+    assert f'data-module-id="{custom["id"]}"' in html
     assert "sale_custom" in html
+    assert ">Skip<" in html
 
 
 def _resolved(client):

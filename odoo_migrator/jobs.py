@@ -15,7 +15,11 @@ from odoo_migrator.contract import (
 )
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
-from odoo_migrator.graph import modules_in_batch_order
+from odoo_migrator.graph import (
+    earlier_steps_blocking,
+    modules_in_batch_order,
+    steps_for_migration,
+)
 from odoo_migrator.models import (
     Assumption,
     Attempt,
@@ -155,6 +159,17 @@ def start_job(
             raise ContractError(
                 f"{module_row.technical_name} is struck out. Bring it back first."
             )
+        name = module_row.technical_name
+    step = steps_for_migration(migration_id).get(name)
+    # A batch already passed the wave check to start. Re-checking here
+    # stopped a mixed Group: stock (step 2) waited for every step-1
+    # module on the tree, including ones the operator left out of the batch.
+    blocked = None
+    if not smoke and batch_id is None:
+        blocked = earlier_steps_blocking(migration_id, step)
+    if blocked:
+        raise ContractError(blocked)
+    with database.connection_context():
         # Two presses of Migrate used to mean two executors rewriting the same
         # files, and whichever answered last decided the module's fate.
         busy = (
@@ -164,7 +179,7 @@ def start_job(
         )
         if busy:
             raise AlreadyRunning(
-                f"{module_row.technical_name} is already being migrated."
+                f"{name} is already being migrated."
             )
         if batch_id is None and Batch.select().where(
             (Batch.migration == migration_id) & (Batch.status == "checkpoint")
@@ -281,6 +296,11 @@ def start_batch(
     ordered = modules_in_batch_order(migration_id, batch_group)
     if not ordered:
         raise ContractError("That batch is empty. Group modules on the tree first.")
+    ranks = steps_for_migration(migration_id)
+    wave = min(ranks.get(row["technical_name"], 1) for row in ordered)
+    blocked = earlier_steps_blocking(migration_id, wave)
+    if blocked:
+        raise ContractError(blocked)
     with database.connection_context():
         busy = (
             Batch.select()

@@ -391,12 +391,15 @@ def test_loopback_app_base_url_is_loud_on_migrate(client):
         assert Job.select().count() == 0
 
 
-def test_tree_rows_carry_module_id_for_sse_patches(client):
-    _row, custom = _prepared(client)
+def test_tree_node_card_is_the_sse_patch_target(client):
+    """The graph is the list. The one selected module is the row SSE
+    patches — not a hundred cards under the canvas."""
+    _prepared(client)
     html = client.get("/tree").text
 
-    assert f'data-module-id="{custom["id"]}"' in html
-    assert "badge queued" in html
+    assert 'id="node-card"' in html
+    assert "data-module-id" in html
+    assert "module-rows" not in html
 
 
 def test_styleguide_shows_a_patchable_module_row(client):
@@ -565,3 +568,38 @@ class _ParkedExecutor:
 
     def start(self, payload: dict) -> None:
         self.payloads.append(payload)
+
+
+def test_closing_the_hub_wakes_a_parked_subscriber():
+    """An SSE stream sits in a blocking read. Until the hub could wake it,
+    SIGTERM freed the port and left the process alive for the rest of the
+    stream's window — which read as a hang and ended in SIGKILL."""
+    from odoo_migrator.events import CLOSED, EventHub
+
+    hub = EventHub()
+    subscribed = hub.subscribe()
+
+    hub.close()
+
+    assert hub.closed is True
+    assert subscribed.get(timeout=1) is CLOSED
+
+
+def test_the_signal_handler_closes_the_hub_before_uvicorn_waits(tmp_path):
+    """uvicorn runs lifespan shutdown only after in-flight requests finish,
+    and an SSE stream is in-flight for its whole window — so closing the hub
+    from lifespan is too late to help."""
+    import uvicorn
+
+    from odoo_migrator.__main__ import _Server
+    from odoo_migrator.api import create_app
+
+    app = create_app(tmp_path / "sig.sqlite", compose=FakeComposeEngine(), api_key="k")
+    server = _Server(uvicorn.Config(app, host="127.0.0.1", port=0))
+
+    assert app.state.hub.closed is False
+
+    server.handle_exit(15, None)
+
+    assert app.state.hub.closed is True
+    assert server.should_exit is True

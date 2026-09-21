@@ -5,6 +5,7 @@ import json
 import queue
 import secrets
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -25,7 +26,7 @@ from odoo_migrator.authkey import API_KEY_HEADER, KEY_FILENAME, load_or_create
 from odoo_migrator.cartridges import list_installs, smoke_run
 from odoo_migrator.contract import ContractError, ProgressPayload, ResultPayload
 from odoo_migrator.db import init_db
-from odoo_migrator.events import EventHub
+from odoo_migrator.events import CLOSED, EventHub
 from odoo_migrator.executor import StubExecutor
 from odoo_migrator.files import PathEscapes, read_text, resolve_in_root, write_text
 from odoo_migrator.graph import (
@@ -34,7 +35,7 @@ from odoo_migrator.graph import (
     module_for_migration,
     resolve_graph,
     set_batch_group,
-    set_struck,
+    skip_subtree,
 )
 from odoo_migrator.jobs import (
     UnknownJob,
@@ -143,7 +144,21 @@ def create_app(
     n8n=None,
 ) -> FastAPI:
     resolved_db = init_db(db_path)
-    app = FastAPI(title="odoo-migrator", version=app_version(), docs_url=None)
+    @asynccontextmanager
+    async def lifespan(running: FastAPI):
+        yield
+        # Shutdown. Every open SSE stream is parked on a blocking read and
+        # would otherwise hold the process up for its whole window: SIGTERM
+        # freed the port and the process stayed alive, which reads as a
+        # hang and ends in SIGKILL.
+        running.state.hub.close()
+
+    app = FastAPI(
+        title="odoo-migrator",
+        version=app_version(),
+        docs_url=None,
+        lifespan=lifespan,
+    )
     app.state.compose = compose if compose is not None else DockerComposeEngine()
     app.state.sheller = sheller
     app.state.sheller_http = sheller_http
@@ -233,12 +248,24 @@ def create_app(
     def _tree_page(request: Request, error: str | None = None):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         modules = list_modules(current["id"]) if current is not None else []
+        focus = request.query_params.get("focus")
+        selected = None
+        if focus:
+            selected = next(
+                (row for row in modules if str(row["id"]) == focus),
+                None,
+            )
+        if selected is None:
+            selected = next(
+                (row for row in modules if row.get("status") == "waiting_for_human"),
+                None,
+            )
 
         return _page(
             request,
             "tree.html",
             "tree",
-            {"modules": modules, "error": error},
+            {"modules": modules, "error": error, "selected": selected},
         )
 
     def _wrong_key(request: Request) -> JSONResponse | None:
@@ -436,12 +463,26 @@ def create_app(
 
             return RedirectResponse("/tree", status_code=303)
         wanted = None if not struck.strip() else struck.strip() == "1"
+        wants_json = "application/json" in request.headers.get("accept", "")
         try:
             module_for_migration(current["id"], module_id)
-            set_struck(module_id, wanted)
+            updated = skip_subtree(module_id, wanted)
         except GraphError as refused:
+            if wants_json:
+
+                return JSONResponse({"error": str(refused)}, status_code=400)
 
             return _tree_page(request, error=str(refused))
+        if wants_json:
+
+            return JSONResponse(
+                {
+                    "modules": [
+                        {"id": row["id"], "struck_out": row["struck_out"]}
+                        for row in updated
+                    ]
+                }
+            )
 
         return RedirectResponse("/tree", status_code=303)
 
@@ -911,16 +952,23 @@ def create_app(
                 yield f'event: running\ndata: {{"count": {running_migration_count()}}}\n\n'
                 yield f'event: lamp\ndata: {{"state": "{lamp_state()}"}}\n\n'
                 deadline = time.monotonic() + SSE_MAX_SECONDS
-                while time.monotonic() < deadline:
+                hub = request.app.state.hub
+                while time.monotonic() < deadline and not hub.closed:
                     if await request.is_disconnected():
                         break
                     try:
-                        event, data = await asyncio.to_thread(
+                        item = await asyncio.to_thread(
                             subscribed.get, True, SSE_HEARTBEAT_SECONDS
                         )
                     except queue.Empty:
                         yield ": ping\n\n"
                         continue
+                    if item is CLOSED:
+                        # The app is going down. The browser reconnects on
+                        # its own; holding the stream open only keeps the
+                        # process alive.
+                        break
+                    event, data = item
                     yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
             finally:
                 request.app.state.hub.unsubscribe(subscribed)
