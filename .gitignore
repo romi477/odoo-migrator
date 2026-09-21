@@ -11,3 +11,6 @@ data/*.sqlite
 data/*.db
 
 docs_
+
+# Local n8n choices (packaging/n8n.sh reads this; compose substitutes from it)
+n8n/.env

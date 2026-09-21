@@ -19,7 +19,21 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 COMPOSE_FILE=n8n/compose.yml
+ENV_FILE=n8n/.env
 KEY_FILE="$HOME/.odoo-migrator/api.key"
+
+# Local choices, so the port does not have to be retyped on every command.
+# compose reads this file for its own substitution; the script needs the
+# same values for the readiness poll and the webhook address, so it reads
+# it too. Anything already in the environment wins.
+if [ -f "$ENV_FILE" ]; then
+    saved_port="${N8N_HOST_PORT:-}"
+    saved_url="${N8N_BASE_URL:-}"
+    . "./$ENV_FILE"
+    [ -n "$saved_port" ] && N8N_HOST_PORT="$saved_port"
+    [ -n "$saved_url" ] && N8N_BASE_URL="$saved_url"
+fi
+
 PORT="${N8N_HOST_PORT:-5678}"
 BASE_URL="${N8N_BASE_URL:-http://127.0.0.1:$PORT}"
 
@@ -95,16 +109,21 @@ port_is_free() {
     fi
 }
 
+ours_running() {
+    # --status rather than reading the STATUS column: its wording is
+    # compose's to change, and an id is an id.
+    [ -n "$(compose ps --status running -q n8n 2>/dev/null)" ]
+}
+
 require_port() {
     port_is_free && return 0
     # Ours already serving there is not a clash: `up` is idempotent.
-    if [ -n "$(compose ps -q n8n 2>/dev/null)" ] && compose ps n8n 2>/dev/null | grep -q "Up "; then
-
-        return 0
-    fi
+    ours_running && return 0
     die "port $PORT is already listening, and it is not our n8n.
-  Pick another: N8N_HOST_PORT=5679 $0 up
-  The address n8n builds its webhook URLs from follows it, so the two cannot drift."
+  Once, so you stop retyping it:  echo N8N_HOST_PORT=5679 >> $ENV_FILE
+  Or for this command only:       N8N_HOST_PORT=5679 $0 up
+  The address n8n builds its webhook URLs from follows the port, so the
+  two cannot drift."
 }
 
 case "${1:-up}" in

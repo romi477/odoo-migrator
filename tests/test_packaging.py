@@ -115,3 +115,30 @@ def test_the_key_is_minted_rather_than_demanded(tmp_path):
 
     assert (tmp_path / KEY_FILENAME).stat().st_mode & 0o077 == 0
     assert load_or_create(tmp_path / KEY_FILENAME) == minted
+
+
+def test_the_port_choice_can_be_made_once(tmp_path):
+    """Retyping N8N_HOST_PORT on every command is the thing packaging/
+    exists to remove. The default collides with an Odoo container on the
+    machine this was written on."""
+    body = _script("n8n.sh").read_text(encoding="utf-8")
+
+    assert "n8n/.env" in body
+    # Anything already in the environment wins over the file.
+    assert "saved_port" in body
+
+    ignored = subprocess.run(
+        ["git", "check-ignore", "n8n/.env"],
+        cwd=PACKAGING.parent,
+        capture_output=True,
+        check=False,
+    )
+    assert ignored.returncode == 0, "n8n/.env is a local choice, not a committed one"
+
+
+def test_ours_running_is_not_read_off_a_status_column():
+    """The wording of compose's STATUS column is compose's to change."""
+    body = _script("n8n.sh").read_text(encoding="utf-8")
+
+    assert "--status running -q" in body
+    assert 'grep -q "Up ' not in body
