@@ -20,7 +20,9 @@
   {% if migrations %}
   <ul class="migration-list">
     {% for migration in migrations %}
-    <li class="row-card" style="--accent: {{ migration.accent_color }}">
+    {% set open_here = expanded and expanded.id == migration.id %}
+    <li class="row-card{% if open_here %} expanded{% endif %}"
+        id="m-{{ migration.id }}" style="--accent: {{ migration.accent_color }}">
       <span class="accent-dot" style="--accent: {{ migration.accent_color }}"></span>
       <span class="identity">
         <span class="name-line">
@@ -32,6 +34,14 @@
       <form method="post" action="/migrations/{{ migration.id }}/open">
         <button type="submit" class="primary">Open</button>
       </form>
+      {# Settings belong to the migration, so they open inside its own row.
+         A link rather than a script: expanding reaches Docker for the two
+         compose projects, and that is the server's work either way. #}
+      <a class="button-link{% if open_here %} active{% endif %}"
+         href="{% if open_here %}/{% else %}/?settings={{ migration.id }}#m-{{ migration.id }}{% endif %}"
+         title="{% if open_here %}Hide{% else %}Show{% endif %} the settings of {{ migration.name }}"
+         aria-label="{% if open_here %}Hide{% else %}Show{% endif %} the settings of {{ migration.name }}"
+         aria-expanded="{{ 'true' if open_here else 'false' }}">Settings</a>
       <form method="post" action="/migrations/{{ migration.id }}/archive">
         {# The name is carried as the accessible name and the tooltip, not as
            visible text: this row already shows it a few centimetres to the
@@ -43,6 +53,9 @@
                 title="Archive {{ migration.name }}"
                 aria-label="Archive {{ migration.name }}">Archive</button>
       </form>
+      {% if open_here %}
+      {% include "migration_settings.html" %}
+      {% endif %}
     </li>
     {% endfor %}
   </ul>

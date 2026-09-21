@@ -376,9 +376,9 @@ def create_app(
         )
 
     @app.get("/")
-    def overview(request: Request):
+    def overview(request: Request, settings: str = ""):
 
-        return _page(request, "overview.html", "overview")
+        return _overview(request, expanded=settings or None)
 
     @app.post("/migrations")
     def migrations_create(
@@ -722,7 +722,6 @@ def create_app(
             "settings.html",
             "settings",
             {
-                "settings_tab": "app",
                 # The key itself is never rendered: a secret echoed into every
                 # page render lands in view-source and in any screenshot of
                 # this screen, for no gain.
@@ -775,51 +774,68 @@ def create_app(
 
         return paths
 
-    def _migration_settings_page(request: Request, error: str | None = None):
-        current = get_active(request.cookies.get(OPEN_COOKIE))
+    def _migration_provision(request: Request, migration: dict) -> tuple[dict, str | None]:
+        """Container state for one migration's two sides.
+
+        This reaches Docker, so it is built for the row that is expanded and
+        no other: a list of twenty migrations would otherwise probe forty
+        compose projects to draw a page nobody asked to expand.
+        """
+        engine = request.app.state.compose
+        old_path = Path(migration["old_project_path"])
+        new_path = Path(migration["new_project_path"])
+        try:
+
+            return {
+                "old": describe_side(engine, old_path, sibling_path=new_path),
+                "new": describe_side(engine, new_path, sibling_path=old_path),
+                "resources": count_running(engine, _known_project_paths()),
+            }, None
+        except DockerUnavailable as exc:
+            detail = str(exc)
+
+            return {
+                "old": describe_side_without_listing(old_path, detail=detail),
+                "new": describe_side_without_listing(new_path, detail=detail),
+                "resources": None,
+            }, detail
+
+    def _overview(
+        request: Request,
+        *,
+        expanded: str | None = None,
+        error: str | None = None,
+    ):
+        """Overview, with one migration's settings open inside its own row.
+
+        Which migration is *open* and which row is *expanded* are different
+        questions. Settings belong to the migration they are for, so they
+        are reached from its row and act on its id, not on whatever the
+        switcher happens to be showing.
+        """
+        migration = get_active(expanded) if expanded else None
         provision = None
-        if current is not None:
-            engine = request.app.state.compose
-            old_path = Path(current["old_project_path"])
-            new_path = Path(current["new_project_path"])
-            try:
-                provision = {
-                    "old": describe_side(engine, old_path, sibling_path=new_path),
-                    "new": describe_side(engine, new_path, sibling_path=old_path),
-                    "resources": count_running(
-                        engine, _known_project_paths()
-                    ),
-                }
-            except DockerUnavailable as exc:
-                detail = str(exc)
-                if error is None:
-                    error = detail
-                provision = {
-                    "old": describe_side_without_listing(old_path, detail=detail),
-                    "new": describe_side_without_listing(new_path, detail=detail),
-                    "resources": None,
-                }
+        if migration is not None:
+            provision, unreachable = _migration_provision(request, migration)
+            if error is None:
+                error = unreachable
 
         return _page(
             request,
-            "settings_migration.html",
-            "settings",
+            "overview.html",
+            "overview",
             {
-                "settings_tab": "migration",
-                "error": error,
+                "expanded": migration,
                 "provision": provision,
-                "cartridges": list_installs(),
+                "cartridges": list_installs() if migration else [],
+                "error": error,
             },
         )
 
-    @app.get("/settings/migration")
-    def migration_settings(request: Request):
-
-        return _migration_settings_page(request)
-
-    @app.post("/settings/migration")
+    @app.post("/migrations/{migration_id}/settings")
     def migration_settings_save(
         request: Request,
+        migration_id: str,
         strictness_default: str = Form(),
         retry_limit: str = Form(),
         ask_human_mode: str = Form(),
@@ -830,17 +846,18 @@ def create_app(
         """Every rejection says so. Silently discarding what someone typed
         into a settings form and re-rendering the old values is the worst
         failure this screen can have: it looks exactly like success."""
-        current = get_active(request.cookies.get(OPEN_COOKIE))
-        if current is None:
+        if get_active(migration_id) is None:
 
-            return _migration_settings_page(
-                request, "Open a migration before changing its settings."
-            )
+            return _overview(request, error="No such migration.")
         try:
             limit = int(retry_limit)
         except ValueError:
 
-            return _migration_settings_page(request, "Retry limit must be a whole number.")
+            return _overview(
+                request,
+                expanded=migration_id,
+                error="Retry limit must be a whole number.",
+            )
         if cartridge_id and "@" in cartridge_id:
             # The picker carries id and version together. It used to post the
             # id alone beside a hidden field holding whatever version was
@@ -848,7 +865,7 @@ def create_app(
             # version of the same one — kept the old number.
             cartridge_id, _, cartridge_version = cartridge_id.partition("@")
         if save_migration_settings(
-            current["id"],
+            migration_id,
             strictness_default=strictness_default,
             retry_limit=limit,
             ask_human_mode=ask_human_mode,
@@ -857,70 +874,82 @@ def create_app(
             model_webhook_path=model_webhook_path,
         ) is None:
 
-            return _migration_settings_page(request, "Those settings were rejected. Nothing saved.")
-
-        return RedirectResponse("/settings/migration", status_code=303)
-
-    @app.post("/settings/migration/smoke")
-    def migration_smoke(request: Request):
-        current = get_active(request.cookies.get(OPEN_COOKIE))
-        if current is None:
-
-            return _migration_settings_page(
-                request, "Open a migration before a smoke-run."
+            return _overview(
+                request,
+                expanded=migration_id,
+                error="Those settings were rejected. Nothing saved.",
             )
+
+        return RedirectResponse(f"/?settings={migration_id}", status_code=303)
+
+    @app.post("/migrations/{migration_id}/smoke")
+    def migration_smoke(request: Request, migration_id: str):
+        if get_active(migration_id) is None:
+
+            return _overview(request, error="No such migration.")
         try:
             status = smoke_run(
-                current["id"], request.app.state.executor, request.app.state.hub
+                migration_id, request.app.state.executor, request.app.state.hub
             )
         except ContractError as exc:
 
-            return _migration_settings_page(request, str(exc))
+            return _overview(request, expanded=migration_id, error=str(exc))
         if status not in ("passed", "failed"):
             # A real cartridge answers minutes later. Calling that a failure
             # was how every batch ended up blocked for ever.
 
-            return _migration_settings_page(
+            return _overview(
                 request,
-                "Smoke-run started. A batch will not start until its result "
-                "arrives and passes.",
+                expanded=migration_id,
+                error=(
+                    "Smoke-run started. A batch will not start until its "
+                    "result arrives and passes."
+                ),
             )
         if status != "passed":
 
-            return _migration_settings_page(
-                request, "Smoke-run failed. A batch will not start until it passes."
+            return _overview(
+                request,
+                expanded=migration_id,
+                error="Smoke-run failed. A batch will not start until it passes.",
             )
 
-        return RedirectResponse("/settings/migration", status_code=303)
+        return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 
-    @app.post("/settings/migration/containers/{side}/{action}")
-    def provision_container(request: Request, side: str, action: str):
-        current = get_active(request.cookies.get(OPEN_COOKIE))
-        if current is None:
+    @app.post("/migrations/{migration_id}/containers/{side}/{action}")
+    def provision_container(
+        request: Request, migration_id: str, side: str, action: str
+    ):
+        migration = get_active(migration_id)
+        if migration is None:
 
-            return _migration_settings_page(
-                request, "Open a migration before changing its containers."
-            )
+            return _overview(request, error="No such migration.")
         handler = PROVISION_ACTIONS.get(action)
         if side not in ("old", "new") or handler is None:
 
-            return _migration_settings_page(
-                request, "That container action was rejected. Nothing changed."
+            return _overview(
+                request,
+                expanded=migration_id,
+                error="That container action was rejected. Nothing changed.",
             )
         path = Path(
-            current["old_project_path"] if side == "old" else current["new_project_path"]
+            migration["old_project_path"]
+            if side == "old"
+            else migration["new_project_path"]
         )
         sibling = Path(
-            current["new_project_path"] if side == "old" else current["old_project_path"]
+            migration["new_project_path"]
+            if side == "old"
+            else migration["old_project_path"]
         )
         try:
             result = handler(request.app.state.compose, path, sibling_path=sibling)
         except ComposeError as exc:
 
-            return _migration_settings_page(request, str(exc))
-        save_side_container(current["id"], side, result.container)
+            return _overview(request, expanded=migration_id, error=str(exc))
+        save_side_container(migration_id, side, result.container)
 
-        return RedirectResponse("/settings/migration", status_code=303)
+        return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 
     @app.get("/sse")
     async def sse(request: Request):

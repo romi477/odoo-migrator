@@ -32,8 +32,6 @@
         <a href="/tree"{% if active == 'tree' %} class="active"{% endif %} data-screen="tree" title="Module dependency tree for the open migration.">Tree</a>
         <span class="nav-divider" aria-hidden="true"></span>
         <a href="/run"{% if active == 'run' %} class="active"{% endif %} data-screen="run" title="Live pipeline workspace.">Run</a>
-        <span class="nav-divider" aria-hidden="true"></span>
-        <a href="/settings"{% if active == 'settings' %} class="active"{% endif %} data-screen="settings" title="App and migration settings.">Settings</a>
       </div>
       <div class="nav-end">
         <div
@@ -69,6 +67,12 @@
           {% endif %}
         </div>
         <a href="/styleguide"{% if active == 'styleguide' %} class="active"{% endif %} data-screen="styleguide" title="Every component rendered once, so the stylesheet is reviewable.">Styleguide</a>
+        {# App-wide settings only. What belongs to one migration lives in
+           that migration's own row on Overview. #}
+        <a href="/settings" class="gear{% if active == 'settings' %} active{% endif %}"
+           data-screen="settings"
+           title="App settings — shared by every migration"
+           aria-label="App settings">⚙</a>
         <a href="/attention" class="attention-lamp {{ lamp }}"
            title="{% if lamp == 'needs-attention' %}A module is waiting. Open it.{% else %}Nothing needs attention.{% endif %}">
           <span class="lamp-dot"></span>

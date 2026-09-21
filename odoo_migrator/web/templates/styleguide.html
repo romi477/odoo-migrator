@@ -299,4 +299,28 @@
   ends while this screen is open — a link, not a reload, because the page
   may hold a half-typed answer.</p>
 </section>
+
+  <section class="guide-row">
+    <h2>Migration row, settings open</h2>
+    <p>App-wide settings are the gear in the bar. What belongs to one
+    migration opens inside that migration's own row.</p>
+    <ul class="migration-list">
+      <li class="row-card expanded" style="--accent: oklch(0.70 0.15 305)">
+        <span class="accent-dot" style="--accent: oklch(0.70 0.15 305)"></span>
+        <span class="identity">
+          <span class="name-line">
+            <span class="name mono">Acme</span>
+            <span class="badge idle">idle</span>
+          </span>
+          <span class="mono">17.0 &rarr; 18.0</span>
+        </span>
+        <button type="button" class="primary">Open</button>
+        <a class="button-link active" href="#">Settings</a>
+        <button type="button" class="danger">Archive</button>
+        <div class="card-settings">
+          <p class="resource-honesty">2 of this app's containers running, 9 containers on this machine</p>
+        </div>
+      </li>
+    </ul>
+  </section>
 {% endblock %}

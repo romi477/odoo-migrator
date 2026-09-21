@@ -238,7 +238,7 @@ def test_migration_settings_pin_the_cartridge_and_the_wrapper(client):
             smoke_status="passed",
         )
     page = client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={
             "strictness_default": "basic",
             "retry_limit": "5",
@@ -255,7 +255,7 @@ def test_migration_settings_pin_the_cartridge_and_the_wrapper(client):
         stored = Migration.get_by_id(row.id)
     assert stored.cartridge_id == "stock"
     assert stored.model_webhook_path == "migrate-module-openai"
-    assert 'name="cartridge_id"' in client.get("/settings/migration").text
+    assert 'name="cartridge_id"' in client.get(f"/?settings={row.id}").text
     assert "smoke" in client.get("/styleguide").text.lower()
 
 
@@ -282,12 +282,12 @@ def test_a_smoke_run_waits_for_its_result_before_judging(client):
     batch needs a passed one, every batch was blocked for ever."""
     from odoo_migrator.cartridges import list_installs
 
-    _row, sale = _prepared(client)
+    row, sale = _prepared(client)
     _group(client, sale)
     executor = DeferredExecutor(client.app)
     client.app.state.executor = executor
 
-    page = client.post("/settings/migration/smoke", follow_redirects=True)
+    page = client.post(f"/migrations/{row.id}/smoke", follow_redirects=True)
 
     assert "Smoke-run failed" not in page.text
     assert [install["smoke_status"] for install in list_installs()] == ["running"]
@@ -311,11 +311,11 @@ def test_a_smoke_run_waits_for_its_result_before_judging(client):
 def test_a_smoke_run_that_fails_late_still_blocks_the_batch(client):
     from odoo_migrator.cartridges import list_installs
 
-    _row, sale = _prepared(client)
+    row, sale = _prepared(client)
     _group(client, sale)
     executor = DeferredExecutor(client.app)
     client.app.state.executor = executor
-    client.post("/settings/migration/smoke", follow_redirects=True)
+    client.post(f"/migrations/{row.id}/smoke", follow_redirects=True)
 
     executor.answer("failed")
 
@@ -332,7 +332,7 @@ def test_the_picker_pins_a_version_not_just_a_name(client):
     cartridge — or a different cartridge — kept the old number."""
     from odoo_migrator.cartridges import CartridgeManifest, record_install
 
-    _prepared(client)
+    row, _sale = _prepared(client)
     record_install(
         CartridgeManifest(
             id="stock",
@@ -349,12 +349,12 @@ def test_the_picker_pins_a_version_not_just_a_name(client):
             webhook_path="migrate-module",
         )
     )
-    page = client.get("/settings/migration").text
+    page = client.get(f"/?settings={row.id}").text
 
     assert 'value="stock@1.1.0"' in page
 
     client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={
             "strictness_default": "basic",
             "retry_limit": "5",

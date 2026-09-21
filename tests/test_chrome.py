@@ -35,7 +35,16 @@ def test_chrome_brand_bar_is_present(client, path, active, heading):
     assert "odoo-migrator." in html
     assert 'class="nav-tabs"' in html
     assert 'class="nav-end"' in html
-    assert f'href="{path}" class="active"' in html
+    # The anchor, not a fixed attribute order: app settings are a gear with
+    # its own class now, and the question is only whether the screen you are
+    # on is marked as the current one.
+    # Found by data-screen, not by href: the brand is also a link to "/",
+    # and it is not the nav item for the screen you are on.
+    anchor = re.search(rf'<a[^>]*data-screen="{active}"[^>]*>', html)
+
+    assert anchor is not None, f"no nav link for {active}"
+    assert f'href="{path}"' in anchor.group(0)
+    assert "active" in anchor.group(0)
     assert f'data-screen="{active}"' in html
 
 

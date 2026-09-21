@@ -22,18 +22,32 @@ def _create(client, name="Acme"):
     )
 
 
-def test_app_settings_and_migration_settings_are_separate_screens(client):
+def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client):
+    """App-wide settings are behind the gear. A migration's own settings
+    belong to that migration, so they open inside its row on Overview and
+    act on its id — not on whatever the switcher is showing."""
+    _create(client, "Acme")
+    with database.connection_context():
+        row = Migration.get(Migration.name == "Acme")
+
     app_page = client.get("/settings").text
-    mig_page = client.get("/settings/migration").text
 
-    assert "App settings" in app_page
     assert 'name="n8n_base_url"' in app_page
-    assert "This migration" in app_page
     assert 'name="strictness_default"' not in app_page
+    assert "/settings/migration" not in app_page
 
-    assert "This migration" in mig_page
-    assert "Open a migration" in mig_page
-    assert 'name="n8n_base_url"' not in mig_page
+    nav = client.get("/").text
+
+    assert 'class="gear' in nav
+    assert 'aria-label="App settings"' in nav
+    assert 'name="strictness_default"' not in nav
+
+    expanded = client.get(f"/?settings={row.id}").text
+
+    assert 'name="strictness_default"' in expanded
+    assert f'action="/migrations/{row.id}/settings"' in expanded
+    assert f'action="/migrations/{row.id}/containers/old/up"' in expanded
+    assert 'name="n8n_base_url"' not in expanded
 
 
 def test_n8n_base_url_saves_and_stays_off_other_pages(client):
@@ -83,7 +97,7 @@ def test_migration_settings_save_on_the_open_migration(client):
         row = Migration.get(Migration.name == "Acme")
     client.post(f"/migrations/{row.id}/open", follow_redirects=True)
     page = client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={
             "strictness_default": "enhanced",
             "retry_limit": "8",
@@ -115,13 +129,13 @@ def test_archive_button_names_the_migration_accessibly(client):
 
 def test_migration_settings_say_when_nothing_was_saved(client):
     """Re-rendering the old values with no message looks exactly like success."""
-    no_migration_open = client.post(
-        "/settings/migration",
+    unknown = client.post(
+        "/migrations/nobody/settings",
         data={"strictness_default": "basic", "retry_limit": "5", "ask_human_mode": "sync"},
         follow_redirects=True,
     )
 
-    assert "Open a migration before changing its settings." in no_migration_open.text
+    assert "No such migration." in unknown.text
 
     _create(client, "Acme")
     with database.connection_context():
@@ -129,7 +143,7 @@ def test_migration_settings_say_when_nothing_was_saved(client):
     client.post(f"/migrations/{row.id}/open", follow_redirects=True)
 
     not_a_number = client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={"strictness_default": "basic", "retry_limit": "soon", "ask_human_mode": "sync"},
         follow_redirects=True,
     )
@@ -137,7 +151,7 @@ def test_migration_settings_say_when_nothing_was_saved(client):
     assert "Retry limit must be a whole number." in not_a_number.text
 
     rejected = client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={"strictness_default": "paranoid", "retry_limit": "5", "ask_human_mode": "sync"},
         follow_redirects=True,
     )

@@ -1,0 +1,86 @@
+{# One migration's own settings, inside its row on Overview. They act on
+   this migration's id, not on whichever one the switcher is showing: a
+   card's settings belong to the card. #}
+<div class="card-settings">
+  {% if provision %}
+  <p class="resource-honesty">
+    {% if provision.resources is none %}
+    Docker Engine is not reachable; container counts are unknown.
+    {% else %}
+    {{ provision.resources.ours }} of this app's containers running,
+    {{ provision.resources.total }} containers on this machine
+    {% endif %}
+  </p>
+  <div class="container-sides">
+    {% for side, status in [("old", provision.old), ("new", provision.new)] %}
+    <div class="card container-side">
+      <h3>{{ side }} container</h3>
+      <p class="mono">{{ expanded.old_project_path if side == "old" else expanded.new_project_path }}</p>
+      <p>
+        <span class="badge {{ status.state }}">{{ status.state }}</span>
+        {% if status.container %}
+        <span class="mono">{{ status.container }}</span>
+        {% endif %}
+      </p>
+      {% if status.detail %}
+      <p class="field-hint">{{ status.detail }}</p>
+      {% endif %}
+      <div class="side-actions">
+        {# The migration and the side are the card's heading and the row's,
+           so spelling them out on all eight buttons wrapped every one of
+           them over two lines. They stay as the accessible name, where they
+           are read out in full and shown on hover. #}
+        {% for action, label in [("up", "Up"), ("attach", "Attach"), ("restart", "Restart"), ("rebuild", "Rebuild")] %}
+        <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/{{ action }}">
+          <button type="submit"{% if action == "up" %} class="primary"{% endif %}
+                  title="{{ label }} the {{ side }} container of {{ expanded.name }}"
+                  aria-label="{{ label }} the {{ side }} container of {{ expanded.name }}">{{ label }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">
+    <label>Strictness
+      <select name="strictness_default">
+        <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
+        <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
+      </select>
+    </label>
+    <label>Retry limit
+      <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
+    </label>
+    <label>Ask-human mode
+      <select name="ask_human_mode">
+        <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
+        <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
+      </select>
+    </label>
+    <label>Cartridge
+      <select name="cartridge_id">
+        {% for item in cartridges %}
+        <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
+        {% else %}
+        <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Model wrapper
+      <select name="model_webhook_path">
+        <option value="migrate-module"{% if expanded.model_webhook_path == "migrate-module" %} selected{% endif %}>stock (migrate-module)</option>
+        <option value="migrate-module-openai"{% if expanded.model_webhook_path == "migrate-module-openai" %} selected{% endif %}>openai</option>
+        <option value="migrate-module-claude"{% if expanded.model_webhook_path == "migrate-module-claude" %} selected{% endif %}>claude</option>
+      </select>
+    </label>
+    <button type="submit" class="primary">Save {{ expanded.name }}</button>
+  </form>
+
+  <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/smoke">
+    <p>Smoke-run the first module through the pinned cartridge. A failed run
+    blocks a batch.</p>
+    <button type="submit">Smoke-run</button>
+  </form>
+</div>

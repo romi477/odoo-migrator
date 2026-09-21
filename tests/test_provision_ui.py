@@ -41,8 +41,8 @@ def test_project_setup_names_the_migration_on_every_container_action(client, tmp
     new = tmp_path / "new"
     _compose(old, 8069)
     _compose(new, 8070)
-    _open_migration(client, old=old, new=new)
-    page = client.get("/settings/migration").text
+    _, row = _open_migration(client, old=old, new=new)
+    page = client.get(f"/?settings={row.id}").text
 
     # The name is the accessible name, not the visible label: as text on all
     # eight buttons it wrapped every one of them over two lines, repeating
@@ -64,7 +64,7 @@ def test_up_persists_the_container_name_on_the_migration(client, tmp_path, compo
     _, row = _open_migration(client, old=old, new=new)
 
     page = client.post(
-        "/settings/migration/containers/old/up",
+        f"/migrations/{row.id}/containers/old/up",
         follow_redirects=True,
     )
 
@@ -82,7 +82,7 @@ def test_up_says_so_when_the_port_belongs_to_someone_else(client, tmp_path, comp
     new = tmp_path / "new"
     _compose(old, 8069)
     _compose(new, 8070)
-    _open_migration(client, old=old, new=new)
+    _, row = _open_migration(client, old=old, new=new)
     compose.add_container(
         name="someone-elses-odoo",
         image="odoo:17.0",
@@ -92,7 +92,7 @@ def test_up_says_so_when_the_port_belongs_to_someone_else(client, tmp_path, comp
     )
 
     page = client.post(
-        "/settings/migration/containers/old/up",
+        f"/migrations/{row.id}/containers/old/up",
         follow_redirects=True,
     )
 
@@ -109,10 +109,10 @@ def test_missing_compose_is_loud_not_silent(client, tmp_path):
     new = tmp_path / "new"
     old.mkdir()
     new.mkdir()
-    _open_migration(client, old=old, new=new)
+    _, row = _open_migration(client, old=old, new=new)
 
     page = client.post(
-        "/settings/migration/containers/old/up",
+        f"/migrations/{row.id}/containers/old/up",
         follow_redirects=True,
     )
 

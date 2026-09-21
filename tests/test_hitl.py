@@ -255,9 +255,9 @@ def test_a_restart_does_not_forget_a_job_waiting_for_a_human(client):
 
 
 def test_batch_defer_flags_a_green_module_that_carried_assumptions(client):
-    _row, sale = _prepared(client)
+    row, sale = _prepared(client)
     client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={
             "strictness_default": "basic",
             "retry_limit": "3",
@@ -281,9 +281,9 @@ def test_batch_defer_flags_a_green_module_that_carried_assumptions(client):
 
 
 def test_the_trigger_carries_batch_defer(client):
-    _row, sale = _prepared(client)
+    row, sale = _prepared(client)
     client.post(
-        "/settings/migration",
+        f"/migrations/{row.id}/settings",
         data={
             "strictness_default": "basic",
             "retry_limit": "3",
