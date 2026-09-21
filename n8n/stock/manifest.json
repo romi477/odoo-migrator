@@ -1,0 +1,17 @@
+{
+  "id": "stock",
+  "version": "1.0.0",
+  "contract_version": "1",
+  "webhook_path": "migrate-module",
+  "wrappers": {
+    "openai": "migrate-module-openai",
+    "claude": "migrate-module-claude"
+  },
+  "capabilities": {
+    "ask_human_mode": [
+      "sync",
+      "batch_defer"
+    ],
+    "reprobe": true
+  }
+}

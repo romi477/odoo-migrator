@@ -1,0 +1,109 @@
+{
+  "name": "sheller-upgrade-module",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"name": "container", "value": "={{ $json.containers.new }}", "type": "string"},
+            {"name": "allow_commit", "value": true, "type": "boolean"}
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "use-new",
+      "name": "Use new container",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "value": "stock:sheller-open-session", "mode": "id"}
+      },
+      "id": "open-new",
+      "name": "Open new session",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('When Called').item.json.sheller_base_url }}/api/sessions/{{ $json.id }}/exec",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-Odoo-Migrator-Key", "value": "={{ $env.MIGRATOR_API_KEY }}"},
+            {"name": "X-OS-Session-Key", "value": "={{ $json.write_key }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ code: \"env['ir.module.module'].search([('name','=\", \"'\" + $('When Called').item.json.module.technical_name + \"')]).button_immediate_upgrade()\" }) }}",
+        "options": {}
+      },
+      "id": "upgrade",
+      "name": "Upgrade module",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('When Called').item.json.sheller_base_url }}/api/sessions/{{ $('Open new session').item.json.id }}/commit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-Odoo-Migrator-Key", "value": "={{ $env.MIGRATOR_API_KEY }}"},
+            {"name": "X-OS-Session-Key", "value": "={{ $('Open new session').item.json.write_key }}"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "commit",
+      "name": "Commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $('When Called').item.json;\nconst opened = $('Open new session').item.json;\nreturn [{ json: { ...job, new_session_id: opened.id, new_write_key: opened.write_key, upgrade_ok: true } }];"
+      },
+      "id": "keep-ok",
+      "name": "Keep job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $('When Called').item.json;\nconst opened = $('Open new session').item.json || {};\nreturn [{ json: { ...job, new_session_id: opened.id, new_write_key: opened.write_key, upgrade_ok: false, passed: false } }];"
+      },
+      "id": "keep-fail",
+      "name": "Upgrade failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 240]
+    }
+  ],
+  "connections": {
+    "When Called": {"main": [[{"node": "Use new container", "type": "main", "index": 0}]]},
+    "Use new container": {"main": [[{"node": "Open new session", "type": "main", "index": 0}]]},
+    "Open new session": {"main": [[{"node": "Upgrade module", "type": "main", "index": 0}]]},
+    "Upgrade module": {"main": [[{"node": "Commit", "type": "main", "index": 0}], [{"node": "Upgrade failed", "type": "main", "index": 0}]]},
+    "Commit": {"main": [[{"node": "Keep job", "type": "main", "index": 0}]]}
+  },
+  "settings": {}
+}

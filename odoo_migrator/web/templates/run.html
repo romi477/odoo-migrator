@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}odoo-migrator — run{% endblock %}
+{% block screen %}
+<section class="screen">
+  <header class="screen-head">
+    <div>
+      <h1>Run</h1>
+      {% if checkpoint %}
+      <p>Review this batch before the next one. Cartridge
+      <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
+      {% elif live %}
+      <p><span class="mono">{{ live.module }}</span> is {{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}.</p>
+      {% elif current %}
+      <p>No module is running.</p>
+      {% else %}
+      <p>Open a migration to watch a run.</p>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if error %}
+  <p class="form-error">{{ error }}</p>
+  {% endif %}
+
+  <p class="checkpoint-ready" data-checkpoint-ready hidden>
+    This batch has finished. <a href="/run">Reload to review it.</a>
+  </p>
+
+  <div class="workspace">
+    <article class="workspace-panel"
+             data-pipeline
+             {% if current %}data-migration-id="{{ current.id }}"{% endif %}
+             {% if live %}data-module-id="{{ live.module_id }}"{% endif %}>
+      <h2>Pipeline</h2>
+      <div class="pipeline-live"{% if not live %} hidden{% endif %}>
+        <header class="name-line">
+          <span class="name mono" data-pipeline-module>{% if live %}{{ live.module }}{% endif %}</span>
+          <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
+        </header>
+        <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
+      </div>
+      <p data-pipeline-empty{% if live %} hidden{% endif %}>No module is running.</p>
+    </article>
+
+    <article class="workspace-panel n8n-stub">
+      <h2>n8n</h2>
+      <p>The canvas is not embedded. Open the executor in its own tab.</p>
+      {% if n8n_base_url %}
+      <a href="{{ n8n_base_url }}" target="_blank" rel="noopener">Open in n8n</a>
+      {% else %}
+      <p>Set the n8n base URL in settings.</p>
+      {% endif %}
+    </article>
+
+    <article class="workspace-panel observer">
+      <h2>Sheller</h2>
+      {# Sheller's /web has no session deep-link — only ?app for the desktop
+         frame. Observer mode is this frame not holding a write key. The
+         session id is shown so a human can pick the tab. Do not append
+         ?session= — Sheller ignores it and it would look like we picked one. #}
+      <p class="mono" data-session>{% if live and live.session_id %}{{ live.session_id }}{% else %}No live session yet.{% endif %}</p>
+      {% if sheller_web_url %}
+      <iframe title="Sheller observer" src="{{ sheller_web_url }}"></iframe>
+      {% else %}
+      {# An empty src is not an empty frame: the browser resolves it to the
+         current document and loads this page inside itself. #}
+      <p>Set the Sheller base URL in settings.</p>
+      {% endif %}
+    </article>
+  </div>
+
+  {% if checkpoint %}
+  <div class="checkpoint">
+    <div class="row">
+      <form method="post" action="/run/continue">
+        <button type="submit" class="primary"{% if checkpoint.unread %} disabled{% endif %}
+                aria-label="Continue {{ current.name }}">Continue</button>
+      </form>
+      {% if checkpoint.unread %}
+      <form method="post" action="/run/continue">
+        <input type="hidden" name="override" value="1">
+        <button type="submit"
+                aria-label="Override unread stalls on {{ current.name }}">Override</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% for job in checkpoint.jobs %}
+    <article class="card job-review">
+      <header class="name-line">
+        <span class="name mono">{{ job.module }}</span>
+        <span class="badge {{ job.status }}">{{ job.status }}</span>
+        {% if job.reviewed %}
+        <span class="badge">dismissed</span>
+        {% endif %}
+      </header>
+      {% if job.stalled %}
+      <form method="post" action="/run/jobs/{{ job.id }}/dismiss">
+        <button type="submit" aria-label="Dismiss {{ job.module }}">Dismiss</button>
+      </form>
+      {% endif %}
+      {% if job.question %}
+      <p class="question">{{ job.question }}</p>
+      {% endif %}
+      {% if job.answer %}
+      <p>{{ job.answer }}</p>
+      {% endif %}
+      {% for attempt in job.attempts %}
+      <section class="attempt">
+        <p>attempt {{ attempt.iteration }} · {{ attempt.verdict }}</p>
+        {% if attempt.diagnosis %}
+        <p class="diagnosis">{{ attempt.diagnosis }}</p>
+        {% endif %}
+        {% if attempt.diff %}
+        <pre class="diff">{{ attempt.diff }}</pre>
+        {% endif %}
+        {% if attempt.test_output %}
+        <pre class="test-output">{{ attempt.test_output }}</pre>
+        {% endif %}
+      </section>
+      {% endfor %}
+      {% for finding in job.findings %}
+      <section class="finding">
+        <p>{{ finding.text }} <span class="mono">{{ finding.source }}</span></p>
+        {% if finding.promoted_to_version %}
+        <p>promoted to <span class="mono">{{ finding.promoted_to_version }}</span></p>
+        {% else %}
+        <form class="promote" method="post" action="/run/findings/{{ finding.id }}/promote">
+          <label>
+            Version file
+            <select name="version" required aria-label="Version file for this finding">
+              <option value="">Pick a version file</option>
+              {% for version in versions %}
+              <option value="{{ version }}">{{ version }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="submit" aria-label="Promote finding to a version file">Promote</button>
+        </form>
+        {% endif %}
+      </section>
+      {% endfor %}
+      {% for assumption in job.assumptions %}
+      <section class="assumption">
+        <p>{{ assumption.question }}</p>
+        <p>{{ assumption.assumption }}</p>
+      </section>
+      {% endfor %}
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

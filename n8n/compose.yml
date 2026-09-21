@@ -1,0 +1,33 @@
+# Stock n8n for the migrator. Pin 2.39.9: the spike pulled the floating
+# tag, which reported 2.39.9, and pinning the cartridge to "2.39.x" while
+# composing an unpinned tag cannot both stay true.
+#
+# N8N_WEBHOOK_URL is the address the *app* uses to resume and to store the
+# production webhook. It is not hardcoded: 5678 was already taken on the
+# spike machine. extra_hosts is how the container reaches the app on Linux;
+# Sheller is never this container's 127.0.0.1 — only the app's proxy.
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.39.9
+    ports:
+      - "${N8N_HOST_PORT:-5678}:5678"
+    environment:
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      GENERIC_TIMEZONE: UTC
+      MIGRATOR_API_KEY: ${MIGRATOR_API_KEY:-}
+      # Every node that calls the app reads the key as $env.MIGRATOR_API_KEY.
+      # n8n's docs give this default as false, and its own v20 breaking
+      # changes flip it to true. On the wrong side of that the header goes
+      # out empty and the app answers 403 — stated here rather than left to
+      # whichever default the image happens to ship.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:

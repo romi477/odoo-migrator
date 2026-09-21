@@ -1,0 +1,71 @@
+{
+  "name": "sheller-open-session",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.sheller_base_url }}/api/probe",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-Odoo-Migrator-Key", "value": "={{ $env.MIGRATOR_API_KEY }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ container: $json.container }) }}",
+        "options": {}
+      },
+      "id": "probe",
+      "name": "Probe container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('When Called').item.json.sheller_base_url }}/api/sessions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-Odoo-Migrator-Key", "value": "={{ $env.MIGRATOR_API_KEY }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ container: $('When Called').item.json.container, database: $json.db_name, odoo_bin: $json.odoo_bin, owner: { kind: 'agent', label: 'n8n-migrator', migration_id: $('When Called').item.json.migration_id }, allow_commit: $('When Called').item.json.allow_commit, autoclose: false }) }}",
+        "options": {}
+      },
+      "id": "open",
+      "name": "Open session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $('When Called').item.json;\nconst opened = $json;\nreturn [{ json: { ...job, id: opened.id, write_key: opened.write_key } }];"
+      },
+      "id": "keep",
+      "name": "Keep job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "When Called": {"main": [[{"node": "Probe container", "type": "main", "index": 0}]]},
+    "Probe container": {"main": [[{"node": "Open session", "type": "main", "index": 0}]]},
+    "Open session": {"main": [[{"node": "Keep job", "type": "main", "index": 0}]]}
+  },
+  "settings": {}
+}

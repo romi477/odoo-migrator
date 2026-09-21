@@ -1,0 +1,13 @@
+.venv/
+.vscode/
+.superpowers/
+__pycache__/
+
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.cursor/
+data/*.sqlite
+data/*.db
+
+docs_

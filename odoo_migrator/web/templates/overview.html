@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}odoo-migrator — overview{% endblock %}
+{% block screen %}
+<section class="screen">
+  <header class="screen-head">
+    <div>
+      <h1>Migrations</h1>
+      {% if not migrations %}
+      <p>No migrations yet.</p>
+      {% else %}
+      <p>Opening one never stops another. The switcher only changes what is on screen.</p>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if error %}
+  <p class="form-error">{{ error }}</p>
+  {% endif %}
+
+  {% if migrations %}
+  <ul class="migration-list">
+    {% for migration in migrations %}
+    <li class="row-card" style="--accent: {{ migration.accent_color }}">
+      <span class="accent-dot" style="--accent: {{ migration.accent_color }}"></span>
+      <span class="identity">
+        <span class="name-line">
+          <span class="name mono">{{ migration.name }}</span>
+          <span class="badge {{ migration.status }}">{{ migration.status }}</span>
+        </span>
+        <span class="mono">{{ migration.source_version }} → {{ migration.target_version }}</span>
+      </span>
+      <form method="post" action="/migrations/{{ migration.id }}/open">
+        <button type="submit" class="primary">Open</button>
+      </form>
+      <form method="post" action="/migrations/{{ migration.id }}/archive">
+        {# The name is carried as the accessible name and the tooltip, not as
+           visible text: this row already shows it a few centimetres to the
+           left, and spelling it out again wraps the button over three lines
+           and breaks the row. Actions that sit away from their row — rebuild
+           a container, start a batch, continue past a checkpoint — do need
+           the name in view. #}
+        <button type="submit" class="danger"
+                title="Archive {{ migration.name }}"
+                aria-label="Archive {{ migration.name }}">Archive</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <form class="card create-migration" method="post" action="/migrations">
+    <h2>Create migration</h2>
+    <label>Name <input name="name" required></label>
+    <fieldset>
+      <legend>Accent</legend>
+      <div class="accent-picks">
+        {% for key, value in accents.items() %}
+        <label class="accent-pick">
+          <input type="radio" name="accent" value="{{ key }}"{% if key == suggested_accent %} checked{% endif %}>
+          <span class="accent-dot" style="--accent: {{ value }}"></span>
+          {{ key }}
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <label>Source <input class="mono" name="source_version" value="17.0" required></label>
+    <label>Target <input class="mono" name="target_version" value="18.0" required></label>
+    <label>Old project <input class="mono" name="old_project_path" required></label>
+    <label>New project <input class="mono" name="new_project_path" required></label>
+    <button type="submit" class="primary">Create</button>
+  </form>
+</section>
+{% endblock %}

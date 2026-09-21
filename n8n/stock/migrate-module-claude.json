@@ -1,0 +1,31 @@
+{
+  "name": "migrate-module-claude",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "migrate-module-claude",
+        "responseMode": "onReceived"
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "value": "stock:migrate-one-module", "mode": "id"}
+      },
+      "id": "loop",
+      "name": "Run stock loop",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [220, 0]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Run stock loop", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

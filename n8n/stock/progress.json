@@ -1,0 +1,38 @@
+{
+  "name": "progress",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.progress_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-Odoo-Migrator-Key", "value": "={{ $env.MIGRATOR_API_KEY }}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ job_id: $json.job_id, stage: $json.stage, attempt: $json.attempt || 1 }) }}",
+        "options": {}
+      },
+      "id": "post",
+      "name": "Post progress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    }
+  ],
+  "connections": {
+    "When Called": {"main": [[{"node": "Post progress", "type": "main", "index": 0}]]}
+  },
+  "settings": {}
+}

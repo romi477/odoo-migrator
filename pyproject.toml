@@ -1,0 +1,49 @@
+[project]
+name = "odoo-migrator"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "docker>=7",
+    "fastapi>=0.115",
+    "httpx2>=2",
+    "jinja2>=3.1",
+    "peewee>=3.17",
+    "python-multipart>=0.0.9",
+    "pydantic>=2",
+    "pyyaml>=6",
+    "uvicorn[standard]>=0.30",
+]
+
+[project.scripts]
+odoo-migrator = "odoo_migrator.__main__:main"
+
+[project.optional-dependencies]
+# httpx2, not httpx: starlette>=1.0 imports httpx2 in starlette.testclient and
+# warns that httpx is deprecated there.
+dev = ["pytest>=8", "httpx2>=2", "ruff>=0.6"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "httpx2>=2",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["odoo_migrator*"]
+
+[tool.setuptools.package-data]
+odoo_migrator = ["web/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: talks to a Sheller daemon that may not be running",
+]
+
+[tool.ruff]
+line-length = 100

@@ -1,0 +1,1258 @@
+{
+  "name": "migrate-one-module",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "migrate-module",
+        "responseMode": "onReceived"
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "when-called",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "attempt",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "name": "findings",
+              "value": "={{ [] }}",
+              "type": "array"
+            },
+            {
+              "name": "attempts",
+              "value": "={{ [] }}",
+              "type": "array"
+            },
+            {
+              "name": "assumptions",
+              "value": "={{ [] }}",
+              "type": "array"
+            },
+            {
+              "name": "stage",
+              "value": "understand",
+              "type": "string"
+            },
+            {
+              "name": "container",
+              "value": "={{ $json.containers.old }}",
+              "type": "string"
+            },
+            {
+              "name": "allow_commit",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "normalize",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:progress",
+          "mode": "id"
+        }
+      },
+      "id": "progress-understand",
+      "name": "Progress understand",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:sheller-open-session",
+          "mode": "id"
+        }
+      },
+      "id": "open-old",
+      "name": "Open old session",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "old_session_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "name": "old_write_key",
+              "value": "={{ $json.write_key }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "remember-old",
+      "name": "Remember old session",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:agent-understand",
+          "mode": "id"
+        }
+      },
+      "id": "understand",
+      "name": "Understand source",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "stage",
+              "value": "rewrite",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "stage-rewrite",
+      "name": "Stage rewrite",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:progress",
+          "mode": "id"
+        }
+      },
+      "id": "progress-rewrite",
+      "name": "Progress rewrite",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:agent-rewrite",
+          "mode": "id"
+        }
+      },
+      "id": "rewrite",
+      "name": "Rewrite module",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "stage",
+              "value": "upgrade",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "stage-upgrade",
+      "name": "Stage upgrade",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:progress",
+          "mode": "id"
+        }
+      },
+      "id": "progress-upgrade",
+      "name": "Progress upgrade",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:sheller-upgrade-module",
+          "mode": "id"
+        }
+      },
+      "id": "upgrade",
+      "name": "Upgrade module",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "upgrade-ok",
+              "leftValue": "={{ $json.upgrade_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "upgrade-ok",
+      "name": "Upgrade ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "stage",
+              "value": "tests",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "stage-tests",
+      "name": "Stage tests",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:progress",
+          "mode": "id"
+        }
+      },
+      "id": "progress-tests",
+      "name": "Progress tests",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:sheller-run-tests",
+          "mode": "id"
+        }
+      },
+      "id": "tests",
+      "name": "Run tests",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "passed",
+              "leftValue": "={{ $json.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "passed",
+      "name": "Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// A module that passes first time used to log no attempt at all,\n// so the checkpoint had nothing to hang the rewrite's diff on \u2014\n// the one outcome the human most wants to look at.\nconst job = $json;\nconst attempt = Number(job.attempt) || 1;\nconst out = job.test_output;\nreturn [{ json: { ...job, status: 'passed', attempts: [...(job.attempts || []), {\n  iteration: attempt,\n  verdict: 'passed',\n  test_output: typeof out === 'string' ? out : (out ? JSON.stringify(out) : ''),\n}] } }];"
+      },
+      "id": "mark-passed",
+      "name": "Mark passed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "stage",
+              "value": "diagnose",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "stage-diagnose",
+      "name": "Stage diagnose",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:progress",
+          "mode": "id"
+        }
+      },
+      "id": "progress-diagnose",
+      "name": "Progress diagnose",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:agent-diagnose",
+          "mode": "id"
+        }
+      },
+      "id": "diagnose",
+      "name": "Diagnose failure",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-human",
+              "leftValue": "={{ $json.needs_human }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "needs-human",
+      "name": "Needs human?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sync-ask",
+              "leftValue": "={{ $json.ask_human_mode }}",
+              "rightValue": "sync",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "sync-ask",
+      "name": "Sync ask?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Odoo-Migrator-Key",
+              "value": "={{ $env.MIGRATOR_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ job_id: $json.job_id, status: 'waiting_for_human', question: $json.question, resumeUrl: $execution.resumeUrl, current_session_id: $json.old_session_id }) }}",
+        "options": {}
+      },
+      "id": "park",
+      "name": "Park for human",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {}
+      },
+      "id": "wait",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4180,
+        240
+      ],
+      "webhookId": "stock-wait"
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $json;\nconst assumption = job.assumption || job.output || '';\nreturn [{ json: { ...job, needs_human: false, assumptions: [...(job.assumptions || []), { question: job.question, assumption }] } }];"
+      },
+      "id": "assume",
+      "name": "Record assumption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry",
+              "leftValue": "={{ $json.attempt }}",
+              "rightValue": "={{ $json.retry_limit }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry",
+      "name": "Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $json;\nconst attempt = Number(job.attempt) || 1;\nconst out = job.test_output;\nconst attempts = [...(job.attempts || []), {\n  iteration: attempt,\n  verdict: 'retry',\n  diagnosis: job.diagnosis || '',\n  // The app stores text. A failed run_test hands back an object.\n  test_output: typeof out === 'string' ? out : (out ? JSON.stringify(out) : ''),\n}];\nreturn [{ json: { ...job, attempts, attempt: attempt + 1, stage: 'rewrite', needs_human: false } }];"
+      },
+      "id": "bump",
+      "name": "Bump attempt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "reexamine",
+              "leftValue": "={{ $json.reexamine_old }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "reexamine",
+      "name": "Re-examine old?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "stage",
+              "value": "reprobe",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "stage-reprobe",
+      "name": "Stage reprobe",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:progress",
+          "mode": "id"
+        }
+      },
+      "id": "progress-reprobe",
+      "name": "Progress reprobe",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:agent-reprobe",
+          "mode": "id"
+        }
+      },
+      "id": "reprobe",
+      "name": "Probe old version",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $json;\nconst attempt = Number(job.attempt) || 1;\nconst out = job.test_output;\nconst attempts = [...(job.attempts || []), {\n  iteration: attempt,\n  verdict: 'failed',\n  diagnosis: job.diagnosis || '',\n  // The app stores text. A failed run_test hands back an object.\n  test_output: typeof out === 'string' ? out : (out ? JSON.stringify(out) : ''),\n}];\nreturn [{ json: { ...job, status: 'failed', attempts } }];"
+      },
+      "id": "mark-failed",
+      "name": "Mark failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:sheller-close-session",
+          "mode": "id"
+        }
+      },
+      "id": "close",
+      "name": "Close sessions",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "stock:callback-result",
+          "mode": "id"
+        }
+      },
+      "id": "callback",
+      "name": "Callback",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The Wait node's output is the resume request, not the job: the\n// spike measured $json.body.answer coming out of it. Everything\n// else \u2014 job_id, attempt, retry_limit, rules \u2014 is gone, so the\n// item is rebuilt from the last node that still had it.\nconst job = $('Before wait').first().json;\nconst body = $json.body || $json || {};\nconst answer = body.answer || '';\nreturn [{ json: { ...job, needs_human: false, human_answer: answer } }];"
+      },
+      "id": "resume-with-answer",
+      "name": "Resume with answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": []
+        },
+        "includeOtherFields": true
+      },
+      "id": "before-wait",
+      "name": "Before wait",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3760,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Called": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Progress understand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Progress understand": {
+      "main": [
+        [
+          {
+            "node": "Open old session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open old session": {
+      "main": [
+        [
+          {
+            "node": "Remember old session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remember old session": {
+      "main": [
+        [
+          {
+            "node": "Understand source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Understand source": {
+      "main": [
+        [
+          {
+            "node": "Stage rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage rewrite": {
+      "main": [
+        [
+          {
+            "node": "Progress rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Progress rewrite": {
+      "main": [
+        [
+          {
+            "node": "Rewrite module",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rewrite module": {
+      "main": [
+        [
+          {
+            "node": "Stage upgrade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage upgrade": {
+      "main": [
+        [
+          {
+            "node": "Progress upgrade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Progress upgrade": {
+      "main": [
+        [
+          {
+            "node": "Upgrade module",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upgrade module": {
+      "main": [
+        [
+          {
+            "node": "Upgrade ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upgrade ok?": {
+      "main": [
+        [
+          {
+            "node": "Stage tests",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stage diagnose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage tests": {
+      "main": [
+        [
+          {
+            "node": "Progress tests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Progress tests": {
+      "main": [
+        [
+          {
+            "node": "Run tests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run tests": {
+      "main": [
+        [
+          {
+            "node": "Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Passed?": {
+      "main": [
+        [
+          {
+            "node": "Mark passed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stage diagnose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark passed": {
+      "main": [
+        [
+          {
+            "node": "Close sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage diagnose": {
+      "main": [
+        [
+          {
+            "node": "Progress diagnose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Progress diagnose": {
+      "main": [
+        [
+          {
+            "node": "Diagnose failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diagnose failure": {
+      "main": [
+        [
+          {
+            "node": "Needs human?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs human?": {
+      "main": [
+        [
+          {
+            "node": "Sync ask?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync ask?": {
+      "main": [
+        [
+          {
+            "node": "Before wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record assumption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Park for human": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Resume with answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record assumption": {
+      "main": [
+        [
+          {
+            "node": "Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry?": {
+      "main": [
+        [
+          {
+            "node": "Bump attempt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bump attempt": {
+      "main": [
+        [
+          {
+            "node": "Re-examine old?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-examine old?": {
+      "main": [
+        [
+          {
+            "node": "Stage reprobe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rewrite module",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage reprobe": {
+      "main": [
+        [
+          {
+            "node": "Progress reprobe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Progress reprobe": {
+      "main": [
+        [
+          {
+            "node": "Probe old version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Probe old version": {
+      "main": [
+        [
+          {
+            "node": "Rewrite module",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark failed": {
+      "main": [
+        [
+          {
+            "node": "Close sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close sessions": {
+      "main": [
+        [
+          {
+            "node": "Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Before wait": {
+      "main": [
+        [
+          {
+            "node": "Park for human",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume with answer": {
+      "main": [
+        [
+          {
+            "node": "Bump attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "errorWorkflow": "stock:sheller-close-session",
+    "executionOrder": "v1"
+  }
+}
