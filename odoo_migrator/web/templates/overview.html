@@ -6,11 +6,18 @@
     <div>
       <h1>Migrations</h1>
       {% if not migrations %}
-      <p>No migrations yet.</p>
+      <p>No migrations yet. A migration is an old project and its version, a
+      new project and its version — everything else grows from that pair.</p>
       {% else %}
       <p>Opening one never stops another. The switcher only changes what is on screen.</p>
       {% endif %}
     </div>
+    {# A button, not a form that is always open: the form is six fields and
+       it was taking most of the screen to ask a question nobody had asked
+       yet. #}
+    {% if not creating %}
+    <a class="button-link primary" href="/?create=1#create">Create migration</a>
+    {% endif %}
   </header>
 
   {% if error %}
@@ -61,26 +68,31 @@
   </ul>
   {% endif %}
 
-  <form class="card create-migration" method="post" action="/migrations">
+  {% if creating %}
+  <form class="card create-migration" id="create" method="post" action="/migrations">
     <h2>Create migration</h2>
-    <label>Name <input name="name" required></label>
+    <label>Name <input name="name" value="{{ typed.name or "" }}" required></label>
     <fieldset>
       <legend>Accent</legend>
       <div class="accent-picks">
         {% for key, value in accents.items() %}
         <label class="accent-pick">
-          <input type="radio" name="accent" value="{{ key }}"{% if key == suggested_accent %} checked{% endif %}>
+          <input type="radio" name="accent" value="{{ key }}"{% if key == (typed.accent or suggested_accent) %} checked{% endif %}>
           <span class="accent-dot" style="--accent: {{ value }}"></span>
           {{ key }}
         </label>
         {% endfor %}
       </div>
     </fieldset>
-    <label>Source <input class="mono" name="source_version" value="17.0" required></label>
-    <label>Target <input class="mono" name="target_version" value="18.0" required></label>
-    <label>Old project <input class="mono" name="old_project_path" required></label>
-    <label>New project <input class="mono" name="new_project_path" required></label>
-    <button type="submit" class="primary">Create</button>
+    <label>Source <input class="mono" name="source_version" value="{{ typed.source_version or "17.0" }}" required></label>
+    <label>Target <input class="mono" name="target_version" value="{{ typed.target_version or "18.0" }}" required></label>
+    <label>Old project <input class="mono" name="old_project_path" value="{{ typed.old_project_path or "" }}" required></label>
+    <label>New project <input class="mono" name="new_project_path" value="{{ typed.new_project_path or "" }}" required></label>
+    <div class="row">
+      <button type="submit" class="primary">Create</button>
+      <a class="button-link" href="/">Cancel</a>
+    </div>
   </form>
+  {% endif %}
 </section>
 {% endblock %}

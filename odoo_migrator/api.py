@@ -376,9 +376,11 @@ def create_app(
         )
 
     @app.get("/")
-    def overview(request: Request, settings: str = ""):
+    def overview(request: Request, settings: str = "", create: str = ""):
 
-        return _overview(request, expanded=settings or None)
+        return _overview(
+            request, expanded=settings or None, creating=create == "1"
+        )
 
     @app.post("/migrations")
     def migrations_create(
@@ -390,25 +392,28 @@ def create_app(
         old_project_path: str = Form(),
         new_project_path: str = Form(),
     ):
+        typed = {
+            "name": name,
+            "accent": accent,
+            "source_version": source_version,
+            "target_version": target_version,
+            "old_project_path": old_project_path,
+            "new_project_path": new_project_path,
+        }
+        # A refusal leaves the form open with what was typed still in it.
+        # Re-rendering it empty is how someone loses two paths they pasted.
+        refused_with = {"creating": True, "typed": typed}
         try:
-            created = create_migration(
-                name=name,
-                accent=accent,
-                source_version=source_version,
-                target_version=target_version,
-                old_project_path=old_project_path,
-                new_project_path=new_project_path,
-            )
+            created = create_migration(**typed)
         except RulesError as refused:
 
-            return _page(request, "overview.html", "overview", {"error": str(refused)})
+            return _overview(request, error=str(refused), **refused_with)
         if created is None:
 
-            return _page(
+            return _overview(
                 request,
-                "overview.html",
-                "overview",
-                {"error": "Pick an accent that is not a status colour."},
+                error="Pick an accent that is not a status colour.",
+                **refused_with,
             )
 
         return RedirectResponse("/", status_code=303)
@@ -804,6 +809,8 @@ def create_app(
         request: Request,
         *,
         expanded: str | None = None,
+        creating: bool = False,
+        typed: dict | None = None,
         error: str | None = None,
     ):
         """Overview, with one migration's settings open inside its own row.
@@ -828,6 +835,12 @@ def create_app(
                 "expanded": migration,
                 "provision": provision,
                 "cartridges": list_installs() if migration else [],
+                # The form is asked for, not permanently open. It stays open
+                # with what was typed still in it when the answer is a
+                # refusal — re-rendering an empty form is how someone loses
+                # two paths they pasted.
+                "creating": creating,
+                "typed": typed or {},
                 "error": error,
             },
         )

@@ -25,6 +25,14 @@ def test_empty_overview_shows_empty_state(client):
 
     assert "No migrations yet." in html
     assert "Create migration" in html
+    # The button, not six fields: the form was taking most of the screen to
+    # ask a question nobody had asked yet.
+    assert 'name="old_project_path"' not in html
+    assert 'href="/?create=1' in html
+
+    asked = client.get("/?create=1").text
+
+    assert 'name="old_project_path"' in asked
 
 
 def test_create_two_migrations_lists_both(client):
@@ -148,23 +156,23 @@ def _checked_accent(html: str) -> str:
 def test_default_accent_moves_on_so_two_migrations_are_not_the_same_colour(client):
     """A fixed default would make every migration violet, which is exactly what
     the accent exists to prevent."""
-    first = _checked_accent(client.get("/").text)
+    first = _checked_accent(client.get("/?create=1").text)
     _create(client, "Acme", accent=first)
-    second = _checked_accent(client.get("/").text)
+    second = _checked_accent(client.get("/?create=1").text)
     _create(client, "Beta", accent=second)
-    third = _checked_accent(client.get("/").text)
+    third = _checked_accent(client.get("/?create=1").text)
 
     assert len({first, second, third}) == 3
 
 
 def test_archiving_frees_its_accent_for_reuse(client):
-    first = _checked_accent(client.get("/").text)
+    first = _checked_accent(client.get("/?create=1").text)
     _create(client, "Acme", accent=first)
     with database.connection_context():
         row = Migration.get(Migration.name == "Acme")
     client.post(f"/migrations/{row.id}/archive", follow_redirects=True)
 
-    assert _checked_accent(client.get("/").text) == first
+    assert _checked_accent(client.get("/?create=1").text) == first
 
 
 def test_accent_options_are_not_status_colours(client):
@@ -183,3 +191,25 @@ def test_switcher_and_accent_dot_are_on_the_styleguide(client):
     assert "Accent" in html
     assert "accent-dot" in html
     assert "migration-switcher" in html
+
+
+def test_a_refused_creation_keeps_the_form_open_with_what_was_typed(client):
+    """Re-rendering an empty form is how someone loses two paths they
+    pasted. The refusal keeps both, and the form itself."""
+    refused = client.post(
+        "/migrations",
+        data={
+            "name": "Same",
+            "accent": "violet",
+            "source_version": "18.0",
+            "target_version": "18.0",
+            "old_project_path": "/opt/projects/sandbox/18",
+            "new_project_path": "/opt/projects/sandbox/18-new",
+        },
+        follow_redirects=True,
+    )
+
+    assert "form-error" in refused.text
+    assert 'name="old_project_path" value="/opt/projects/sandbox/18"' in refused.text
+    assert 'name="new_project_path" value="/opt/projects/sandbox/18-new"' in refused.text
+    assert 'value="Same"' in refused.text

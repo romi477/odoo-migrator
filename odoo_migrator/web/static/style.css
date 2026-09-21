@@ -647,6 +647,22 @@ h2 {
   color: var(--cyan);
 }
 
+/* The header's Create migration. `.primary` is written for buttons and
+   clears their border; a link has none to clear, so it keeps one here and
+   reads as the action it is. */
+.screen-head .button-link.primary {
+  border-color: var(--border);
+  padding: 4px 10px;
+  /* Two words that mean one action. Wrapped, it reads as a paragraph with
+     a border — the same thing that was fixed on Archive and the container
+     buttons. */
+  white-space: nowrap;
+}
+
+.screen-head .button-link.primary:hover {
+  border-color: var(--cyan);
+}
+
 .gear {
   font-size: 15px;
   line-height: 1;
