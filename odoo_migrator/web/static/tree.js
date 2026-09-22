@@ -458,6 +458,26 @@
     });
   }
 
+  function applyBulk(url) {
+    return fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    }).then(function (response) {
+      return response.json().then(function (payload) {
+        const error = document.getElementById("node-card-error");
+        if (!response.ok) {
+          if (error) {
+            error.hidden = false;
+            error.textContent = payload.error || "Could not update the modules.";
+          }
+
+          return;
+        }
+        applyStrikeRows(payload);
+      });
+    });
+  }
+
   function applyRestore(moduleIds) {
     const body = moduleIds
       .map(function (id) {
@@ -499,22 +519,56 @@
     return node.data("status") || "queued";
   }
 
-  function setSkipHint(anyOut, group) {
+  function setSkipHint(group, nodes) {
     const footnote = document.getElementById("node-card-skip-hint");
     const hintEl = document.getElementById("node-card-skip-hint-text");
     if (!footnote || !hintEl) {
       return;
     }
-    if (group) {
-      hintEl.textContent = anyOut
-        ? "Leave out — the selection and every module that depends on it."
-        : "Include again — the selection, with depends chains upward only.";
+    if (group && nodes && nodes.length > 1) {
+      hintEl.textContent =
+        "Leave out — the selection and every module that depends on it. " +
+        "Include again — the selection, with depends chains upward only.";
 
       return;
     }
-    hintEl.textContent = anyOut
-      ? "Leave out — this module's depends chain upward."
-      : "Include again — this module's depends chain upward.";
+    const struck =
+      nodes && nodes.length === 1 && nodes[0].data("struck_out");
+    hintEl.textContent = struck
+      ? "Include again — this module's depends chain upward."
+      : "Leave out — skip this module; parents stay in the plan.";
+  }
+
+  function syncSelectionActions(mode, nodes) {
+    const skipEl = document.getElementById("node-card-skip");
+    const includeEl = document.getElementById("node-card-include");
+    if (!card || !skipEl) {
+      return;
+    }
+    card.setAttribute("data-selection", mode);
+    const multi = mode === "many";
+    if (includeEl) {
+      includeEl.hidden = !multi;
+    }
+    if (!multi) {
+      return;
+    }
+    skipEl.textContent = "Leave out";
+    skipEl.classList.add("primary");
+    if (includeEl) {
+      includeEl.textContent = "Include again";
+      includeEl.classList.remove("primary");
+    }
+    const anyIn = nodes.some(function (node) {
+      return !node.data("struck_out");
+    });
+    const anyOut = nodes.some(function (node) {
+      return node.data("struck_out");
+    });
+    skipEl.disabled = !anyIn;
+    if (includeEl) {
+      includeEl.disabled = !anyOut;
+    }
   }
 
   function updateLegendPressed() {
@@ -571,14 +625,8 @@
     if (assumptionsEl) {
       assumptionsEl.hidden = true;
     }
-    const anyOut = nodes.some(function (node) {
-      return !node.data("struck_out");
-    });
-    if (skipEl) {
-      skipEl.textContent = anyOut ? "Leave out" : "Include again";
-      skipEl.classList.toggle("primary", anyOut);
-    }
-    setSkipHint(anyOut, true);
+    syncSelectionActions("many", nodes);
+    setSkipHint(true, nodes);
     if (askForm) {
       askForm.hidden = true;
     }
@@ -618,11 +666,13 @@
       statusEl.className = "badge " + display;
       statusEl.textContent = display;
     }
+    syncSelectionActions("one", [node]);
     if (skipEl) {
+      skipEl.disabled = false;
       skipEl.textContent = struck ? "Include again" : "Leave out";
       skipEl.classList.toggle("primary", !struck);
     }
-    setSkipHint(!struck, false);
+    setSkipHint(false, [node]);
     if (askForm) {
       askForm.action = "/tree/modules/" + moduleId + "/answer";
       askForm.hidden = struck || node.data("status") !== "waiting_for_human";
@@ -693,43 +743,6 @@
     });
   }
 
-  const ungroup = document.getElementById("tree-ungroup");
-  if (ungroup) {
-    ungroup.addEventListener("click", function () {
-      const picks = selectedModules();
-      if (picks.length === 0) {
-        return;
-      }
-      /* Group only ever assigned the next number, so a wrong grouping could
-         not be undone — regrouping just climbed. */
-      Promise.all(
-        picks.map(function (node) {
-          return postBatch(node.data("module_id"), null);
-        })
-      ).then(function () {
-        window.location.reload();
-      });
-    });
-  }
-
-  const group = document.getElementById("tree-group");
-  if (group) {
-    group.addEventListener("click", function () {
-      const picks = selectedModules();
-      if (picks.length === 0) {
-        return;
-      }
-      const assigned = nextGroup();
-      Promise.all(
-        picks.map(function (node) {
-          return postBatch(node.data("module_id"), assigned);
-        })
-      ).then(function () {
-        window.location.reload();
-      });
-    });
-  }
-
   cy.on("dragfree", "node", function (event) {
     const dragged = event.target;
     const pos = dragged.renderedPosition();
@@ -756,53 +769,6 @@
     Promise.all(writes);
   });
 
-  function post(url, body) {
-    return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body,
-    });
-  }
-
-  const migrate = document.getElementById("tree-migrate");
-  const migrateCount = document.getElementById("tree-migrate-count");
-  if (migrate) {
-    migrate.addEventListener("click", function (event) {
-      const picks = selectedModules().filter(function (node) {
-        return !node.data("struck_out");
-      });
-      if (migrateCount) {
-        migrateCount.value = String(picks.length);
-      }
-      if (picks.length !== 1) {
-        /* Let the form submit natively: a fetch would swallow the page that
-           says which of the two mistakes this was. */
-        return;
-      }
-      event.preventDefault();
-      /* SSE patches the rows. Reloading would wipe a half-typed Alpine field. */
-      post("/tree/migrate", "module_id=" + encodeURIComponent(picks[0].data("module_id")));
-    });
-  }
-
-  const batchRun = document.getElementById("tree-batch");
-  const batchGroup = document.getElementById("tree-batch-group");
-  if (batchRun && batchGroup) {
-    batchRun.addEventListener("click", function () {
-      const picks = selectedModules().filter(function (node) {
-        return !node.data("struck_out");
-      });
-      const groups = [];
-      picks.forEach(function (node) {
-        const group = node.data("batch_group");
-        if (group != null && groups.indexOf(group) === -1) {
-          groups.push(group);
-        }
-      });
-      batchGroup.value = groups.length === 1 ? String(groups[0]) : "";
-    });
-  }
-
   cy.on("select unselect", "node", function () {
     refreshCard();
   });
@@ -812,32 +778,68 @@
     updateLegendPressed();
   }
 
+  const leaveOutAll = document.getElementById("tree-leave-out-all");
+  if (leaveOutAll) {
+    leaveOutAll.addEventListener("click", function () {
+      applyBulk("/tree/modules/leave-out-all");
+    });
+  }
+
+  const includeAll = document.getElementById("tree-include-all");
+  if (includeAll) {
+    includeAll.addEventListener("click", function () {
+      applyBulk("/tree/modules/include-all");
+    });
+  }
+
+  function selectionModuleIds(nodes) {
+    return nodes.map(function (node) {
+      return node.data("module_id");
+    });
+  }
+
   const cardSkip = document.getElementById("node-card-skip");
   if (cardSkip && card) {
     cardSkip.addEventListener("click", function () {
       const picks = selectedModules();
-      if (!picks.length) {
+      if (!picks.length || cardSkip.disabled) {
         return;
       }
-      const wanted = picks.some(function (node) {
-        return !node.data("struck_out");
-      })
-        ? "1"
-        : "0";
-      if (wanted === "0") {
-        applyRestore(
-          picks.map(function (node) {
-            return node.data("module_id");
-          })
-        );
+      if (card.getAttribute("data-selection") === "many") {
+        const active = picks.filter(function (node) {
+          return !node.data("struck_out");
+        });
+        if (!active.length) {
+          return;
+        }
+        applyLeaveOut(selectionModuleIds(active));
 
         return;
       }
-      applyLeaveOut(
-        picks.map(function (node) {
-          return node.data("module_id");
-        })
-      );
+      const node = picks[0];
+      if (node.data("struck_out")) {
+        applyRestore([node.data("module_id")]);
+
+        return;
+      }
+      applyLeaveOut([node.data("module_id")]);
+    });
+  }
+
+  const cardInclude = document.getElementById("node-card-include");
+  if (cardInclude && card) {
+    cardInclude.addEventListener("click", function () {
+      const picks = selectedModules();
+      if (!picks.length || cardInclude.disabled) {
+        return;
+      }
+      const struck = picks.filter(function (node) {
+        return node.data("struck_out");
+      });
+      if (!struck.length) {
+        return;
+      }
+      applyRestore(selectionModuleIds(struck));
     });
   }
 })();

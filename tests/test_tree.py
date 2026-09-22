@@ -275,12 +275,16 @@ def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
     assert ".graph-node-index" in css.text
     assert "stepsFromDepends" in script.text
     assert "node-card" in script.text
+    assert "node-card-include" in script.text
+    assert 'data-selection="many"' in script.text or "data-selection" in script.text
     assert "INDEX_ZOOM" not in script.text
     assert "skip_subtree" not in script.text
     assert "Accept" in script.text
     assert "application/json" in script.text
     assert "/tree/modules/restore" in script.text
     assert "/tree/modules/leave-out" in script.text
+    assert "/tree/modules/leave-out-all" in script.text
+    assert "/tree/modules/include-all" in script.text
 
 
 def test_tree_json_carries_node_id_and_step(client):
@@ -295,6 +299,28 @@ def test_tree_json_carries_node_id_and_step(client):
     assert "module-rows" not in html
     assert 'id="node-card"' in html
     assert "Leave out" in html
+    assert ">Leave out all<" in html
+    assert ">Include all<" in html
+
+
+def test_leave_out_all_and_include_all_json(client):
+    migration_id, _modules = _resolved(client)
+    from odoo_migrator.graph import list_modules
+
+    out = client.post(
+        "/tree/modules/leave-out-all",
+        headers={"Accept": "application/json"},
+    )
+    assert out.status_code == 200
+    payload = out.json()
+    assert len(payload["modules"]) == len(list_modules(migration_id))
+
+    back = client.post(
+        "/tree/modules/include-all",
+        headers={"Accept": "application/json"},
+    )
+    assert back.status_code == 200
+    assert all(not row["struck_out"] for row in back.json()["modules"])
 
 
 def test_styleguide_has_a_graph_node_and_a_struck_node(client):

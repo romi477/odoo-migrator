@@ -5,63 +5,103 @@
   <header class="screen-head">
     <div>
       <h1>Guide</h1>
-      <p>The steps under the open migration, in the same order as the menu.</p>
+      <p>The steps under the open migration, in menu order. For field-level
+      detail and settings, see <span class="mono">docs/ui-guide.md</span> in the repo.</p>
     </div>
   </header>
 
   <ol class="guide-steps">
     <li>
       <h2>Tree</h2>
-      <p>The modules of this migration, and which ones depend on which.
-      Colour is the step. A later step waits until the earlier ones are
-      done or skipped.</p>
+      <p>The dependency graph for this migration. Colour is the step (wave).
+      A later wave cannot run until every module on earlier waves is passed
+      or left out.</p>
       <ul>
-        <li><strong>Resolve</strong> reads the modules from the old Odoo and sorts them into steps.</li>
-        <li><strong>Step buttons</strong> under the graph select a whole wave.</li>
-        <li><strong>Leave out / Include again</strong> on the dashed node card. Multi-select leave out also hits downstream; include walks depends upward. A lone leaf leaving out walks upward and keeps a shared parent if a sibling branch is still in.</li>
-        <li><strong>Group</strong> marks a set of modules to run together. <strong>Ungroup</strong> takes them back out.</li>
-        <li><strong>Migrate</strong> starts the one module you selected.</li>
-        <li><strong>Batch</strong> starts the group, in dependency order.</li>
+        <li><strong>Resolve</strong> reads installed custom modules and
+        <span class="mono">depends</span> from the old Odoo (via Sheller) and
+        redraws the graph and steps.</li>
+        <li><strong>Step buttons</strong> under the canvas select every module
+        on one wave.</li>
+        <li><strong>Node card</strong> (dashed panel under the step buttons):
+        <span class="mono">#rank/step</span>, name, status, and
+        <strong>Leave out</strong> or <strong>Include again</strong> for the
+        current selection. A whole step or multi-select shows both buttons.
+        <strong>Leave out all</strong> and <strong>Include all</strong> apply
+        to the whole migration.</li>
+        <li><strong>Leave out / Include again</strong> follow the graph: leave
+        out hits the selection and everything downstream; include walks each
+        module's depends chain upward. A lone <strong>leaf</strong> (nothing
+        depends on it) is left out on its own — parents stay in the plan.</li>
+        <li><strong>Drag</strong> one node onto another to put them in the
+        same batch group. Runs start on Pipeline, not here.</li>
+        <li><strong>Answer</strong> appears on the card when status is
+        <span class="mono">waiting_for_human</span> and the module is still
+        in the plan.</li>
+        <li>Struck nodes show <span class="mono">(out)</span>, dashed borders,
+        and faded colour. The attention lamp opens Tree with
+        <span class="mono">?focus=</span> on the stalled node.</li>
       </ul>
     </li>
     <li>
       <h2>Pipeline</h2>
-      <p>The module that is moving now: name, status, stage, attempt.
-      When nothing is running, the screen says so. When a batch
-      finishes, the review is here.</p>
+      <p>Where you queue work and watch the live stage. When a batch finishes,
+      checkpoint review is on this screen too.</p>
       <ul>
-        <li><strong>Continue</strong> starts the next work, once every stall has been read.</li>
-        <li><strong>Override</strong> continues even if something is still unread.</li>
-        <li><strong>Dismiss</strong> marks one failed or waiting module as read.</li>
-        <li><strong>Promote</strong> saves a finding into a version's rules. You pick the version file.</li>
+        <li><strong>Selection</strong> — pick a <strong>Step</strong> (same
+        waves as Tree), see its module list, <strong>Add to queue</strong>.
+        Duplicate steps are ignored.</li>
+        <li><strong>Queue</strong> — pending modules in migration order
+        (<span class="mono">#rank/step</span> on each row). Collapsed view
+        shows the next module only; <strong>Expand full list</strong> /
+        <strong>Collapse list</strong> toggles the numbered list.
+        <strong>Run</strong> / <strong>Stop</strong> drive the pipe (you can
+        add steps while running; Stop waits for the current module).
+        The active row pulses.</li>
+        <li><strong>Live panel</strong> below — module name, status, stage,
+        attempt. Empty reads “No module is running.” SSE updates without a
+        reload.</li>
+        <li>When the batch hits checkpoint, a banner asks you to reload for
+        review. Then <strong>Continue</strong> (disabled while failed or
+        waiting jobs are unread), <strong>Override</strong>,
+        <strong>Dismiss</strong> per stalled job, and <strong>Promote</strong>
+        to append a finding to a rules file you choose.</li>
       </ul>
     </li>
     <li>
       <h2>n8n</h2>
-      <p>The workflow that rewrites the module. The drawing stays in n8n.
-      This screen only opens it.</p>
+      <p>The workflow executor. The canvas is not embedded in the app.</p>
       <ul>
-        <li><strong>Open in n8n</strong> goes to the address in settings. If that address is empty, set it with the gear.</li>
+        <li><strong>Open in n8n</strong> uses the base URL from Settings.
+        If it is empty, set it with the gear first.</li>
       </ul>
     </li>
     <li>
       <h2>Sheller</h2>
-      <p>The Odoo shell, to watch. The screen is only Sheller's <span class="mono">/web</span>
-      iframe edge to edge. The frame cannot write. Pick the live session
-      inside Sheller's own UI. The address comes from settings.</p>
+      <p>Odoo in observer mode: Sheller's <span class="mono">/web</span> iframe
+      edge to edge. The frame has no write key.</p>
       <ul>
-        <li><strong>The frame</strong> is Sheller's own page, without a write key.</li>
+        <li>Pick the live session inside Sheller's own UI. Do not append
+        <span class="mono">?session=</span> — Sheller ignores it.</li>
       </ul>
     </li>
     <li>
       <h2>Result</h2>
-      <p>The scoreboard for this migration: the same progress summary as on
-      Overview, then one column per dependency wave with a card per module.</p>
+      <p>The migration scoreboard: progress for modules still in the plan, then
+      one column per dependency wave.</p>
       <ul>
-        <li><strong>Columns</strong> are L0, L1, … — the same waves as on Tree.</li>
-        <li><strong>Each card</strong> shows status, dependencies, and flags for assumptions or a human wait.</li>
-        <li><strong>Skipped modules</strong> stay in their wave, struck through, badge <strong>excluded</strong>.</li>
-        <li><strong>Progress</strong> counts only modules still in the plan.</li>
+        <li><strong>Columns</strong> are <span class="mono">L0</span>,
+        <span class="mono">L1</span>, … — the same waves as Tree. More than
+        four waves paginate: four columns per page, dots in the panel header
+        (one dot per page).</li>
+        <li><strong>Each card</strong> uses the step colour on the full
+        outline. A filled corner badge marks <strong>passed</strong> (green
+        check), <strong>waiting for you</strong> (warning, pause bars), or
+        <strong>excluded</strong> (left out on Tree). Running, queued, or
+        failed modules use a small inline badge instead.</li>
+        <li>Subtitle is parent depends, or <em>excluded — skipped on Tree</em>.
+        Skipped modules stay in their wave with the name struck through.</li>
+        <li>SSE updates cards while this screen is open. With no graph yet,
+        resolve on Tree first.</li>
       </ul>
     </li>
   </ol>

@@ -189,6 +189,20 @@ class Assumption(BaseModel):
     assumption = TextField()
 
 
+class PipelineQueueState(BaseModel):
+    migration = ForeignKeyField(Migration, backref="pipeline_queue_state", unique=True)
+    run_state = CharField(default="stopped")
+
+
+class PipelineQueueItem(BaseModel):
+    migration = ForeignKeyField(Migration, backref="pipeline_queue_items")
+    step = IntegerField()
+    position = IntegerField(default=0)
+
+    class Meta:
+        indexes = ((("migration", "step"), True),)
+
+
 ALL_MODELS = [
     ShellerSession,
     AppSettings,
@@ -200,4 +214,6 @@ ALL_MODELS = [
     Attempt,
     Finding,
     Assumption,
+    PipelineQueueState,
+    PipelineQueueItem,
 ]

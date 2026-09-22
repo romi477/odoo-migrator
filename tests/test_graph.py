@@ -12,6 +12,8 @@ from odoo_migrator.graph import (
     set_batch_group,
     set_struck,
     leave_out_selection,
+    include_all,
+    leave_out_all,
     restore_selection,
     skip_subtree,
     topological_steps,
@@ -284,7 +286,7 @@ def test_restoring_a_module_brings_descendants_back(tmp_path):
     assert after["mig_test_sale"]["struck_out"] is False
 
 
-def test_leave_out_selection_ui_strikes_chain_when_siblings_are_out(tmp_path):
+def test_leave_out_selection_on_a_leaf_strikes_only_that_module(tmp_path):
     created = _migration(tmp_path)
     persist_graph(
         created["id"],
@@ -299,17 +301,14 @@ def test_leave_out_selection_ui_strikes_chain_when_siblings_are_out(tmp_path):
         ],
     )
     rows = {row["technical_name"]: row for row in list_modules(created["id"])}
-    skip_subtree(rows["mig_test_crm"]["id"], True)
-    skip_subtree(rows["mig_test_purchase"]["id"], True)
 
     leave_out_selection([rows["mig_test_ui"]["id"]])
     after = {row["technical_name"]: row for row in list_modules(created["id"])}
 
     assert after["mig_test_ui"]["struck_out"] is True
-    assert after["mig_test_sale"]["struck_out"] is True
-    assert after["mig_test_product"]["struck_out"] is True
-    assert after["mig_test_partner"]["struck_out"] is True
-    assert after["mig_test_base"]["struck_out"] is True
+    assert after["mig_test_sale"]["struck_out"] is False
+    assert after["mig_test_partner"]["struck_out"] is False
+    assert after["mig_test_product"]["struck_out"] is False
 
 
 def test_leave_out_selection_on_a_whole_step_strikes_downstream(tmp_path):
@@ -347,29 +346,6 @@ def test_leave_out_selection_on_a_whole_step_strikes_downstream(tmp_path):
     assert after["mig_test_crm"]["struck_out"] is True
 
 
-def test_leave_out_selection_keeps_shared_ancestor_for_active_sibling(tmp_path):
-    created = _migration(tmp_path)
-    persist_graph(
-        created["id"],
-        [
-            _custom("mig_test_base", []),
-            _custom("mig_test_partner", ["mig_test_base"]),
-            _custom("mig_test_crm", ["mig_test_partner"]),
-            _custom("mig_test_sale", ["mig_test_partner"]),
-            _custom("mig_test_ui", ["mig_test_sale"]),
-        ],
-    )
-    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
-
-    leave_out_selection([rows["mig_test_ui"]["id"]])
-    after = {row["technical_name"]: row for row in list_modules(created["id"])}
-
-    assert after["mig_test_ui"]["struck_out"] is True
-    assert after["mig_test_sale"]["struck_out"] is True
-    assert after["mig_test_partner"]["struck_out"] is False
-    assert after["mig_test_crm"]["struck_out"] is False
-
-
 def test_restore_selection_ui_leaves_sibling_branches_out(tmp_path):
     created = _migration(tmp_path)
     persist_graph(
@@ -398,6 +374,54 @@ def test_restore_selection_ui_leaves_sibling_branches_out(tmp_path):
     assert after["mig_test_base"]["struck_out"] is False
     assert after["mig_test_crm"]["struck_out"] is True
     assert after["mig_test_purchase"]["struck_out"] is True
+
+
+def test_list_pipeline_steps_matches_tree_waves(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_sale", ["mig_test_partner"]),
+            _custom("mig_test_ui", ["mig_test_sale"]),
+        ],
+    )
+    from odoo_migrator.graph import list_pipeline_steps, modules_in_step_order
+
+    steps = list_pipeline_steps(created["id"])
+
+    assert steps == [
+        {"step": 1, "count": 1, "modules": ["mig_test_base"]},
+        {"step": 2, "count": 1, "modules": ["mig_test_partner"]},
+        {"step": 3, "count": 1, "modules": ["mig_test_sale"]},
+        {"step": 4, "count": 1, "modules": ["mig_test_ui"]},
+    ]
+    assert [row["technical_name"] for row in modules_in_step_order(created["id"], 2)] == [
+        "mig_test_partner"
+    ]
+
+
+def test_leave_out_all_and_include_all_round_trip(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_sale", ["mig_test_partner"]),
+        ],
+    )
+
+    leave_out_all(created["id"])
+    after_out = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert all(row["struck_out"] for row in after_out.values())
+
+    include_all(created["id"])
+    after_in = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert all(not row["struck_out"] for row in after_in.values())
 
 
 def test_restore_selection_brings_struck_ancestors_first(tmp_path):

@@ -206,15 +206,6 @@
   <h2>Module graph</h2>
   <div class="tree-toolbar">
     <button type="button" class="primary">Resolve</button>
-    <details class="tree-toolbar-more">
-      <summary>Run batch</summary>
-      <div class="tree-toolbar-more-body">
-        <button type="button">Group</button>
-        <button type="button">Ungroup</button>
-        <button type="button" class="primary">Migrate</button>
-        <button type="button">Batch</button>
-      </div>
-    </details>
   </div>
   <div class="row">
     <span class="graph-node step-1">
@@ -262,17 +253,24 @@
               <span class="badge queued">queued</span>
             </span>
           </span>
-          <button type="button" class="primary">Leave out</button>
+          <span class="node-card-actions">
+            <button type="button" class="primary">Leave out</button>
+            <button type="button">Include again</button>
+          </span>
         </div>
       </div>
     </aside>
     <p class="node-card-footnote">
       <span class="node-card-footnote-mark" aria-hidden="true">*</span>
-      Leave out — this module's depends chain upward.
+      Leave out — skip this module; parents stay in the plan.
     </p>
+    <div class="node-card-bulk">
+      <button type="button">Leave out all</button>
+      <button type="button">Include all</button>
+    </div>
   </div>
   <p>Click a module on the graph. <strong>Leave out</strong> on a wave or
-  multi-select also strikes downstream; a lone leaf walks depends upward.
+  multi-select also strikes downstream; a lone leaf is skipped on its own.
   <strong>Include again</strong> walks depends upward only. The card badge
   reads <strong>excluded</strong> while the module is out.</p>
 
@@ -311,6 +309,54 @@
   pick one.</p>
 
   <h2>Run workspace</h2>
+  <div class="pipeline-panels">
+    <section class="pipeline-panel pipeline-selection row-card">
+      <h2 class="pipeline-panel-title">Selection</h2>
+      <form class="pipeline-start">
+        <label>
+          Step
+          <select aria-label="Migration step to queue">
+            <option>Step 1 · 3 modules</option>
+          </select>
+        </label>
+        <p class="pipeline-step-modules mono">mig_test_base, mig_test_partner, mig_test_product</p>
+        <button type="button" class="outline-cyan">Add to queue</button>
+      </form>
+    </section>
+    <section class="pipeline-queue-card card">
+      <header class="pipeline-queue-head">
+        <div class="pipeline-queue-head-text">
+          <h2 class="pipeline-queue-title">Queue</h2>
+          <p class="pipeline-queue-meta">3 pending · 2 steps · Stopped</p>
+        </div>
+        <div class="pipeline-queue-controls">
+          <button type="button" class="pipeline-queue-toggle outline-cyan">Expand full list</button>
+          <button type="button" class="primary">Run</button>
+          <button type="button">Stop</button>
+        </div>
+      </header>
+      <div class="pipeline-queue-body">
+        <div class="pipeline-queue-next">
+          <div class="pipeline-queue-item pipeline-queue-active">
+            <span class="pipeline-queue-order">1</span>
+            <span class="graph-node-index">#3/2</span>
+            <span class="pipeline-lamp"></span>
+            <span class="name mono">sale_custom</span>
+            <span class="badge">step 1</span>
+          </div>
+        </div>
+        <ol class="pipeline-queue-list">
+          <li class="pipeline-queue-item pipeline-queue-active">
+            <span class="pipeline-queue-order">1</span>
+            <span class="graph-node-index">#3/2</span>
+            <span class="pipeline-lamp"></span>
+            <span class="name mono">sale_custom</span>
+            <span class="badge">step 1</span>
+          </li>
+        </ol>
+      </div>
+    </section>
+  </div>
   <div class="workspace">
     <article class="workspace-panel" data-pipeline>
       <h2>Pipeline</h2>
@@ -353,17 +399,24 @@
         <span class="progress-count">2 of 4 modules</span>
       </div>
     </article>
-    <div class="result-columns">
+    <div class="result-columns-panel">
+      <header class="result-columns-head">
+        <nav class="result-page-dots" aria-label="Dependency wave pages (specimen)">
+          <button type="button" class="result-page-dot" aria-label="Waves 1–4"></button>
+          <button type="button" class="result-page-dot is-active" aria-current="page" aria-label="Waves 5–8"></button>
+          <button type="button" class="result-page-dot" aria-label="Waves 9–10"></button>
+        </nav>
+      </header>
+      <div class="result-columns">
       <section class="result-column">
         <h2 class="result-column-head"><span class="mono">L0</span><span class="result-column-wave">wave 1</span></h2>
         <ul class="result-column-list">
-          <li class="result-card step-1" data-module-id="1">
-            <span class="result-status-dot passed"></span>
+          <li class="result-card step-1" data-module-id="1" data-result-corner="done">
+            <span class="result-corner-badge done" aria-label="Passed">
+              <span class="result-corner-glyph-check" aria-hidden="true">✓</span>
+            </span>
             <div class="result-card-main">
-              <span class="name-line">
-                <span class="name mono">sale_custom</span>
-                <span class="badge passed">passed</span>
-              </span>
+              <span class="name mono">sale_custom</span>
               <p class="result-subtitle mono">product</p>
             </div>
           </li>
@@ -372,18 +425,35 @@
       <section class="result-column">
         <h2 class="result-column-head"><span class="mono">L1</span><span class="result-column-wave">wave 2</span></h2>
         <ul class="result-column-list">
-          <li class="result-card step-2 failed" data-module-id="2">
-            <span class="result-status-dot failed"></span>
+          <li class="result-card step-2" data-module-id="2" data-result-corner="waiting">
+            <span class="result-corner-badge waiting" aria-label="Waiting for you">
+              <span class="result-corner-glyph-pause" aria-hidden="true"></span>
+            </span>
             <div class="result-card-main">
-              <span class="name-line">
-                <span class="name mono">stock_custom</span>
-                <span class="badge failed">failed</span>
-              </span>
+              <span class="name mono">stock_custom</span>
+              <span class="badge waiting_for_human">waiting_for_human</span>
+              <p class="result-subtitle mono">sale_custom</p>
+            </div>
+          </li>
+          <li class="result-card step-2 struck" data-module-id="3" data-result-corner="excluded">
+            <span class="result-corner-badge excluded" aria-label="Excluded on Tree">
+              <span class="result-corner-glyph-excluded" aria-hidden="true"></span>
+            </span>
+            <div class="result-card-main">
+              <span class="name mono">purchase_skip</span>
+              <p class="result-subtitle mono">excluded — skipped on Tree</p>
+            </div>
+          </li>
+          <li class="result-card step-2 failed" data-module-id="4">
+            <div class="result-card-main">
+              <span class="name mono">stock_custom</span>
+              <span class="badge failed">failed</span>
               <p class="result-subtitle mono">sale_custom</p>
             </div>
           </li>
         </ul>
       </section>
+      </div>
     </div>
   </div>
 

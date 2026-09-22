@@ -37,29 +37,6 @@
               title="Resolve the module graph from the old container"
               aria-label="Resolve the module graph from the old container">Resolve</button>
     </form>
-    <details class="tree-toolbar-more">
-      <summary>Run batch</summary>
-      <div class="tree-toolbar-more-body">
-        <button type="button" id="tree-group"
-                title="Group the selected modules as a batch"
-                aria-label="Group the selected modules as a batch">Group</button>
-        <button type="button" id="tree-ungroup"
-                title="Take the selected modules out of their batch"
-                aria-label="Take the selected modules out of their batch">Ungroup</button>
-        <form method="post" action="/tree/migrate">
-          <input type="hidden" name="selected" id="tree-migrate-count" value="0">
-          <button type="submit" id="tree-migrate" class="primary"
-                  title="Migrate the selected module"
-                  aria-label="Migrate the selected module">Migrate</button>
-        </form>
-        <form method="post" action="/tree/batch/run">
-          <input type="hidden" name="batch_group" id="tree-batch-group" value="">
-          <button type="submit" id="tree-batch"
-                  title="Migrate the selected batch"
-                  aria-label="Migrate the selected batch">Batch</button>
-        </form>
-      </div>
-    </details>
   </div>
   <script type="application/json" id="module-graph">{{ modules | tojson }}</script>
   <div class="graph-stage">
@@ -88,10 +65,14 @@
             </span>
             <span class="mono" data-stage id="node-card-stage"></span>
           </span>
-          <button type="button" id="node-card-skip" class="primary"
-                  aria-describedby="node-card-skip-hint">
-            {% if selected and selected.struck_out %}Include again{% else %}Leave out{% endif %}
-          </button>
+          <span class="node-card-actions">
+            <button type="button" id="node-card-skip" class="primary"
+                    aria-describedby="node-card-skip-hint">
+              {% if selected and selected.struck_out %}Include again{% else %}Leave out{% endif %}
+            </button>
+            <button type="button" id="node-card-include" hidden
+                    aria-describedby="node-card-skip-hint">Include again</button>
+          </span>
         </div>
         <p class="form-error" id="node-card-error" hidden></p>
         <form class="ask" id="node-card-ask" method="post"
@@ -112,6 +93,14 @@
       <span class="node-card-footnote-mark" aria-hidden="true">*</span>
       <span id="node-card-skip-hint-text"></span>
     </p>
+    <div class="node-card-bulk">
+      <button type="button" id="tree-leave-out-all"
+              title="Leave every module out of this migration"
+              aria-label="Leave out all modules">Leave out all</button>
+      <button type="button" id="tree-include-all"
+              title="Bring every excluded module back into the plan"
+              aria-label="Include all modules">Include all</button>
+    </div>
   </div>
   {% endif %}
 </section>

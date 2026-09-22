@@ -1,6 +1,21 @@
 /* One EventSource per page. Named events patch a row, the lamp and the
    running count. They must not replace the page — a half-typed answer in
    an Alpine field has to survive a background update. */
+function fillResultCornerGlyph(glyph, kind) {
+  glyph.className = "";
+  glyph.removeAttribute("class");
+  if (kind === "done") {
+    glyph.className = "result-corner-glyph-check";
+    glyph.textContent = "✓";
+  } else if (kind === "waiting") {
+    glyph.className = "result-corner-glyph-pause";
+    glyph.textContent = "";
+  } else if (kind === "excluded") {
+    glyph.className = "result-corner-glyph-excluded";
+    glyph.textContent = "";
+  }
+}
+
 (function () {
   if (typeof EventSource === "undefined") {
     return;
@@ -80,11 +95,44 @@
       badge.className = "badge " + data.status;
       badge.textContent = data.status;
     }
-    const dot = row.querySelector(".result-status-dot");
-    if (dot && data.status) {
-      dot.className = "result-status-dot " + data.status;
-    }
-    if (data.status === "failed") {
+    if (row.classList.contains("result-card")) {
+      let corner = row.querySelector(".result-corner-badge");
+      let kind = "";
+      if (data.status === "passed") {
+        kind = "done";
+      } else if (data.status === "waiting_for_human") {
+        kind = "waiting";
+      }
+      if (kind) {
+        if (!corner) {
+          corner = document.createElement("span");
+          corner.className = "result-corner-badge " + kind;
+          const glyph = document.createElement("span");
+          glyph.setAttribute("aria-hidden", "true");
+          fillResultCornerGlyph(glyph, kind);
+          corner.appendChild(glyph);
+          row.insertBefore(corner, row.firstChild);
+        } else {
+          corner.className = "result-corner-badge " + kind;
+          let glyph = corner.querySelector("[aria-hidden]");
+          if (!glyph) {
+            glyph = document.createElement("span");
+            glyph.setAttribute("aria-hidden", "true");
+            corner.appendChild(glyph);
+          }
+          fillResultCornerGlyph(glyph, kind);
+        }
+        row.setAttribute("data-result-corner", kind);
+      } else if (corner && row.getAttribute("data-result-corner") !== "excluded") {
+        corner.remove();
+        row.removeAttribute("data-result-corner");
+      }
+      if (data.status === "failed") {
+        row.classList.add("failed");
+      } else {
+        row.classList.remove("failed");
+      }
+    } else if (data.status === "failed") {
       row.classList.add("failed");
     } else {
       row.classList.remove("failed");

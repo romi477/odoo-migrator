@@ -161,12 +161,17 @@ def test_two_migrations_run_independently_and_the_lamp_shows_on_the_other_screen
     assert f'data-module-id="{acme_sale["id"]}"' in jumped.text
 
 
-def test_batch_button_visible_text_is_the_verb(client):
-    _open(client)
-    html = client.get("/tree").text
+def test_run_batch_control_lives_on_pipeline(client):
+    _prepared(client)
 
-    assert ">Batch<" in html
-    assert 'aria-label="Migrate the selected batch"' in html
+    tree = client.get("/tree").text
+    run = client.get("/run").text
+
+    assert ">Run batch<" not in tree
+    assert ">Add to queue<" in run
+    assert ">Queue<" in run
+    assert "Step 1" in run
+    assert "pipeline-step-modules" in run
 
 
 def test_an_empty_or_missing_batch_is_loud(client):
@@ -182,10 +187,11 @@ def test_an_empty_or_missing_batch_is_loud(client):
         assert Job.select().count() == 0
 
 
-def test_styleguide_shows_the_batch_button(client):
+def test_styleguide_shows_the_pipeline_queue(client):
     html = client.get("/components").text
 
-    assert ">Batch<" in html
+    assert ">Add to queue<" in html
+    assert "pipeline-queue-list" in html
 
 
 class DeferredExecutor:

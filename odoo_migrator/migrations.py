@@ -106,6 +106,22 @@ def _result_display_status(row: dict) -> str:
     return row.get("status") or "queued"
 
 
+def _result_corner(row: dict) -> str:
+    """Corner badge on Result cards: done, waiting, or excluded."""
+    if row.get("struck_out"):
+
+        return "excluded"
+    status = row.get("status") or "queued"
+    if status == "passed":
+
+        return "done"
+    if status == "waiting_for_human":
+
+        return "waiting"
+
+    return ""
+
+
 def _result_subtitle(row: dict) -> str:
     if row.get("struck_out"):
 
@@ -130,7 +146,11 @@ def _result_module(row: dict) -> dict:
         "subtitle": _result_subtitle(row),
         "step_class": step_class,
         "display_status": _result_display_status(row),
+        "result_corner": _result_corner(row),
     }
+
+
+RESULT_STEPS_PER_PAGE = 4
 
 
 def migration_results(migration_id: str) -> dict:
@@ -160,9 +180,19 @@ def migration_results(migration_id: str) -> dict:
         for step in sorted(by_step)
     ]
 
+    step_count = len(steps)
+    if step_count:
+        step_page_count = (
+            step_count + RESULT_STEPS_PER_PAGE - 1
+        ) // RESULT_STEPS_PER_PAGE
+    else:
+        step_page_count = 0
+
     return {
         "progress": _progress(counts),
         "steps": steps,
+        "steps_per_page": RESULT_STEPS_PER_PAGE,
+        "step_page_count": step_page_count,
     }
 
 

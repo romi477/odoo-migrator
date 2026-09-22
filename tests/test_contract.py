@@ -357,13 +357,12 @@ def test_sse_client_patches_named_events_and_never_replaces_the_page(client):
     assert "document.body.innerHTML" not in js.text
 
 
-def test_migrate_button_visible_text_is_the_verb(client):
-    row = _open(client)
+def test_tree_has_no_migrate_trigger(client):
+    _open(client)
     html = client.get("/tree").text
 
-    assert ">Migrate<" in html
-    assert 'aria-label="Migrate the selected module"' in html
-    assert row.id
+    assert ">Migrate<" not in html
+    assert 'aria-label="Migrate the selected module"' not in html
 
 
 def test_loopback_app_base_url_is_loud_on_migrate(client):
@@ -404,7 +403,7 @@ def test_styleguide_shows_a_patchable_module_row(client):
     html = client.get("/components").text
 
     assert "data-module-id" in html
-    assert ">Migrate<" in html
+    assert 'id="node-card"' in html
 
 
 def test_executor_is_injected_so_tests_do_not_need_n8n(tmp_path):

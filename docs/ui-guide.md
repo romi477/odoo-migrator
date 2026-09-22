@@ -46,9 +46,9 @@ The bar is two rows, on every page.
   migration's screens.
 - **Tree / Pipeline / n8n / Sheller / Result** — the screens of the open
   migration, on the second row. Each one takes the full width.
-- **Guide** — the steps under the open migration, numbered in menu order:
-  Tree, Pipeline, n8n, Sheller, Result. Each says what the screen is
-  and which controls it has.
+- **Guide** — `/styleguide`: the five menu steps in order, with the
+  controls on each screen (queue-based Pipeline, Tree leave-out rules,
+  Result pagination and corner badges). Not a substitute for this file.
 - **Attention lamp** — `/attention`. Global: whichever migration has a
   module on `failed` or `waiting_for_human` that has not been dismissed.
   Clicking it opens that migration and focuses the node on Tree
@@ -94,17 +94,21 @@ The dependency graph for the open migration. The canvas is the list.
 from the old Odoo (through Sheller) and assigns **steps**: in-graph edges
 from a root, plus one — the same wave the canvas draws. A later step
 cannot start until every module on an earlier step is passed or struck.
-**Run batch** opens **Group**, **Ungroup**, **Migrate**, and **Batch**
-(optional; the main day-to-day control is the node card below).
+Grouping blocks for a run happens here (Resolve waves, or drag one module
+onto another); starting a block is on **Pipeline**.
 
 Under the canvas, centred **step** buttons (one colour per wave) select
-every module on that wave. The **node card** sits below them: a compact
-dashed panel (same outline language as **Create migration** on Overview),
-not full width. One row shows `#rank/step`, the technical name, a status
+every module on that wave. The **node card** sits below them: a compact dashed panel (same outline
+language as **Create migration** on Overview), fixed width (~28rem), not
+full bleed. One row shows `#rank/step`, the technical name, a status
 badge (`excluded` when the module is left out, otherwise `queued`,
-`running`, …), and **Leave out** or **Include again**. A footnote under
+`running`, …), and **Leave out** or **Include again** (one button for a
+single module). A whole **step** or any multi-select shows **both**
+buttons so you can leave the group out or bring excluded modules back. A
+footnote under
 the card (`* …`) explains what the button will do for the current
-selection.
+selection. Under the footnote, **Leave out all** and **Include all** apply
+to the whole migration (every module in or out of the plan).
 
 The canvas is Cytoscape. Box-select is on. Selection is additive.
 Each node shows its technical name. `#3/2` in the corner is **migration
@@ -122,7 +126,7 @@ Struck nodes show `(out)`, dashed borders, and faded colour.
 |---|---|---|
 | Several modules, or a whole step | Those modules and everything **downstream** | Each module's **depends chain upward** only (sibling branches stay out) |
 | One module that still has dependents | That module and everything **downstream** | Depends chain **upward** only |
-| One **leaf** (nothing depends on it) | Depends chain **upward**; a shared parent stays in if another branch is still active | Depends chain **upward** only |
+| One **leaf** (nothing depends on it) | **That module only** — parents stay in the plan | Depends chain **upward** only |
 
 When the status is `waiting_for_human` and the module is not excluded,
 the card also has an **Answer** form. There is no row per module under
@@ -132,7 +136,6 @@ the tree.
 |---|---|
 | **Resolve** | Reads the module graph from the old container and redraws steps. |
 | **Leave out / Include again** | On the node card; applies to the current selection (see table above). |
-| **Run batch → Group … Batch** | Manual batch groups and one-off migrate triggers. |
 
 Dragging a node onto another puts both in the same group (creating one
 if the target had none).
@@ -149,7 +152,13 @@ node in a hundred is not opening the module.
 Four run screens after Tree, not four columns. Pipeline also holds the
 checkpoint once a batch has finished. Result is the scoreboard.
 
-**Pipeline** (`/run`) is the live job: module, status, stage, attempt.
+**Pipeline** (`/run`) has **Selection** and **Queue**. In Selection, pick
+a **Step** (same waves as Tree) and **Add to queue** — duplicates are
+ignored. **Queue** lists pending modules in order; **Run** / **Stop**
+drive the sequential pipe (you can add steps while it runs; Stop finishes
+the current module first). The active module pulses in the queue; passed
+modules drop off the list and show on **Result**. The live panel below is
+module, status, stage, attempt.
 Empty reads "No module is running." SSE fills it. When the batch reaches
 checkpoint a banner appears: *This batch has finished. Reload to review
 it.* The screen does not swap itself for the review while you are
@@ -167,10 +176,15 @@ iframe `src` would run on this origin; only `http`/`https` become an href.
 
 **Result** (`/result`) is the migration dashboard: progress counts only
 modules still in the plan (not left out), then columns **L0, L1, …** (one
-per dependency wave) with a card per module — status dot, badge, and a
-subtitle (`depends` list, or *excluded — skipped on Tree*). Skipped
-modules stay in their wave, struck through, badge **excluded** (not
-`queued`). Wave columns replace batch-group numbers on the card. SSE
+per dependency wave) with a card per module. More than four waves paginate:
+four columns per page, dot controls in the panel header (one dot per page).
+Each card outline follows
+the **step** colour; a filled circle in the top-right corner marks
+**passed** (green, ✓), **waiting for you** (warning, pause bars), or **excluded**
+(circle with slash — left out on Tree). In-flight or failed
+modules keep a small inline badge instead. Subtitle is `depends` or
+*excluded — skipped on Tree*. Skipped modules stay in their wave, name
+struck through. SSE
 updates badges while this screen is open. With no graph yet, the page
 points you at Tree → Resolve.
 
@@ -240,11 +254,13 @@ every batch. A failed smoke-run blocks Batch. With nothing installed the
 app is on its own stub and a batch is allowed; once a flow exists,
 an unknown pin is refused.
 
-## Guide
+## Guide (in-app)
 
-`/styleguide` is the four steps under the open migration, numbered in
-the same order as the menu: Tree, Pipeline, n8n, Sheller, Result. Each step
-says what the screen is for and which control does what.
+**Guide** in the chrome opens `/styleguide`: the five menu steps (Tree,
+Pipeline, n8n, Sheller, Result) in order, with the controls that exist
+today — queue-based Pipeline, graph leave-out rules, Result wave
+pagination and corner badges. This file is the long-form reference;
+the in-app page is the short walkthrough.
 
 `/components` is how CSS gets reviewed: badges, row cards, pipeline,
 checkpoint, forms, the lamp, the switcher. Add a row in the same change

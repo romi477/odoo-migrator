@@ -18,6 +18,7 @@ from odoo_migrator.events import EventHub
 from odoo_migrator.graph import (
     earlier_steps_blocking,
     modules_in_batch_order,
+    modules_in_step_order,
     steps_for_migration,
 )
 from odoo_migrator.models import (
@@ -289,13 +290,26 @@ def _undo_start(
 def start_batch(
     *,
     migration_id: str,
-    batch_group: int,
     executor,
     hub: EventHub,
+    batch_group: int | None = None,
+    step: int | None = None,
 ) -> Batch:
-    ordered = modules_in_batch_order(migration_id, batch_group)
+    if step is not None:
+        ordered = modules_in_step_order(migration_id, step)
+        record_group = step
+    elif batch_group is not None:
+        ordered = modules_in_batch_order(migration_id, batch_group)
+        record_group = batch_group
+    else:
+        raise ContractError("No batch or step selected.")
     if not ordered:
-        raise ContractError("That batch is empty. Group modules on the tree first.")
+        empty = (
+            "That step has no modules in the plan."
+            if step is not None
+            else "That batch is empty. Group modules on the tree first."
+        )
+        raise ContractError(empty)
     ranks = steps_for_migration(migration_id)
     wave = min(ranks.get(row["technical_name"], 1) for row in ordered)
     blocked = earlier_steps_blocking(migration_id, wave)
@@ -322,7 +336,7 @@ def start_batch(
         batch = Batch.create(
             migration=migration,
             status="running",
-            batch_group=batch_group,
+            batch_group=record_group,
             cartridge_id=migration.cartridge_id or "stock",
             cartridge_version=migration.cartridge_version or "1.0.0",
             model_webhook_url=(
@@ -415,6 +429,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
     if stopped or group is None:
         # A stop is the batch's answer, and a batch of one has nothing next.
         close_batch(batch_id, hub)
+        _pipeline_after_batch(migration_id, batch_id, executor, hub)
 
         return
     remaining = [
@@ -424,6 +439,14 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
     ]
     if not remaining:
         close_batch(batch_id, hub)
+        _pipeline_after_batch(migration_id, batch_id, executor, hub)
+
+        return
+    from odoo_migrator.pipeline_queue import should_advance_modules
+
+    if not should_advance_modules(migration_id):
+        close_batch(batch_id, hub)
+        _pipeline_after_batch(migration_id, batch_id, executor, hub)
 
         return
     try:
@@ -439,6 +462,18 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         # separate Migrate. Stop rather than skip past it silently; the
         # checkpoint screen is where the human sees what did not run.
         close_batch(batch_id, hub)
+        _pipeline_after_batch(migration_id, batch_id, executor, hub)
+
+
+def _pipeline_after_batch(
+    migration_id: str,
+    batch_id: int,
+    executor,
+    hub: EventHub,
+) -> None:
+    from odoo_migrator.pipeline_queue import after_batch_checkpoint
+
+    after_batch_checkpoint(migration_id, batch_id, executor, hub)
 
 
 def apply_progress(body, hub: EventHub) -> None:

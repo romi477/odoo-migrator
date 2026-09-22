@@ -72,8 +72,30 @@ def test_struck_modules_show_excluded_not_queued(client):
     page = client.get("/result").text
 
     assert "sale_custom" in page
-    assert 'class="badge excluded">excluded</span>' in page
+    assert 'result-corner-badge excluded' in page
     assert "excluded — skipped on Tree" in page
+
+
+def test_result_paginates_waves_four_per_page(client):
+    migration_id = _open(client)
+    names = [f"wave_{i}" for i in range(10)]
+    with database.connection_context():
+        for i, name in enumerate(names):
+            depends = "[]" if i == 0 else f'["{names[i - 1]}"]'
+            Module.create(
+                migration=migration_id,
+                technical_name=name,
+                status="queued",
+                depends=depends,
+            )
+
+    page = client.get("/result").text
+
+    assert "result-columns-panel" in page
+    assert page.count('class="result-page-dot"') == 3
+    assert 'data-result-wave-page="0"' in page
+    assert 'data-result-wave-page="2"' in page
+    assert "wave_9" in page
 
 
 def test_result_without_modules_explains_resolve(client):

@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — {{ screen }}{% endblock %}
+{% block extra_head %}
+{% if screen == 'pipeline' %}
+<script defer src="/static/pipeline.js"></script>
+{% endif %}
+{% endblock %}
 {% block screen %}
 <section class="screen{% if screen == 'sheller' %} screen-fill sheller-screen{% endif %}">
   {% if screen != 'sheller' %}
@@ -31,6 +36,111 @@
   <p class="checkpoint-ready" data-checkpoint-ready hidden>
     This batch has finished. <a href="/run">Reload to review it.</a>
   </p>
+
+  {% if current %}
+  <div class="pipeline-panels">
+    <section class="pipeline-panel pipeline-selection row-card">
+      <h2 class="pipeline-panel-title">Selection</h2>
+      {% if pipeline_steps %}
+      <form method="post" action="/run/queue/add" class="pipeline-start"
+            x-data='{
+              steps: {{ pipeline_steps | tojson }},
+              pick: {{ pipeline_steps[0].step }},
+              moduleLine() {
+                const row = this.steps.find((s) => s.step === this.pick);
+                return row ? row.modules.join(", ") : "";
+              }
+            }'>
+        <label>
+          Step
+          <select name="step" required x-model.number="pick"
+                  aria-label="Migration step to queue">
+            {% for row in pipeline_steps %}
+            <option value="{{ row.step }}">Step {{ row.step }} · {{ row.count }} module{% if row.count != 1 %}s{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <p class="pipeline-step-modules mono" x-text="moduleLine()"></p>
+        <button type="submit" class="outline-cyan"
+                title="Add this step to the pipeline queue"
+                aria-label="Add the selected step to the queue">Add to queue</button>
+      </form>
+      {% else %}
+      <p class="field-hint">Resolve on Tree to draw dependency steps.</p>
+      {% endif %}
+    </section>
+
+    <section class="pipeline-queue-card card"
+             data-pipeline-queue-panel
+             {% if current %}data-migration-id="{{ current.id }}"{% endif %}
+             data-running="{{ pipeline_queue.run_state == 'running' }}"
+             x-data="{ expanded: false }"
+             :class="{ 'is-queue-expanded': expanded }">
+      <header class="pipeline-queue-head">
+        <div class="pipeline-queue-head-text">
+          <h2 class="pipeline-queue-title">Queue</h2>
+          <p class="pipeline-queue-meta" data-pipeline-queue-meta>
+            {% if pipeline_queue.modules %}
+            {{ pipeline_queue.modules | length }} pending · {{ pipeline_queue.steps | length }} step{% if pipeline_queue.steps | length != 1 %}s{% endif %} · {% if pipeline_queue.run_state == 'running' %}Running{% else %}Stopped{% endif %}
+            {% else %}
+            Empty · Stopped
+            {% endif %}
+          </p>
+        </div>
+        <div class="pipeline-queue-controls">
+          {% if pipeline_queue.modules | length > 1 %}
+          <button type="button" class="pipeline-queue-toggle outline-cyan"
+                  data-pipeline-queue-toggle
+                  @click="expanded = !expanded"
+                  :aria-expanded="expanded ? 'true' : 'false'"
+                  x-text="expanded ? 'Collapse list' : 'Expand full list'"></button>
+          {% endif %}
+          <form method="post" action="/run/queue/run">
+            <button type="submit" class="primary"
+                    {% if pipeline_queue.run_state == 'running' %}disabled{% endif %}
+                    aria-label="Run the pipeline queue">Run</button>
+          </form>
+          <form method="post" action="/run/queue/stop">
+            <button type="submit"
+                    {% if pipeline_queue.run_state != 'running' %}disabled{% endif %}
+                    aria-label="Stop the pipeline queue after the current module">Stop</button>
+          </form>
+        </div>
+      </header>
+      {% if pipeline_queue.modules %}
+      <div class="pipeline-queue-body">
+        <div class="pipeline-queue-next" data-pipeline-queue-next>
+          {% set mod = pipeline_queue.modules[0] %}
+          <div class="pipeline-queue-item{% if mod.active %} pipeline-queue-active{% endif %}"
+               data-module-id="{{ mod.id }}">
+            <span class="pipeline-queue-order">{{ mod.position }}</span>
+            <span class="graph-node-index">#{{ mod.migration_rank }}/{{ mod.step }}</span>
+            <span class="pipeline-lamp" aria-hidden="true"></span>
+            <span class="name mono">{{ mod.technical_name }}</span>
+            <span class="badge">step {{ mod.step }}</span>
+          </div>
+        </div>
+        <ol class="pipeline-queue-list" data-pipeline-queue>
+          {% for mod in pipeline_queue.modules %}
+          <li class="pipeline-queue-item{% if mod.active %} pipeline-queue-active{% endif %}"
+              data-module-id="{{ mod.id }}">
+            <span class="pipeline-queue-order">{{ mod.position }}</span>
+            <span class="graph-node-index">#{{ mod.migration_rank }}/{{ mod.step }}</span>
+            <span class="pipeline-lamp" aria-hidden="true"></span>
+            <span class="name mono">{{ mod.technical_name }}</span>
+            <span class="badge">step {{ mod.step }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+      {% else %}
+      <div class="pipeline-queue-body pipeline-queue-body-empty">
+        <p class="field-hint" data-pipeline-queue-empty>Add steps from Selection.</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+  {% endif %}
 
   <div class="workspace">
     <article class="workspace-panel"

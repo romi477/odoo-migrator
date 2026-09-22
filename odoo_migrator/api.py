@@ -32,10 +32,13 @@ from odoo_migrator.executor import StubExecutor
 from odoo_migrator.files import PathEscapes, read_text, resolve_in_root, write_text
 from odoo_migrator.graph import (
     GraphError,
+    list_pipeline_steps,
     list_modules,
     module_for_migration,
     resolve_graph,
     set_batch_group,
+    include_all,
+    leave_out_all,
     leave_out_selection,
     restore_selection,
     skip_subtree,
@@ -74,6 +77,12 @@ from odoo_migrator.models import ACCENTS
 from odoo_migrator.n8n import HttpN8nClient, N8nExecutor, sweep_orphaned_sessions
 from odoo_migrator.paths import rules_dir as default_rules_dir
 from odoo_migrator.paths import static_dir, templates_dir
+from odoo_migrator.pipeline_queue import (
+    add_step as queue_add_step,
+    queue_snapshot,
+    start as queue_start,
+    stop as queue_stop,
+)
 from odoo_migrator.provision import (
     ComposeError,
     DockerComposeEngine,
@@ -186,6 +195,14 @@ def create_app(
             # that started it. app.state.executor is read now, not captured,
             # so a test that swaps the executor mid-batch is honoured.
             advance_batch(finished, app.state.executor, app.state.hub)
+            from odoo_migrator.db import database
+            from odoo_migrator.models import Job
+            from odoo_migrator.pipeline_queue import on_module_finished
+
+            with database.connection_context():
+                job = Job.get_or_none(Job.job_id == finished)
+                if job is not None:
+                    on_module_finished(str(job.batch.migration_id), app.state.hub)
 
     # The callback path, exposed so an executor double drives the app the
     # way a real one does — through here — instead of reaching past it into
@@ -588,6 +605,62 @@ def create_app(
 
         return RedirectResponse("/tree", status_code=303)
 
+    @app.post("/tree/modules/leave-out-all")
+    def tree_leave_out_all(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/tree", status_code=303)
+        wants_json = "application/json" in request.headers.get("accept", "")
+        try:
+            updated = leave_out_all(current["id"])
+        except GraphError as refused:
+            if wants_json:
+
+                return JSONResponse({"error": str(refused)}, status_code=400)
+
+            return _tree_page(request, error=str(refused))
+        if wants_json:
+
+            return JSONResponse(
+                {
+                    "modules": [
+                        {"id": row["id"], "struck_out": row["struck_out"]}
+                        for row in updated
+                    ]
+                }
+            )
+
+        return RedirectResponse("/tree", status_code=303)
+
+    @app.post("/tree/modules/include-all")
+    def tree_include_all(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/tree", status_code=303)
+        wants_json = "application/json" in request.headers.get("accept", "")
+        try:
+            updated = include_all(current["id"])
+        except GraphError as refused:
+            if wants_json:
+
+                return JSONResponse({"error": str(refused)}, status_code=400)
+
+            return _tree_page(request, error=str(refused))
+        if wants_json:
+
+            return JSONResponse(
+                {
+                    "modules": [
+                        {"id": row["id"], "struck_out": row["struck_out"]}
+                        for row in updated
+                    ]
+                }
+            )
+
+        return RedirectResponse("/tree", status_code=303)
+
     @app.post("/tree/modules/{module_id}/strike")
     def tree_strike(request: Request, module_id: int, struck: str = Form("")):
         """``struck`` is explicit. Toggling per module made one press of the
@@ -689,8 +762,8 @@ def create_app(
             return _tree_page(
                 request,
                 error=(
-                    "Select one module. Migrating a whole batch lands with the "
-                    "batch runner."
+                    "Select one module. Migrating a whole batch starts on "
+                    "Pipeline."
                     if many
                     else "Select a module to migrate."
                 ),
@@ -712,29 +785,38 @@ def create_app(
         return RedirectResponse("/tree", status_code=303)
 
     @app.post("/tree/batch/run")
-    def tree_batch_run(request: Request, batch_group: str = Form("")):
+    def tree_batch_run(
+        request: Request,
+        batch_group: str = Form(""),
+        step: str = Form(""),
+    ):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         if current is None:
 
             return RedirectResponse("/tree", status_code=303)
-        if not batch_group.strip():
+        if not step.strip() and not batch_group.strip():
 
-            return _tree_page(request, error="Select a batch to migrate.")
+            return _run_page(request, error="Select a step to migrate.")
         try:
-            batch = start_batch(
-                migration_id=current["id"],
-                batch_group=int(batch_group),
-                executor=request.app.state.executor,
-                hub=request.app.state.hub,
-            )
+            if step.strip():
+                start_batch(
+                    migration_id=current["id"],
+                    step=int(step),
+                    executor=request.app.state.executor,
+                    hub=request.app.state.hub,
+                )
+            else:
+                start_batch(
+                    migration_id=current["id"],
+                    batch_group=int(batch_group),
+                    executor=request.app.state.executor,
+                    hub=request.app.state.hub,
+                )
         except (ContractError, ValueError) as refused:
 
-            return _tree_page(request, error=str(refused))
-        if batch.status == "checkpoint":
+            return _run_page(request, error=str(refused))
 
-            return RedirectResponse("/run", status_code=303)
-
-        return RedirectResponse("/tree", status_code=303)
+        return RedirectResponse("/run", status_code=303)
 
     @app.get("/attention")
     def attention():
@@ -802,6 +884,7 @@ def create_app(
         live = live_run(current["id"]) if current else None
         settings = get_app_settings()
         versions = []
+        pipeline_steps = []
         if current:
             try:
                 versions = stack_versions(
@@ -809,6 +892,8 @@ def create_app(
                 )
             except RulesError:
                 versions = []
+            pipeline_steps = list_pipeline_steps(current["id"])
+        pipeline_queue = queue_snapshot(current["id"]) if current else None
 
         return _page(
             request,
@@ -818,12 +903,62 @@ def create_app(
                 "screen": screen,
                 "checkpoint": checkpoint,
                 "live": live,
+                "pipeline_steps": pipeline_steps,
+                "pipeline_queue": pipeline_queue,
                 "n8n_base_url": _browsable(settings["n8n_base_url"]),
                 "sheller_web_url": _browsable(settings["sheller_base_url"], "/web"),
                 "versions": versions,
                 "error": error,
             },
         )
+
+    @app.post("/run/queue/add")
+    def run_queue_add(request: Request, step: str = Form("")):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        if not step.strip():
+
+            return _run_page(request, error="Pick a step to queue.")
+        try:
+            queue_add_step(current["id"], int(step))
+        except ValueError as refused:
+
+            return _run_page(request, error=str(refused))
+        from odoo_migrator.pipeline_queue import publish_queue
+
+        publish_queue(request.app.state.hub, current["id"])
+
+        return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/run")
+    def run_queue_run(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        try:
+            queue_start(
+                current["id"],
+                request.app.state.executor,
+                request.app.state.hub,
+            )
+        except ContractError as refused:
+
+            return _run_page(request, error=str(refused))
+
+        return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/stop")
+    def run_queue_stop(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        queue_stop(current["id"], request.app.state.hub)
+
+        return RedirectResponse("/run", status_code=303)
 
     @app.post("/run/continue")
     def run_continue(request: Request, override: str = Form("")):

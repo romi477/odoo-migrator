@@ -34,9 +34,29 @@
       </div>
     </article>
 
-    <div class="result-columns">
+    <div class="result-columns-panel"
+         x-data="{ page: 0 }">
+      {% if board.step_page_count > 1 %}
+      <header class="result-columns-head">
+        <nav class="result-page-dots" aria-label="Dependency wave pages">
+          {% for p in range(board.step_page_count) %}
+          <button type="button"
+                  class="result-page-dot"
+                  :class="{ 'is-active': page === {{ p }} }"
+                  :aria-current="page === {{ p }} ? 'page' : false"
+                  :aria-label="'Waves {{ p * board.steps_per_page + 1 }}–{{ [((p + 1) * board.steps_per_page), board.steps|length]|min }}'"
+                  @click="page = {{ p }}"></button>
+          {% endfor %}
+        </nav>
+      </header>
+      {% endif %}
+      <div class="result-columns">
       {% for column in board.steps %}
-      <section class="result-column">
+      {% set wave_page = loop.index0 // board.steps_per_page %}
+      <section class="result-column"
+               x-show="page === {{ wave_page }}"
+               x-cloak
+               data-result-wave-page="{{ wave_page }}">
         <h2 class="result-column-head">
           <span class="mono">L{{ column.step - 1 }}</span>
           <span class="result-column-wave">wave {{ column.step }}</span>
@@ -44,19 +64,33 @@
         <ul class="result-column-list">
           {% for module in column.modules %}
           <li class="result-card step-{{ module.step_class }}{% if module.struck_out %} struck{% endif %}{% if module.display_status == 'failed' %} failed{% endif %}"
-              data-module-id="{{ module.id }}">
-            <span class="result-status-dot {{ module.display_status }}" aria-hidden="true"></span>
+              data-module-id="{{ module.id }}"
+              {% if module.result_corner %}data-result-corner="{{ module.result_corner }}"{% endif %}>
+            {% if module.result_corner == 'done' %}
+            <span class="result-corner-badge done" title="Passed" aria-label="Passed">
+              <span class="result-corner-glyph-check" aria-hidden="true">✓</span>
+            </span>
+            {% elif module.result_corner == 'waiting' %}
+            <span class="result-corner-badge waiting" title="Waiting for you" aria-label="Waiting for you">
+              <span class="result-corner-glyph-pause" aria-hidden="true"></span>
+            </span>
+            {% elif module.result_corner == 'excluded' %}
+            <span class="result-corner-badge excluded" title="Excluded on Tree" aria-label="Excluded on Tree">
+              <span class="result-corner-glyph-excluded" aria-hidden="true"></span>
+            </span>
+            {% endif %}
             <div class="result-card-main">
-              <span class="name-line">
-                <span class="name mono">{{ module.technical_name }}</span>
-                {% if module.has_assumptions and not module.struck_out %}
-                <span class="result-flag assumptions" title="Recorded assumptions">!</span>
-                {% endif %}
-                {% if module.display_status == 'waiting_for_human' %}
-                <span class="result-flag human" title="Waiting for you">?</span>
-                {% endif %}
-                <span class="badge {{ module.display_status }}">{{ module.display_status }}</span>
-              </span>
+              <span class="name mono">{{ module.technical_name }}</span>
+              {% if module.has_assumptions and not module.struck_out %}
+              <span class="result-flag assumptions" title="Recorded assumptions">!</span>
+              {% endif %}
+              {% if module.display_status == 'failed' %}
+              <span class="badge failed">failed</span>
+              {% elif module.display_status == 'running' %}
+              <span class="badge running">running</span>
+              {% elif module.display_status == 'queued' and not module.struck_out %}
+              <span class="badge queued">queued</span>
+              {% endif %}
               <p class="result-subtitle mono">{{ module.subtitle }}</p>
             </div>
           </li>
@@ -64,6 +98,7 @@
         </ul>
       </section>
       {% endfor %}
+      </div>
     </div>
   </div>
   {% endif %}

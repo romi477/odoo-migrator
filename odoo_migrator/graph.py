@@ -146,6 +146,41 @@ def list_modules(migration_id: str) -> list[dict]:
     return listed
 
 
+def list_pipeline_steps(migration_id: str) -> list[dict]:
+    """Dependency steps still in the plan — same waves as Tree."""
+    listed = list_modules(migration_id)
+    by_step: dict[int, list[str]] = {}
+    for row in listed:
+        if row["struck_out"]:
+            continue
+        wave = row.get("step") or 1
+        by_step.setdefault(wave, []).append(row["technical_name"])
+    return [
+        {
+            "step": wave,
+            "count": len(names),
+            "modules": sorted(names),
+        }
+        for wave in sorted(by_step)
+        for names in [by_step[wave]]
+    ]
+
+
+def modules_in_step_order(migration_id: str, step: int) -> list[dict]:
+    """Active modules on one dependency step, in migration order."""
+    listed = list_modules(migration_id)
+    active = [
+        row
+        for row in listed
+        if not row["struck_out"] and (row.get("step") or 1) == step
+    ]
+    active.sort(
+        key=lambda row: (row.get("migration_rank") or 0, row["technical_name"])
+    )
+
+    return active
+
+
 # Odoo Enterprise Edition License. Measured on a real database: it marked
 # 46 of the 48 modules in the Enterprise directory, and nothing else.
 #
@@ -422,31 +457,12 @@ def restore_selection(module_ids: list[int]) -> list[dict]:
         return [_module_row(row) for row in updated]
 
 
-def _prune_shared_strike_ancestors(
-    names: set[str],
-    children: dict[str, list[str]],
-    by_name: dict[str, Module],
-) -> set[str]:
-    pruned = set(names)
-    changed = True
-    while changed:
-        changed = False
-        for name in list(pruned):
-            for child in children[name]:
-                if child not in pruned and not by_name[child].struck_out:
-                    pruned.discard(name)
-                    changed = True
-                    break
-
-    return pruned
-
-
 def leave_out_selection(module_ids: list[int]) -> list[dict]:
     """Leave selected modules out of the migration.
 
-    One leaf module walks depends upward (shared ancestors stay if a sibling
-    branch is still in). Several modules, or one with dependents, strike the
-    selection and everything downstream of it.
+    A leaf is struck alone — parents stay in the plan. A module with
+    dependents, or a multi-select, strikes the selection and everything
+    downstream of it.
     """
     if not module_ids:
         return []
@@ -459,13 +475,6 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
         rows = list(Module.select().where(Module.migration == migration_id))
         by_id = {row.id: row for row in rows}
         by_name = {row.technical_name: row for row in rows}
-        parents: dict[str, list[str]] = {name: [] for name in by_name}
-        children: dict[str, list[str]] = {name: [] for name in by_name}
-        for row in rows:
-            for dep in json.loads(row.depends or "[]"):
-                if dep in by_name:
-                    parents[row.technical_name].append(dep)
-                    children[dep].append(row.technical_name)
         steps = topological_steps(
             {name: json.loads(row.depends or "[]") for name, row in by_name.items()}
         )
@@ -479,11 +488,7 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
             only = next(iter(seeds))
             downstream = _downstream(rows, only)
             if len(downstream) <= 1:
-                names = _prune_shared_strike_ancestors(
-                    _ancestor_names(seeds, parents),
-                    children,
-                    by_name,
-                )
+                names = set(seeds)
             else:
                 names = set(downstream)
         else:
@@ -505,6 +510,58 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
             updated.append(row)
 
         return [_module_row(row) for row in updated]
+
+
+def leave_out_all(migration_id: str) -> list[dict]:
+    """Leave every module still in the plan out of the migration."""
+    with database.connection_context():
+        rows = list(
+            Module.select().where(
+                (Module.migration == migration_id) & (~Module.struck_out)
+            )
+        )
+        updated: list[Module] = []
+        for row in rows:
+            row.struck_out = True
+            row.save()
+            updated.append(row)
+
+    return [_module_row(row) for row in updated]
+
+
+def include_all(migration_id: str) -> list[dict]:
+    """Bring every excluded module back, parents before dependents."""
+    with database.connection_context():
+        rows = list(Module.select().where(Module.migration == migration_id))
+        by_name = {row.technical_name: row for row in rows}
+        parents: dict[str, list[str]] = {name: [] for name in by_name}
+        for row in rows:
+            for dep in json.loads(row.depends or "[]"):
+                if dep in by_name:
+                    parents[row.technical_name].append(dep)
+        steps = topological_steps(
+            {name: json.loads(row.depends or "[]") for name, row in by_name.items()}
+        )
+        ordered = sorted(
+            rows,
+            key=lambda row: (steps.get(row.technical_name, 1), row.technical_name),
+        )
+        updated: list[Module] = []
+        for row in ordered:
+            if not row.struck_out:
+                continue
+            blocking = [
+                parent
+                for parent in parents[row.technical_name]
+                if by_name[parent].struck_out
+            ]
+            if blocking:
+                continue
+            row.struck_out = False
+            row.save()
+            updated.append(row)
+
+    return [_module_row(row) for row in updated]
 
 
 def topological_steps(depends_by_name: dict[str, list[str]]) -> dict[str, int]:
