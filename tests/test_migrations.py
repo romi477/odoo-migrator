@@ -1,7 +1,7 @@
 import re
 
 from odoo_migrator.db import database
-from odoo_migrator.models import ACCENTS, Migration
+from odoo_migrator.models import ACCENTS, Migration, Module
 
 
 def _create(client, name, accent="violet", source="17.0", target="18.0"):
@@ -33,6 +33,11 @@ def test_empty_overview_shows_empty_state(client):
     asked = client.get("/?create=1").text
 
     assert 'name="old_project_path"' in asked
+    css = client.get("/static/style.css").text
+    rule = css.split(".create-migration {", 1)[1].split("}", 1)[0]
+    assert "margin-inline: auto" in rule
+    # Outlined in the chosen accent, with a cyan fallback for the specimen.
+    assert "border-color: var(--accent, var(--cyan))" in rule
 
 
 def test_create_two_migrations_lists_both(client):
@@ -44,6 +49,39 @@ def test_create_two_migrations_lists_both(client):
     assert "17.0" in html
     assert "18.0" in html
     assert "No migrations yet." not in html
+    assert ">Settings<" not in html
+    assert "row-toggle" in html
+    assert "collapsed" in html
+    assert 'aria-expanded="false"' in html
+
+
+def test_collapsed_row_shows_module_progress_and_attention_counts(client):
+    """The collapsed row carries a progress bar and the counts a human cares
+    about, so the list reads without opening a card. Struck modules are not
+    in the migration, so they are not in the total."""
+    created = _create(client, "Acme")
+    row_id = created.text.split('id="m-', 1)[1].split('"', 1)[0]
+    with database.connection_context():
+        Module.create(migration=row_id, technical_name="a", status="passed")
+        Module.create(migration=row_id, technical_name="b", status="failed")
+        Module.create(migration=row_id, technical_name="c", status="waiting_for_human")
+        Module.create(migration=row_id, technical_name="d", status="queued")
+        Module.create(
+            migration=row_id, technical_name="e", status="queued", struck_out=True
+        )
+    html = client.get("/").text
+
+    assert "progress-bar" in html
+    assert "1 of 4 modules" in html
+    assert "1 waiting for you" in html
+    assert "1 failed" in html
+
+
+def test_a_migration_with_no_modules_has_no_progress_bar(client):
+    _create(client, "Acme")
+    html = client.get("/").text
+
+    assert "progress-bar" not in html
 
 
 def test_list_row_sets_accent_as_custom_property(client):
@@ -186,7 +224,7 @@ def test_accent_options_are_not_status_colours(client):
 
 
 def test_switcher_and_accent_dot_are_on_the_styleguide(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert "Accent" in html
     assert "accent-dot" in html

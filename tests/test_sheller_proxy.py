@@ -172,7 +172,6 @@ def test_a_daemon_that_is_not_listening_is_502(tmp_path):
         app_base_url="",
         sheller_base_url="http://127.0.0.1:1",
         sheller_image_tag="",
-        min_sheller_version="",
     )
     client = TestClient(
         app, headers={API_KEY_HEADER: API_KEY}, raise_server_exceptions=False

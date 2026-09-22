@@ -7,7 +7,7 @@ there. This folder goes deeper on the parts worth explaining once, properly.
 | Document | What it covers |
 |---|---|
 | [architecture.md](architecture.md) | How odoo-migrator actually works: the app as source of truth, n8n as a cartridge, Sheller sessions, rules, diffs |
-| [ui-guide.md](ui-guide.md) | Using the web UI screen by screen — Overview, Tree, Run, Settings — with every control and what it guarantees |
+| [ui-guide.md](ui-guide.md) | Using the web UI screen by screen — Overview, Tree, Pipeline, n8n, Sheller, Settings — with every control and what it guarantees |
 | [n8n.md](n8n.md) | The stock cartridge: compose pin, webhook contract, Wait/resume, wrappers, smoke-run |
 | [security.md](security.md) | The actual security model: what's protected, what deliberately isn't, and why 8765 never leaves loopback |
 | [faq.md](faq.md) | Plain-language questions and answers, in English |

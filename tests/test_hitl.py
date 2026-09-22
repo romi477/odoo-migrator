@@ -313,7 +313,7 @@ def test_sse_carries_the_question_so_the_row_can_show_it_without_a_reload(client
 
 
 def test_styleguide_shows_notes_and_answer(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert ">Save<" in html
     assert ">Answer<" in html

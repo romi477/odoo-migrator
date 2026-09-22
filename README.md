@@ -147,7 +147,7 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    (not host loopback), Sheller base URL (default
    `http://127.0.0.1:8765`), optional n8n base URL and API key.
 3. **This migration** — attach or Up the two compose projects, pin a
-   cartridge and a model wrapper, smoke-run one module before a batch.
+   flow and a model wrapper, smoke-run one module before a batch.
 4. **Tree** — Resolve the graph from the live old Odoo. Skip, group,
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, open n8n in its own tab, observe Sheller
@@ -190,7 +190,7 @@ or the parent is 400 and the production webhook stays 404.
 
 The webhook path is chosen per batch (`migrate-module`, or a thin wrapper
 `migrate-module-openai` / `migrate-module-claude`). A smoke-run that has
-not passed blocks a batch once a cartridge is installed.
+not passed blocks a batch once a flow is installed.
 
 ```bash
 packaging/n8n.sh up                          # start it, wait until really ready
@@ -247,18 +247,21 @@ uv run pytest -m "not live"
 There is no Swagger. `docs_url` is off: the pages are a local tool, and
 the machine-facing surface is keyed.
 
-The **pages** (Overview, Tree, Run, Settings) ask nobody for a key. The
+The **pages** (Overview, Tree, Pipeline, n8n, Sheller, Settings) ask nobody for a key. The
 **machine-facing** routes require `X-Odoo-Migrator-Key`.
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/` | Overview |
 | `GET` | `/tree` | Module graph |
-| `GET` | `/run` | Pipeline workspace and checkpoint |
+| `GET` | `/run` | Pipeline and checkpoint |
+| `GET` | `/n8n` | n8n executor link |
+| `GET` | `/sheller` | Sheller observer |
 | `GET` | `/settings` | App settings |
-| `GET` | `/settings/migration` | This migration: containers, cartridge, smoke-run |
+| `GET` | `/settings/migration` | This migration: containers, flow, smoke-run |
 | `GET` | `/sse` | One named-event stream per page |
-| `GET` | `/styleguide` | Every CSS component, rendered once |
+| `GET` | `/styleguide` | What Tree, Pipeline, n8n and Sheller are for |
+| `GET` | `/components` | Every CSS component, rendered once |
 | `GET` | `/api/migrations/{id}/files` | Read a text file under old or new root (`?side=&path=`) |
 | `PUT` | `/api/migrations/{id}/files` | Write (`{"side","path","content"}`). Escape is 403 |
 | `POST` | `/api/jobs/{job_id}/progress` | Stage + attempt while n8n still holds the job |
@@ -303,7 +306,7 @@ Code, comments, docs and commits are in English. Discussion happens in
 Russian. `return` gets a blank line before it; run `ruff check`, not
 `ruff format` — format strips that line.
 
-Every new UI component gets a row on `/styleguide` in the same change.
+Every new UI component gets a row on `/components` in the same change.
 Appearance lives in the stylesheet. Inline `style=` is permitted only for
 custom properties (`--accent`).
 

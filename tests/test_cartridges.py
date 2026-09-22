@@ -198,7 +198,6 @@ def test_the_executor_fires_the_wrapper_webhook_pinned_on_the_batch(
         app_base_url="http://host.docker.internal:8000",
         sheller_base_url="http://127.0.0.1:8765",
         sheller_image_tag="",
-        min_sheller_version="",
     )
     app = create_app(
         init_path,
@@ -256,7 +255,7 @@ def test_migration_settings_pin_the_cartridge_and_the_wrapper(client):
     assert stored.cartridge_id == "stock"
     assert stored.model_webhook_path == "migrate-module-openai"
     assert 'name="cartridge_id"' in client.get(f"/?settings={row.id}").text
-    assert "smoke" in client.get("/styleguide").text.lower()
+    assert "smoke" in client.get("/components").text.lower()
 
 
 class DeferredExecutor:

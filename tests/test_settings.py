@@ -48,6 +48,9 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
     assert f'action="/migrations/{row.id}/settings"' in expanded
     assert f'action="/migrations/{row.id}/containers/old/up"' in expanded
     assert 'name="n8n_base_url"' not in expanded
+    assert ">Settings<" not in expanded
+    assert "row-card expanded" in expanded
+    assert 'aria-expanded="true"' in expanded
 
 
 def test_n8n_base_url_saves_and_stays_off_other_pages(client):
@@ -59,7 +62,6 @@ def test_n8n_base_url_saves_and_stays_off_other_pages(client):
             "app_base_url": "http://host.docker.internal:8000",
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "1.7.0",
-            "min_sheller_version": "1.7.0",
         },
         follow_redirects=True,
     )
@@ -117,14 +119,21 @@ def test_migration_settings_save_on_the_open_migration(client):
 
 
 def test_archive_button_names_the_migration_accessibly(client):
-    """The name is the button's accessible name and tooltip. As visible text it
-    wraps a list row over three lines while repeating what the row already
-    shows; actions away from their row still spell it out."""
-    html = _create(client, "Acme").text
+    """Archive is a bin at the foot of the open card, not a labelled button on
+    the collapsed row. The name is its accessible name and tooltip; a bin
+    needs no visible text, and the row already shows the name a line above."""
+    created = _create(client, "Acme")
+    row_id = created.text.split('id="m-', 1)[1].split('"', 1)[0]
+    collapsed = client.get("/").text
+
+    assert "Archive Acme" not in collapsed
+
+    html = client.get(f"/?settings={row_id}").text
 
     assert 'aria-label="Archive Acme"' in html
     assert 'title="Archive Acme"' in html
-    assert ">Archive<" in html
+    assert "bin-icon" in html
+    assert ">Archive<" not in html
 
 
 def test_migration_settings_say_when_nothing_was_saved(client):
@@ -162,7 +171,7 @@ def test_migration_settings_say_when_nothing_was_saved(client):
         assert Migration.get_by_id(row.id).retry_limit == 5
 
 
-def test_api_key_is_stored_but_never_rendered(client):
+def test_api_key_is_masked_on_settings_only(client):
     client.post(
         "/settings",
         data={
@@ -171,14 +180,19 @@ def test_api_key_is_stored_but_never_rendered(client):
             "app_base_url": "",
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "",
-            "min_sheller_version": "",
         },
         follow_redirects=True,
     )
-    page = client.get("/settings").text
+    settings = client.get("/settings").text
 
-    assert "n8n_secret_value" not in page
-    assert "stored — leave blank to keep" in page
+    assert 'id="n8n-api-key"' in settings
+    assert 'type="password"' in settings
+    assert 'value="****************"' in settings
+    assert "n8n_secret_value" not in settings
+    assert 'aria-label="Clear the stored n8n API key"' in settings
+    assert "bin-icon" in settings
+    assert "n8n_secret_value" not in client.get("/").text
+    assert "n8n_secret_value" not in client.get("/tree").text
     with database.connection_context():
         assert AppSettings.get().n8n_api_key == "n8n_secret_value"
 
@@ -192,7 +206,6 @@ def test_saving_with_a_blank_key_keeps_the_stored_one(client):
             "app_base_url": "",
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "",
-            "min_sheller_version": "",
         },
         follow_redirects=True,
     )
@@ -204,7 +217,6 @@ def test_saving_with_a_blank_key_keeps_the_stored_one(client):
             "app_base_url": "",
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "",
-            "min_sheller_version": "",
         },
         follow_redirects=True,
     )
@@ -282,7 +294,7 @@ def test_sse_window_is_bounded_in_production_defaults():
 
 
 def test_styleguide_shows_attention_lamp(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert "attention-lamp" in html
     assert "Attention" in html

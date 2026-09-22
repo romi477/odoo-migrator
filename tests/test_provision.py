@@ -16,6 +16,7 @@ from odoo_migrator.provision import (
     published_host_ports,
     rebuild,
     restart,
+    stop,
     up,
 )
 from odoo_migrator.provision.engine import WORKING_DIR_LABEL
@@ -134,6 +135,39 @@ def test_attach_with_nothing_running_tells_you_to_use_up(tmp_path):
 
     with pytest.raises(NothingToAttach, match="Up"):
         attach(engine, tmp_path)
+
+
+def test_stop_stops_ours_and_the_side_reads_stopped(tmp_path):
+    _compose(tmp_path)
+    engine = FakeComposeEngine()
+    up(engine, tmp_path)
+
+    result = stop(engine, tmp_path)
+
+    assert engine.stops == [tmp_path.resolve()]
+    assert result.state == "stopped"
+    assert count_running(engine, [tmp_path]).ours == 0
+
+
+def test_stop_with_nothing_running_is_a_no_op_not_an_error(tmp_path):
+    """Stop on an idle side should not raise the way attach does; there is
+    simply nothing to stop, and the side already reads stopped."""
+    _compose(tmp_path)
+    engine = FakeComposeEngine()
+
+    result = stop(engine, tmp_path)
+
+    assert engine.stops == []
+    assert result.state == "stopped"
+
+
+def test_stop_without_a_compose_file_is_refused(tmp_path):
+    engine = FakeComposeEngine()
+
+    with pytest.raises(ComposeMissing, match="compose"):
+        stop(engine, tmp_path)
+
+    assert engine.stops == []
 
 
 def test_restart_and_rebuild_need_ours_and_do_not_touch_a_foreign_container(tmp_path):

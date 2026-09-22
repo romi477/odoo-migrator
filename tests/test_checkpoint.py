@@ -239,7 +239,7 @@ def test_promote_to_eighteen_writes_rules_eighteen(tmp_path, compose, fake_shell
 
 
 def test_styleguide_shows_checkpoint_actions(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert ">Continue<" in html
     assert ">Override<" in html

@@ -5,71 +5,114 @@
   <header class="screen-head">
     <div>
       <h1>Migrations</h1>
-      {% if not migrations %}
-      <p>No migrations yet. A migration is an old project and its version, a
-      new project and its version — everything else grows from that pair.</p>
-      {% else %}
+      {% if migrations %}
       <p>Opening one never stops another. The switcher only changes what is on screen.</p>
       {% endif %}
     </div>
-    {# A button, not a form that is always open: the form is six fields and
-       it was taking most of the screen to ask a question nobody had asked
-       yet. #}
-    {% if not creating %}
-    <a class="button-link primary" href="/?create=1#create">Create migration</a>
-    {% endif %}
   </header>
 
   {% if error %}
   <p class="form-error">{{ error }}</p>
   {% endif %}
 
+  {# First launch: a dashed panel instead of the list, with the one action
+     there is. Creating from here, or later from the switcher — the header
+     no longer carries a standing Create button. #}
+  {% if not migrations and not creating %}
+  <div class="empty-state">
+    <p class="empty-lead">No migrations yet.</p>
+    <p class="empty-help">A migration is an old project and its version, a new
+    project and its version — everything else grows from that pair.</p>
+    <a class="button-link primary" href="/?create=1#create">Create migration</a>
+  </div>
+  {% endif %}
+
   {% if migrations %}
   <ul class="migration-list">
     {% for migration in migrations %}
     {% set open_here = expanded and expanded.id == migration.id %}
-    <li class="row-card{% if open_here %} expanded{% endif %}"
+    <li class="row-card{% if open_here %} expanded{% else %} collapsed{% endif %}"
         id="m-{{ migration.id }}" style="--accent: {{ migration.accent_color }}">
-      <span class="accent-dot" style="--accent: {{ migration.accent_color }}"></span>
-      <span class="identity">
-        <span class="name-line">
-          <span class="name mono">{{ migration.name }}</span>
-          <span class="badge {{ migration.status }}">{{ migration.status }}</span>
-        </span>
-        <span class="mono">{{ migration.source_version }} → {{ migration.target_version }}</span>
-      </span>
-      <form method="post" action="/migrations/{{ migration.id }}/open">
-        <button type="submit" class="primary">Open</button>
-      </form>
-      {# Settings belong to the migration, so they open inside its own row.
-         A link rather than a script: expanding reaches Docker for the two
-         compose projects, and that is the server's work either way. #}
-      <a class="button-link{% if open_here %} active{% endif %}"
+      {# The row is the control. Expanding reaches Docker for both compose
+         projects, so it is a link, not a script. The accent is the left
+         border of the card, so the name needs no dot; name, status and the
+         version pair read on one line. #}
+      <a class="row-toggle"
          href="{% if open_here %}/{% else %}/?settings={{ migration.id }}#m-{{ migration.id }}{% endif %}"
          title="{% if open_here %}Hide{% else %}Show{% endif %} the settings of {{ migration.name }}"
          aria-label="{% if open_here %}Hide{% else %}Show{% endif %} the settings of {{ migration.name }}"
-         aria-expanded="{{ 'true' if open_here else 'false' }}">Settings</a>
-      <form method="post" action="/migrations/{{ migration.id }}/archive">
-        {# The name is carried as the accessible name and the tooltip, not as
-           visible text: this row already shows it a few centimetres to the
-           left, and spelling it out again wraps the button over three lines
-           and breaks the row. Actions that sit away from their row — rebuild
-           a container, start a batch, continue past a checkpoint — do need
-           the name in view. #}
-        <button type="submit" class="danger"
-                title="Archive {{ migration.name }}"
-                aria-label="Archive {{ migration.name }}">Archive</button>
-      </form>
+         aria-expanded="{{ 'true' if open_here else 'false' }}">
+        {# The chevron is centred over the whole row; the content is a column
+           beside it, indented, so a one-line and a two-line row read alike. #}
+        <span class="disclosure" aria-hidden="true"></span>
+        <span class="row-body">
+          <span class="row-summary">
+            <span class="identity">
+              <span class="name mono">{{ migration.name }}</span>
+              <span class="badge {{ migration.status }}">{{ migration.status }}</span>
+              <span class="mono versions">{{ migration.source_version }} → {{ migration.target_version }}</span>
+            </span>
+          </span>
+          {# The informative foot of the row: how far the migration has moved,
+             what needs a human, and what failed. Shown collapsed, so the list
+             reads without opening a card. #}
+          {% if migration.progress.has_modules %}
+          <span class="row-progress">
+            <span class="progress-bar" aria-hidden="true">
+              <i class="done" style="--x: {{ migration.progress.pct_done }}"></i>
+              <i class="bad" style="--x: {{ migration.progress.pct_bad }}"></i>
+            </span>
+            <span class="mono progress-count">{{ migration.progress.passed }} of {{ migration.progress.total }} modules</span>
+            {% if migration.progress.waiting %}
+            <span class="counter waiting"><i class="dot" aria-hidden="true"></i>{{ migration.progress.waiting }} waiting for you</span>
+            {% endif %}
+            {% if migration.progress.failed %}
+            <span class="counter failed"><i class="dot" aria-hidden="true"></i>{{ migration.progress.failed }} failed</span>
+            {% endif %}
+          </span>
+          {% endif %}
+        </span>
+      </a>
       {% if open_here %}
       {% include "migration_settings.html" %}
+      {# Archive is destructive and rare, so it lives at the foot of the open
+         card as a small bin, not a button on the collapsed row. The name is
+         the accessible name and the tooltip; a bin needs no visible label. #}
+      <div class="row-archive">
+        <form method="post" action="/migrations/{{ migration.id }}/archive">
+          <button type="submit" class="icon-danger"
+                  title="Archive {{ migration.name }}"
+                  aria-label="Archive {{ migration.name }}">
+            <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1zM6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"
+                    fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
+      </div>
       {% endif %}
     </li>
     {% endfor %}
   </ul>
+  {# The same dashed panel as the empty state, under the cards: the create
+     action lives here, not as a standing button in the header. #}
+  {% if not creating %}
+  <div class="empty-state">
+    <p class="empty-lead">Add another migration.</p>
+    <p class="empty-help">A migration is an old project and its version, a new
+    project and its version — everything else grows from that pair.</p>
+    <a class="button-link primary" href="/?create=1#create">Create migration</a>
+  </div>
+  {% endif %}
   {% endif %}
 
   {% if creating %}
-  <form class="card create-migration" id="create" method="post" action="/migrations">
+  {# The outline is the chosen accent: `--accent` starts on the checked
+     colour and each radio rewrites it on change, so the card previews the
+     colour the migration will carry. #}
+  <form class="card create-migration" id="create" method="post" action="/migrations"
+        x-data
+        style="--accent: {{ accents[typed.accent or suggested_accent] }}">
     <h2>Create migration</h2>
     <label>Name <input name="name" value="{{ typed.name or "" }}" required></label>
     <fieldset>
@@ -77,17 +120,18 @@
       <div class="accent-picks">
         {% for key, value in accents.items() %}
         <label class="accent-pick">
-          <input type="radio" name="accent" value="{{ key }}"{% if key == (typed.accent or suggested_accent) %} checked{% endif %}>
+          <input type="radio" name="accent" value="{{ key }}"{% if key == (typed.accent or suggested_accent) %} checked{% endif %}
+                 @change="$root.style.setProperty('--accent', '{{ value }}')">
           <span class="accent-dot" style="--accent: {{ value }}"></span>
           {{ key }}
         </label>
         {% endfor %}
       </div>
     </fieldset>
-    <label>Source <input class="mono" name="source_version" value="{{ typed.source_version or "17.0" }}" required></label>
-    <label>Target <input class="mono" name="target_version" value="{{ typed.target_version or "18.0" }}" required></label>
-    <label>Old project <input class="mono" name="old_project_path" value="{{ typed.old_project_path or "" }}" required></label>
-    <label>New project <input class="mono" name="new_project_path" value="{{ typed.new_project_path or "" }}" required></label>
+    <label>Source version <input class="mono" name="source_version" value="{{ typed.source_version or "17.0" }}" required></label>
+    <label>Target version <input class="mono" name="target_version" value="{{ typed.target_version or "18.0" }}" required></label>
+    <label>Source path <input class="mono" name="old_project_path" value="{{ typed.old_project_path or "" }}" required></label>
+    <label>Target path <input class="mono" name="new_project_path" value="{{ typed.new_project_path or "" }}" required></label>
     <div class="row">
       <button type="submit" class="primary">Create</button>
       <a class="button-link" href="/">Cancel</a>

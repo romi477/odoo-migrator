@@ -183,7 +183,7 @@ def test_an_empty_or_missing_batch_is_loud(client):
 
 
 def test_styleguide_shows_the_batch_button(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert ">Batch<" in html
 

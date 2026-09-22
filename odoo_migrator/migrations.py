@@ -2,8 +2,10 @@
 
 from datetime import UTC, datetime
 
+from peewee import fn
+
 from odoo_migrator.db import database
-from odoo_migrator.models import ACCENTS, Migration
+from odoo_migrator.models import ACCENTS, Migration, Module
 from odoo_migrator.rules import check_versions
 
 
@@ -29,6 +31,58 @@ def _row(migration: Migration) -> dict:
     }
 
 
+def _progress(counts: dict | None) -> dict:
+    """The collapsed-row panel: how many modules moved, how many need a human,
+    how many failed, and the two bar widths as percentages."""
+    counts = counts or {}
+    total = counts.get("total", 0)
+    passed = counts.get("passed", 0)
+    failed = counts.get("failed", 0)
+    waiting = counts.get("waiting", 0)
+
+    def pct(part: int) -> str:
+
+        return f"{part / total * 100:.2f}%" if total else "0%"
+
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "waiting": waiting,
+        "pct_done": pct(passed),
+        "pct_bad": pct(failed),
+        "has_modules": total > 0,
+    }
+
+
+def _module_counts() -> dict[str, dict]:
+    """Per-migration module tallies in one grouped query, so a long list does
+    not fan out into a query per row. The caller holds the connection."""
+    counts: dict[str, dict] = {}
+    query = (
+        Module.select(
+            Module.migration,
+            Module.status,
+            fn.COUNT(Module.id).alias("n"),
+        )
+        .where(~Module.struck_out)
+        .group_by(Module.migration, Module.status)
+    )
+    for row in query:
+        bucket = counts.setdefault(
+            row.migration_id, {"total": 0, "passed": 0, "failed": 0, "waiting": 0}
+        )
+        bucket["total"] += row.n
+        if row.status == "passed":
+            bucket["passed"] += row.n
+        elif row.status == "failed":
+            bucket["failed"] += row.n
+        elif row.status == "waiting_for_human":
+            bucket["waiting"] += row.n
+
+    return counts
+
+
 def list_active() -> list[dict]:
     with database.connection_context():
         query = (
@@ -36,8 +90,12 @@ def list_active() -> list[dict]:
             .where(Migration.archived_at.is_null())
             .order_by(Migration.name)
         )
+        rows = [_row(row) for row in query]
+        counts = _module_counts()
+    for row in rows:
+        row["progress"] = _progress(counts.get(row["id"]))
 
-        return [_row(row) for row in query]
+    return rows
 
 
 def suggest_accent() -> str:

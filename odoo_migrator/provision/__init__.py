@@ -1,4 +1,4 @@
-"""User compose files: up, attach, restart, rebuild. Fake Engine for the suite."""
+"""User compose files: up, attach, restart, rebuild, stop. Fake Engine for the suite."""
 
 from odoo_migrator.provision.actions import (
     ResourceCount,
@@ -9,6 +9,7 @@ from odoo_migrator.provision.actions import (
     describe_side_without_listing,
     rebuild,
     restart,
+    stop,
     up,
 )
 from odoo_migrator.provision.compose_file import find_compose_file, published_host_ports
@@ -46,5 +47,6 @@ __all__ = [
     "published_host_ports",
     "rebuild",
     "restart",
+    "stop",
     "up",
 ]

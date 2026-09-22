@@ -17,7 +17,6 @@ def _row(settings: AppSettings) -> dict:
         "app_base_url": settings.app_base_url,
         "sheller_base_url": settings.sheller_base_url,
         "sheller_image_tag": settings.sheller_image_tag,
-        "min_sheller_version": settings.min_sheller_version,
     }
 
 
@@ -45,7 +44,6 @@ def save_app_settings(
     app_base_url: str,
     sheller_base_url: str,
     sheller_image_tag: str,
-    min_sheller_version: str,
 ) -> dict:
     with database.connection_context():
         row = AppSettings.select().first()
@@ -57,7 +55,6 @@ def save_app_settings(
         row.app_base_url = app_base_url.strip()
         row.sheller_base_url = sheller_base_url.strip()
         row.sheller_image_tag = sheller_image_tag.strip()
-        row.min_sheller_version = min_sheller_version.strip()
         row.save()
 
         return _row(row)

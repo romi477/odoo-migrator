@@ -22,63 +22,99 @@
 <body>
   <div class="app">
     <nav id="top">
-      <a class="brand" href="/" title="Odoo Migrator">
-        <img class="logo" src="/static/logo.svg" alt="" width="18" height="18">
-        <span class="wordmark">odoo-migrator.<sub>v{{ version }}</sub></span>
-      </a>
-      <div class="nav-tabs">
-        <a href="/"{% if active == 'overview' %} class="active"{% endif %} data-screen="overview" title="All migrations.">Overview</a>
-        <span class="nav-divider" aria-hidden="true"></span>
-        <a href="/tree"{% if active == 'tree' %} class="active"{% endif %} data-screen="tree" title="Module dependency tree for the open migration.">Tree</a>
-        <span class="nav-divider" aria-hidden="true"></span>
-        <a href="/run"{% if active == 'run' %} class="active"{% endif %} data-screen="run" title="Live pipeline workspace.">Run</a>
+      <div class="nav-start">
+        <a class="brand" href="/" title="Odoo Migrator">
+          <img class="logo" src="/static/logo.svg" alt="" width="18" height="18">
+          <span class="wordmark">odoo-migrator.<sub>v{{ version }}</sub></span>
+        </a>
+        <a href="/" class="nav-flank{% if active == 'overview' %} active{% endif %}" data-screen="overview" title="All migrations.">Overview</a>
+      </div>
+      {# The middle track is only the selection, so it stays centered.
+         Overview and Styleguide sit on the inner edges of the side tracks. #}
+      <div class="nav-center">
+        <div class="select-field">
+          <div
+            class="migration-switcher"
+            {% if current %}data-open-migration="{{ current.id }}"{% endif %}
+            x-data="{ open: false }"
+            @click.outside="open = false"
+          >
+            {% if current %}
+            <button type="button" class="switcher-current" @click="open = !open" aria-haspopup="listbox" :aria-expanded="open">
+              <span class="switcher-id">
+                <span class="switcher-mark" style="--accent: {{ current.accent_color }}"></span>
+                <span class="name mono">{{ current.name }}</span>
+              </span>
+              <span class="switcher-tail">
+                <span class="switcher-versions mono">{{ current.source_version }} → {{ current.target_version }}</span>
+                <svg class="switcher-chevron" :class="{ open: open }" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                  <path d="M2.2 4.4 6 8l3.8-3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </button>
+            {% elif migrations %}
+            <button type="button" class="switcher-current" @click="open = !open" aria-haspopup="listbox" :aria-expanded="open">
+              <span>Pick a migration</span>
+              <svg class="switcher-chevron" :class="{ open: open }" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                <path d="M2.2 4.4 6 8l3.8-3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            {% endif %}
+            {% if migrations %}
+            <ul class="switcher-menu" x-show="open" x-cloak role="listbox">
+              {% for migration in migrations %}
+              <li>
+                <form method="post" action="/migrations/{{ migration.id }}/open">
+                  <button type="submit">
+                    <span class="switcher-mark" style="--accent: {{ migration.accent_color }}"></span>
+                    <span class="name mono">{{ migration.name }}</span>
+                    <span class="mono">{{ migration.source_version }} → {{ migration.target_version }}</span>
+                  </button>
+                </form>
+              </li>
+              {% endfor %}
+              {# The header no longer carries a standing Create button, so the
+                 switcher is where a new migration is started once some exist. #}
+              <li class="switcher-create">
+                <a href="/?create=1#create">Create migration</a>
+              </li>
+            </ul>
+            {% endif %}
+          </div>
+        </div>
+        <div class="nav-tabs nav-steps" aria-label="Open migration"{% if current %} style="--accent: {{ current.accent_color }}"{% endif %}>
+          {% if current %}
+          <span class="step-hook" aria-hidden="true"></span>
+          <span class="step-hook-head" aria-hidden="true"></span>
+          {% endif %}
+          <a href="/tree"{% if active == 'tree' %} class="active"{% endif %} data-screen="tree" title="Module dependency tree for the open migration.">Tree</a>
+          <a href="/run"{% if active == 'pipeline' %} class="active"{% endif %} data-screen="pipeline" title="Live job: module, stage, attempt, and the checkpoint.">Pipeline</a>
+          <a href="/n8n"{% if active == 'n8n' %} class="active"{% endif %} data-screen="n8n" title="Open the n8n executor.">n8n</a>
+          <a href="/sheller"{% if active == 'sheller' %} class="active"{% endif %} data-screen="sheller" title="Sheller observer. The frame does not hold a write key.">Sheller</a>
+        </div>
       </div>
       <div class="nav-end">
-        <div
-          class="migration-switcher"
-          {% if current %}data-open-migration="{{ current.id }}"{% endif %}
-          x-data="{ open: false }"
-          @click.outside="open = false"
-        >
-          {% if current %}
-          <button type="button" class="switcher-current" @click="open = !open">
-            <span class="accent-dot" style="--accent: {{ current.accent_color }}"></span>
-            <span class="name mono">{{ current.name }}</span>
-          </button>
-          {% elif migrations %}
-          <button type="button" class="switcher-current" @click="open = !open">
-            Pick a migration
-          </button>
-          {% endif %}
-          {% if migrations %}
-          <ul class="switcher-menu" x-show="open" x-cloak>
-            {% for migration in migrations %}
-            <li>
-              <form method="post" action="/migrations/{{ migration.id }}/open">
-                <button type="submit">
-                  <span class="accent-dot" style="--accent: {{ migration.accent_color }}"></span>
-                  <span class="name mono">{{ migration.name }}</span>
-                  <span class="mono">{{ migration.source_version }} → {{ migration.target_version }}</span>
-                </button>
-              </form>
-            </li>
-            {% endfor %}
-          </ul>
-          {% endif %}
-        </div>
-        <a href="/styleguide"{% if active == 'styleguide' %} class="active"{% endif %} data-screen="styleguide" title="Every component rendered once, so the stylesheet is reviewable.">Styleguide</a>
-        {# App-wide settings only. What belongs to one migration lives in
-           that migration's own row on Overview. #}
-        <a href="/settings" class="gear{% if active == 'settings' %} active{% endif %}"
-           data-screen="settings"
-           title="App settings — shared by every migration"
-           aria-label="App settings">⚙</a>
+        <a href="/styleguide" class="nav-flank{% if active == 'styleguide' %} active{% endif %}" data-screen="styleguide" title="What each step does.">Guide</a>
+        <div class="nav-tools">
+        <span class="running-count" data-running="{{ running_count }}"
+              title="Migrations running."><span class="count">{{ running_count }}</span> run</span>
         <a href="/attention" class="attention-lamp {{ lamp }}"
            title="{% if lamp == 'needs-attention' %}A module is waiting. Open it.{% else %}Nothing needs attention.{% endif %}">
           <span class="lamp-dot"></span>
         </a>
-        <span class="running-count" data-running="{{ running_count }}"
-              title="Migrations running.">{{ running_count }}</span>
+        <span class="nav-divider" aria-hidden="true"></span>
+        {# App-wide settings only, and the last control in the bar. What
+           belongs to one migration lives in that migration's own row. #}
+        <a href="/settings" class="gear{% if active == 'settings' %} active{% endif %}"
+           data-screen="settings"
+           title="App settings — shared by every migration"
+           aria-label="App settings">
+          <svg class="gear-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </a>
+        </div>
       </div>
     </nav>
     <main class="shell">

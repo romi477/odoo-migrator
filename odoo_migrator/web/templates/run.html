@@ -1,27 +1,34 @@
 {% extends "base.html" %}
-{% block title %}odoo-migrator — run{% endblock %}
+{% block title %}odoo-migrator — {{ screen }}{% endblock %}
 {% block screen %}
-<section class="screen">
+<section class="screen{% if screen == 'sheller' %} screen-fill{% endif %}">
   <header class="screen-head">
     <div>
-      <h1>Run</h1>
+      {% if screen == 'n8n' %}
+      <h1>n8n</h1>
+      <p>The canvas is not embedded. Open the executor in its own tab.</p>
+      {% elif screen == 'sheller' %}
+      <h1>Sheller</h1>
+      <p>Observer only. This frame does not hold a write key.</p>
+      {% else %}
+      <h1>Pipeline</h1>
       {% if checkpoint %}
-      <p>Review this batch before the next one. Cartridge
+      <p>Review this batch before the next one. Flow
       <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
       {% elif live %}
       <p><span class="mono">{{ live.module }}</span> is {{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}.</p>
-      {% elif current %}
-      <p>No module is running.</p>
-      {% else %}
+      {% elif not current %}
       <p>Open a migration to watch a run.</p>
+      {% endif %}
       {% endif %}
     </div>
   </header>
 
-  {% if error %}
+  {% if error and screen == 'pipeline' %}
   <p class="form-error">{{ error }}</p>
   {% endif %}
 
+  {% if screen == 'pipeline' %}
   <p class="checkpoint-ready" data-checkpoint-ready hidden>
     This batch has finished. <a href="/run">Reload to review it.</a>
   </p>
@@ -31,7 +38,6 @@
              data-pipeline
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}
              {% if live %}data-module-id="{{ live.module_id }}"{% endif %}>
-      <h2>Pipeline</h2>
       <div class="pipeline-live"{% if not live %} hidden{% endif %}>
         <header class="name-line">
           <span class="name mono" data-pipeline-module>{% if live %}{{ live.module }}{% endif %}</span>
@@ -41,19 +47,22 @@
       </div>
       <p data-pipeline-empty{% if live %} hidden{% endif %}>No module is running.</p>
     </article>
-
+  </div>
+  {% elif screen == 'n8n' %}
+  <div class="workspace">
     <article class="workspace-panel n8n-stub">
-      <h2>n8n</h2>
-      <p>The canvas is not embedded. Open the executor in its own tab.</p>
       {% if n8n_base_url %}
       <a href="{{ n8n_base_url }}" target="_blank" rel="noopener">Open in n8n</a>
       {% else %}
       <p>Set the n8n base URL in settings.</p>
       {% endif %}
     </article>
-
-    <article class="workspace-panel observer">
-      <h2>Sheller</h2>
+  </div>
+  {% elif screen == 'sheller' %}
+  <div class="workspace">
+    <article class="workspace-panel observer"
+             data-observer
+             {% if current %}data-migration-id="{{ current.id }}"{% endif %}>
       {# Sheller's /web has no session deep-link — only ?app for the desktop
          frame. Observer mode is this frame not holding a write key. The
          session id is shown so a human can pick the tab. Do not append
@@ -68,8 +77,9 @@
       {% endif %}
     </article>
   </div>
+  {% endif %}
 
-  {% if checkpoint %}
+  {% if screen == 'pipeline' and checkpoint %}
   <div class="checkpoint">
     <div class="row">
       <form method="post" action="/run/continue">

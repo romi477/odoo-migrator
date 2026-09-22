@@ -5,9 +5,11 @@ import pytest
 PAGES = (
     ("/", "overview", "Migrations"),
     ("/tree", "tree", "Module tree"),
-    ("/run", "run", "Run"),
+    ("/run", "pipeline", "Pipeline"),
+    ("/n8n", "n8n", "n8n"),
+    ("/sheller", "sheller", "Sheller"),
     ("/settings", "settings", "App settings"),
-    ("/styleguide", "styleguide", "Styleguide"),
+    ("/styleguide", "styleguide", "Guide"),
 )
 
 INLINE_STYLE = re.compile(r'style="([^"]*)"')
@@ -33,8 +35,14 @@ def test_chrome_brand_bar_is_present(client, path, active, heading):
     assert 'id="top"' in html
     assert 'class="brand"' in html
     assert "odoo-migrator." in html
-    assert 'class="nav-tabs"' in html
+    assert 'class="nav-tabs nav-steps"' in html
     assert 'class="nav-end"' in html
+    assert 'data-screen="overview"' in html
+    # The gear is the last control. Attention and the running count sit
+    # to its left; a migration's own screens are the row under the switcher.
+    end = html.split('class="nav-end"', 1)[1].split("</div>", 1)[0]
+    assert end.rfind("App settings") > end.rfind("attention-lamp")
+    assert end.rfind("App settings") > end.rfind("running-count")
     # The anchor, not a fixed attribute order: app settings are a gear with
     # its own class now, and the question is only whether the screen you are
     # on is marked as the current one.
@@ -46,6 +54,37 @@ def test_chrome_brand_bar_is_present(client, path, active, heading):
     assert f'href="{path}"' in anchor.group(0)
     assert "active" in anchor.group(0)
     assert f'data-screen="{active}"' in html
+
+
+def test_steps_hook_follows_the_open_migration(client):
+    """Overview is the list. The second row, and the hook into it, belong
+    to whichever migration is open."""
+    bare = client.get("/").text
+
+    assert "step-hook" not in bare
+
+    created = client.post(
+        "/migrations",
+        data={
+            "name": "Acme",
+            "accent": "violet",
+            "source_version": "17.0",
+            "target_version": "18.0",
+            "old_project_path": "/tmp/acme/old",
+            "new_project_path": "/tmp/acme/new",
+        },
+        follow_redirects=True,
+    )
+    migration_id = created.text.split("/migrations/", 1)[1].split("/open", 1)[0]
+    client.post(f"/migrations/{migration_id}/open", follow_redirects=True)
+    html = client.get("/tree").text
+
+    assert "step-hook" in html
+    assert "switcher-versions" in html
+    anchor = re.search(r'<a[^>]*data-screen="tree"[^>]*>', html)
+
+    assert anchor is not None
+    assert "active" in anchor.group(0)
 
 
 def test_stylesheet_is_linked_and_carries_sheller_tokens(client):
@@ -83,9 +122,45 @@ def test_inline_styles_carry_only_custom_properties(client, path, active, headin
     assert offenders == []
 
 
+def test_guide_lists_the_menu_steps_in_order(client):
+    """The guide is the four steps under the migration, numbered like the
+    menu. The component catalog is a different page."""
+    html = client.get("/styleguide").text
+    steps = html.split('class="guide-steps"', 1)[1].split("</ol>", 1)[0]
+
+    assert re.findall(r"<h2>(.*?)</h2>", steps) == [
+        "Tree",
+        "Pipeline",
+        "n8n",
+        "Sheller",
+    ]
+    assert "Status badges" not in html
+    assert "Create migration" not in html
+
+
+def test_components_page_renders_the_catalog(client):
+    html = client.get("/components").text
+
+    assert "Components" in html
+    offenders = [
+        declaration.strip()
+        for block in INLINE_STYLE.findall(body_of(html))
+        for declaration in block.split(";")
+        if declaration.strip() and not declaration.strip().startswith("--")
+    ]
+
+    assert offenders == []
+
+
 @pytest.mark.parametrize(
     "name",
-    ("base.html", "styleguide.html", "settings.html", "settings_migration.html"),
+    (
+        "base.html",
+        "styleguide.html",
+        "components.html",
+        "settings.html",
+        "settings_migration.html",
+    ),
 )
 def test_templates_are_not_served_as_static_files(client, name):
     """A mount over the whole of web/ handed out Jinja source at /static/*.html."""

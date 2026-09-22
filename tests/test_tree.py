@@ -59,6 +59,77 @@ def test_resolve_without_old_container_is_loud_on_the_tree(client):
     assert "old container" in page.text
 
 
+def _open_with_projects(client, tmp_path, name="Linked", *, compose=True):
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    for path in (old, new):
+        path.mkdir()
+        if compose:
+            (path / "compose.yaml").write_text(
+                'services:\n  odoo:\n    image: odoo:17.0\n'
+                '    ports:\n      - "8069:8069"\n',
+                encoding="utf-8",
+            )
+    client.post(
+        "/migrations",
+        data={
+            "name": name,
+            "accent": "violet",
+            "source_version": "17.0",
+            "target_version": "18.0",
+            "old_project_path": str(old),
+            "new_project_path": str(new),
+        },
+        follow_redirects=True,
+    )
+    with database.connection_context():
+        row = Migration.get(Migration.name == name)
+    client.post(f"/migrations/{row.id}/open", follow_redirects=True)
+
+    return row, old
+
+
+def test_resolve_auto_links_a_running_source_container(client, tmp_path):
+    """Resolve links to a source container already up, so the human does not
+    press Attach on another screen first. Only Up starts one."""
+    from odoo_migrator.provision.engine import WORKING_DIR_LABEL
+
+    row, old = _open_with_projects(client, tmp_path)
+    # Ours, running, but the app was never told to Attach it.
+    client.app.state.compose.add_container(
+        name="odoo-old",
+        image="odoo:17.0",
+        status="running",
+        labels={WORKING_DIR_LABEL: str(old.resolve())},
+        host_ports=[8069],
+    )
+
+    page = client.post("/tree/resolve", follow_redirects=True)
+
+    assert page.status_code == 200
+    # Resolved, not refused: the graph rendered and nothing asked for Up.
+    assert "sale_custom" in page.text
+    assert "can't be linked" not in page.text
+    assert "not running yet" not in page.text
+    with database.connection_context():
+        assert Migration.get_by_id(row.id).old_container == "odoo-old"
+
+
+def test_resolve_when_source_is_down_points_to_the_card(client, tmp_path):
+    """Nothing running: the error names Up and links to the migration's card,
+    rather than the old cryptic 'Attach the old container first.'"""
+    row, _old = _open_with_projects(client, tmp_path)
+
+    page = client.post("/tree/resolve", follow_redirects=True)
+
+    assert page.status_code == 200
+    assert "form-error" in page.text
+    assert "not running yet" in page.text
+    assert f"/?settings={row.id}" in page.text
+    with database.connection_context():
+        assert Migration.get_by_id(row.id).old_container == ""
+
+
 def test_strike_persists_across_a_reload(client):
     row = _open(client)
     save_side_container(row.id, "old", "odoo-old")
@@ -181,7 +252,7 @@ def test_tree_json_carries_node_id_and_step(client):
 
 
 def test_styleguide_has_a_graph_node_and_a_struck_node(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert "Module graph" in html
     assert "graph-node" in html

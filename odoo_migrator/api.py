@@ -78,7 +78,7 @@ from odoo_migrator.provision import (
     describe_side,
     describe_side_without_listing,
 )
-from odoo_migrator.provision.actions import attach, rebuild, restart, up
+from odoo_migrator.provision.actions import attach, rebuild, restart, stop, up
 from odoo_migrator.proxy import (
     AdminKeyForbidden,
     PathNotAllowed,
@@ -105,6 +105,7 @@ PROVISION_ACTIONS = {
     "attach": attach,
     "restart": restart,
     "rebuild": rebuild,
+    "stop": stop,
 }
 
 
@@ -245,7 +246,11 @@ def create_app(
 
         return HttpShellerClient(get_app_settings()["sheller_base_url"])
 
-    def _tree_page(request: Request, error: str | None = None):
+    def _tree_page(
+        request: Request,
+        error: str | None = None,
+        error_settings: str | None = None,
+    ):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         modules = list_modules(current["id"]) if current is not None else []
         focus = request.query_params.get("focus")
@@ -265,8 +270,40 @@ def create_app(
             request,
             "tree.html",
             "tree",
-            {"modules": modules, "error": error, "selected": selected},
+            {
+                "modules": modules,
+                "error": error,
+                # When the error is about the old container, the fix is on the
+                # migration's card; the template turns this into a link there.
+                "error_settings": error_settings,
+                "selected": selected,
+            },
         )
+
+    def _link_old_container(request: Request, migration: dict) -> str | None:
+        """Record the old container the app will talk to, from the one already
+        running for its project. Resolve never *starts* a container — that is
+        Up on the card — so a stopped side is an error the human resolves
+        there, not silent magic here. Returns an error message, or None."""
+        old = Path(migration["old_project_path"])
+        new = Path(migration["new_project_path"])
+        try:
+            side = describe_side(request.app.state.compose, old, sibling_path=new)
+        except DockerUnavailable as exc:
+
+            return f"The old container can't be linked; Docker is not reachable: {exc}"
+        if side.state == "running" and side.container:
+            save_side_container(migration["id"], "old", side.container)
+
+            return None
+        if side.state == "stopped":
+
+            return (
+                "The old container is not running yet. Press Up on its card, "
+                "then Resolve."
+            )
+
+        return f"The old container can't be linked: {side.detail or side.state}"
 
     def _wrong_key(request: Request) -> JSONResponse | None:
         presented = request.headers.get(API_KEY_HEADER, "")
@@ -449,6 +486,16 @@ def create_app(
         if current is None:
 
             return RedirectResponse("/tree", status_code=303)
+        # Link to the already-running old container instead of making the
+        # human press Attach on another screen first. resolve_graph re-reads
+        # the recorded container from the row.
+        if not current["old_container"]:
+            unlinked = _link_old_container(request, current)
+            if unlinked is not None:
+
+                return _tree_page(
+                    request, error=unlinked, error_settings=current["id"]
+                )
         try:
             resolve_graph(_sheller(request), current["id"])
         except GraphError as refused:
@@ -624,7 +671,17 @@ def create_app(
     @app.get("/run")
     def run(request: Request):
 
-        return _run_page(request)
+        return _run_page(request, screen="pipeline")
+
+    @app.get("/n8n")
+    def n8n_page(request: Request):
+
+        return _run_page(request, screen="n8n")
+
+    @app.get("/sheller")
+    def sheller_page(request: Request):
+
+        return _run_page(request, screen="sheller")
 
     def _browsable(value: str, suffix: str = "") -> str:
         """A settings string is about to become an href and an iframe src.
@@ -643,7 +700,7 @@ def create_app(
 
         return base + suffix
 
-    def _run_page(request: Request, error: str | None = None):
+    def _run_page(request: Request, error: str | None = None, screen: str = "pipeline"):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
@@ -660,8 +717,9 @@ def create_app(
         return _page(
             request,
             "run.html",
-            "run",
+            screen,
             {
+                "screen": screen,
                 "checkpoint": checkpoint,
                 "live": live,
                 "n8n_base_url": _browsable(settings["n8n_base_url"]),
@@ -727,9 +785,8 @@ def create_app(
             "settings.html",
             "settings",
             {
-                # The key itself is never rendered: a secret echoed into every
-                # page render lands in view-source and in any screenshot of
-                # this screen, for no gain.
+                # The key is never echoed into HTML; the settings field shows a
+                # password mask when one is stored.
                 "settings": {**stored, "n8n_api_key": ""},
                 "has_api_key": bool(stored["n8n_api_key"]),
             },
@@ -743,7 +800,6 @@ def create_app(
         app_base_url: str = Form(""),
         sheller_base_url: str = Form(""),
         sheller_image_tag: str = Form(""),
-        min_sheller_version: str = Form(""),
     ):
         # Blank means "leave it alone", since the field arrives blank on every
         # load. Clearing a stored key is its own button.
@@ -754,7 +810,6 @@ def create_app(
             app_base_url=app_base_url,
             sheller_base_url=sheller_base_url,
             sheller_image_tag=sheller_image_tag,
-            min_sheller_version=min_sheller_version,
         )
 
         return RedirectResponse("/settings", status_code=303)
@@ -1133,6 +1188,11 @@ def create_app(
     def styleguide(request: Request):
 
         return _page(request, "styleguide.html", "styleguide")
+
+    @app.get("/components")
+    def components(request: Request):
+
+        return _page(request, "components.html", "components")
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon():

@@ -98,8 +98,9 @@ own question if you think one is wrong.
 - Appearance lives in the stylesheet. Inline `style=` is permitted only
   for custom properties (`--accent`), because some values are per-row
   data. A test enforces this — do not widen it.
-- Every new component gets a row on `/styleguide` in the task that adds
-  it. CSS nothing renders is CSS nobody has checked.
+- Every new component gets a row on `/components` in the task that adds
+  it. CSS nothing renders is CSS nobody has checked. `/styleguide` is
+  the step guide, not that catalog.
 - Templates live in `odoo_migrator/web/templates/`, assets in
   `web/static/`. Only `static/` is mounted; a mount over the whole of
   `web/` once served Jinja source at `/static/base.html`.

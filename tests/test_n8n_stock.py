@@ -180,7 +180,6 @@ def test_n8n_executor_posts_the_production_webhook_and_the_stub_stays_the_fallba
         app_base_url="http://host.docker.internal:8000",
         sheller_base_url="http://127.0.0.1:8765",
         sheller_image_tag="",
-        min_sheller_version="",
     )
     keyed = create_app(
         tmp_path / "n8n.sqlite",

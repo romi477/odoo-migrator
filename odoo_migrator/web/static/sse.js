@@ -14,11 +14,17 @@
     } catch (err) {
       return;
     }
+    const migrationId = data.migration_id ? String(data.migration_id) : "";
     const pipe = document.querySelector("[data-pipeline]");
+    const observer = document.querySelector("[data-observer]");
+    const onThisMigration =
+      migrationId &&
+      ((pipe && pipe.getAttribute("data-migration-id") === migrationId) ||
+        (observer && observer.getAttribute("data-migration-id") === migrationId));
     if (
+      onThisMigration &&
       pipe &&
-      data.migration_id &&
-      pipe.getAttribute("data-migration-id") === String(data.migration_id)
+      pipe.getAttribute("data-migration-id") === migrationId
     ) {
       const inflight =
         data.status === "queued" ||
@@ -49,6 +55,12 @@
           pipeStage.textContent = (data.stage || "") + attempt;
         }
       }
+    }
+    if (onThisMigration) {
+      const inflight =
+        data.status === "queued" ||
+        data.status === "running" ||
+        data.status === "waiting_for_human";
       const sessions = document.querySelectorAll("[data-session]");
       for (let i = 0; i < sessions.length; i++) {
         if (data.current_session_id) {
@@ -139,6 +151,11 @@
     }
     const n = data.count == null ? 0 : data.count;
     count.setAttribute("data-running", String(n));
-    count.textContent = String(n);
+    const figure = count.querySelector(".count");
+    if (figure) {
+      figure.textContent = String(n);
+    } else {
+      count.textContent = String(n);
+    }
   });
 })();

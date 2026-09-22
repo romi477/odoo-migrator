@@ -47,13 +47,17 @@ def test_project_setup_names_the_migration_on_every_container_action(client, tmp
     # The name is the accessible name, not the visible label: as text on all
     # eight buttons it wrapped every one of them over two lines, repeating
     # what the card heading and the page heading already say.
-    for action in ("Up", "Attach", "Restart", "Rebuild"):
+    for action in ("Up", "Stop", "Attach", "Restart", "Rebuild"):
 
         assert f'aria-label="{action} the old container of Acme"' in page
         assert f">{action}<" in page
 
     assert 'aria-label="Up the new container of Acme"' in page
+    assert 'aria-label="Stop the new container of Acme"' in page
     assert "containers on this machine" in page
+    # The card headings are the roles, not "old container" / "new container".
+    assert ">source<" in page
+    assert ">target<" in page
 
 
 def test_up_persists_the_container_name_on_the_migration(client, tmp_path, compose):
@@ -121,7 +125,7 @@ def test_missing_compose_is_loud_not_silent(client, tmp_path):
 
 
 def test_styleguide_shows_container_actions(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert "Up Acme old" in html
     assert "Odoo containers running" in html

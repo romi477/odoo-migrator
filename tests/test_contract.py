@@ -45,7 +45,6 @@ def _reachable_settings(client):
             "app_base_url": APP_BASE,
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "",
-            "min_sheller_version": "",
         },
         follow_redirects=True,
     )
@@ -377,7 +376,6 @@ def test_loopback_app_base_url_is_loud_on_migrate(client):
             "app_base_url": "http://127.0.0.1:8000",
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "",
-            "min_sheller_version": "",
         },
         follow_redirects=True,
     )
@@ -403,7 +401,7 @@ def test_tree_node_card_is_the_sse_patch_target(client):
 
 
 def test_styleguide_shows_a_patchable_module_row(client):
-    html = client.get("/styleguide").text
+    html = client.get("/components").text
 
     assert "data-module-id" in html
     assert ">Migrate<" in html

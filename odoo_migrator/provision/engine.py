@@ -27,6 +27,7 @@ class FakeComposeEngine:
         self.ups: list[Path] = []
         self.restarts: list[Path] = []
         self.rebuilds: list[Path] = []
+        self.stops: list[Path] = []
 
     def add_container(
         self,
@@ -71,6 +72,15 @@ class FakeComposeEngine:
     def compose_rebuild(self, project_dir: Path, compose_file: Path) -> None:
         self.rebuilds.append(project_dir.resolve())
 
+    def compose_stop(self, project_dir: Path, compose_file: Path) -> None:
+        resolved = project_dir.resolve()
+        self.stops.append(resolved)
+        # Stopping keeps the container; only its status changes. A removed
+        # container would answer describe_side the same way an Up never ran.
+        for container in self.containers:
+            if container.labels.get(WORKING_DIR_LABEL) == str(resolved):
+                container.status = "exited"
+
 
 class DockerComposeEngine:
     """List/inspect through the Docker SDK; up/restart/rebuild through Compose V2."""
@@ -108,6 +118,11 @@ class DockerComposeEngine:
         _run_compose(
             project_dir, compose_file, ["up", "-d", "--build", "--force-recreate"]
         )
+
+    def compose_stop(self, project_dir: Path, compose_file: Path) -> None:
+        # `stop`, not `down`: the container and its volume survive, so the new
+        # side can be brought back up without losing the migration's state.
+        _run_compose(project_dir, compose_file, ["stop"])
 
     def _client(self):
         if self._docker is None:

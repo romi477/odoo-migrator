@@ -11,42 +11,71 @@
   </header>
 
 
+  <form id="clear-n8n-key" method="post" action="/settings/n8n-api-key/clear" hidden></form>
+
   <form class="card stack-form" method="post" action="/settings">
-    <label>n8n base URL
-      <input class="mono" name="n8n_base_url" value="{{ settings.n8n_base_url }}" autocomplete="off">
-    </label>
-    <p class="field-hint">The only host n8n is given. File API, Sheller proxy
-    and callbacks all live behind it; the daemon's loopback address never
-    leaves this process.</p>
-    <label>n8n API key
-      <input class="mono" type="password" name="n8n_api_key" value="" autocomplete="off"
-             placeholder="{% if has_api_key %}stored — leave blank to keep{% else %}not set{% endif %}">
-    </label>
-    <p class="field-hint">Never rendered back into the page. Blank keeps the
-    stored key; typing replaces it.</p>
-    <label>App base URL
-      <input class="mono" name="app_base_url" value="{{ settings.app_base_url }}" autocomplete="off">
-    </label>
-    <p class="field-hint">Reachable from the n8n container: File API, Sheller
-    proxy, progress and result callbacks. Not the host loopback.</p>
-    <label>Sheller base URL
-      <input class="mono" name="sheller_base_url" value="{{ settings.sheller_base_url }}" autocomplete="off">
-    </label>
-    <p class="field-hint">The app's own client and the observer iframe. Never
-    sent to n8n.</p>
-    <label>Sheller image tag
-      <input class="mono" name="sheller_image_tag" value="{{ settings.sheller_image_tag }}" autocomplete="off">
-    </label>
-    <label>Minimum Sheller version
-      <input class="mono" name="min_sheller_version" value="{{ settings.min_sheller_version }}" autocomplete="off">
-    </label>
+    <ol class="settings-fields">
+      <li>
+        <label>n8n base URL
+          <input class="mono" name="n8n_base_url" value="{{ settings.n8n_base_url }}" autocomplete="off">
+        </label>
+        <p class="field-hint">The only host n8n is given. File API, Sheller
+        proxy and callbacks all live behind it; the daemon's loopback address
+        never leaves this process.</p>
+      </li>
+      <li>
+        <label for="n8n-api-key">n8n API key</label>
+        <div class="field-inline">
+          {# When a key is stored, show a fixed-length mask and omit the name
+             until the field is focused, so Save without editing keeps it. #}
+          <input class="mono" id="n8n-api-key" type="password"
+                 autocomplete="off"
+                 {% if has_api_key %}
+                 readonly value="****************"
+                 x-data="{ editing: false }"
+                 :name="editing ? 'n8n_api_key' : null"
+                 @focus="if (!editing) { editing = true; $el.readOnly = false; $el.value = ''; }"
+                 {% else %}
+                 name="n8n_api_key" placeholder="not set"
+                 {% endif %}>
+          {% if has_api_key %}
+          <button type="submit" form="clear-n8n-key" class="icon-danger"
+                  title="Clear the stored n8n API key"
+                  aria-label="Clear the stored n8n API key">
+            <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1zM6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"
+                    fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          {% endif %}
+        </div>
+        <p class="field-hint">Used when this app talks to n8n. Focus to
+        replace; save with the mask untouched keeps the stored key. Clear with
+        the bin.</p>
+      </li>
+      <li>
+        <label>App base URL
+          <input class="mono" name="app_base_url" value="{{ settings.app_base_url }}" autocomplete="off">
+        </label>
+        <p class="field-hint">Reachable from the n8n container: File API,
+        Sheller proxy, progress and result callbacks. Not the host loopback.</p>
+      </li>
+      <li>
+        <label>Sheller base URL
+          <input class="mono" name="sheller_base_url" value="{{ settings.sheller_base_url }}" autocomplete="off">
+        </label>
+        <p class="field-hint">The app's own client and the observer iframe.
+        Never sent to n8n.</p>
+      </li>
+      <li>
+        <label>Sheller image tag
+          <input class="mono" name="sheller_image_tag" value="{{ settings.sheller_image_tag }}" autocomplete="off">
+        </label>
+        <p class="field-hint">Docker image tag when the app must spawn Sheller
+        because nothing answers on the base URL above.</p>
+      </li>
+    </ol>
     <button type="submit" class="primary">Save</button>
   </form>
-
-  {% if has_api_key %}
-  <form method="post" action="/settings/n8n-api-key/clear">
-    <button type="submit" class="danger">Clear the stored n8n API key</button>
-  </form>
-  {% endif %}
 </section>
 {% endblock %}

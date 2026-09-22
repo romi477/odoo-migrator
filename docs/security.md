@@ -60,7 +60,7 @@ whole run; one session opened at the start stays valid.
 
 ## What is deliberately *not* protected
 
-**The pages have no authentication.** Overview, Tree, Run, Settings are
+**The pages have no authentication.** Overview, Tree, Pipeline, n8n, Sheller, Settings are
 a local UI. Binding loopback is the boundary. `--host` widens it because
 a container cannot reach loopback — Docker Desktop leaves no narrower
 address than `0.0.0.0` to bind. The warning at startup is load-bearing:

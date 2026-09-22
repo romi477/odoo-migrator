@@ -21,7 +21,11 @@
   </header>
 
   {% if error %}
-  <p class="form-error">{{ error }}</p>
+  <p class="form-error">{{ error }}
+    {% if error_settings %}
+    <a href="/?settings={{ error_settings }}#m-{{ error_settings }}">Open the migration card</a>
+    {% endif %}
+  </p>
   {% endif %}
 
   {% if current %}

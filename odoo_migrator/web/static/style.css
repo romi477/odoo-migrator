@@ -155,19 +155,52 @@ pre,
 
 #top {
   display: grid;
-  /* minmax(0, 1fr), not 1fr: a grid track's automatic minimum is its content,
-     so plain 1fr refuses to shrink and the side columns overrun the middle
-     one on a narrow window instead of the long names truncating. */
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* Equal side tracks, auto middle: the open migration stays centered
+     however wide the brand or the status cluster grows. minmax(0, auto)
+     lets a long name truncate instead of overflowing the bar. */
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, auto) minmax(min-content, 1fr);
   flex: 0 0 auto;
-  align-items: center;
-  column-gap: 12px;
-  min-height: 40px;
-  padding: 4px 10px;
+  align-items: start;
+  column-gap: 16px;
+  padding: 10px 16px 8px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel);
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05);
+}
+
+.nav-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.nav-center {
+  --hook: 34px;
+  --step-gap: 2px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-self: center;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.select-field {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.select-field .migration-switcher {
+  width: 100%;
+  max-width: none;
 }
 
 #top a {
@@ -199,13 +232,7 @@ pre,
   color: var(--amber);
 }
 
-.nav-tabs {
-  display: flex;
-  justify-self: center;
-  align-items: center;
-  gap: 2px;
-}
-
+.nav-flank,
 .nav-tabs a {
   border: 1px solid transparent;
   border-radius: 4px;
@@ -214,13 +241,115 @@ pre,
   line-height: 1.3;
 }
 
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 26px;
+  margin-top: 1px;
+}
+
+/* The hook is drawn under the accent mark, out of the flex row. Equal
+   padding on both sides keeps the field overhanging the labels the same
+   amount, so the field stays centered. */
+.nav-steps:has(.step-hook) {
+  padding-right: calc(var(--hook) + var(--step-gap));
+  box-sizing: border-box;
+}
+
+#top .nav-steps {
+  position: relative;
+  /* Mark inset, then the elbow, the arrowhead, and the gap before Tree.
+     The right side repeats that sum. */
+  --hook-left: 14px;
+  --hook-elbow: 22px;
+  --hook-head: 6px;
+  --hook-gap: 7px;
+}
+
+#top .nav-steps:has(.step-hook) {
+  padding-left: calc(var(--hook-left) + var(--hook-elbow) + var(--hook-head) + var(--hook-gap));
+  padding-right: calc(var(--hook-left) + var(--hook-elbow) + var(--hook-head) + var(--hook-gap));
+}
+
+.nav-flank:hover,
 .nav-tabs a:hover {
   border-color: transparent;
   transform: translateY(-2px);
 }
 
+.nav-flank:active,
 .nav-tabs a:active {
   transform: translateY(1px);
+}
+
+/* The hook belongs to the open migration, so it takes that migration's
+   accent. Without one it stays a quiet stroke. */
+.step-hook {
+  display: block;
+  width: var(--hook, 34px);
+  height: 18px;
+  margin: 0;
+  color: var(--accent, var(--muted));
+  flex: 0 0 auto;
+}
+
+/* Same elbow as the mock: a 1px stroke under the mark, a 9px corner,
+   and a filled triangle. It stays below the selection field. */
+#top .step-hook {
+  position: absolute;
+  left: var(--hook-left);
+  top: 0;
+  bottom: calc(50% - 1px);
+  width: var(--hook-elbow);
+  height: auto;
+  border-left: 1px solid var(--accent, var(--muted));
+  border-bottom: 1px solid var(--accent, var(--muted));
+  border-bottom-left-radius: 9px;
+  pointer-events: none;
+}
+
+#top .step-hook-head {
+  position: absolute;
+  left: calc(var(--hook-left) + var(--hook-elbow));
+  top: calc(50% - 5px);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: var(--hook-head) solid var(--accent, var(--muted));
+  pointer-events: none;
+}
+
+.guide-steps {
+  margin: 4px 0 0;
+  padding-left: 1.5rem;
+  max-width: 42rem;
+}
+
+.guide-steps > li {
+  margin: 0 0 22px;
+  padding-left: 0.35rem;
+}
+
+.guide-steps > li > h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.guide-steps p {
+  margin: 0;
+}
+
+.guide-steps ul {
+  margin: 8px 0 0;
+  padding-left: 1.15rem;
+}
+
+.guide-steps ul li {
+  margin: 3px 0;
 }
 
 .nav-divider {
@@ -234,34 +363,35 @@ pre,
 .nav-end {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: space-between;
+  justify-self: stretch;
+  gap: 16px;
   min-width: 0;
+  padding-top: 6px;
 }
 
-/* Three grid columns centre the tabs nicely, but the middle track is `auto`
-   and never shrinks, so once the ends grow — a lamp, a counter, a long
-   migration name — they run into it instead of reflowing. Below this width
-   the bar becomes a wrapping flex row: the centring is lost, the layout is
-   not. */
-@media (max-width: 1060px) {
+.nav-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-end .nav-divider {
+  height: 16px;
+  margin: 0 2px 0 4px;
+}
+
+/* Below this width the centered middle track gives way. The gear stays in
+   the top-right corner; the open migration takes the next row. */
+@media (max-width: 860px) {
   #top {
-    display: flex;
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr) auto;
     row-gap: 4px;
   }
 
-  #top .brand {
-    flex: 0 1 auto;
-  }
-
-  .nav-tabs {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-
-  .nav-end {
-    flex: 0 1 auto;
+  .nav-center {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 
@@ -568,6 +698,35 @@ a.brand:hover .wordmark {
   font-size: 13px;
 }
 
+/* The settings form is a numbered list: each row is a control with a
+   plain-language line under it, so the block explains itself. */
+.settings-fields {
+  display: grid;
+  gap: 16px;
+  margin: 0 0 12px;
+  padding-left: 1.6rem;
+}
+
+.settings-fields > li {
+  margin: 0;
+}
+
+.settings-fields .field-hint {
+  margin: 4px 0 0;
+}
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+
 .stack-form input,
 .stack-form select {
   border: 1px solid var(--border);
@@ -627,8 +786,180 @@ h2 {
 }
 
 .migration-list .row-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  gap: 0;
+  padding: 0;
   border-left-width: 3px;
   border-left-color: var(--accent);
+  cursor: pointer;
+}
+
+.migration-list .row-card.collapsed:hover {
+  border-color: var(--chrome-edge);
+  border-left-color: var(--accent);
+}
+
+/* The whole summary is the control: a click on the name, the chevron, the
+   progress foot or the empty row expands the card. The chevron is centred
+   over the row; the content is a column beside it, indented by the gap. */
+.migration-list .row-toggle {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.migration-list .row-toggle .disclosure {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.migration-list .row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.migration-list .row-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Name, status and the version pair on one line. The card's left border is
+   the accent, so no dot precedes the name. */
+.migration-list .identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2ch;
+  min-width: 0;
+}
+
+.migration-list .identity .versions {
+  color: var(--muted);
+}
+
+/* Progress bar, count, then the attention counters, on one wrapping line.
+   It is the second line of the row body, indented from the chevron by the
+   row's flex gap. */
+.row-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.progress-bar {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 160px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--background);
+}
+
+.progress-bar .done {
+  width: var(--x, 0%);
+  background: var(--green);
+}
+
+.progress-bar .bad {
+  width: var(--x, 0%);
+  background: var(--red);
+}
+
+.progress-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.counter .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.counter.waiting {
+  color: var(--amber);
+}
+
+.counter.failed {
+  color: var(--red);
+}
+
+/* The bin sits at the foot of the open card, to the right. */
+.row-archive {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 14px 12px;
+}
+
+.row-archive form {
+  margin: 0;
+}
+
+.icon-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.icon-danger:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.bin-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.disclosure {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg);
+}
+
+.row-card.expanded .disclosure {
+  transform: rotate(45deg);
+  margin-top: -3px;
+}
+
+.migration-list .card-settings {
+  grid-column: 1 / -1;
+  position: relative;
+  z-index: 1;
+  margin: 0 14px 12px;
 }
 
 /* The Settings toggle on a migration row. A link, because expanding is a
@@ -664,8 +995,16 @@ h2 {
 }
 
 .gear {
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
   line-height: 1;
+}
+
+.gear-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* One migration's settings, opened inside its own row. */
@@ -678,18 +1017,55 @@ h2 {
   border-top: 1px solid var(--border);
 }
 
+/* Open, the card is outlined in its own accent — the same colour the
+   create form previewed. The accent is on the row as a custom property. */
 .row-card.expanded {
-  border-color: var(--chrome-edge);
+  border-color: var(--accent);
 }
 
 .form-error {
   color: var(--red);
 }
 
+/* A dashed panel borrowed from the mock: the empty state on first launch,
+   and the create action under the list once migrations exist. */
+.empty-state {
+  margin-top: 12px;
+  padding: 22px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.empty-state .empty-lead {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.empty-state .empty-help {
+  margin: 0 auto 10px;
+  max-width: 52ch;
+  color: var(--muted-low);
+  font-size: 12px;
+}
+
+.empty-state .button-link.primary {
+  border-color: var(--border);
+}
+
+.empty-state .button-link.primary:hover {
+  border-color: var(--cyan);
+}
+
 .create-migration {
   display: grid;
   gap: 10px;
   max-width: 40rem;
+  margin-inline: auto;
+  /* Outlined in the chosen accent; the cyan fallback is for the gallery
+     specimen, which carries no migration accent. */
+  border-color: var(--accent, var(--cyan));
 }
 
 .create-migration label,
@@ -733,7 +1109,9 @@ h2 {
 .migration-switcher {
   position: relative;
   display: flex;
+  align-items: center;
   min-width: 0;
+  max-width: 100%;
 }
 
 .switcher-current {
@@ -742,6 +1120,67 @@ h2 {
   gap: 8px;
   max-width: 18rem;
   min-width: 0;
+}
+
+#top .switcher-current {
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  justify-content: space-between;
+  border-color: transparent;
+  padding: 5px 12px;
+  background: transparent;
+  font-size: 14px;
+}
+
+.switcher-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.switcher-mark {
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+
+.switcher-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#top .switcher-current .name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+#top .switcher-current:hover {
+  border-color: transparent;
+  color: var(--text);
+}
+
+.switcher-versions {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.switcher-chevron {
+  display: block;
+  width: 12px;
+  height: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.switcher-chevron.open {
+  transform: rotate(180deg);
 }
 
 /* A migration is named by a human; the name truncates rather than pushing
@@ -762,7 +1201,11 @@ h2 {
 .switcher-menu {
   position: absolute;
   z-index: 2;
-  right: 0;
+  /* The switcher is only the first row. 100% would drop the menu onto
+     Tree / Run. Clear that row, and the bar's bottom padding, so the list
+     opens under the header. */
+  top: calc(100% + 34px);
+  left: 0;
   min-width: 16rem;
   margin: 4px 0 0;
   padding: 4px;
@@ -793,6 +1236,36 @@ h2 {
   margin: 0;
 }
 
+/* Create sits below the list, set off by a divider, as the last action. */
+.switcher-create {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.switcher-create a {
+  display: block;
+  padding: 4px 8px;
+  color: var(--amber);
+  border-radius: 4px;
+}
+
+.switcher-create a:hover {
+  color: var(--amber);
+  background: var(--panel);
+}
+
+.flow-hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flow-hint strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .resource-honesty {
   margin: 0 0 12px;
   color: var(--muted);
@@ -811,11 +1284,35 @@ h2 {
 
 .container-side {
   display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px 12px;
+}
+
+.container-side h2,
+.container-side h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Role and state on one line; the path sits right under it. */
+.side-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
-.container-side h2 {
+.side-container {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.side-path {
   margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
 }
 
 .side-actions {
@@ -1025,12 +1522,27 @@ pre.test-output {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-items: stretch;
   margin-bottom: 16px;
-  min-height: 28rem;
+  min-width: 0;
+}
+
+.screen-fill {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.screen-fill .workspace,
+.screen-fill .workspace-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.screen-fill .workspace {
+  margin-bottom: 0;
 }
 
 .workspace-panel {
@@ -1057,6 +1569,7 @@ pre.test-output {
   flex: 1 1 auto;
   width: 100%;
   min-height: 22rem;
+  height: 100%;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--panel-raised);

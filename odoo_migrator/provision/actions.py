@@ -1,4 +1,4 @@
-"""up / attach / restart / rebuild. Ours to attach to; someone else's is an error."""
+"""up / attach / restart / rebuild / stop. Ours to touch; someone else's is an error."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -171,6 +171,17 @@ def rebuild(engine, project_path: Path, *, sibling_path: Path | None = None) -> 
     if not _running_ours(engine, project_path):
         raise NothingToAttach("Nothing from this project is running. Use Up.")
     engine.compose_rebuild(project_path, compose)
+
+    return describe_side(engine, project_path, sibling_path=sibling_path)
+
+
+def stop(engine, project_path: Path, *, sibling_path: Path | None = None) -> SideStatus:
+    """Stop this project's containers, keeping them and their volumes. A no-op
+    when nothing of ours is running, so it never errors on an idle side, and
+    it targets only this compose project, so a foreign container is untouched."""
+    compose = _require_compose(project_path)
+    if _running_ours(engine, project_path):
+        engine.compose_stop(project_path, compose)
 
     return describe_side(engine, project_path, sibling_path=sibling_path)
 

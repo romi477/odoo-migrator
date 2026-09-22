@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+{% block title %}odoo-migrator — components{% endblock %}
+{% block screen %}
+<section class="screen">
+  <header class="screen-head">
+    <div>
+      <h1>Components</h1>
+      <p>Every control the stylesheet draws, once, so a new one is visible
+      before the screen that uses it.</p>
+    </div>
+  </header>
+
+  <h2>Status badges</h2>
+  <div class="row">
+    <span class="badge queued">queued</span>
+    <span class="badge running">running</span>
+    <span class="badge passed">passed</span>
+    <span class="badge failed">failed</span>
+    <span class="badge waiting_for_human">waiting_for_human</span>
+    <span class="badge assumptions">assumptions</span>
+    <span class="badge missing_compose">missing_compose</span>
+    <span class="badge stopped">stopped</span>
+    <span class="badge port_stolen">port_stolen</span>
+    <span class="badge unknown">unknown</span>
+    <span class="badge untested">untested</span>
+  </div>
+
+  <h2>Flow</h2>
+  <div class="card stack-form">
+    <label>Flow
+      <select name="cartridge_id">
+        <option value="stock">stock 1.0.0 (smoke passed)</option>
+      </select>
+    </label>
+    <p>A failed smoke-run blocks a batch. <span class="badge failed">failed</span>
+    <span class="badge passed">passed</span></p>
+  </div>
+
+  <h2>Row card</h2>
+  <div class="row-card" data-module-id="1">
+    <span class="identity">
+      <span class="name-line">
+        <span class="name mono">sale_custom</span>
+        <span class="badge running">running</span>
+      </span>
+      <span class="mono" data-stage>rewrite · attempt 2</span>
+    </span>
+    <span class="segmented">
+      <button type="button" class="active">basic</button>
+      <button type="button">enhanced</button>
+    </span>
+    <button type="button" class="primary">Open</button>
+    <form class="notes">
+      <label>
+        Notes
+        <textarea name="notes" aria-label="Notes for sale_custom">do X, because Y.</textarea>
+      </label>
+      <button type="submit" aria-label="Save notes for sale_custom">Save</button>
+    </form>
+  </div>
+  <div class="row-card">
+    <span class="identity">
+      <span class="name-line">
+        <span class="name mono">stock_picking_ext</span>
+        <span class="badge waiting_for_human">waiting_for_human</span>
+        <span class="badge assumptions">assumptions</span>
+      </span>
+      <span class="mono">diagnose &middot; attempt 3 of 5</span>
+    </span>
+    <button type="button">Dismiss</button>
+    <form class="ask">
+      <p class="question">which tax mapping?</p>
+      <label>
+        Answer
+        <textarea name="answer" required aria-label="Answer for stock_picking_ext"></textarea>
+      </label>
+      <button type="submit" class="primary" aria-label="Answer stock_picking_ext">Answer</button>
+    </form>
+  </div>
+
+  <h2>Card</h2>
+  <div class="card">
+    <p>A plain panel: same border, radius and background as a row card,
+    without the horizontal layout.</p>
+  </div>
+
+  <h2>Typography</h2>
+  <div class="card">
+    <p>Interface labels are set in the sans stack. Anything that is an
+    identifier, a version, a path or command output is monospaced:
+    <span class="mono">17.0 &rarr; 18.0</span>,
+    <code>ir.module.module</code>,
+    <span class="mono">odoo18_new</span>.</p>
+  </div>
+  <h2>Accent</h2>
+  <div class="row">
+    <span class="accent-dot" style="--accent: oklch(0.70 0.15 305)"></span>
+    <span class="accent-dot" style="--accent: oklch(0.72 0.14 330)"></span>
+    <span class="accent-dot" style="--accent: oklch(0.68 0.10 275)"></span>
+  </div>
+  <p>A migration's colour is a custom property, never a status hue.
+  Status stays green / red / amber / cyan.</p>
+
+  <h2>Attention</h2>
+  <div class="row">
+    <span class="attention-lamp idle" title="Nothing needs attention.">
+      <span class="lamp-dot"></span>
+    </span>
+    <span class="attention-lamp needs-attention" title="A module is waiting.">
+      <span class="lamp-dot"></span>
+    </span>
+    <span class="running-count" data-running="0">0</span>
+    <span class="running-count" data-running="2">2</span>
+  </div>
+  <p>The lamp is global: a stall on another migration must still be visible.
+  Idle is muted; needs-attention pulses amber. The count is how many
+  migrations are running, not how many modules.</p>
+
+  <h2>Destructive</h2>
+  <div class="row">
+    <button type="button" class="danger">Archive Acme</button>
+  </div>
+  <p>A button that destroys names the migration it will act on.</p>
+
+  <h2>Settings tabs</h2>
+  <nav class="settings-tabs">
+    <a href="/settings" class="active">App settings</a>
+    <a href="/settings/migration">This migration</a>
+  </nav>
+
+  <h2>Migration switcher</h2>
+  <p>The open migration is the subject of the second row. The hook under
+  its name points at that migration's screens.</p>
+  <div class="migration-switcher">
+    <button type="button" class="switcher-current">
+      <span class="switcher-mark" style="--accent: oklch(0.70 0.15 305)"></span>
+      <span class="name mono">Acme</span>
+      <span class="switcher-tail">
+        <span class="switcher-versions mono">17.0 → 18.0</span>
+        <svg class="switcher-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+          <path d="M2.2 4.4 6 8l3.8-3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </button>
+  </div>
+  <div class="nav-steps nav-tabs" style="--accent: oklch(0.70 0.15 305)">
+    <svg class="step-hook" viewBox="0 0 34 18" aria-hidden="true" focusable="false">
+      <path d="M1.2 0.8v6.4a5.4 5.4 0 0 0 5.4 5.4H24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M20 9.2 26.2 12.6 20 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>Tree</span>
+    <span>Pipeline</span>
+    <span>n8n</span>
+    <span>Sheller</span>
+  </div>
+  <div class="migration-switcher">
+    <button type="button" class="switcher-current">
+      <span class="accent-dot" style="--accent: oklch(0.70 0.15 305)"></span>
+      <span class="name mono">Acme</span>
+    </button>
+    <ul class="switcher-menu">
+      <li>
+        <button type="button">
+          <span class="accent-dot" style="--accent: oklch(0.70 0.15 305)"></span>
+          <span class="name mono">Acme</span>
+          <span class="mono">17.0 → 18.0</span>
+        </button>
+      </li>
+      <li>
+        <button type="button">
+          <span class="accent-dot" style="--accent: oklch(0.72 0.14 330)"></span>
+          <span class="name mono">Beta</span>
+          <span class="mono">18.0 → 19.0</span>
+        </button>
+      </li>
+      <li class="switcher-create">
+        <a href="#">Create migration</a>
+      </li>
+    </ul>
+  </div>
+  <h2>Container actions</h2>
+  <p class="resource-honesty">2 Odoo containers running on this machine</p>
+  <div class="card container-side">
+    <div class="side-head">
+      <h3>source</h3>
+      <span class="badge running">running</span>
+      <span class="mono side-container">old-odoo-1</span>
+    </div>
+    <p class="mono side-path">/projects/acme/old</p>
+    <div class="side-actions">
+      <button type="button" class="primary">Up Acme old</button>
+      <button type="button">Stop Acme old</button>
+      <button type="button">Attach Acme old</button>
+      <button type="button">Restart Acme old</button>
+      <button type="button">Rebuild Acme old</button>
+    </div>
+  </div>
+  <p>The first side is source, the second target; the state sits next to
+  the role and the path right under it. Each action names the migration it
+  will touch. A foreign container on the same port is an error, never
+  stolen.</p>
+
+  <h2>Module graph</h2>
+  <div class="tree-toolbar">
+    <button type="button" class="primary">Resolve</button>
+    <button type="button">Skip</button>
+    <button type="button">Group</button>
+    <button type="button">Ungroup</button>
+    <button type="button" class="primary">Migrate</button>
+    <button type="button">Batch</button>
+  </div>
+  <div class="row">
+    <span class="graph-node step-1">
+      <span class="graph-node-index">#1/1</span>
+      <span class="name mono">mig_test_base</span>
+    </span>
+    <span class="graph-node step-2">
+      <span class="graph-node-index">#3/2</span>
+      <span class="name mono">mig_test_partner</span>
+    </span>
+    <span class="graph-node step-3">
+      <span class="graph-node-index">#8/3</span>
+      <span class="name mono">mig_test_sale</span>
+    </span>
+    <span class="graph-node step-4">
+      <span class="graph-node-index">#10/4</span>
+      <span class="name mono">mig_test_ui</span>
+    </span>
+    <span class="graph-node struck">
+      <span class="name mono">base</span>
+      <span class="badge queued">queued</span>
+    </span>
+  </div>
+  <ul class="step-legend">
+    <li class="graph-node step-1">step 1</li>
+    <li class="graph-node step-2">step 2</li>
+    <li class="graph-node step-3">step 3</li>
+    <li class="graph-node step-4">step 4</li>
+  </ul>
+  <p>Resolve groups the tree into dependency steps and colours each
+  wave. Four hues sit on opposite sides of the wheel so adjacent steps
+  cannot look like one. Skip a node to leave it — and every module
+  that depends on it — out of the migration. Skip again brings that
+  subtree back, unless another skipped parent still holds a module out.
+  Marquee selects; drag a node onto another to join its batch group.</p>
+
+  <h2>Selected node</h2>
+  <aside class="row-card node-card" id="node-card" data-module-id="3">
+    <div class="node-card-body">
+      <span class="identity">
+        <span class="name-line">
+          <span class="graph-node-index">#3/2</span>
+          <span class="name mono">mig_test_partner</span>
+          <span class="badge queued">queued</span>
+        </span>
+      </span>
+      <button type="button">Skip</button>
+    </div>
+  </aside>
+  <p>One module at a time. Skip is the edit: out of the migration, or
+  back in. A hundred-row list under the graph does not scale.</p>
+
+  <h2>Checkpoint</h2>
+  <div class="checkpoint">
+    <div class="row">
+      <button type="submit" class="primary" disabled>Continue</button>
+      <button type="submit">Override</button>
+    </div>
+    <article class="card job-review">
+      <header class="name-line">
+        <span class="name mono">sale_custom</span>
+        <span class="badge failed">failed</span>
+      </header>
+      <button type="submit">Dismiss</button>
+      <p>attempt 2 &middot; retry</p>
+      <p class="diagnosis">The tax mapping moved to account.tax; the rewrite
+      still assigned the 17.0 field.</p>
+      <pre class="diff">- mapping = old
++ mapping = new</pre>
+      <form class="promote">
+        <label>
+          Version file
+          <select name="version" required>
+            <option value="">Pick a version file</option>
+            <option value="17.0">17.0</option>
+            <option value="18.0">18.0</option>
+          </select>
+        </label>
+        <button type="submit">Promote</button>
+      </form>
+    </article>
+  </div>
+  <p>Continue stays off while a failed or waiting job is unread. Override
+  is the explicit skip. Promote asks which version file; the app does not
+  pick one.</p>
+
+  <h2>Run workspace</h2>
+  <div class="workspace">
+    <article class="workspace-panel" data-pipeline>
+      <h2>Pipeline</h2>
+      <div class="pipeline-live">
+        <header class="name-line">
+          <span class="name mono" data-pipeline-module>sale_custom</span>
+          <span class="badge running" data-pipeline-status>running</span>
+        </header>
+        <p class="mono" data-stage>rewrite · attempt 2</p>
+      </div>
+    </article>
+    <article class="workspace-panel n8n-stub">
+      <h2>n8n</h2>
+      <p>The canvas is not embedded. Open the executor in its own tab.</p>
+      <a>Open in n8n</a>
+    </article>
+    <article class="workspace-panel observer">
+      <h2>Sheller</h2>
+      <p class="mono" data-session>sess-new-observer</p>
+      <iframe title="Sheller observer" src="about:blank"></iframe>
+    </article>
+  </div>
+  <p class="checkpoint-ready">
+    This batch has finished. <a href="/run">Reload to review it.</a>
+  </p>
+  <p>Pipeline, n8n and Sheller are separate screens, each the full width
+  of the app. Pipeline is live stage and attempt. n8n is a stub plus
+  Open in n8n — the canvas is not in the app. The Sheller iframe is
+  <span class="mono">/web</span> without a write key; Sheller has no
+  session deep-link, so the session
+  id is shown as text. The banner above is revealed by SSE when a batch
+  ends while this screen is open — a link, not a reload, because the page
+  may hold a half-typed answer.</p>
+  <section class="guide-row">
+    <h2>Empty state</h2>
+    <p>First launch: a dashed panel instead of the list, with the one action
+    there is. The header no longer carries a standing Create button — a new
+    migration is started here, or later from the switcher.</p>
+    <div class="empty-state">
+      <p class="empty-lead">No migrations yet.</p>
+      <p class="empty-help">A migration is an old project and its version, a new
+      project and its version — everything else grows from that pair.</p>
+      <a class="button-link primary" href="#">Create migration</a>
+    </div>
+  </section>
+
+  <section class="guide-row">
+    <h2>Create migration</h2>
+    <p>A form asked for, not always open. When it opens it sits centered,
+    outlined in the accent it is about to give the migration.</p>
+    <form class="card create-migration" style="--accent: oklch(0.70 0.15 305)">
+      <h2>Create migration</h2>
+      <label>Name <input name="name" value=""></label>
+      <label>Source version <input class="mono" name="source_version" value="17.0"></label>
+      <label>Target version <input class="mono" name="target_version" value="18.0"></label>
+      <label>Source path <input class="mono" name="old_project_path" value=""></label>
+      <label>Target path <input class="mono" name="new_project_path" value=""></label>
+      <div class="row">
+        <button type="button" class="primary">Create</button>
+        <a class="button-link" href="#">Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  <section class="guide-row">
+    <h2>Migration row, settings open</h2>
+    <p>A migration row is collapsed until you click it; the chevron says
+    so. Name, status and the version pair are one line, and the accent is
+    the card's left border, so the name needs no dot. A migration is
+    opened from the header switcher. Archive is a bin at the foot of the
+    open card.</p>
+    <ul class="migration-list">
+      <li class="row-card collapsed" style="--accent: oklch(0.72 0.14 330)">
+        <a class="row-toggle" href="#" aria-expanded="false">
+          <span class="disclosure" aria-hidden="true"></span>
+          <span class="row-body">
+            <span class="row-summary">
+              <span class="identity">
+                <span class="name mono">Beta</span>
+                <span class="badge running">running</span>
+                <span class="mono versions">16.0 &rarr; 17.0</span>
+              </span>
+            </span>
+            <span class="row-progress">
+              <span class="progress-bar" aria-hidden="true">
+                <i class="done" style="--x: 47%"></i>
+                <i class="bad" style="--x: 7%"></i>
+              </span>
+              <span class="mono progress-count">7 of 15 modules</span>
+              <span class="counter waiting"><i class="dot" aria-hidden="true"></i>1 waiting for you</span>
+              <span class="counter failed"><i class="dot" aria-hidden="true"></i>1 failed</span>
+            </span>
+          </span>
+        </a>
+      </li>
+      <li class="row-card expanded" style="--accent: oklch(0.70 0.15 305)">
+        <a class="row-toggle" href="#" aria-expanded="true">
+          <span class="disclosure" aria-hidden="true"></span>
+          <span class="row-body">
+            <span class="row-summary">
+              <span class="identity">
+                <span class="name mono">Acme</span>
+                <span class="badge idle">idle</span>
+                <span class="mono versions">17.0 &rarr; 18.0</span>
+              </span>
+            </span>
+          </span>
+        </a>
+        <div class="card-settings">
+          <p class="resource-honesty">2 of this app's containers running, 9 containers on this machine</p>
+        </div>
+        <div class="row-archive">
+          <button type="button" class="icon-danger"
+                  title="Archive Acme" aria-label="Archive Acme">
+            <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1zM6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"
+                    fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </li>
+    </ul>
+  </section>
+</section>
+{% endblock %}
