@@ -350,6 +350,163 @@ def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
         return [_module_row(row) for row in updated]
 
 
+def _ancestor_names(
+    seeds: set[str],
+    parents: dict[str, list[str]],
+) -> set[str]:
+    """Every module on a depends edge walk from each seed up to the roots."""
+    names = set(seeds)
+    stack = list(seeds)
+    while stack:
+        name = stack.pop()
+        for parent in parents[name]:
+            if parent in names:
+                continue
+            names.add(parent)
+            stack.append(parent)
+
+    return names
+
+
+def restore_selection(module_ids: list[int]) -> list[dict]:
+    """Bring selected modules back along their depends chains only.
+
+    Multi-select is the union of those upward paths. Sibling branches stay
+    out; nothing downstream of an ancestor is woken unless it was selected.
+    """
+    if not module_ids:
+        return []
+    unique_ids = list(dict.fromkeys(module_ids))
+    with database.connection_context():
+        first = Module.get_or_none(Module.id == unique_ids[0])
+        if first is None:
+            raise GraphError("unknown module")
+        migration_id = first.migration_id
+        rows = list(Module.select().where(Module.migration == migration_id))
+        by_id = {row.id: row for row in rows}
+        by_name = {row.technical_name: row for row in rows}
+        parents: dict[str, list[str]] = {name: [] for name in by_name}
+        for row in rows:
+            for dep in json.loads(row.depends or "[]"):
+                if dep in by_name:
+                    parents[row.technical_name].append(dep)
+        steps = topological_steps(
+            {name: json.loads(row.depends or "[]") for name, row in by_name.items()}
+        )
+        seeds: set[str] = set()
+        for module_id in unique_ids:
+            row = by_id.get(module_id)
+            if row is None:
+                raise GraphError("unknown module")
+            seeds.add(row.technical_name)
+        names = _ancestor_names(seeds, parents)
+        ordered_names = sorted(names, key=lambda n: (steps.get(n, 1), n))
+        updated: list[Module] = []
+        for name in ordered_names:
+            row = by_name[name]
+            if not row.struck_out:
+                continue
+            blocking = [
+                parent
+                for parent in parents[name]
+                if by_name[parent].struck_out
+            ]
+            if blocking:
+                raise GraphError(
+                    f"Bring {blocking[0]} back before {name}."
+                )
+            row.struck_out = False
+            row.save()
+            updated.append(row)
+
+        return [_module_row(row) for row in updated]
+
+
+def _prune_shared_strike_ancestors(
+    names: set[str],
+    children: dict[str, list[str]],
+    by_name: dict[str, Module],
+) -> set[str]:
+    pruned = set(names)
+    changed = True
+    while changed:
+        changed = False
+        for name in list(pruned):
+            for child in children[name]:
+                if child not in pruned and not by_name[child].struck_out:
+                    pruned.discard(name)
+                    changed = True
+                    break
+
+    return pruned
+
+
+def leave_out_selection(module_ids: list[int]) -> list[dict]:
+    """Leave selected modules out of the migration.
+
+    One leaf module walks depends upward (shared ancestors stay if a sibling
+    branch is still in). Several modules, or one with dependents, strike the
+    selection and everything downstream of it.
+    """
+    if not module_ids:
+        return []
+    unique_ids = list(dict.fromkeys(module_ids))
+    with database.connection_context():
+        first = Module.get_or_none(Module.id == unique_ids[0])
+        if first is None:
+            raise GraphError("unknown module")
+        migration_id = first.migration_id
+        rows = list(Module.select().where(Module.migration == migration_id))
+        by_id = {row.id: row for row in rows}
+        by_name = {row.technical_name: row for row in rows}
+        parents: dict[str, list[str]] = {name: [] for name in by_name}
+        children: dict[str, list[str]] = {name: [] for name in by_name}
+        for row in rows:
+            for dep in json.loads(row.depends or "[]"):
+                if dep in by_name:
+                    parents[row.technical_name].append(dep)
+                    children[dep].append(row.technical_name)
+        steps = topological_steps(
+            {name: json.loads(row.depends or "[]") for name, row in by_name.items()}
+        )
+        seeds: set[str] = set()
+        for module_id in unique_ids:
+            row = by_id.get(module_id)
+            if row is None:
+                raise GraphError("unknown module")
+            seeds.add(row.technical_name)
+        if len(seeds) == 1:
+            only = next(iter(seeds))
+            downstream = _downstream(rows, only)
+            if len(downstream) <= 1:
+                names = _prune_shared_strike_ancestors(
+                    _ancestor_names(seeds, parents),
+                    children,
+                    by_name,
+                )
+            else:
+                names = set(downstream)
+        else:
+            names = set(seeds)
+            for name in seeds:
+                names.update(_downstream(rows, name))
+        ordered_names = sorted(
+            names,
+            key=lambda n: (steps.get(n, 1), n),
+            reverse=True,
+        )
+        updated: list[Module] = []
+        for name in ordered_names:
+            row = by_name[name]
+            if row.struck_out:
+                continue
+            row.struck_out = True
+            row.save()
+            updated.append(row)
+
+        return [_module_row(row) for row in updated]
+
+
 def topological_steps(depends_by_name: dict[str, list[str]]) -> dict[str, int]:
     """Visual row: in-graph edges from a root, plus one.
 

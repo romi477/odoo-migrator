@@ -130,6 +130,48 @@ def test_resolve_when_source_is_down_points_to_the_card(client, tmp_path):
         assert Migration.get_by_id(row.id).old_container == ""
 
 
+def test_strike_json_skips_downstream_modules(client):
+    """Leave out on the API side is skip_subtree: dependents go out too."""
+    migration_id, modules = _resolved(client)
+    base = modules["sale_custom"]
+    stock = modules["stock_custom"]
+    response = client.post(
+        f"/tree/modules/{base['id']}/strike",
+        data={"struck": "1"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    struck_ids = {row["id"] for row in payload["modules"] if row["struck_out"]}
+
+    assert base["id"] in struck_ids
+    assert stock["id"] in struck_ids
+
+
+def test_restore_json_brings_ancestors_before_dependents(client):
+    migration_id, modules = _resolved(client)
+    partner = modules["sale_custom"]
+    stock = modules["stock_custom"]
+    client.post(
+        f"/tree/modules/{partner['id']}/strike",
+        data={"struck": "1"},
+        headers={"Accept": "application/json"},
+    )
+    response = client.post(
+        "/tree/modules/restore",
+        data={"module_ids": [stock["id"]]},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    restored = {row["id"]: row["struck_out"] for row in payload["modules"]}
+
+    assert restored[partner["id"]] is False
+    assert restored[stock["id"]] is False
+
+
 def test_strike_persists_across_a_reload(client):
     row = _open(client)
     save_side_container(row.id, "old", "odoo-old")
@@ -221,6 +263,8 @@ def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
     assert "--step-3" in css.text
     assert "--step-4" in css.text
     assert "step-legend" in script.text
+    assert "data-step" in script.text
+    assert "aria-pressed" in script.text
     assert "node_id" in script.text
     assert "graph-node-index" in script.text
     assert " · step " not in script.text
@@ -235,6 +279,8 @@ def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
     assert "skip_subtree" not in script.text
     assert "Accept" in script.text
     assert "application/json" in script.text
+    assert "/tree/modules/restore" in script.text
+    assert "/tree/modules/leave-out" in script.text
 
 
 def test_tree_json_carries_node_id_and_step(client):
@@ -248,7 +294,7 @@ def test_tree_json_carries_node_id_and_step(client):
     assert "graph-stage" in html
     assert "module-rows" not in html
     assert 'id="node-card"' in html
-    assert ">Skip<" in html
+    assert "Leave out" in html
 
 
 def test_styleguide_has_a_graph_node_and_a_struck_node(client):
@@ -263,7 +309,7 @@ def test_styleguide_has_a_graph_node_and_a_struck_node(client):
     assert "step-legend" in html
     assert "graph-node-index" in html
     assert "#1/1" in html
-    assert ">Skip<" in html
+    assert "Leave out" in html
     assert 'id="node-card"' in html or "node-card" in html
 
 
@@ -276,7 +322,7 @@ def test_focus_opens_the_node_card_for_that_module(client):
 
     assert f'data-module-id="{custom["id"]}"' in html
     assert "sale_custom" in html
-    assert ">Skip<" in html
+    assert "Leave out" in html
 
 
 def _resolved(client):

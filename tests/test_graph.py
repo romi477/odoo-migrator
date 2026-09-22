@@ -11,6 +11,8 @@ from odoo_migrator.graph import (
     resolve_graph,
     set_batch_group,
     set_struck,
+    leave_out_selection,
+    restore_selection,
     skip_subtree,
     topological_steps,
 )
@@ -280,6 +282,142 @@ def test_restoring_a_module_brings_descendants_back(tmp_path):
 
     assert after["mig_test_partner"]["struck_out"] is False
     assert after["mig_test_sale"]["struck_out"] is False
+
+
+def test_leave_out_selection_ui_strikes_chain_when_siblings_are_out(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_product", ["mig_test_base"]),
+            _custom("mig_test_crm", ["mig_test_partner"]),
+            _custom("mig_test_purchase", ["mig_test_partner"]),
+            _custom("mig_test_sale", ["mig_test_partner", "mig_test_product"]),
+            _custom("mig_test_ui", ["mig_test_sale"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    skip_subtree(rows["mig_test_crm"]["id"], True)
+    skip_subtree(rows["mig_test_purchase"]["id"], True)
+
+    leave_out_selection([rows["mig_test_ui"]["id"]])
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert after["mig_test_ui"]["struck_out"] is True
+    assert after["mig_test_sale"]["struck_out"] is True
+    assert after["mig_test_product"]["struck_out"] is True
+    assert after["mig_test_partner"]["struck_out"] is True
+    assert after["mig_test_base"]["struck_out"] is True
+
+
+def test_leave_out_selection_on_a_whole_step_strikes_downstream(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_account", ["mig_test_base"]),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_product", ["mig_test_base"]),
+            _custom("mig_test_settings", ["mig_test_base"]),
+            _custom("mig_test_crm", ["mig_test_partner"]),
+            _custom("mig_test_purchase", ["mig_test_partner"]),
+            _custom("mig_test_sale", ["mig_test_partner", "mig_test_product"]),
+            _custom("mig_test_stock", ["mig_test_product", "mig_test_settings"]),
+            _custom("mig_test_ui", ["mig_test_sale"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    step_two = [
+        rows["mig_test_account"]["id"],
+        rows["mig_test_partner"]["id"],
+        rows["mig_test_product"]["id"],
+        rows["mig_test_settings"]["id"],
+    ]
+
+    leave_out_selection(step_two)
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert after["mig_test_base"]["struck_out"] is False
+    assert after["mig_test_partner"]["struck_out"] is True
+    assert after["mig_test_sale"]["struck_out"] is True
+    assert after["mig_test_ui"]["struck_out"] is True
+    assert after["mig_test_crm"]["struck_out"] is True
+
+
+def test_leave_out_selection_keeps_shared_ancestor_for_active_sibling(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_crm", ["mig_test_partner"]),
+            _custom("mig_test_sale", ["mig_test_partner"]),
+            _custom("mig_test_ui", ["mig_test_sale"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    leave_out_selection([rows["mig_test_ui"]["id"]])
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert after["mig_test_ui"]["struck_out"] is True
+    assert after["mig_test_sale"]["struck_out"] is True
+    assert after["mig_test_partner"]["struck_out"] is False
+    assert after["mig_test_crm"]["struck_out"] is False
+
+
+def test_restore_selection_ui_leaves_sibling_branches_out(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_product", ["mig_test_base"]),
+            _custom("mig_test_crm", ["mig_test_partner"]),
+            _custom("mig_test_purchase", ["mig_test_partner"]),
+            _custom("mig_test_sale", ["mig_test_partner", "mig_test_product"]),
+            _custom("mig_test_ui", ["mig_test_sale"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    for name in rows:
+        skip_subtree(rows[name]["id"], True)
+
+    restore_selection([rows["mig_test_ui"]["id"]])
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert after["mig_test_ui"]["struck_out"] is False
+    assert after["mig_test_sale"]["struck_out"] is False
+    assert after["mig_test_partner"]["struck_out"] is False
+    assert after["mig_test_product"]["struck_out"] is False
+    assert after["mig_test_base"]["struck_out"] is False
+    assert after["mig_test_crm"]["struck_out"] is True
+    assert after["mig_test_purchase"]["struck_out"] is True
+
+
+def test_restore_selection_brings_struck_ancestors_first(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_crm", ["mig_test_partner"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    skip_subtree(rows["mig_test_partner"]["id"], True)
+
+    restore_selection([rows["mig_test_crm"]["id"]])
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert after["mig_test_partner"]["struck_out"] is False
+    assert after["mig_test_crm"]["struck_out"] is False
 
 
 def test_a_descendant_stays_out_while_another_parent_is_skipped(tmp_path):

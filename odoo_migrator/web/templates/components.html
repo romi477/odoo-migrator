@@ -206,11 +206,15 @@
   <h2>Module graph</h2>
   <div class="tree-toolbar">
     <button type="button" class="primary">Resolve</button>
-    <button type="button">Skip</button>
-    <button type="button">Group</button>
-    <button type="button">Ungroup</button>
-    <button type="button" class="primary">Migrate</button>
-    <button type="button">Batch</button>
+    <details class="tree-toolbar-more">
+      <summary>Run batch</summary>
+      <div class="tree-toolbar-more-body">
+        <button type="button">Group</button>
+        <button type="button">Ungroup</button>
+        <button type="button" class="primary">Migrate</button>
+        <button type="button">Batch</button>
+      </div>
+    </details>
   </div>
   <div class="row">
     <span class="graph-node step-1">
@@ -235,33 +239,35 @@
     </span>
   </div>
   <ul class="step-legend">
-    <li class="graph-node step-1">step 1</li>
-    <li class="graph-node step-2">step 2</li>
-    <li class="graph-node step-3">step 3</li>
-    <li class="graph-node step-4">step 4</li>
+    <li><button type="button" class="graph-node step-1" data-step="1">step 1</button></li>
+    <li><button type="button" class="graph-node step-2" data-step="2">step 2</button></li>
+    <li><button type="button" class="graph-node step-3" data-step="3">step 3</button></li>
+    <li><button type="button" class="graph-node step-4" data-step="4">step 4</button></li>
   </ul>
   <p>Resolve groups the tree into dependency steps and colours each
-  wave. Four hues sit on opposite sides of the wheel so adjacent steps
-  cannot look like one. Skip a node to leave it — and every module
-  that depends on it — out of the migration. Skip again brings that
-  subtree back, unless another skipped parent still holds a module out.
+  wave. Click a step button to select every module on that wave, then
+  Leave out on the card below. Downstream modules follow automatically.
   Marquee selects; drag a node onto another to join its batch group.</p>
 
   <h2>Selected node</h2>
   <aside class="row-card node-card" id="node-card" data-module-id="3">
     <div class="node-card-body">
-      <span class="identity">
-        <span class="name-line">
-          <span class="graph-node-index">#3/2</span>
-          <span class="name mono">mig_test_partner</span>
-          <span class="badge queued">queued</span>
+      <div class="node-card-row">
+        <span class="identity">
+          <span class="name-line">
+            <span class="graph-node-index">#3/2</span>
+            <span class="name mono">mig_test_partner</span>
+            <span class="badge queued">queued</span>
+          </span>
         </span>
-      </span>
-      <button type="button">Skip</button>
+        <button type="button" class="primary">Leave out</button>
+      </div>
+      <p class="field-hint">Skips this module and every downstream dependency.</p>
     </div>
   </aside>
-  <p>One module at a time. Skip is the edit: out of the migration, or
-  back in. A hundred-row list under the graph does not scale.</p>
+  <p>Click a module on the graph. <strong>Leave out</strong> skips it and
+  its dependents; <strong>Include again</strong> brings it back when its
+  parents are in.</p>
 
   <h2>Checkpoint</h2>
   <div class="checkpoint">

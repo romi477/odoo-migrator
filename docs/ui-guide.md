@@ -96,7 +96,9 @@ row the canvas draws. Step 3 cannot start until every module on step 2
 is passed or struck. The edges are still the order *inside* a step.
 Each step has its own colour; the layout is the same dependency tree
 as before. Resolve again after the old container changes; that redraws
-the waves from the live graph.
+the waves from the live graph. The **step** buttons under the canvas
+select every module on that wave; **Leave out** on the card applies to
+the whole selection.
 
 The canvas is Cytoscape. Box-select is on. Selection is additive.
 Each node shows its technical name. `#3/2` in the corner is **migration
@@ -107,19 +109,20 @@ repeated in the centre when you zoom. Colour follows the step, not a
 Group overlay, so a hand-drawn batch cannot collapse four waves into two.
 
 Click a node. The card under the graph is that module and one action:
-**Skip** leaves it out of the migration, and every module that depends
-on it. **Undo skip** brings that subtree back, except a module that
-still depends on another skipped parent. When the status is
-`waiting_for_human` the same card has an **Answer** form. There is no
-row per module under the tree.
+**Leave out** on a whole step or any multi-select strikes those modules
+and everything downstream. A single **leaf** (nothing depends on it) walks
+**depends** upward instead; a shared ancestor stays in if a sibling branch
+is still active. **Include again** walks upward only (sibling branches stay
+out). The graph shows `(out)`, dashed borders, and faded colour.
+When the status is
+`waiting_for_human` the same card
+has an **Answer** form. There is no row per module under the tree.
 
 | Control | What it does |
 |---|---|
-| **Skip** | One decision for the whole selection. Anything still in the pick means skip; otherwise bring them back. Skipping a module also skips every module that depends on it. Undo skip restores that subtree, except where another skipped parent still holds a module out. |
-| **Group** | Assigns the selection the next batch number, overlaying the step Resolve drew. Colour stays with the dependency step. |
-| **Ungroup** | Clears the batch number. Resolve will put the waves back. |
-| **Migrate** | Exactly one module that is not skipped. Two is an error named on the next page, not a silent first-of-two. SSE patches the selected card; the page does not reload. A later step is refused while an earlier one is still unfinished. |
-| **Batch** | The selected module's step. A later step is refused while an earlier one is still unfinished. A smoke-run that has not passed blocks this once a flow is installed. Review the last checkpoint before starting another. |
+| **Resolve** | Reads the module graph from the old container. |
+| **Leave out / Include again** | On the card; upward depends chains, union over a multi-select. |
+| **Run batch → Group … Batch** | Optional batch controls, folded under the toolbar. |
 
 Dragging a node onto another puts both in the same group (creating one
 if the target had none).

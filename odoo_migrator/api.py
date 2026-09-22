@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 import httpx2
 from fastapi import Body, FastAPI, Form, Request
+from typing import Annotated
 from fastapi.responses import (
     FileResponse,
     JSONResponse,
@@ -35,6 +36,8 @@ from odoo_migrator.graph import (
     module_for_migration,
     resolve_graph,
     set_batch_group,
+    leave_out_selection,
+    restore_selection,
     skip_subtree,
 )
 from odoo_migrator.jobs import (
@@ -502,6 +505,86 @@ def create_app(
         except GraphError as refused:
 
             return _tree_page(request, error=str(refused))
+
+        return RedirectResponse("/tree", status_code=303)
+
+    @app.post("/tree/modules/restore")
+    def tree_restore(
+        request: Request,
+        module_ids: Annotated[list[int], Form()],
+    ):
+        """Include again for one or many modules: ancestors first, then downstream."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/tree", status_code=303)
+        wants_json = "application/json" in request.headers.get("accept", "")
+        if not module_ids:
+            if wants_json:
+
+                return JSONResponse({"error": "no modules selected"}, status_code=400)
+
+            return _tree_page(request, error="no modules selected")
+        try:
+            for module_id in module_ids:
+                module_for_migration(current["id"], module_id)
+            updated = restore_selection(module_ids)
+        except GraphError as refused:
+            if wants_json:
+
+                return JSONResponse({"error": str(refused)}, status_code=400)
+
+            return _tree_page(request, error=str(refused))
+        if wants_json:
+
+            return JSONResponse(
+                {
+                    "modules": [
+                        {"id": row["id"], "struck_out": row["struck_out"]}
+                        for row in updated
+                    ]
+                }
+            )
+
+        return RedirectResponse("/tree", status_code=303)
+
+    @app.post("/tree/modules/leave-out")
+    def tree_leave_out(
+        request: Request,
+        module_ids: Annotated[list[int], Form()],
+    ):
+        """Leave out for one or many modules: upward depends chains only."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/tree", status_code=303)
+        wants_json = "application/json" in request.headers.get("accept", "")
+        if not module_ids:
+            if wants_json:
+
+                return JSONResponse({"error": "no modules selected"}, status_code=400)
+
+            return _tree_page(request, error="no modules selected")
+        try:
+            for module_id in module_ids:
+                module_for_migration(current["id"], module_id)
+            updated = leave_out_selection(module_ids)
+        except GraphError as refused:
+            if wants_json:
+
+                return JSONResponse({"error": str(refused)}, status_code=400)
+
+            return _tree_page(request, error=str(refused))
+        if wants_json:
+
+            return JSONResponse(
+                {
+                    "modules": [
+                        {"id": row["id"], "struck_out": row["struck_out"]}
+                        for row in updated
+                    ]
+                }
+            )
 
         return RedirectResponse("/tree", status_code=303)
 

@@ -1550,6 +1550,29 @@ h2 {
   margin: 0;
 }
 
+.tree-toolbar-more {
+  margin-left: 8px;
+}
+
+.tree-toolbar-more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  list-style: none;
+}
+
+.tree-toolbar-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.tree-toolbar-more-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .tree-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1635,12 +1658,45 @@ h2 {
   color: var(--muted);
 }
 
+.node-card.row-card {
+  padding: 8px 12px;
+  align-items: stretch;
+  gap: 0;
+}
+
 .node-card-body {
   flex: 1 1 100%;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+}
+
+.node-card-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.node-card .identity {
+  margin-right: 0;
+}
+
+.node-card #node-card-stage:empty {
+  display: none;
+}
+
+.node-card #node-card-skip-hint {
+  margin: 0;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.node-card #node-card-skip {
+  flex: none;
 }
 
 .node-card-body[hidden],
@@ -1681,13 +1737,24 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 8px 0 0;
+  margin: 12px 0 12px;
   padding: 0;
   list-style: none;
 }
 
 .step-legend .graph-node {
   padding: 4px 10px;
+}
+
+.step-legend button.graph-node {
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+
+.step-legend button.graph-node[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--cyan);
 }
 
 .graph-node.struck .name {

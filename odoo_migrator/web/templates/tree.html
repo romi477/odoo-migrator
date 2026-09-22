@@ -12,8 +12,10 @@
       {% if current %}
       <p>Graph for <span class="name mono">{{ current.name }}</span>
       <span class="mono">{{ current.source_version }} → {{ current.target_version }}</span>.
-      Resolve asks the old Odoo and groups modules into dependency steps;
-      a later step cannot start until the previous one is migrated.</p>
+      Resolve loads the graph from the old Odoo. Click a module, then
+      <strong>Leave out</strong> to skip it and everything that depends on it;
+      <strong>Include again</strong> brings a module back when its parents
+      are in.</p>
       {% else %}
       <p>Open a migration to load its dependency graph.</p>
       {% endif %}
@@ -35,29 +37,29 @@
               title="Resolve the module graph from the old container"
               aria-label="Resolve the module graph from the old container">Resolve</button>
     </form>
-    {# Skip is its own undo: it decides one way for the whole selection,
-       so pressing it twice on the same nodes leaves them as they were. #}
-    <button type="button" id="tree-strike"
-            title="Skip the selected modules, or bring them back if they are all skipped"
-            aria-label="Skip the selected modules, or bring them back if they are all skipped">Skip</button>
-    <button type="button" id="tree-group"
-            title="Group the selected modules as a batch"
-            aria-label="Group the selected modules as a batch">Group</button>
-    <button type="button" id="tree-ungroup"
-            title="Take the selected modules out of their batch"
-            aria-label="Take the selected modules out of their batch">Ungroup</button>
-    <form method="post" action="/tree/migrate">
-      <input type="hidden" name="selected" id="tree-migrate-count" value="0">
-      <button type="submit" id="tree-migrate" class="primary"
-              title="Migrate the selected module"
-              aria-label="Migrate the selected module">Migrate</button>
-    </form>
-    <form method="post" action="/tree/batch/run">
-      <input type="hidden" name="batch_group" id="tree-batch-group" value="">
-      <button type="submit" id="tree-batch"
-              title="Migrate the selected batch"
-              aria-label="Migrate the selected batch">Batch</button>
-    </form>
+    <details class="tree-toolbar-more">
+      <summary>Run batch</summary>
+      <div class="tree-toolbar-more-body">
+        <button type="button" id="tree-group"
+                title="Group the selected modules as a batch"
+                aria-label="Group the selected modules as a batch">Group</button>
+        <button type="button" id="tree-ungroup"
+                title="Take the selected modules out of their batch"
+                aria-label="Take the selected modules out of their batch">Ungroup</button>
+        <form method="post" action="/tree/migrate">
+          <input type="hidden" name="selected" id="tree-migrate-count" value="0">
+          <button type="submit" id="tree-migrate" class="primary"
+                  title="Migrate the selected module"
+                  aria-label="Migrate the selected module">Migrate</button>
+        </form>
+        <form method="post" action="/tree/batch/run">
+          <input type="hidden" name="batch_group" id="tree-batch-group" value="">
+          <button type="submit" id="tree-batch"
+                  title="Migrate the selected batch"
+                  aria-label="Migrate the selected batch">Batch</button>
+        </form>
+      </div>
+    </details>
   </div>
   <script type="application/json" id="module-graph">{{ modules | tojson }}</script>
   <div class="graph-stage">
@@ -67,23 +69,35 @@
   <aside class="row-card node-card" id="node-card"
          data-module-id="{% if selected %}{{ selected.id }}{% endif %}">
     <p class="node-card-empty" id="node-card-empty"{% if selected %} hidden{% endif %}>
-      Select a module to leave it out of the migration, or bring it back.
+      Click a module on the graph to leave it out of the migration or bring
+      it back.
     </p>
     <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
-      <span class="identity">
-        <span class="name-line">
-          <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
-          <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
-          <span class="badge{% if selected %} {{ selected.status }}{% endif %}" id="node-card-status">{% if selected %}{{ selected.status }}{% endif %}</span>
-          {% if selected and selected.has_assumptions %}
-          <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
-          {% else %}
-          <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
-          {% endif %}
+      <div class="node-card-row">
+        <span class="identity">
+          <span class="name-line">
+            <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
+            <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
+            <span class="badge{% if selected %} {{ selected.status }}{% endif %}" id="node-card-status">{% if selected %}{{ selected.status }}{% endif %}</span>
+            {% if selected and selected.has_assumptions %}
+            <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
+            {% else %}
+            <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
+            {% endif %}
+          </span>
+          <span class="mono" data-stage id="node-card-stage"></span>
         </span>
-        <span class="mono" data-stage id="node-card-stage"></span>
-      </span>
-      <button type="button" id="node-card-skip">{% if selected and selected.struck_out %}Undo skip{% else %}Skip{% endif %}</button>
+        <button type="button" id="node-card-skip" class="primary">
+          {% if selected and selected.struck_out %}Include again{% else %}Leave out{% endif %}
+        </button>
+      </div>
+      <p class="field-hint" id="node-card-skip-hint">
+        {% if selected and selected.struck_out %}
+        Brings this module back if nothing it depends on is still left out.
+        {% elif selected %}
+        Skips this module and every downstream dependency.
+        {% endif %}
+      </p>
       <p class="form-error" id="node-card-error" hidden></p>
       <form class="ask" id="node-card-ask" method="post"
             action="{% if selected %}/tree/modules/{{ selected.id }}/answer{% endif %}"

@@ -154,6 +154,14 @@
     return rank || (step ? "/" + step : "");
   }
 
+  function moduleLabel(name, struck) {
+    if (struck) {
+      return name + "\n(out)";
+    }
+
+    return name;
+  }
+
   const elements = [];
   modules.forEach(function (row) {
     elements.push({
@@ -162,7 +170,7 @@
         module_id: row.id,
         node_id: row.node_id,
         migration_rank: row.migration_rank,
-        label: row.technical_name,
+        label: moduleLabel(row.technical_name, row.struck_out),
         struck_out: row.struck_out,
         absent: row.absent_from_odoo,
         batch_group: row.batch_group,
@@ -195,7 +203,7 @@
     container: canvas,
     elements: elements,
     boxSelectionEnabled: canvas.getAttribute("data-box-select") === "true",
-    selectionType: "additive",
+    selectionType: "single",
     style: [
       {
         selector: "node",
@@ -222,11 +230,13 @@
         style: { "border-color": cyan, "border-width": 2 },
       },
       {
-        selector: "node[struck_out = true]",
+        selector: "node.struck",
         style: {
-          "text-decoration": "line-through",
           color: muted,
-          opacity: 0.55,
+          opacity: 0.5,
+          "border-style": "dashed",
+          "border-color": muted,
+          "background-opacity": 0.35,
         },
       },
       {
@@ -248,6 +258,23 @@
     },
   });
 
+  function syncStruckVisual(node, struck) {
+    const out = !!struck;
+    node.data("struck_out", out);
+    if (out) {
+      node.addClass("struck");
+    } else {
+      node.removeClass("struck");
+    }
+    node.data("label", moduleLabel(node.id(), out));
+  }
+
+  cy.nodes().forEach(function (node) {
+    if (node.data("struck_out")) {
+      syncStruckVisual(node, true);
+    }
+  });
+
   const steps = [];
   modules.forEach(function (row) {
     if (row.step != null && steps.indexOf(row.step) === -1) {
@@ -257,13 +284,18 @@
   steps.sort(function (a, b) {
     return a - b;
   });
-  if (steps.length) {
-    const legend = document.createElement("ul");
+  const legend = steps.length ? document.createElement("ul") : null;
+  if (legend) {
     legend.className = "step-legend";
     steps.forEach(function (step) {
       const item = document.createElement("li");
-      item.className = "graph-node step-" + step;
-      item.textContent = "step " + step;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "graph-node step-" + step;
+      button.setAttribute("data-step", String(step));
+      button.setAttribute("aria-pressed", "false");
+      button.textContent = "step " + step;
+      item.appendChild(button);
       legend.appendChild(item);
     });
     const stage = canvas.closest(".graph-stage") || canvas;
@@ -355,6 +387,24 @@
     });
   }
 
+  function applyStrikeRows(body) {
+    const error = document.getElementById("node-card-error");
+    (body.modules || []).forEach(function (row) {
+      cy.nodes()
+        .filter(function (node) {
+          return String(node.data("module_id")) === String(row.id);
+        })
+        .forEach(function (node) {
+          syncStruckVisual(node, row.struck_out);
+        });
+    });
+    if (error) {
+      error.hidden = true;
+      error.textContent = "";
+    }
+    refreshCard();
+  }
+
   function applySkip(moduleId, wanted) {
     return fetch("/tree/modules/" + moduleId + "/strike", {
       method: "POST",
@@ -374,21 +424,65 @@
 
           return;
         }
-        if (error) {
-          error.hidden = true;
-          error.textContent = "";
+        applyStrikeRows(body);
+      });
+    });
+  }
+
+  function applyLeaveOut(moduleIds) {
+    const body = moduleIds
+      .map(function (id) {
+        return "module_ids=" + encodeURIComponent(id);
+      })
+      .join("&");
+    return fetch("/tree/modules/leave-out", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: body,
+    }).then(function (response) {
+      return response.json().then(function (payload) {
+        const error = document.getElementById("node-card-error");
+        if (!response.ok) {
+          if (error) {
+            error.hidden = false;
+            error.textContent = payload.error || "Could not update the module.";
+          }
+
+          return;
         }
-        (body.modules || []).forEach(function (row) {
-          cy.nodes()
-            .filter(function (node) {
-              return String(node.data("module_id")) === String(row.id);
-            })
-            .data("struck_out", row.struck_out);
-        });
-        const open = selectedModules();
-        if (open.length === 1) {
-          fillCard(open[0]);
+        applyStrikeRows(payload);
+      });
+    });
+  }
+
+  function applyRestore(moduleIds) {
+    const body = moduleIds
+      .map(function (id) {
+        return "module_ids=" + encodeURIComponent(id);
+      })
+      .join("&");
+    return fetch("/tree/modules/restore", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: body,
+    }).then(function (response) {
+      return response.json().then(function (payload) {
+        const error = document.getElementById("node-card-error");
+        if (!response.ok) {
+          if (error) {
+            error.hidden = false;
+            error.textContent = payload.error || "Could not update the module.";
+          }
+
+          return;
         }
+        applyStrikeRows(payload);
       });
     });
   }
@@ -396,6 +490,90 @@
   const card = document.getElementById("node-card");
   const cardEmpty = document.getElementById("node-card-empty");
   const cardBody = document.getElementById("node-card-body");
+
+  function setSkipHint(anyOut, group) {
+    const hintEl = document.getElementById("node-card-skip-hint");
+    if (!hintEl) {
+      return;
+    }
+    if (group) {
+      hintEl.textContent = anyOut
+        ? "Leaves out the selection and every module that depends on it."
+        : "Brings back the selection and each module's depends chain upward only.";
+
+      return;
+    }
+    hintEl.textContent = anyOut
+      ? "Leaves out this module and its depends chain upward."
+      : "Brings this module back along its depends chain upward.";
+  }
+
+  function updateLegendPressed() {
+    if (!legend) {
+      return;
+    }
+    legend.querySelectorAll("[data-step]").forEach(function (button) {
+      const step = Number(button.getAttribute("data-step"));
+      const onStep = cy.nodes().filter(function (node) {
+        return Number(node.data("step")) === step;
+      });
+      const selected = onStep.filter(":selected");
+      const all =
+        onStep.length > 0 && selected.length === onStep.length;
+      button.setAttribute("aria-pressed", all ? "true" : "false");
+    });
+  }
+
+  function fillGroupCard(nodes) {
+    if (!card || !cardBody || !cardEmpty || !nodes.length) {
+      return;
+    }
+    const stepKeys = [];
+    nodes.forEach(function (node) {
+      const step = node.data("step");
+      if (stepKeys.indexOf(step) === -1) {
+        stepKeys.push(step);
+      }
+    });
+    stepKeys.sort(function (a, b) {
+      return Number(a) - Number(b);
+    });
+    const sameStep = stepKeys.length === 1;
+    card.setAttribute("data-module-id", "");
+    cardEmpty.hidden = true;
+    cardBody.hidden = false;
+    const indexEl = document.getElementById("node-card-index");
+    const nameEl = document.getElementById("node-card-name");
+    const statusEl = document.getElementById("node-card-status");
+    const skipEl = document.getElementById("node-card-skip");
+    const askForm = document.getElementById("node-card-ask");
+    const assumptionsEl = document.getElementById("node-card-assumptions");
+    if (indexEl) {
+      indexEl.textContent = "";
+    }
+    if (nameEl) {
+      nameEl.textContent = sameStep
+        ? "step " + stepKeys[0] + " · " + nodes.length + " modules"
+        : nodes.length + " modules selected";
+    }
+    if (statusEl) {
+      statusEl.hidden = true;
+    }
+    if (assumptionsEl) {
+      assumptionsEl.hidden = true;
+    }
+    const anyOut = nodes.some(function (node) {
+      return !node.data("struck_out");
+    });
+    if (skipEl) {
+      skipEl.textContent = anyOut ? "Leave out" : "Include again";
+      skipEl.classList.toggle("primary", anyOut);
+    }
+    setSkipHint(anyOut, true);
+    if (askForm) {
+      askForm.hidden = true;
+    }
+  }
 
   function fillCard(node) {
     if (!card || !cardBody || !cardEmpty || !node || !node.data("module_id")) {
@@ -425,12 +603,16 @@
       nameEl.textContent = node.id();
     }
     if (statusEl) {
+      statusEl.hidden = false;
       statusEl.className = "badge " + (node.data("status") || "queued");
       statusEl.textContent = node.data("status") || "queued";
     }
+    const struck = !!node.data("struck_out");
     if (skipEl) {
-      skipEl.textContent = node.data("struck_out") ? "Undo skip" : "Skip";
+      skipEl.textContent = struck ? "Include again" : "Leave out";
+      skipEl.classList.toggle("primary", !struck);
     }
+    setSkipHint(!struck, false);
     if (askForm) {
       askForm.action = "/tree/modules/" + moduleId + "/answer";
       askForm.hidden = node.data("status") !== "waiting_for_human";
@@ -458,30 +640,38 @@
     card.setAttribute("data-module-id", "");
     cardEmpty.hidden = false;
     cardBody.hidden = true;
+    updateLegendPressed();
   }
 
-  const strike = document.getElementById("tree-strike");
-  if (strike) {
-    strike.addEventListener("click", function () {
-      const picks = selectedModules();
-      if (picks.length === 0) {
+  function refreshCard() {
+    const picks = selectedModules();
+    if (picks.length === 0) {
+      hideCard();
+
+      return;
+    }
+    if (picks.length === 1) {
+      fillCard(picks[0]);
+    } else {
+      fillGroupCard(picks);
+    }
+    updateLegendPressed();
+  }
+
+  if (legend) {
+    legend.addEventListener("click", function (event) {
+      const button = event.target.closest("[data-step]");
+      if (!button) {
         return;
       }
-      /* One decision for the whole selection, not a toggle each. Toggling
-         made a single press strike some and un-strike others, so a marquee
-         over a group containing an earlier mistake made it worse. Anything
-         unstruck in the selection means strike; otherwise bring them back.
-         Pressing again is then an exact undo. */
-      const wanted = picks.some(function (node) {
-        return !node.data("struck_out");
-      })
-        ? "1"
-        : "0";
-      Promise.all(
-        picks.map(function (node) {
-          return applySkip(node.data("module_id"), wanted);
+      const step = Number(button.getAttribute("data-step"));
+      cy.elements().unselect();
+      cy.nodes()
+        .filter(function (node) {
+          return Number(node.data("step")) === step;
         })
-      );
+        .select();
+      refreshCard();
     });
   }
 
@@ -596,28 +786,40 @@
   }
 
   cy.on("select unselect", "node", function () {
-    const picks = selectedModules();
-    if (picks.length === 1) {
-      fillCard(picks[0]);
-    } else {
-      hideCard();
-    }
+    refreshCard();
   });
 
   if (card && selectedModules().length === 1) {
     fillCard(selectedModules()[0]);
+    updateLegendPressed();
   }
 
   const cardSkip = document.getElementById("node-card-skip");
-  if (cardSkip) {
+  if (cardSkip && card) {
     cardSkip.addEventListener("click", function () {
       const picks = selectedModules();
-      if (picks.length !== 1) {
+      if (!picks.length) {
         return;
       }
-      const node = picks[0];
-      const wanted = node.data("struck_out") ? "0" : "1";
-      applySkip(node.data("module_id"), wanted);
+      const wanted = picks.some(function (node) {
+        return !node.data("struck_out");
+      })
+        ? "1"
+        : "0";
+      if (wanted === "0") {
+        applyRestore(
+          picks.map(function (node) {
+            return node.data("module_id");
+          })
+        );
+
+        return;
+      }
+      applyLeaveOut(
+        picks.map(function (node) {
+          return node.data("module_id");
+        })
+      );
     });
   }
 })();
