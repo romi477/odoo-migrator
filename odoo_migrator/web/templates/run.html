@@ -1,15 +1,13 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — {{ screen }}{% endblock %}
 {% block screen %}
-<section class="screen{% if screen == 'sheller' %} screen-fill{% endif %}">
+<section class="screen{% if screen == 'sheller' %} screen-fill sheller-screen{% endif %}">
+  {% if screen != 'sheller' %}
   <header class="screen-head">
     <div>
       {% if screen == 'n8n' %}
       <h1>n8n</h1>
       <p>The canvas is not embedded. Open the executor in its own tab.</p>
-      {% elif screen == 'sheller' %}
-      <h1>Sheller</h1>
-      <p>Observer only. This frame does not hold a write key.</p>
       {% else %}
       <h1>Pipeline</h1>
       {% if checkpoint %}
@@ -23,6 +21,7 @@
       {% endif %}
     </div>
   </header>
+  {% endif %}
 
   {% if error and screen == 'pipeline' %}
   <p class="form-error">{{ error }}</p>
@@ -59,24 +58,19 @@
     </article>
   </div>
   {% elif screen == 'sheller' %}
-  <div class="workspace">
-    <article class="workspace-panel observer"
-             data-observer
-             {% if current %}data-migration-id="{{ current.id }}"{% endif %}>
-      {# Sheller's /web has no session deep-link — only ?app for the desktop
-         frame. Observer mode is this frame not holding a write key. The
-         session id is shown so a human can pick the tab. Do not append
-         ?session= — Sheller ignores it and it would look like we picked one. #}
-      <p class="mono" data-session>{% if live and live.session_id %}{{ live.session_id }}{% else %}No live session yet.{% endif %}</p>
-      {% if sheller_web_url %}
-      <iframe title="Sheller observer" src="{{ sheller_web_url }}"></iframe>
-      {% else %}
-      {# An empty src is not an empty frame: the browser resolves it to the
-         current document and loads this page inside itself. #}
-      <p>Set the Sheller base URL in settings.</p>
-      {% endif %}
-    </article>
-  </div>
+  {# Sheller's /web has no session deep-link. Observer mode is this frame
+     not holding a write key. Do not append ?session= — Sheller ignores it. #}
+  {% if sheller_web_url %}
+  <iframe class="sheller-embed"
+          data-observer
+          {% if current %}data-migration-id="{{ current.id }}"{% endif %}
+          title="Sheller observer"
+          src="{{ sheller_web_url }}"></iframe>
+  {% else %}
+  {# An empty src is not an empty frame: the browser resolves it to the
+     current document and loads this page inside itself. #}
+  <p class="sheller-missing">Set the Sheller base URL in settings.</p>
+  {% endif %}
   {% endif %}
 
   {% if screen == 'pipeline' and checkpoint %}

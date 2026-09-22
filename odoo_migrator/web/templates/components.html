@@ -250,21 +250,26 @@
   Marquee selects; drag a node onto another to join its batch group.</p>
 
   <h2>Selected node</h2>
-  <aside class="row-card node-card" id="node-card" data-module-id="3">
-    <div class="node-card-body">
-      <div class="node-card-row">
-        <span class="identity">
-          <span class="name-line">
-            <span class="graph-node-index">#3/2</span>
-            <span class="name mono">mig_test_partner</span>
-            <span class="badge queued">queued</span>
+  <div class="node-card-block">
+    <aside class="row-card node-card" id="node-card" data-module-id="3">
+      <div class="node-card-body">
+        <div class="node-card-main">
+          <span class="identity">
+            <span class="name-line">
+              <span class="graph-node-index">#3/2</span>
+              <span class="name mono">mig_test_partner</span>
+              <span class="badge queued">queued</span>
+            </span>
           </span>
-        </span>
-        <button type="button" class="primary">Leave out</button>
+          <button type="button" class="primary">Leave out</button>
+        </div>
       </div>
-      <p class="field-hint">Skips this module and every downstream dependency.</p>
-    </div>
-  </aside>
+    </aside>
+    <p class="node-card-footnote">
+      <span class="node-card-footnote-mark" aria-hidden="true">*</span>
+      Leave out — this module's depends chain upward.
+    </p>
+  </div>
   <p>Click a module on the graph. <strong>Leave out</strong> skips it and
   its dependents; <strong>Include again</strong> brings it back when its
   parents are in.</p>

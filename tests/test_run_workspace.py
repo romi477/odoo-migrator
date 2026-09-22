@@ -116,6 +116,18 @@ def test_n8n_api_key_is_not_on_the_run_page(client):
     assert "n8n_secret_value" not in page.text
 
 
+def test_sheller_page_is_the_iframe_without_extra_chrome(client):
+    _open(client)
+    _save_urls(client)
+
+    page = client.get("/sheller").text
+
+    assert 'class="sheller-embed"' in page
+    assert 'class="workspace"' not in page
+    assert "No live session yet." not in page
+    assert "Observer only" not in page
+
+
 def test_sheller_iframe_is_observer_web_without_a_write_key_or_session_query(client):
     """Sheller's /web has no session deep-link — only ``?app`` for the desktop
     frame. Observer mode is this browser not holding a write key. Inventing
@@ -148,7 +160,7 @@ def test_pipeline_shows_live_stage_and_attempt(client):
     assert "data-pipeline-empty hidden" in page.text
 
 
-def test_pipeline_shows_the_session_id_and_still_does_not_deep_link(client):
+def test_sheller_still_does_not_deep_link_or_show_session_id(client):
     _row, sale = _prepared(client)
     _save_urls(client)
     client.app.state.executor = SessionExecutor(client.app)
@@ -157,7 +169,7 @@ def test_pipeline_shows_the_session_id_and_still_does_not_deep_link(client):
     page = client.get("/sheller")
     tag = _iframe_src(page.text)
 
-    assert SESSION in page.text
+    assert SESSION not in page.text
     assert 'src="http://sheller.test:8765/web"' in tag
     assert "session=" not in tag
 

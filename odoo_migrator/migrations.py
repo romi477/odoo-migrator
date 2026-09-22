@@ -98,6 +98,14 @@ def list_active() -> list[dict]:
     return rows
 
 
+def _result_display_status(row: dict) -> str:
+    if row.get("struck_out"):
+
+        return "excluded"
+
+    return row.get("status") or "queued"
+
+
 def _result_subtitle(row: dict) -> str:
     if row.get("struck_out"):
 
@@ -121,6 +129,7 @@ def _result_module(row: dict) -> dict:
         **row,
         "subtitle": _result_subtitle(row),
         "step_class": step_class,
+        "display_status": _result_display_status(row),
     }
 
 

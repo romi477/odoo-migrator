@@ -66,53 +66,53 @@
     <div id="graph-canvas" class="graph-canvas" data-box-select="true"></div>
     <div class="graph-badges" id="graph-badges" aria-hidden="true"></div>
   </div>
-  <aside class="row-card node-card" id="node-card"
-         data-module-id="{% if selected %}{{ selected.id }}{% endif %}">
-    <p class="node-card-empty" id="node-card-empty"{% if selected %} hidden{% endif %}>
-      Click a module on the graph to leave it out of the migration or bring
-      it back.
-    </p>
-    <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
-      <div class="node-card-row">
-        <span class="identity">
-          <span class="name-line">
-            <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
-            <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
-            <span class="badge{% if selected %} {{ selected.status }}{% endif %}" id="node-card-status">{% if selected %}{{ selected.status }}{% endif %}</span>
-            {% if selected and selected.has_assumptions %}
-            <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
-            {% else %}
-            <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
-            {% endif %}
-          </span>
-          <span class="mono" data-stage id="node-card-stage"></span>
-        </span>
-        <button type="button" id="node-card-skip" class="primary">
-          {% if selected and selected.struck_out %}Include again{% else %}Leave out{% endif %}
-        </button>
-      </div>
-      <p class="field-hint" id="node-card-skip-hint">
-        {% if selected and selected.struck_out %}
-        Brings this module back if nothing it depends on is still left out.
-        {% elif selected %}
-        Skips this module and every downstream dependency.
-        {% endif %}
+  <div class="node-card-block">
+    <aside class="row-card node-card" id="node-card"
+           data-module-id="{% if selected %}{{ selected.id }}{% endif %}">
+      <p class="node-card-empty" id="node-card-empty"{% if selected %} hidden{% endif %}>
+        Click a module on the graph to leave it out of the migration or bring
+        it back.
       </p>
-      <p class="form-error" id="node-card-error" hidden></p>
-      <form class="ask" id="node-card-ask" method="post"
-            action="{% if selected %}/tree/modules/{{ selected.id }}/answer{% endif %}"
-            {% if not selected or selected.status != "waiting_for_human" %}hidden{% endif %}>
-        <p class="question" id="node-card-question">{% if selected %}{{ selected.question or "" }}{% endif %}</p>
-        <label>
-          Answer
-          <textarea name="answer" required
-                    aria-label="Answer{% if selected %} for {{ selected.technical_name }}{% endif %}"></textarea>
-        </label>
-        <button type="submit" class="primary"
-                aria-label="Answer{% if selected %} {{ selected.technical_name }}{% endif %}">Answer</button>
-      </form>
-    </div>
-  </aside>
+      <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
+        <div class="node-card-main">
+          <span class="identity">
+            <span class="name-line">
+              <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
+              <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
+              <span class="badge{% if selected %}{% if selected.struck_out %} excluded{% else %} {{ selected.status }}{% endif %}{% endif %}" id="node-card-status">{% if selected %}{% if selected.struck_out %}excluded{% else %}{{ selected.status }}{% endif %}{% endif %}</span>
+              {% if selected and selected.has_assumptions %}
+              <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
+              {% else %}
+              <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
+              {% endif %}
+            </span>
+            <span class="mono" data-stage id="node-card-stage"></span>
+          </span>
+          <button type="button" id="node-card-skip" class="primary"
+                  aria-describedby="node-card-skip-hint">
+            {% if selected and selected.struck_out %}Include again{% else %}Leave out{% endif %}
+          </button>
+        </div>
+        <p class="form-error" id="node-card-error" hidden></p>
+        <form class="ask" id="node-card-ask" method="post"
+              action="{% if selected %}/tree/modules/{{ selected.id }}/answer{% endif %}"
+              {% if not selected or selected.status != "waiting_for_human" %}hidden{% endif %}>
+          <p class="question" id="node-card-question">{% if selected %}{{ selected.question or "" }}{% endif %}</p>
+          <label>
+            Answer
+            <textarea name="answer" required
+                      aria-label="Answer{% if selected %} for {{ selected.technical_name }}{% endif %}"></textarea>
+          </label>
+          <button type="submit" class="primary"
+                  aria-label="Answer{% if selected %} {{ selected.technical_name }}{% endif %}">Answer</button>
+        </form>
+      </div>
+    </aside>
+    <p class="node-card-footnote" id="node-card-skip-hint"{% if not selected %} hidden{% endif %}>
+      <span class="node-card-footnote-mark" aria-hidden="true">*</span>
+      <span id="node-card-skip-hint-text"></span>
+    </p>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

@@ -53,6 +53,29 @@ def test_result_page_groups_modules_by_wave(client):
     assert 'data-screen="result"' in page
 
 
+def test_struck_modules_show_excluded_not_queued(client):
+    migration_id = _open(client)
+    with database.connection_context():
+        Module.create(
+            migration=migration_id,
+            technical_name="product",
+            status="passed",
+        )
+        Module.create(
+            migration=migration_id,
+            technical_name="sale_custom",
+            status="queued",
+            struck_out=True,
+            depends='["product"]',
+        )
+
+    page = client.get("/result").text
+
+    assert "sale_custom" in page
+    assert 'class="badge excluded">excluded</span>' in page
+    assert "excluded — skipped on Tree" in page
+
+
 def test_result_without_modules_explains_resolve(client):
     _open(client)
 

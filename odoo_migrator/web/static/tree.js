@@ -491,21 +491,30 @@
   const cardEmpty = document.getElementById("node-card-empty");
   const cardBody = document.getElementById("node-card-body");
 
+  function cardDisplayStatus(node) {
+    if (node.data("struck_out")) {
+      return "excluded";
+    }
+
+    return node.data("status") || "queued";
+  }
+
   function setSkipHint(anyOut, group) {
-    const hintEl = document.getElementById("node-card-skip-hint");
-    if (!hintEl) {
+    const footnote = document.getElementById("node-card-skip-hint");
+    const hintEl = document.getElementById("node-card-skip-hint-text");
+    if (!footnote || !hintEl) {
       return;
     }
     if (group) {
       hintEl.textContent = anyOut
-        ? "Leaves out the selection and every module that depends on it."
-        : "Brings back the selection and each module's depends chain upward only.";
+        ? "Leave out — the selection and every module that depends on it."
+        : "Include again — the selection, with depends chains upward only.";
 
       return;
     }
     hintEl.textContent = anyOut
-      ? "Leaves out this module and its depends chain upward."
-      : "Brings this module back along its depends chain upward.";
+      ? "Leave out — this module's depends chain upward."
+      : "Include again — this module's depends chain upward.";
   }
 
   function updateLegendPressed() {
@@ -602,12 +611,13 @@
     if (nameEl) {
       nameEl.textContent = node.id();
     }
+    const display = cardDisplayStatus(node);
+    const struck = display === "excluded";
     if (statusEl) {
       statusEl.hidden = false;
-      statusEl.className = "badge " + (node.data("status") || "queued");
-      statusEl.textContent = node.data("status") || "queued";
+      statusEl.className = "badge " + display;
+      statusEl.textContent = display;
     }
-    const struck = !!node.data("struck_out");
     if (skipEl) {
       skipEl.textContent = struck ? "Include again" : "Leave out";
       skipEl.classList.toggle("primary", !struck);
@@ -615,7 +625,7 @@
     setSkipHint(!struck, false);
     if (askForm) {
       askForm.action = "/tree/modules/" + moduleId + "/answer";
-      askForm.hidden = node.data("status") !== "waiting_for_human";
+      askForm.hidden = struck || node.data("status") !== "waiting_for_human";
       const answerBox = askForm.querySelector("textarea[name='answer']");
       const answerBtn = askForm.querySelector("button[type='submit']");
       if (answerBox) {
@@ -640,6 +650,10 @@
     card.setAttribute("data-module-id", "");
     cardEmpty.hidden = false;
     cardBody.hidden = true;
+    const footnote = document.getElementById("node-card-skip-hint");
+    if (footnote) {
+      footnote.hidden = true;
+    }
     updateLegendPressed();
   }
 
@@ -649,6 +663,10 @@
       hideCard();
 
       return;
+    }
+    const footnote = document.getElementById("node-card-skip-hint");
+    if (footnote) {
+      footnote.hidden = false;
     }
     if (picks.length === 1) {
       fillCard(picks[0]);

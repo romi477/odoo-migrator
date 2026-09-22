@@ -149,16 +149,15 @@ looking at a live stage.
 settings string becomes `target=_blank`; an empty iframe `src` is not an
 empty frame — the browser would load this page inside itself.
 
-**Sheller** (`/sheller`) is an observer iframe of Sheller's `/web`, the
-full width of the screen. The frame does not hold a write key. The live
-`session_id` is shown so you can pick the tab inside Sheller. Do not
+**Sheller** (`/sheller`) is only an observer iframe of Sheller's `/web`,
+edge to edge under the nav. The frame does not hold a write key. Do not
 append `?session=` — Sheller ignores it and it would look like we picked
-one. `javascript:` in an iframe `src` would run on this origin; only
-`http`/`https` become an href.
+one. Pick the live session inside Sheller's own UI. `javascript:` in an
+iframe `src` would run on this origin; only `http`/`https` become an href.
 
 **Result** (`/result`) is the migration dashboard: progress summary, then
 columns **L0, L1, …** (one per dependency wave) with a card per module —
-status dot, badge, dependency hint, batch group if any. Skipped modules
+status dot, badge, dependency hint. Skipped modules
 stay in their column, struck through. SSE updates cards while this
 screen is open. With no graph yet, the page points you at Tree → Resolve.
 

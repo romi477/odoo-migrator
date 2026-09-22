@@ -43,22 +43,19 @@
         </h2>
         <ul class="result-column-list">
           {% for module in column.modules %}
-          <li class="result-card step-{{ module.step_class }}{% if module.struck_out %} struck{% endif %}{% if module.status == 'failed' %} failed{% endif %}"
+          <li class="result-card step-{{ module.step_class }}{% if module.struck_out %} struck{% endif %}{% if module.display_status == 'failed' %} failed{% endif %}"
               data-module-id="{{ module.id }}">
-            {% if module.batch_group %}
-            <span class="result-group mono">{{ module.batch_group }}</span>
-            {% endif %}
-            <span class="result-status-dot {{ module.status }}" aria-hidden="true"></span>
+            <span class="result-status-dot {{ module.display_status }}" aria-hidden="true"></span>
             <div class="result-card-main">
               <span class="name-line">
                 <span class="name mono">{{ module.technical_name }}</span>
-                {% if module.has_assumptions %}
+                {% if module.has_assumptions and not module.struck_out %}
                 <span class="result-flag assumptions" title="Recorded assumptions">!</span>
                 {% endif %}
-                {% if module.status == 'waiting_for_human' %}
+                {% if module.display_status == 'waiting_for_human' %}
                 <span class="result-flag human" title="Waiting for you">?</span>
                 {% endif %}
-                <span class="badge {{ module.status }}">{{ module.status }}</span>
+                <span class="badge {{ module.display_status }}">{{ module.display_status }}</span>
               </span>
               <p class="result-subtitle mono">{{ module.subtitle }}</p>
             </div>
