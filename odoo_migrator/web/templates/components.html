@@ -245,9 +245,10 @@
     <li><button type="button" class="graph-node step-4" data-step="4">step 4</button></li>
   </ul>
   <p>Resolve groups the tree into dependency steps and colours each
-  wave. Click a step button to select every module on that wave, then
-  Leave out on the card below. Downstream modules follow automatically.
-  Marquee selects; drag a node onto another to join its batch group.</p>
+  wave. Centred step buttons select a whole wave. The dashed node card
+  is compact; the footnote explains Leave out / Include again for the
+  current selection. Marquee selects; drag a node onto another to join
+  its batch group.</p>
 
   <h2>Selected node</h2>
   <div class="node-card-block">
@@ -270,9 +271,10 @@
       Leave out — this module's depends chain upward.
     </p>
   </div>
-  <p>Click a module on the graph. <strong>Leave out</strong> skips it and
-  its dependents; <strong>Include again</strong> brings it back when its
-  parents are in.</p>
+  <p>Click a module on the graph. <strong>Leave out</strong> on a wave or
+  multi-select also strikes downstream; a lone leaf walks depends upward.
+  <strong>Include again</strong> walks depends upward only. The card badge
+  reads <strong>excluded</strong> while the module is out.</p>
 
   <h2>Checkpoint</h2>
   <div class="checkpoint">

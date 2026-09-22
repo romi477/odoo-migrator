@@ -100,11 +100,12 @@ File API и тот же прокси Sheller, которые можно дерн
 attempt; записи File API заполняют пустой `diff`. Записи в старый
 проект — не дифф этого джоба.
 
-**Skip и Archive — это одно?**
+**Leave out и Archive — это одно?**
 
-Нет. Skip (кнопка на дереве; в строке это всё ещё `struck_out`) прячет
-модули от Migrate/Batch и сам себя отменяет. Archive убирает всю
-миграцию с Overview. Открытие другой миграции первую не архивирует.
+Нет. **Leave out** на Tree (`struck_out`) убирает модули из Migrate/Batch
+по графу depends: волна или multi-select тянет downstream;
+**Include again** идёт вверх по depends. Archive убирает всю миграцию с
+Overview. Открытие другой миграции первую не архивирует.
 
 ---
 

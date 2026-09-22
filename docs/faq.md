@@ -97,12 +97,13 @@ side that contained the module's technical name as a folder. Stock
 `Mark passed` logs an attempt; File API writes fill an empty `diff`.
 Writes to the old project are not this job's diff.
 
-**Skip vs archive?**
+**Leave out vs archive?**
 
-Skip (the tree button; the row flag is still `struck_out`) hides
-modules from Migrate/Batch and is its own undo. Archive takes a whole
-migration off Overview. Opening another migration never archives the
-one you left.
+**Leave out** on Tree (stored as `struck_out`) removes modules from
+Migrate/Batch according to the depends graph — multi-select and whole
+waves also strike downstream; **Include again** walks depends upward.
+Archive takes a whole migration off Overview. Opening another migration
+never archives the one you left.
 
 ## n8n
 

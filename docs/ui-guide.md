@@ -46,8 +46,9 @@ The bar is two rows, on every page.
   migration's screens.
 - **Tree / Pipeline / n8n / Sheller / Result** — the screens of the open
   migration, on the second row. Each one takes the full width.
-- **Guide** — the four steps, numbered in menu order: Tree, Pipeline,
-  n8n, Sheller. Each says what the screen is and which controls it has.
+- **Guide** — the steps under the open migration, numbered in menu order:
+  Tree, Pipeline, n8n, Sheller, Result. Each says what the screen is
+  and which controls it has.
 - **Attention lamp** — `/attention`. Global: whichever migration has a
   module on `failed` or `waiting_for_human` that has not been dismissed.
   Clicking it opens that migration and focuses the node on Tree
@@ -59,8 +60,8 @@ The bar is two rows, on every page.
   migration lives in that migration's row on Overview.
 
 SSE is hooked on every page (`/static/sse.js`). Stage patches land on
-the selected node card and the Run pipeline without a reload. Reloading
-would wipe a half-typed notes field.
+the Tree node card, Result cards, and the Pipeline panel without a
+reload. Reloading would wipe a half-typed field mid-edit.
 
 ## Overview
 
@@ -89,16 +90,21 @@ Settings and Tree.
 
 The dependency graph for the open migration. The canvas is the list.
 
-**Resolve** asks the old Odoo (through Sheller) for installed custom
-modules and their `depends`, then **groups them into steps**: a module's
-step is the number of in-graph edges from a root, plus one — the same
-row the canvas draws. Step 3 cannot start until every module on step 2
-is passed or struck. The edges are still the order *inside* a step.
-Each step has its own colour; the layout is the same dependency tree
-as before. Resolve again after the old container changes; that redraws
-the waves from the live graph. The **step** buttons under the canvas
-select every module on that wave; **Leave out** on the card applies to
-the whole selection.
+**Toolbar** — **Resolve** reads installed custom modules and `depends`
+from the old Odoo (through Sheller) and assigns **steps**: in-graph edges
+from a root, plus one — the same wave the canvas draws. A later step
+cannot start until every module on an earlier step is passed or struck.
+**Run batch** opens **Group**, **Ungroup**, **Migrate**, and **Batch**
+(optional; the main day-to-day control is the node card below).
+
+Under the canvas, centred **step** buttons (one colour per wave) select
+every module on that wave. The **node card** sits below them: a compact
+dashed panel (same outline language as **Create migration** on Overview),
+not full width. One row shows `#rank/step`, the technical name, a status
+badge (`excluded` when the module is left out, otherwise `queued`,
+`running`, …), and **Leave out** or **Include again**. A footnote under
+the card (`* …`) explains what the button will do for the current
+selection.
 
 The canvas is Cytoscape. Box-select is on. Selection is additive.
 Each node shows its technical name. `#3/2` in the corner is **migration
@@ -107,22 +113,26 @@ root wave); `#2/2` is next, on wave 2. It is not the internal Resolve
 serial. The badge stays in the corner, inside the shape; it is not
 repeated in the centre when you zoom. Colour follows the step, not a
 Group overlay, so a hand-drawn batch cannot collapse four waves into two.
+Struck nodes show `(out)`, dashed borders, and faded colour.
 
-Click a node. The card under the graph is that module and one action:
-**Leave out** on a whole step or any multi-select strikes those modules
-and everything downstream. A single **leaf** (nothing depends on it) walks
-**depends** upward instead; a shared ancestor stays in if a sibling branch
-is still active. **Include again** walks upward only (sibling branches stay
-out). The graph shows `(out)`, dashed borders, and faded colour.
-When the status is
-`waiting_for_human` the same card
-has an **Answer** form. There is no row per module under the tree.
+**Leave out** and **Include again** follow the depends graph, not
+“everything vaguely nearby”:
+
+| Selection | Leave out | Include again |
+|---|---|---|
+| Several modules, or a whole step | Those modules and everything **downstream** | Each module's **depends chain upward** only (sibling branches stay out) |
+| One module that still has dependents | That module and everything **downstream** | Depends chain **upward** only |
+| One **leaf** (nothing depends on it) | Depends chain **upward**; a shared parent stays in if another branch is still active | Depends chain **upward** only |
+
+When the status is `waiting_for_human` and the module is not excluded,
+the card also has an **Answer** form. There is no row per module under
+the tree.
 
 | Control | What it does |
 |---|---|
-| **Resolve** | Reads the module graph from the old container. |
-| **Leave out / Include again** | On the card; upward depends chains, union over a multi-select. |
-| **Run batch → Group … Batch** | Optional batch controls, folded under the toolbar. |
+| **Resolve** | Reads the module graph from the old container and redraws steps. |
+| **Leave out / Include again** | On the node card; applies to the current selection (see table above). |
+| **Run batch → Group … Batch** | Manual batch groups and one-off migrate triggers. |
 
 Dragging a node onto another puts both in the same group (creating one
 if the target had none).
@@ -155,11 +165,14 @@ append `?session=` — Sheller ignores it and it would look like we picked
 one. Pick the live session inside Sheller's own UI. `javascript:` in an
 iframe `src` would run on this origin; only `http`/`https` become an href.
 
-**Result** (`/result`) is the migration dashboard: progress summary, then
-columns **L0, L1, …** (one per dependency wave) with a card per module —
-status dot, badge, dependency hint. Skipped modules
-stay in their column, struck through. SSE updates cards while this
-screen is open. With no graph yet, the page points you at Tree → Resolve.
+**Result** (`/result`) is the migration dashboard: progress counts only
+modules still in the plan (not left out), then columns **L0, L1, …** (one
+per dependency wave) with a card per module — status dot, badge, and a
+subtitle (`depends` list, or *excluded — skipped on Tree*). Skipped
+modules stay in their wave, struck through, badge **excluded** (not
+`queued`). Wave columns replace batch-group numbers on the card. SSE
+updates badges while this screen is open. With no graph yet, the page
+points you at Tree → Resolve.
 
 ### Checkpoint
 

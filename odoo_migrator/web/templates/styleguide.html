@@ -17,7 +17,8 @@
       done or skipped.</p>
       <ul>
         <li><strong>Resolve</strong> reads the modules from the old Odoo and sorts them into steps.</li>
-        <li><strong>Skip</strong> leaves a module out. Anything that depends on it is left out too. Skip again brings that branch back.</li>
+        <li><strong>Step buttons</strong> under the graph select a whole wave.</li>
+        <li><strong>Leave out / Include again</strong> on the dashed node card. Multi-select leave out also hits downstream; include walks depends upward. A lone leaf leaving out walks upward and keeps a shared parent if a sibling branch is still in.</li>
         <li><strong>Group</strong> marks a set of modules to run together. <strong>Ungroup</strong> takes them back out.</li>
         <li><strong>Migrate</strong> starts the one module you selected.</li>
         <li><strong>Batch</strong> starts the group, in dependency order.</li>
@@ -59,7 +60,8 @@
       <ul>
         <li><strong>Columns</strong> are L0, L1, … — the same waves as on Tree.</li>
         <li><strong>Each card</strong> shows status, dependencies, and flags for assumptions or a human wait.</li>
-        <li><strong>Skipped modules</strong> stay in their wave, struck through.</li>
+        <li><strong>Skipped modules</strong> stay in their wave, struck through, badge <strong>excluded</strong>.</li>
+        <li><strong>Progress</strong> counts only modules still in the plan.</li>
       </ul>
     </li>
   </ol>
