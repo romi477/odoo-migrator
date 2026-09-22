@@ -99,11 +99,12 @@ as before. Resolve again after the old container changes; that redraws
 the waves from the live graph.
 
 The canvas is Cytoscape. Box-select is on. Selection is additive.
-Each node shows its technical name. `#12/2` stays in the corner of the
-card, inside the shape; it is not repeated in the centre when you zoom.
-Colour follows the step, not a Group overlay, so a hand-drawn batch
-cannot collapse four waves into two. The number is assigned once and
-never reused if that module leaves the graph.
+Each node shows its technical name. `#3/2` in the corner is **migration
+order**, then the step: `#1/1` is the first module you migrate (the
+root wave); `#2/2` is next, on wave 2. It is not the internal Resolve
+serial. The badge stays in the corner, inside the shape; it is not
+repeated in the centre when you zoom. Colour follows the step, not a
+Group overlay, so a hand-drawn batch cannot collapse four waves into two.
 
 Click a node. The card under the graph is that module and one action:
 **Skip** leaves it out of the migration, and every module that depends

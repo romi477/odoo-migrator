@@ -72,7 +72,7 @@
     <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
       <span class="identity">
         <span class="name-line">
-          <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.node_id }}/{{ selected.step }}{% endif %}</span>
+          <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
           <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
           <span class="badge{% if selected %} {{ selected.status }}{% endif %}" id="node-card-status">{% if selected %}{{ selected.status }}{% endif %}</span>
           {% if selected and selected.has_assumptions %}

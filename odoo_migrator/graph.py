@@ -105,6 +105,20 @@ def _attach_steps(listed: list[dict]) -> None:
         row["step"] = ranks.get(row["technical_name"])
 
 
+def _attach_migration_ranks(listed: list[dict]) -> None:
+    """Badge label #rank/step: rank is migration order over the whole graph.
+
+    Sort by step, then name — so the root on step 1 is always #1/1 and
+    nothing on step 2 can show #1. node_id stays an internal Resolve serial.
+    """
+    ordered = sorted(
+        listed,
+        key=lambda row: (row.get("step") or 1, row["technical_name"]),
+    )
+    for rank, row in enumerate(ordered, start=1):
+        row["migration_rank"] = rank
+
+
 def list_modules(migration_id: str) -> list[dict]:
     with database.connection_context():
         rows = list(
@@ -127,6 +141,7 @@ def list_modules(migration_id: str) -> list[dict]:
                 questions[job.module_id] = job.question
         listed = [_module_row(row, questions.get(row.id)) for row in rows]
     _attach_steps(listed)
+    _attach_migration_ranks(listed)
 
     return listed
 

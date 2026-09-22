@@ -139,15 +139,19 @@
   }
 
   function indexText(row) {
-    const serialNum =
-      Number(row.node_id) >= 1 ? row.node_id : Number(row.module_id || row.id);
-    const serial = Number(serialNum) >= 1 ? "#" + serialNum : "";
     const step = row.step == null ? "" : String(row.step);
-    if (serial && step) {
-      return serial + "/" + step;
+    const rankNum =
+      row.migration_rank != null
+        ? Number(row.migration_rank)
+        : Number(row.node_id) >= 1
+          ? row.node_id
+          : Number(row.module_id || row.id);
+    const rank = Number(rankNum) >= 1 ? "#" + rankNum : "";
+    if (rank && step) {
+      return rank + "/" + step;
     }
 
-    return serial || (step ? "/" + step : "");
+    return rank || (step ? "/" + step : "");
   }
 
   const elements = [];
@@ -157,6 +161,7 @@
         id: row.technical_name,
         module_id: row.id,
         node_id: row.node_id,
+        migration_rank: row.migration_rank,
         label: row.technical_name,
         struck_out: row.struck_out,
         absent: row.absent_from_odoo,
@@ -274,6 +279,7 @@
     cy.nodes().forEach(function (node) {
       const text = indexText({
         node_id: node.data("node_id"),
+        migration_rank: node.data("migration_rank"),
         module_id: node.data("module_id"),
         step: node.data("step"),
       });
@@ -398,6 +404,7 @@
     const moduleId = node.data("module_id");
     const idx = indexText({
       node_id: node.data("node_id"),
+      migration_rank: node.data("migration_rank"),
       module_id: node.data("module_id"),
       step: node.data("step"),
     });

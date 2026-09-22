@@ -305,6 +305,26 @@ def test_a_descendant_stays_out_while_another_parent_is_skipped(tmp_path):
     assert after["mig_test_sale"]["struck_out"] is True
 
 
+def test_migration_rank_is_global_order_not_node_id(tmp_path):
+    """The badge is #rank/step: rank is when you migrate, step is the wave."""
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_account", ["mig_test_base"]),
+            _custom("mig_test_base", []),
+        ],
+    )
+    by_name = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert by_name["mig_test_base"]["node_id"] == 2
+    assert by_name["mig_test_account"]["node_id"] == 1
+    assert by_name["mig_test_base"]["migration_rank"] == 1
+    assert by_name["mig_test_account"]["migration_rank"] == 2
+    assert by_name["mig_test_base"]["step"] == 1
+    assert by_name["mig_test_account"]["step"] == 2
+
+
 def test_modules_get_a_stable_node_id_on_first_persist(tmp_path):
     created = _migration(tmp_path)
     persist_graph(

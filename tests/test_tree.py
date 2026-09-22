@@ -225,9 +225,9 @@ def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
     assert "graph-node-index" in script.text
     assert " · step " not in script.text
     assert "colourForStep(row.step" in script.text
-    assert "Number(row.node_id)" in script.text
+    assert "migration_rank" in script.text
     assert "module_id || row.id" in script.text
-    assert "serial + \"/\" +" in script.text
+    assert "rank + \"/\" +" in script.text
     assert ".graph-node-index" in css.text
     assert "stepsFromDepends" in script.text
     assert "node-card" in script.text
