@@ -249,18 +249,14 @@ pre,
   margin-top: 1px;
 }
 
-/* The hook is drawn under the accent mark, out of the flex row. Equal
-   padding on both sides keeps the field overhanging the labels the same
-   amount, so the field stays centered. */
+/* The left hook is drawn under the accent mark, out of the flex row. */
 .nav-steps:has(.step-hook) {
-  padding-right: calc(var(--hook) + var(--step-gap));
   box-sizing: border-box;
 }
 
 #top .nav-steps {
   position: relative;
-  /* Mark inset, then the elbow, the arrowhead, and the gap before Tree.
-     The right side repeats that sum. */
+  /* Mark inset, then the elbow, the arrowhead, and the gap before Tree. */
   --hook-left: 14px;
   --hook-elbow: 22px;
   --hook-head: 6px;
@@ -269,7 +265,6 @@ pre,
 
 #top .nav-steps:has(.step-hook) {
   padding-left: calc(var(--hook-left) + var(--hook-elbow) + var(--hook-head) + var(--hook-gap));
-  padding-right: calc(var(--hook-left) + var(--hook-elbow) + var(--hook-head) + var(--hook-gap));
 }
 
 .nav-flank:hover,
@@ -319,6 +314,236 @@ pre,
   border-bottom: 4px solid transparent;
   border-left: var(--hook-head) solid var(--accent, var(--muted));
   pointer-events: none;
+}
+
+/* Pipeline, n8n and Sheller are the run tools; Result follows them. */
+.step-bridge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  width: calc(var(--hook-elbow, 22px) + var(--hook-head, 6px));
+  margin: 0 4px;
+  pointer-events: none;
+}
+
+.step-bridge-line {
+  flex: 1 1 auto;
+  height: 0;
+  border-bottom: 1px solid var(--accent, var(--muted));
+}
+
+.step-bridge-head {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: var(--hook-head, 6px) solid var(--accent, var(--muted));
+}
+
+.result-board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: min(72vh, 640px);
+}
+
+.result-summary {
+  padding: 14px 16px;
+}
+
+.result-columns {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 20px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--panel);
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    oklch(0.28 0.03 290 / 0.45) 1px,
+    transparent 0
+  );
+  background-size: 16px 16px;
+}
+
+.result-column {
+  flex: 1 1 200px;
+  min-width: 180px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-column-head {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.result-column-wave {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted-low);
+}
+
+.result-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-raised);
+}
+
+.result-card.failed {
+  border-color: var(--red);
+}
+
+.result-card.struck {
+  opacity: 0.55;
+}
+
+.result-card.struck .name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.result-card.step-1 {
+  border-left: 3px solid var(--step-1-edge);
+}
+
+.result-card.step-2 {
+  border-left: 3px solid var(--step-2-edge);
+}
+
+.result-card.step-3 {
+  border-left: 3px solid var(--step-3-edge);
+}
+
+.result-card.step-4 {
+  border-left: 3px solid var(--step-4-edge);
+}
+
+.result-card.step-5 {
+  border-left: 3px solid var(--step-5-edge);
+}
+
+.result-card.step-6 {
+  border-left: 3px solid var(--step-6-edge);
+}
+
+.result-card.step-7 {
+  border-left: 3px solid var(--step-7-edge);
+}
+
+.result-card.step-8 {
+  border-left: 3px solid var(--step-8-edge);
+}
+
+.result-card.step-more {
+  border-left: 3px solid var(--step-more);
+}
+
+.result-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.result-status-dot.passed {
+  background: var(--green);
+}
+
+.result-status-dot.failed {
+  background: var(--red);
+}
+
+.result-status-dot.running {
+  background: var(--cyan);
+}
+
+.result-status-dot.waiting_for_human {
+  background: var(--amber);
+}
+
+.result-status-dot.queued {
+  background: var(--muted);
+}
+
+.result-card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.result-card .name-line {
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.result-card .badge {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+.result-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted-low);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.result-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.result-flag.assumptions {
+  color: var(--amber);
+  border-color: color-mix(in oklch, var(--amber) 40%, var(--border));
+}
+
+.result-flag.human {
+  color: var(--cyan);
+}
+
+.result-group {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--muted);
 }
 
 .guide-steps {

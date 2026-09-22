@@ -247,7 +247,7 @@ uv run pytest -m "not live"
 There is no Swagger. `docs_url` is off: the pages are a local tool, and
 the machine-facing surface is keyed.
 
-The **pages** (Overview, Tree, Pipeline, n8n, Sheller, Settings) ask nobody for a key. The
+The **pages** (Overview, Tree, Pipeline, n8n, Sheller, Result, Settings) ask nobody for a key. The
 **machine-facing** routes require `X-Odoo-Migrator-Key`.
 
 | Method | Path | Purpose |
@@ -257,10 +257,11 @@ The **pages** (Overview, Tree, Pipeline, n8n, Sheller, Settings) ask nobody for 
 | `GET` | `/run` | Pipeline and checkpoint |
 | `GET` | `/n8n` | n8n executor link |
 | `GET` | `/sheller` | Sheller observer |
+| `GET` | `/result` | Migration outcomes dashboard |
 | `GET` | `/settings` | App settings |
 | `GET` | `/settings/migration` | This migration: containers, flow, smoke-run |
 | `GET` | `/sse` | One named-event stream per page |
-| `GET` | `/styleguide` | What Tree, Pipeline, n8n and Sheller are for |
+| `GET` | `/styleguide` | What each migration step is for |
 | `GET` | `/components` | Every CSS component, rendered once |
 | `GET` | `/api/migrations/{id}/files` | Read a text file under old or new root (`?side=&path=`) |
 | `PUT` | `/api/migrations/{id}/files` | Write (`{"side","path","content"}`). Escape is 403 |

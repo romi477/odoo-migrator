@@ -8,6 +8,7 @@ PAGES = (
     ("/run", "pipeline", "Pipeline"),
     ("/n8n", "n8n", "n8n"),
     ("/sheller", "sheller", "Sheller"),
+    ("/result", "result", "Result"),
     ("/settings", "settings", "App settings"),
     ("/styleguide", "styleguide", "Guide"),
 )
@@ -80,6 +81,8 @@ def test_steps_hook_follows_the_open_migration(client):
     html = client.get("/tree").text
 
     assert "step-hook" in html
+    assert "step-bridge" in html
+    assert "step-hook-end" not in html
     assert "switcher-versions" in html
     anchor = re.search(r'<a[^>]*data-screen="tree"[^>]*>', html)
 
@@ -133,6 +136,7 @@ def test_guide_lists_the_menu_steps_in_order(client):
         "Pipeline",
         "n8n",
         "Sheller",
+        "Result",
     ]
     assert "Status badges" not in html
     assert "Create migration" not in html

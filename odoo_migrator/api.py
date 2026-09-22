@@ -62,6 +62,7 @@ from odoo_migrator.migrations import (
     create_migration,
     get_active,
     list_active,
+    migration_results,
     save_migration_settings,
     save_side_container,
     suggest_accent,
@@ -682,6 +683,18 @@ def create_app(
     def sheller_page(request: Request):
 
         return _run_page(request, screen="sheller")
+
+    @app.get("/result")
+    def result_page(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        board = migration_results(current["id"]) if current else None
+
+        return _page(
+            request,
+            "result.html",
+            "result",
+            {"board": board},
+        )
 
     def _browsable(value: str, suffix: str = "") -> str:
         """A settings string is about to become an href and an iframe src.

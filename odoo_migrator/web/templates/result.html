@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}odoo-migrator — result{% endblock %}
+{% block screen %}
+<section class="screen">
+  <header class="screen-head">
+    <div>
+      <h1>Result</h1>
+      {% if board and board.progress.has_modules %}
+      <p>Modules grouped by dependency wave, with the outcome of each run.</p>
+      {% elif current %}
+      <p>Resolve the graph on Tree first; results appear here as modules finish.</p>
+      {% else %}
+      <p>Open a migration to see its results.</p>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if board and board.progress.has_modules %}
+  <div class="result-board"
+       {% if current %}data-result data-migration-id="{{ current.id }}"{% endif %}>
+    <article class="card result-summary">
+      <div class="row-progress">
+        <div class="progress-bar" aria-hidden="true">
+          <span class="done" style="--x: {{ board.progress.pct_done }}"></span>
+          <span class="bad" style="--x: {{ board.progress.pct_bad }}"></span>
+        </div>
+        <span class="progress-count">{{ board.progress.passed }} of {{ board.progress.total }} modules</span>
+        {% if board.progress.waiting %}
+        <span class="counter waiting"><span class="dot"></span>{{ board.progress.waiting }} waiting for you</span>
+        {% endif %}
+        {% if board.progress.failed %}
+        <span class="counter failed"><span class="dot"></span>{{ board.progress.failed }} failed</span>
+        {% endif %}
+      </div>
+    </article>
+
+    <div class="result-columns">
+      {% for column in board.steps %}
+      <section class="result-column">
+        <h2 class="result-column-head">
+          <span class="mono">L{{ column.step - 1 }}</span>
+          <span class="result-column-wave">wave {{ column.step }}</span>
+        </h2>
+        <ul class="result-column-list">
+          {% for module in column.modules %}
+          <li class="result-card step-{{ module.step_class }}{% if module.struck_out %} struck{% endif %}{% if module.status == 'failed' %} failed{% endif %}"
+              data-module-id="{{ module.id }}">
+            {% if module.batch_group %}
+            <span class="result-group mono">{{ module.batch_group }}</span>
+            {% endif %}
+            <span class="result-status-dot {{ module.status }}" aria-hidden="true"></span>
+            <div class="result-card-main">
+              <span class="name-line">
+                <span class="name mono">{{ module.technical_name }}</span>
+                {% if module.has_assumptions %}
+                <span class="result-flag assumptions" title="Recorded assumptions">!</span>
+                {% endif %}
+                {% if module.status == 'waiting_for_human' %}
+                <span class="result-flag human" title="Waiting for you">?</span>
+                {% endif %}
+                <span class="badge {{ module.status }}">{{ module.status }}</span>
+              </span>
+              <p class="result-subtitle mono">{{ module.subtitle }}</p>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

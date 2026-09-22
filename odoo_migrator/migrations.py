@@ -98,6 +98,65 @@ def list_active() -> list[dict]:
     return rows
 
 
+def _result_subtitle(row: dict) -> str:
+    if row.get("struck_out"):
+
+        return "excluded — skipped on Tree"
+    deps = row.get("depends") or []
+    if not deps:
+
+        return "—"
+    head = ", ".join(deps[:3])
+    if len(deps) > 3:
+        head += ", …"
+
+    return head
+
+
+def _result_module(row: dict) -> dict:
+    step = row.get("step") or 1
+    step_class = step if 1 <= step <= 8 else "more"
+
+    return {
+        **row,
+        "subtitle": _result_subtitle(row),
+        "step_class": step_class,
+    }
+
+
+def migration_results(migration_id: str) -> dict:
+    """Tallies and step columns for the Result dashboard."""
+    from odoo_migrator.graph import list_modules
+
+    listed = list_modules(migration_id)
+    active = [row for row in listed if not row["struck_out"]]
+    counts = {"total": len(active), "passed": 0, "failed": 0, "waiting": 0}
+    for row in active:
+        if row["status"] == "passed":
+            counts["passed"] += 1
+        elif row["status"] == "failed":
+            counts["failed"] += 1
+        elif row["status"] == "waiting_for_human":
+            counts["waiting"] += 1
+    by_step: dict[int, list[dict]] = {}
+    for row in listed:
+        enriched = _result_module(row)
+        step = enriched.get("step") or 1
+        by_step.setdefault(step, []).append(enriched)
+    steps = [
+        {
+            "step": step,
+            "modules": sorted(by_step[step], key=lambda row: row["technical_name"]),
+        }
+        for step in sorted(by_step)
+    ]
+
+    return {
+        "progress": _progress(counts),
+        "steps": steps,
+    }
+
+
 def suggest_accent() -> str:
     """The accent least used by active migrations.
 

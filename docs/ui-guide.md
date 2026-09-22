@@ -1,7 +1,7 @@
 # Using the web UI
 
 A walkthrough of the screens — Overview, Tree, Pipeline, n8n, Sheller,
-Settings — and
+Result, Settings — and
 every control in them. The UI is a local tool for one developer working
 a custom Odoo project through a version jump: speed of the loop (start a
 module, see the stage, review the batch) matters more than
@@ -44,7 +44,7 @@ The bar is two rows, on every page.
   another and the cookie follows; a batch already running on the one you
   left keeps running. A rounded hook under the mark points at that
   migration's screens.
-- **Tree / Pipeline / n8n / Sheller** — the screens of the open
+- **Tree / Pipeline / n8n / Sheller / Result** — the screens of the open
   migration, on the second row. Each one takes the full width.
 - **Guide** — the four steps, numbered in menu order: Tree, Pipeline,
   n8n, Sheller. Each says what the screen is and which controls it has.
@@ -130,10 +130,10 @@ The lamp's `?focus=` selects and centres that node and opens its card.
 Opening the right migration and then leaving you to find one stalled
 node in a hundred is not opening the module.
 
-## Pipeline, n8n, Sheller
+## Pipeline, n8n, Sheller, Result
 
-Three screens, not three columns. Pipeline also holds the checkpoint
-once a batch has finished.
+Four run screens after Tree, not four columns. Pipeline also holds the
+checkpoint once a batch has finished. Result is the scoreboard.
 
 **Pipeline** (`/run`) is the live job: module, status, stage, attempt.
 Empty reads "No module is running." SSE fills it. When the batch reaches
@@ -151,6 +151,12 @@ full width of the screen. The frame does not hold a write key. The live
 append `?session=` — Sheller ignores it and it would look like we picked
 one. `javascript:` in an iframe `src` would run on this origin; only
 `http`/`https` become an href.
+
+**Result** (`/result`) is the migration dashboard: progress summary, then
+columns **L0, L1, …** (one per dependency wave) with a card per module —
+status dot, badge, dependency hint, batch group if any. Skipped modules
+stay in their column, struck through. SSE updates cards while this
+screen is open. With no graph yet, the page points you at Tree → Resolve.
 
 ### Checkpoint
 
@@ -221,7 +227,7 @@ an unknown pin is refused.
 ## Guide
 
 `/styleguide` is the four steps under the open migration, numbered in
-the same order as the menu: Tree, Pipeline, n8n, Sheller. Each step
+the same order as the menu: Tree, Pipeline, n8n, Sheller, Result. Each step
 says what the screen is for and which control does what.
 
 `/components` is how CSS gets reviewed: badges, row cards, pipeline,

@@ -80,6 +80,15 @@
       badge.className = "badge " + data.status;
       badge.textContent = data.status;
     }
+    const dot = row.querySelector(".result-status-dot");
+    if (dot && data.status) {
+      dot.className = "result-status-dot " + data.status;
+    }
+    if (data.status === "failed") {
+      row.classList.add("failed");
+    } else {
+      row.classList.remove("failed");
+    }
     const stage = row.querySelector("[data-stage]");
     if (stage) {
       const attempt = data.attempt ? " · attempt " + data.attempt : "";
