@@ -1,5 +1,84 @@
 # Native runner — design
 
+## Read this first
+
+This document is written to be executed. It assumes you have read
+`AGENTS.md`; it does not repeat it, and where the two disagree, `AGENTS.md`
+wins on conventions and this document wins on what the runner is. The
+previous design of record is `2026-09-20-odoo-migrator-design.md` — still
+authoritative for everything not touched here, and superseded on the points
+listed under "Overrides" below.
+
+**Work happens on the `native-runner` branch.** `main` stays the working n8n
+build until a real module completes a real migration on this branch.
+
+### The change in one paragraph
+
+n8n is removed. A runner in this app's own process executes one module at a
+time, driven by a **cartridge**: a single declarative YAML file listing the
+steps of the flow and the prompts for the agent steps. The same file is drawn
+on a new screen as a live flow diagram, painted from events the app already
+emits. Agent steps talk to two live Odoo containers through odoo-sheller,
+with code execution, not a narrow read-only toolset. Everything else in the
+app — the module graph, the queue, batches, checkpoints, findings, diffs,
+provisioning, every screen but one — is untouched.
+
+### What arrives
+
+| | |
+|---|---|
+| `odoo_migrator/runner/` | cartridge loader, step registry, the loop, step implementations, the model client, the agent's tools |
+| `n8n/stock/*.json` → one `cartridges/stock.yaml` | the flow as data: twelve possible steps, a failure lane, one retry edge |
+| `/flow` screen | the cartridge drawn and painted live; replaces the `/n8n` stub |
+| checkpoint threads | a human answer is a thread of messages, not a string |
+| Sheller client verbs | `source`, `journal`, `list_tests`, `interrupt` added to the existing client |
+
+### What leaves
+
+Delete, do not deprecate: `odoo_migrator/proxy.py`, `odoo_migrator/files.py`,
+`odoo_migrator/authkey.py`, `odoo_migrator/resume.py`, the whole of
+`odoo_migrator/n8n/`, `n8n/stock/`, `n8n/.env`, `packaging/n8n.sh`, the
+`--host` flag, the `app_base_url` setting, and the `X-Odoo-Migrator-Key`
+header with everything that minted or validated it. Their tests go with them
+— roughly a hundred of the current 297.
+
+**The rule for this branch:** anything kept must have a purpose statable
+without the word "n8n". `webhook_path` cannot, and goes.
+
+### What must not be touched
+
+- The app stays the source of truth. Queue, batches, statuses, notes,
+  findings, attempts and checkpoints stay in SQLite behind Peewee, and
+  `jobs.py` keeps its accounting. The executor changes; the app does not.
+- `Executor.start(payload)` stays the protocol, and `StubExecutor` stays
+  working — the suite must pass with no Docker, no Odoo and no daemon.
+- Sheller's contract is Sheller's: loopback only, never `admin.key`, never
+  `~/.odoo-sheller/`, never the admin endpoints, and never stop a daemon that
+  may not be ours. `/opt/projects/odoo-sheller/docs/container.md` is the
+  document to code against.
+- Rules stay one file per version, assembled by the app. They are not part of
+  a cartridge.
+
+### Discipline for whoever implements this
+
+The project's own rules apply in full and are worth restating because they
+are the ones most often broken by someone new to it:
+
+- One task at a time, with tests, then commit and stop. Do not start the next
+  task in the turn that commits this one.
+- Every external boundary ships a test double in the task that introduces it,
+  and **a double must answer the way the real thing answers**. Three stages
+  in this project once passed their suites while being non-functional because
+  a stub answered inline.
+- Code, comments, docs and commits in English.
+- `return` gets a blank line before it. Run `ruff check`, never
+  `ruff format` — the formatter strips it.
+- Appearance lives in the stylesheet; inline `style=` only for custom
+  properties. A test enforces this.
+- Every new component gets a row on `/components` in the task that adds it.
+- Copy wording from this document rather than inventing a second phrasing for
+  the same thing.
+
 ## Context
 
 The migrator was built with n8n as its executor: the app owns all state, n8n
@@ -167,6 +246,11 @@ A cartridge is a single YAML file. Not a directory: it is uploaded through
 the UI, its hash is its identity, and a pull request reviewing it sees one
 diff covering both the order of steps and the wording of prompts. Rules
 (`rules/18.0.md`) are not part of it — the app assembles those per migration.
+
+The ones that ship live in `cartridges/` at the repository root, next to
+`rules/`; `cartridges/stock.yaml` is the one below. A cartridge uploaded
+through the UI is stored as a `CartridgeInstall` with its hash and is never
+written back into `cartridges/` — git is the source, the UI is an import.
 
 ### The stock cartridge
 
