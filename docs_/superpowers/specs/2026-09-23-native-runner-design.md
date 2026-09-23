@@ -185,6 +185,11 @@ pipeline:
       comes back. Describe current behaviour, what the module overrides,
       and what will break on the target version.
 
+      Then build the smallest set of records this module needs in order to
+      do anything, and prove the recipe works here: create them, call the
+      methods, check they respond, roll back. The recipe travels with your
+      answer — the port will be judged by replaying it on both versions.
+
   - step: rewrite
     prompt: |
       Port the module to the target version. Write files into the new
@@ -197,8 +202,10 @@ pipeline:
   - step: probe
     when: no_tests
     prompt: |
-      This module ships no tests. Exercise it yourself: both sessions are
-      open, so run the same thing on each side and compare the results.
+      This module ships no tests. Replay the fixture recipe from the
+      understand step on both sides, call the same methods on each, and
+      report every difference. A recipe that will not replay on the new
+      version is a failure worth reporting on its own.
 
   - step: verdict
 
@@ -233,11 +240,11 @@ Nine names, closed, defined in code:
 
 | step | kind | what it does |
 |---|---|---|
-| `understand` | agent | studies the module on the source container, returns a description of current behaviour |
+| `understand` | agent | studies the module on the source container; returns a description of current behaviour and a verified fixture recipe |
 | `rewrite` | agent | writes the module's files into the target project |
 | `upgrade` | code | installs/upgrades the module on the target container through Sheller, commits |
 | `tests` | code | runs the module's declared test classes with Odoo's own runner |
-| `probe` | agent | exercises the module through the ORM, comparing both sides |
+| `probe` | agent | replays `understand`'s fixture recipe on both sides and compares behaviour |
 | `verdict` | code | judges the outcome against the migration's strictness |
 | `diagnose` | agent | reads the failure, decides what to change, raises flags |
 | `reprobe` | agent | re-reads the old version with the question the diagnosis raised |
@@ -341,6 +348,36 @@ probing possible: run the same expression on the source and the target and
 compare the two answers. "The tests pass" is a weaker claim than "this method
 returned the same thing on both versions", and the second one is only
 available because a live old container is part of the design.
+
+### Comparable data: a fixture recipe, not a dump
+
+Differential probing only means something if both sides have something
+comparable to run against. The obvious answer — restore the source database
+onto the target — does not work and cannot be made to work: the modules being
+migrated add their own columns, so a dump of the old database does not fit
+the new schema. Loading it *is* the migration this tool has not performed
+yet.
+
+So the data is built, not copied, and the recipe for it comes out of
+`understand` rather than being improvised in `probe`:
+
+1. `understand` is already inside a live session on the source container.
+   While it works out what the module does, it also builds the smallest set
+   of records the module needs in order to do anything — a partner, a
+   product, an order, whatever this module touches — and **verifies** the
+   recipe by running it: create the records, call the methods, see that they
+   respond, roll back.
+2. Its output is therefore two things: a description of current behaviour,
+   and a fixture recipe that has been proven to work on the old version.
+3. `probe` replays that same recipe on both sides and compares. The
+   comparison is honest by construction — one scenario, already known to run,
+   not two improvisations.
+4. A recipe that fails to replay on the target is itself a loud result: what
+   broke is the creation of data, not the computation over it.
+
+The recipe is stored on the `Attempt`. For a module that shipped no tests, it
+is the first executable description of that module anyone has written, and it
+is the obvious seed for a real test later.
 
 ### Containment
 
