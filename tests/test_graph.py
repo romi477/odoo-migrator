@@ -588,6 +588,22 @@ def test_resolve_persists_modules_with_parents_from_odoo(tmp_path):
     ]
 
 
+def test_resolve_adds_new_modules_on_a_second_run(tmp_path):
+    created = _migration(tmp_path)
+    fake = FakeShellerClient()
+    resolve_graph(fake, created["id"])
+    before = {row["technical_name"] for row in list_modules(created["id"])}
+
+    fake.graph_modules = list(fake.graph_modules) + [
+        _custom("mig_test_new", ["sale_custom"]),
+    ]
+    resolve_graph(fake, created["id"])
+    after = {row["technical_name"] for row in list_modules(created["id"])}
+
+    assert "mig_test_new" in after
+    assert before <= after
+
+
 def test_struck_out_survives_re_resolve(tmp_path):
     created = _migration(tmp_path)
     fake = FakeShellerClient()

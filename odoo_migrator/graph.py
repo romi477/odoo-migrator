@@ -2,14 +2,39 @@
 
 import ast
 import json
+from pathlib import Path
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.sheller.errors import ShellerError
 
-# Last expression is json.dumps(...): the session returns the repr of that
-# string, the same shape os_source parses in Sheller.
-GRAPH_SNIPPET = """\
+def project_addons_roots(project_path: str) -> list[str]:
+    """Directories on the host where this migration's custom addons live."""
+    if not project_path.strip():
+        return []
+    root = Path(project_path).expanduser().resolve()
+    roots: list[str] = []
+    if root.is_dir():
+        roots.append(str(root))
+    for name in ("addons", "custom_addons", "custom", "odoo"):
+        child = root / name
+        if child.is_dir():
+            roots.append(str(child.resolve()))
+
+    return list(dict.fromkeys(roots))
+
+
+def build_graph_snippet(project_path: str) -> str:
+    """Odoo code that returns the module graph as a JSON string.
+
+    Installed modules are always included. Uninstalled rows are kept only
+    when their path sits under the migration's old project tree — so a
+    Resolve after copying addons in picks them up once Apps is updated,
+    without flooding the tree with every uninstalled core module.
+    """
+    roots_literal = json.dumps(project_addons_roots(project_path))
+
+    return f"""\
 import json, os, odoo
 from odoo.modules.module import get_module_path
 
@@ -19,15 +44,29 @@ from odoo.modules.module import get_module_path
 # None here because odoo is a namespace package, hence __path__.
 _pkg = list(getattr(odoo, '__path__', []) or [])
 install_root = os.path.dirname(_pkg[0]) if _pkg else ''
+project_roots = {roots_literal}
+
+def _under_project(path):
+    if not path or not project_roots:
+        return False
+    for root in project_roots:
+        if path == root or path.startswith(root + os.sep):
+            return True
+    return False
 
 Module = env['ir.module.module']
 rows = []
-for rec in Module.search([('state', 'in', ('installed', 'to upgrade'))], order='name'):
+for rec in Module.search(
+    [('state', 'in', ('installed', 'to upgrade', 'uninstalled'))],
+    order='name',
+):
     try:
         path = get_module_path(rec.name, display_warning=False) or ''
     except Exception:
         path = ''
-    rows.append({
+    if rec.state == 'uninstalled' and not _under_project(path):
+        continue
+    rows.append({{
         'name': rec.name,
         'depends': [dep.name for dep in rec.dependencies_id],
         'state': rec.state,
@@ -36,7 +75,7 @@ for rec in Module.search([('state', 'in', ('installed', 'to upgrade'))], order='
         'author': rec.author or '',
         'license': rec.license or '',
         'is_core': bool(install_root) and path.startswith(install_root + os.sep),
-    })
+    }})
 json.dumps(rows)
 """
 
@@ -702,6 +741,7 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         if migration is None:
             raise GraphError("no open migration")
         old_container = migration.old_container
+        old_project_path = migration.old_project_path or ""
     if not old_container:
         raise GraphError("Attach the old container first.")
     try:
@@ -725,7 +765,11 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
             allow_commit=False,
         )
         write_key = opened["write_key"]
-        executed = client.exec(opened["id"], GRAPH_SNIPPET, write_key=write_key)
+        executed = client.exec(
+            opened["id"],
+            build_graph_snippet(old_project_path),
+            write_key=write_key,
+        )
         rows = parse_graph_payload(executed)
     except GraphError:
         raise

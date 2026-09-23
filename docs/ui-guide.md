@@ -90,24 +90,24 @@ Settings and Tree.
 
 The dependency graph for the open migration. The canvas is the list.
 
-**Toolbar** — **Resolve** reads installed custom modules and `depends`
+**Build graph** reads installed custom modules and `depends`
 from the old Odoo (through Sheller) and assigns **steps**: in-graph edges
 from a root, plus one — the same wave the canvas draws. A later step
 cannot start until every module on an earlier step is passed or struck.
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.
 
-Under the canvas, centred **step** buttons (one colour per wave) select
-every module on that wave. The **node card** sits below them: a compact dashed panel (same outline
+Above the canvas, centred **step** buttons (one colour per wave) select
+every module on that wave. The **node card** sits under them: a compact dashed panel (same outline
 language as **Create migration** on Overview), fixed width (~28rem), not
-full bleed. One row shows `#rank/step`, the technical name, a status
+full bleed. Optional help under the card expands the leave-out rules. One row shows `#rank/step`, the technical name, a status
 badge (`excluded` when the module is left out, otherwise `queued`,
-`running`, …), and **Leave out** or **Include again** (one button for a
+`running`, …), and **Exclude** or **Include** (one button for a
 single module). A whole **step** or any multi-select shows **both**
-buttons so you can leave the group out or bring excluded modules back. A
+buttons so you can exclude the group or bring excluded modules back. A
 footnote under
 the card (`* …`) explains what the button will do for the current
-selection. Under the footnote, **Leave out all** and **Include all** apply
+selection. Under the footnote, **Exclude all** and **Include all** apply
 to the whole migration (every module in or out of the plan).
 
 The canvas is Cytoscape. Box-select is on. Selection is additive.
@@ -119,10 +119,10 @@ repeated in the centre when you zoom. Colour follows the step, not a
 Group overlay, so a hand-drawn batch cannot collapse four waves into two.
 Struck nodes show `(out)`, dashed borders, and faded colour.
 
-**Leave out** and **Include again** follow the depends graph, not
+**Exclude** and **Include** follow the depends graph, not
 “everything vaguely nearby”:
 
-| Selection | Leave out | Include again |
+| Selection | Exclude | Include |
 |---|---|---|
 | Several modules, or a whole step | Those modules and everything **downstream** | Each module's **depends chain upward** only (sibling branches stay out) |
 | One module that still has dependents | That module and everything **downstream** | Depends chain **upward** only |
@@ -134,8 +134,12 @@ the tree.
 
 | Control | What it does |
 |---|---|
-| **Resolve** | Reads the module graph from the old container and redraws steps. |
-| **Leave out / Include again** | On the node card; applies to the current selection (see table above). |
+| **Build graph** | Re-reads the module graph from the old container: new project
+modules appear, vanished ones drop (or stay flagged if you already worked
+on them). **Exclude**, status, and notes on surviving rows stay as they
+were. Uninstalled addons under the source project path count once Odoo
+knows them (Update Apps List). |
+| **Exclude / Include** | On the node card; applies to the current selection (see table above). |
 
 Dragging a node onto another puts both in the same group (creating one
 if the target had none).
@@ -177,7 +181,7 @@ iframe `src` would run on this origin; only `http`/`https` become an href.
 **Result** (`/result`) is the migration dashboard: progress counts only
 modules still in the plan (not left out), then columns **L0, L1, …** (one
 per dependency wave) with a card per module. More than four waves paginate:
-four columns per page, dot controls in the panel header (one dot per page).
+four columns per page, dash controls in the panel header (one dash per page).
 Each card outline follows
 the **step** colour; a filled circle in the top-right corner marks
 **passed** (green, ✓), **waiting for you** (warning, pause bars), or **excluded**

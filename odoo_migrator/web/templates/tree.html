@@ -5,18 +5,11 @@
 <script defer src="/static/tree.js"></script>
 {% endblock %}
 {% block screen %}
-<section class="screen">
-  <header class="screen-head">
+<section class="screen screen-tree">
+  <header class="screen-head screen-head-compact">
     <div>
       <h1>Module tree</h1>
-      {% if current %}
-      <p>Graph for <span class="name mono">{{ current.name }}</span>
-      <span class="mono">{{ current.source_version }} → {{ current.target_version }}</span>.
-      Resolve loads the graph from the old Odoo. Click a module, then
-      <strong>Leave out</strong> to skip it and everything that depends on it;
-      <strong>Include again</strong> brings a module back when its parents
-      are in.</p>
-      {% else %}
+      {% if not current %}
       <p>Open a migration to load its dependency graph.</p>
       {% endif %}
     </div>
@@ -31,76 +24,91 @@
   {% endif %}
 
   {% if current %}
-  <div class="tree-toolbar">
-    <form method="post" action="/tree/resolve">
-      <button type="submit" class="primary"
-              title="Resolve the module graph from the old container"
-              aria-label="Resolve the module graph from the old container">Resolve</button>
-    </form>
+  <div class="tree-workbench">
+    {% if graph_updated %}
+    <p class="tree-flash field-hint">Graph refreshed — leave-out choices kept.</p>
+    {% endif %}
+    <div class="tree-workbench-row">
+      <form method="post" action="/tree/resolve" class="tree-build-form">
+        <button type="submit" class="tree-build-btn primary"
+                title="Build the module graph from the old container"
+                aria-label="Build the module graph from the old container">Build graph</button>
+      </form>
+      <ul id="step-legend" class="step-legend" hidden></ul>
+      <details class="tree-help">
+        <summary>Help</summary>
+        <p><strong>Build graph</strong> re-reads the old Odoo. Click a module,
+        then <strong>Exclude</strong> or <strong>Include</strong>.
+        Step buttons select a wave. Drag onto another node for a batch group;
+        runs start on Pipeline.</p>
+      </details>
+    </div>
+    <div class="tree-selection-bar">
+      <div class="node-card-block">
+        <aside class="row-card node-card" id="node-card"
+               data-module-id="{% if selected %}{{ selected.id }}{% endif %}">
+          <p class="node-card-empty" id="node-card-empty"{% if selected %} hidden{% endif %}>
+            Select a module on the graph.
+          </p>
+          <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
+            <div class="node-card-main">
+              <span class="identity">
+                <span class="name-line">
+                  <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
+                  <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
+                  <span class="badge{% if selected %}{% if selected.struck_out %} excluded{% else %} {{ selected.status }}{% endif %}{% endif %}" id="node-card-status">{% if selected %}{% if selected.struck_out %}excluded{% else %}{{ selected.status }}{% endif %}{% endif %}</span>
+                  {% if selected and selected.has_assumptions %}
+                  <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
+                  {% else %}
+                  <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
+                  {% endif %}
+                </span>
+                <span class="mono" data-stage id="node-card-stage"></span>
+              </span>
+              <span class="node-card-actions">
+                <button type="button" id="node-card-skip" class="primary"
+                        aria-describedby="node-card-skip-hint">
+                  {% if selected and selected.struck_out %}Include{% else %}Exclude{% endif %}
+                </button>
+                <button type="button" id="node-card-include" class="primary" hidden
+                        aria-describedby="node-card-skip-hint">Include</button>
+              </span>
+            </div>
+            <p class="form-error" id="node-card-error" hidden></p>
+            <form class="ask" id="node-card-ask" method="post"
+                  action="{% if selected %}/tree/modules/{{ selected.id }}/answer{% endif %}"
+                  {% if not selected or selected.status != "waiting_for_human" %}hidden{% endif %}>
+              <p class="question" id="node-card-question">{% if selected %}{{ selected.question or "" }}{% endif %}</p>
+              <label>
+                Answer
+                <textarea name="answer" required
+                          aria-label="Answer{% if selected %} for {{ selected.technical_name }}{% endif %}"></textarea>
+              </label>
+              <button type="submit" class="primary"
+                      aria-label="Answer{% if selected %} {{ selected.technical_name }}{% endif %}">Answer</button>
+            </form>
+          </div>
+        </aside>
+        <div class="node-card-bulk">
+          <button type="button" id="tree-leave-out-all"
+                  title="Exclude every module from this migration"
+                  aria-label="Exclude all modules">Exclude all</button>
+          <button type="button" id="tree-include-all"
+                  title="Bring every excluded module back into the plan"
+                  aria-label="Include all modules">Include all</button>
+        </div>
+      </div>
+      <p class="node-card-footnote" id="node-card-skip-hint"{% if not selected %} hidden{% endif %}>
+        <span class="node-card-footnote-mark" aria-hidden="true">*</span>
+        <span id="node-card-skip-hint-text"></span>
+      </p>
+    </div>
   </div>
   <script type="application/json" id="module-graph">{{ modules | tojson }}</script>
   <div class="graph-stage">
     <div id="graph-canvas" class="graph-canvas" data-box-select="true"></div>
     <div class="graph-badges" id="graph-badges" aria-hidden="true"></div>
-  </div>
-  <div class="node-card-block">
-    <aside class="row-card node-card" id="node-card"
-           data-module-id="{% if selected %}{{ selected.id }}{% endif %}">
-      <p class="node-card-empty" id="node-card-empty"{% if selected %} hidden{% endif %}>
-        Click a module on the graph to leave it out of the migration or bring
-        it back.
-      </p>
-      <div class="node-card-body" id="node-card-body"{% if not selected %} hidden{% endif %}>
-        <div class="node-card-main">
-          <span class="identity">
-            <span class="name-line">
-              <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
-              <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
-              <span class="badge{% if selected %}{% if selected.struck_out %} excluded{% else %} {{ selected.status }}{% endif %}{% endif %}" id="node-card-status">{% if selected %}{% if selected.struck_out %}excluded{% else %}{{ selected.status }}{% endif %}{% endif %}</span>
-              {% if selected and selected.has_assumptions %}
-              <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
-              {% else %}
-              <span class="badge assumptions" id="node-card-assumptions" hidden>assumptions</span>
-              {% endif %}
-            </span>
-            <span class="mono" data-stage id="node-card-stage"></span>
-          </span>
-          <span class="node-card-actions">
-            <button type="button" id="node-card-skip" class="primary"
-                    aria-describedby="node-card-skip-hint">
-              {% if selected and selected.struck_out %}Include again{% else %}Leave out{% endif %}
-            </button>
-            <button type="button" id="node-card-include" hidden
-                    aria-describedby="node-card-skip-hint">Include again</button>
-          </span>
-        </div>
-        <p class="form-error" id="node-card-error" hidden></p>
-        <form class="ask" id="node-card-ask" method="post"
-              action="{% if selected %}/tree/modules/{{ selected.id }}/answer{% endif %}"
-              {% if not selected or selected.status != "waiting_for_human" %}hidden{% endif %}>
-          <p class="question" id="node-card-question">{% if selected %}{{ selected.question or "" }}{% endif %}</p>
-          <label>
-            Answer
-            <textarea name="answer" required
-                      aria-label="Answer{% if selected %} for {{ selected.technical_name }}{% endif %}"></textarea>
-          </label>
-          <button type="submit" class="primary"
-                  aria-label="Answer{% if selected %} {{ selected.technical_name }}{% endif %}">Answer</button>
-        </form>
-      </div>
-    </aside>
-    <p class="node-card-footnote" id="node-card-skip-hint"{% if not selected %} hidden{% endif %}>
-      <span class="node-card-footnote-mark" aria-hidden="true">*</span>
-      <span id="node-card-skip-hint-text"></span>
-    </p>
-    <div class="node-card-bulk">
-      <button type="button" id="tree-leave-out-all"
-              title="Leave every module out of this migration"
-              aria-label="Leave out all modules">Leave out all</button>
-      <button type="button" id="tree-include-all"
-              title="Bring every excluded module back into the plan"
-              aria-label="Include all modules">Include all</button>
-    </div>
+    <div class="graph-selection-rings" id="graph-selection-rings" aria-hidden="true"></div>
   </div>
   {% endif %}
 </section>

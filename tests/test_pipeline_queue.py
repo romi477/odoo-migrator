@@ -30,6 +30,7 @@ def test_queue_run_page_has_selection_and_queue(client):
 
     assert ">Selection<" in page.text
     assert ">Queue<" in page.text
+    assert "FIFO · First in, first out" in page.text
     assert ">Add to queue<" in page.text
     assert 'aria-label="Run the pipeline queue"' in page.text
 

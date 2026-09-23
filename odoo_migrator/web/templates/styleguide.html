@@ -17,21 +17,21 @@
       A later wave cannot run until every module on earlier waves is passed
       or left out.</p>
       <ul>
-        <li><strong>Resolve</strong> reads installed custom modules and
+        <li><strong>Build graph</strong> reads installed custom modules and
         <span class="mono">depends</span> from the old Odoo (via Sheller) and
         redraws the graph and steps.</li>
-        <li><strong>Step buttons</strong> under the canvas select every module
-        on one wave.</li>
+        <li><strong>Step buttons</strong> above the canvas select every module
+        on one wave; optional help sits under the node card.</li>
         <li><strong>Node card</strong> (dashed panel under the step buttons):
         <span class="mono">#rank/step</span>, name, status, and
-        <strong>Leave out</strong> or <strong>Include again</strong> for the
+        <strong>Exclude</strong> or <strong>Include</strong> for the
         current selection. A whole step or multi-select shows both buttons.
-        <strong>Leave out all</strong> and <strong>Include all</strong> apply
+        <strong>Exclude all</strong> and <strong>Include all</strong> apply
         to the whole migration.</li>
-        <li><strong>Leave out / Include again</strong> follow the graph: leave
-        out hits the selection and everything downstream; include walks each
+        <li><strong>Exclude / Include</strong> follow the graph: exclude
+        hits the selection and everything downstream; include walks each
         module's depends chain upward. A lone <strong>leaf</strong> (nothing
-        depends on it) is left out on its own — parents stay in the plan.</li>
+        depends on it) is excluded on its own — parents stay in the plan.</li>
         <li><strong>Drag</strong> one node onto another to put them in the
         same batch group. Runs start on Pipeline, not here.</li>
         <li><strong>Answer</strong> appears on the card when status is
@@ -50,10 +50,11 @@
         <li><strong>Selection</strong> — pick a <strong>Step</strong> (same
         waves as Tree), see its module list, <strong>Add to queue</strong>.
         Duplicate steps are ignored.</li>
-        <li><strong>Queue</strong> — pending modules in migration order
+        <li><strong>Queue</strong> (FIFO) — pending modules in migration order
         (<span class="mono">#rank/step</span> on each row). Collapsed view
-        shows the next module only; <strong>Expand full list</strong> /
-        <strong>Collapse list</strong> toggles the numbered list.
+        shows the next module only; click the queue header (chevron) to
+        expand or collapse the numbered list. <strong>Run</strong> /
+        <strong>Stop</strong> stay separate.
         <strong>Run</strong> / <strong>Stop</strong> drive the pipe (you can
         add steps while running; Stop waits for the current module).
         The active row pulses.</li>
@@ -91,8 +92,8 @@
       <ul>
         <li><strong>Columns</strong> are <span class="mono">L0</span>,
         <span class="mono">L1</span>, … — the same waves as Tree. More than
-        four waves paginate: four columns per page, dots in the panel header
-        (one dot per page).</li>
+        four waves paginate: four columns per page, dashes in the panel header
+        (one dash per page; active is cyan).</li>
         <li><strong>Each card</strong> uses the step colour on the full
         outline. A filled corner badge marks <strong>passed</strong> (green
         check), <strong>waiting for you</strong> (warning, pause bars), or

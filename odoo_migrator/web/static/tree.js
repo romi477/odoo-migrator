@@ -127,6 +127,8 @@
   const border = paint("var(--border)") || "#3a3550";
   const panel = paint("var(--panel-raised)") || "#2a2540";
   const cyan = paint("var(--cyan)") || "#4eb8d0";
+  const glowGap = 3;
+  const glowRingGap = 3;
 
   function colourForStep(step, kind) {
     const key = kind === "edge" ? "edge" : "fill";
@@ -227,7 +229,9 @@
       },
       {
         selector: "node:selected",
-        style: { "border-color": cyan, "border-width": 2 },
+        style: {
+          "overlay-opacity": 0,
+        },
       },
       {
         selector: "node.struck",
@@ -284,25 +288,72 @@
   steps.sort(function (a, b) {
     return a - b;
   });
-  const legend = steps.length ? document.createElement("ul") : null;
-  if (legend) {
-    legend.className = "step-legend";
+  const legend = document.getElementById("step-legend");
+  if (legend && steps.length) {
+    legend.hidden = false;
+    legend.replaceChildren();
     steps.forEach(function (step) {
       const item = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "graph-node step-" + step;
+      const stepClass =
+        step >= 1 && step <= 8 ? "step-" + step : "step-more";
+      button.className = "graph-node " + stepClass;
       button.setAttribute("data-step", String(step));
       button.setAttribute("aria-pressed", "false");
       button.textContent = "step " + step;
       item.appendChild(button);
       legend.appendChild(item);
     });
-    const stage = canvas.closest(".graph-stage") || canvas;
-    stage.after(legend);
+  } else if (legend) {
+    legend.hidden = true;
   }
 
   const badges = document.getElementById("graph-badges");
+  const selectionRings = document.getElementById("graph-selection-rings");
+
+  function appendGlowRing(parent, x, y, width, height) {
+    const ring = document.createElement("span");
+    ring.className = "graph-selection-ring";
+    ring.style.setProperty("--x", Math.round(x) + "px");
+    ring.style.setProperty("--y", Math.round(y) + "px");
+    ring.style.setProperty("--w", Math.round(width) + "px");
+    ring.style.setProperty("--h", Math.round(height) + "px");
+    parent.appendChild(ring);
+  }
+
+  function placeSelectionRings() {
+    if (!selectionRings) {
+      return;
+    }
+    selectionRings.replaceChildren();
+    cy.nodes(":selected").forEach(function (node) {
+      const box = node.renderedBoundingBox({
+        includeLabels: false,
+        includeOverlays: false,
+      });
+      const width = box.x2 - box.x1;
+      const height = box.y2 - box.y1;
+      const line = 1;
+      const innerPad = glowGap + line;
+      appendGlowRing(
+        selectionRings,
+        box.x1 - innerPad,
+        box.y1 - innerPad,
+        width + innerPad * 2,
+        height + innerPad * 2,
+      );
+      const outerPad = glowGap + line + glowRingGap + line;
+      appendGlowRing(
+        selectionRings,
+        box.x1 - outerPad,
+        box.y1 - outerPad,
+        width + outerPad * 2,
+        height + outerPad * 2,
+      );
+    });
+  }
+
   function placeBadges() {
     if (!badges) {
       return;
@@ -339,8 +390,13 @@
       badges.appendChild(badge);
     });
   }
-  cy.on("render", placeBadges);
-  placeBadges();
+  function paintGraphChrome() {
+    placeBadges();
+    placeSelectionRings();
+  }
+
+  cy.on("render", paintGraphChrome);
+  paintGraphChrome();
 
   /* The lamp sends the module id here. A module waiting for a human is
      already on the card. Opening the right migration and then leaving
@@ -527,16 +583,16 @@
     }
     if (group && nodes && nodes.length > 1) {
       hintEl.textContent =
-        "Leave out — the selection and every module that depends on it. " +
-        "Include again — the selection, with depends chains upward only.";
+        "Exclude — the selection and every module that depends on it. " +
+        "Include — the selection, with depends chains upward only.";
 
       return;
     }
     const struck =
       nodes && nodes.length === 1 && nodes[0].data("struck_out");
     hintEl.textContent = struck
-      ? "Include again — this module's depends chain upward."
-      : "Leave out — skip this module; parents stay in the plan.";
+      ? "Include — this module's depends chain upward."
+      : "Exclude — skip this module; parents stay in the plan.";
   }
 
   function syncSelectionActions(mode, nodes) {
@@ -553,11 +609,11 @@
     if (!multi) {
       return;
     }
-    skipEl.textContent = "Leave out";
+    skipEl.textContent = "Exclude";
     skipEl.classList.add("primary");
     if (includeEl) {
-      includeEl.textContent = "Include again";
-      includeEl.classList.remove("primary");
+      includeEl.textContent = "Include";
+      includeEl.classList.add("primary");
     }
     const anyIn = nodes.some(function (node) {
       return !node.data("struck_out");
@@ -669,8 +725,8 @@
     syncSelectionActions("one", [node]);
     if (skipEl) {
       skipEl.disabled = false;
-      skipEl.textContent = struck ? "Include again" : "Leave out";
-      skipEl.classList.toggle("primary", !struck);
+      skipEl.textContent = struck ? "Include" : "Exclude";
+      skipEl.classList.add("primary");
     }
     setSkipHint(false, [node]);
     if (askForm) {

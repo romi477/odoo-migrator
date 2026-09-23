@@ -298,6 +298,7 @@ def create_app(
                 # migration's card; the template turns this into a link there.
                 "error_settings": error_settings,
                 "selected": selected,
+                "graph_updated": request.query_params.get("graph") == "updated",
             },
         )
 
@@ -523,14 +524,14 @@ def create_app(
 
             return _tree_page(request, error=str(refused))
 
-        return RedirectResponse("/tree", status_code=303)
+        return RedirectResponse("/tree?graph=updated", status_code=303)
 
     @app.post("/tree/modules/restore")
     def tree_restore(
         request: Request,
         module_ids: Annotated[list[int], Form()],
     ):
-        """Include again for one or many modules: ancestors first, then downstream."""
+        """Include for one or many modules: ancestors first, then downstream."""
         current = get_active(request.cookies.get(OPEN_COOKIE))
         if current is None:
 
@@ -570,7 +571,7 @@ def create_app(
         request: Request,
         module_ids: Annotated[list[int], Form()],
     ):
-        """Leave out for one or many modules: upward depends chains only."""
+        """Exclude for one or many modules: upward depends chains only."""
         current = get_active(request.cookies.get(OPEN_COOKIE))
         if current is None:
 

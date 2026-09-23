@@ -55,6 +55,14 @@
       return;
     }
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
+    panel.setAttribute(
+      "data-queue-expandable",
+      data.modules.length > 1 ? "true" : "false",
+    );
+    const head = panel.querySelector("[data-pipeline-queue-head]");
+    if (head) {
+      head.classList.toggle("is-expandable", data.modules.length > 1);
+    }
     const runBtn = panel.querySelector('form[action="/run/queue/run"] button');
     const stopBtn = panel.querySelector('form[action="/run/queue/stop"] button');
     if (runBtn) {
@@ -110,10 +118,6 @@
       data.modules.forEach(function (mod) {
         list.appendChild(buildRow(mod, "li"));
       });
-    }
-    const toggle = panel.querySelector("[data-pipeline-queue-toggle]");
-    if (toggle) {
-      toggle.hidden = data.modules.length <= 1;
     }
   }
 

@@ -73,12 +73,39 @@
     <section class="pipeline-queue-card card"
              data-pipeline-queue-panel
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}
-             data-running="{{ pipeline_queue.run_state == 'running' }}"
+             data-running="{{ 'true' if pipeline_queue.run_state == 'running' else 'false' }}"
+             data-queue-expandable="{{ 'true' if pipeline_queue.modules | length > 1 else 'false' }}"
              x-data="{ expanded: false }"
              :class="{ 'is-queue-expanded': expanded }">
-      <header class="pipeline-queue-head">
+      <header class="pipeline-queue-head{% if pipeline_queue.modules | length > 1 %} is-expandable{% endif %}"
+              data-pipeline-queue-head
+              :aria-expanded="expanded ? 'true' : 'false'"
+              aria-label="Toggle full queue list"
+              @click="
+                let root = $el.closest('[data-pipeline-queue-panel]');
+                if (!root || root.dataset.queueExpandable !== 'true') return;
+                if ($event.target.closest('.pipeline-queue-controls')) return;
+                expanded = !expanded
+              "
+              @keydown.enter.prevent="
+                let root = $el.closest('[data-pipeline-queue-panel]');
+                if (!root || root.dataset.queueExpandable !== 'true') return;
+                expanded = !expanded
+              "
+              @keydown.space.prevent="
+                let root = $el.closest('[data-pipeline-queue-panel]');
+                if (!root || root.dataset.queueExpandable !== 'true') return;
+                expanded = !expanded
+              "
+              :tabindex="$el.classList.contains('is-expandable') ? 0 : -1">
         <div class="pipeline-queue-head-text">
-          <h2 class="pipeline-queue-title">Queue</h2>
+          <span class="pipeline-queue-chevron"
+                :class="{ 'is-expanded': expanded }"
+                aria-hidden="true"></span>
+          <div class="pipeline-queue-brand">
+            <h2 class="pipeline-queue-title">Queue</h2>
+            <p class="pipeline-queue-fifo">FIFO · First in, first out</p>
+          </div>
           <p class="pipeline-queue-meta" data-pipeline-queue-meta>
             {% if pipeline_queue.modules %}
             {{ pipeline_queue.modules | length }} pending · {{ pipeline_queue.steps | length }} step{% if pipeline_queue.steps | length != 1 %}s{% endif %} · {% if pipeline_queue.run_state == 'running' %}Running{% else %}Stopped{% endif %}
@@ -88,13 +115,6 @@
           </p>
         </div>
         <div class="pipeline-queue-controls">
-          {% if pipeline_queue.modules | length > 1 %}
-          <button type="button" class="pipeline-queue-toggle outline-cyan"
-                  data-pipeline-queue-toggle
-                  @click="expanded = !expanded"
-                  :aria-expanded="expanded ? 'true' : 'false'"
-                  x-text="expanded ? 'Collapse list' : 'Expand full list'"></button>
-          {% endif %}
           <form method="post" action="/run/queue/run">
             <button type="submit" class="primary"
                     {% if pipeline_queue.run_state == 'running' %}disabled{% endif %}

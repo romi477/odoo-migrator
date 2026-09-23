@@ -204,46 +204,25 @@
   stolen.</p>
 
   <h2>Module graph</h2>
-  <div class="tree-toolbar">
-    <button type="button" class="primary">Resolve</button>
-  </div>
-  <div class="row">
-    <span class="graph-node step-1">
-      <span class="graph-node-index">#1/1</span>
-      <span class="name mono">mig_test_base</span>
-    </span>
-    <span class="graph-node step-2">
-      <span class="graph-node-index">#3/2</span>
-      <span class="name mono">mig_test_partner</span>
-    </span>
-    <span class="graph-node step-3">
-      <span class="graph-node-index">#8/3</span>
-      <span class="name mono">mig_test_sale</span>
-    </span>
-    <span class="graph-node step-4">
-      <span class="graph-node-index">#10/4</span>
-      <span class="name mono">mig_test_ui</span>
-    </span>
-    <span class="graph-node struck">
-      <span class="name mono">base</span>
-      <span class="badge queued">queued</span>
-    </span>
-  </div>
-  <ul class="step-legend">
-    <li><button type="button" class="graph-node step-1" data-step="1">step 1</button></li>
-    <li><button type="button" class="graph-node step-2" data-step="2">step 2</button></li>
-    <li><button type="button" class="graph-node step-3" data-step="3">step 3</button></li>
-    <li><button type="button" class="graph-node step-4" data-step="4">step 4</button></li>
-  </ul>
-  <p>Resolve groups the tree into dependency steps and colours each
-  wave. Centred step buttons select a whole wave. The dashed node card
-  is compact; the footnote explains Leave out / Include again for the
-  current selection. Marquee selects; drag a node onto another to join
-  its batch group.</p>
-
-  <h2>Selected node</h2>
-  <div class="node-card-block">
-    <aside class="row-card node-card" id="node-card" data-module-id="3">
+  <div class="tree-workbench">
+    <div class="tree-workbench-row">
+      <form class="tree-build-form">
+        <button type="button" class="tree-build-btn primary">Build graph</button>
+      </form>
+      <ul class="step-legend">
+        <li><button type="button" class="graph-node step-1" data-step="1">step 1</button></li>
+        <li><button type="button" class="graph-node step-2" data-step="2">step 2</button></li>
+        <li><button type="button" class="graph-node step-3" data-step="3">step 3</button></li>
+        <li><button type="button" class="graph-node step-4" data-step="4">step 4</button></li>
+      </ul>
+      <details class="tree-help">
+        <summary>Help</summary>
+        <p>Compact bar above the canvas.</p>
+      </details>
+    </div>
+    <div class="tree-selection-bar">
+      <div class="node-card-block">
+    <aside class="row-card node-card" data-module-id="3">
       <div class="node-card-body">
         <div class="node-card-main">
           <span class="identity">
@@ -254,25 +233,40 @@
             </span>
           </span>
           <span class="node-card-actions">
-            <button type="button" class="primary">Leave out</button>
-            <button type="button">Include again</button>
+            <button type="button" class="primary">Exclude</button>
+            <button type="button" class="primary">Include</button>
           </span>
         </div>
       </div>
     </aside>
-    <p class="node-card-footnote">
-      <span class="node-card-footnote-mark" aria-hidden="true">*</span>
-      Leave out — skip this module; parents stay in the plan.
-    </p>
-    <div class="node-card-bulk">
-      <button type="button">Leave out all</button>
-      <button type="button">Include all</button>
+        <div class="node-card-bulk">
+          <button type="button">Exclude all</button>
+          <button type="button">Include all</button>
+        </div>
+      </div>
+      <p class="node-card-footnote">
+        <span class="node-card-footnote-mark" aria-hidden="true">*</span>
+        Exclude — skip this module; parents stay in the plan.
+      </p>
     </div>
   </div>
-  <p>Click a module on the graph. <strong>Leave out</strong> on a wave or
-  multi-select also strikes downstream; a lone leaf is skipped on its own.
-  <strong>Include again</strong> walks depends upward only. The card badge
-  reads <strong>excluded</strong> while the module is out.</p>
+  <div class="row">
+    <span class="graph-node step-1">
+      <span class="graph-node-index">#1/1</span>
+      <span class="name mono">mig_test_base</span>
+    </span>
+    <span class="graph-node step-2">
+      <span class="graph-node-index">#3/2</span>
+      <span class="name mono">mig_test_partner</span>
+    </span>
+    <span class="graph-node struck">
+      <span class="name mono">base</span>
+      <span class="badge queued">queued</span>
+    </span>
+  </div>
+  <p>Marquee selects on the canvas; drag a node onto another to join its
+  batch group. The card badge reads <strong>excluded</strong> while the
+  module is out.</p>
 
   <h2>Checkpoint</h2>
   <div class="checkpoint">
@@ -323,14 +317,17 @@
         <button type="button" class="outline-cyan">Add to queue</button>
       </form>
     </section>
-    <section class="pipeline-queue-card card">
-      <header class="pipeline-queue-head">
+    <section class="pipeline-queue-card card is-queue-expanded">
+      <header class="pipeline-queue-head is-expandable">
         <div class="pipeline-queue-head-text">
-          <h2 class="pipeline-queue-title">Queue</h2>
+          <span class="pipeline-queue-chevron is-expanded" aria-hidden="true"></span>
+          <div class="pipeline-queue-brand">
+            <h2 class="pipeline-queue-title">Queue</h2>
+            <p class="pipeline-queue-fifo">FIFO · First in, first out</p>
+          </div>
           <p class="pipeline-queue-meta">3 pending · 2 steps · Stopped</p>
         </div>
         <div class="pipeline-queue-controls">
-          <button type="button" class="pipeline-queue-toggle outline-cyan">Expand full list</button>
           <button type="button" class="primary">Run</button>
           <button type="button">Stop</button>
         </div>

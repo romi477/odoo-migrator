@@ -131,7 +131,7 @@ def test_resolve_when_source_is_down_points_to_the_card(client, tmp_path):
 
 
 def test_strike_json_skips_downstream_modules(client):
-    """Leave out on the API side is skip_subtree: dependents go out too."""
+    """Exclude on the API side is skip_subtree: dependents go out too."""
     migration_id, modules = _resolved(client)
     base = modules["sale_custom"]
     stock = modules["stock_custom"]
@@ -208,13 +208,13 @@ def test_batch_group_assignment_persists(client):
     assert '"batch_group": 1' in grouped.text or '"batch_group":1' in grouped.text
 
 
-def test_resolve_button_visible_text_is_the_verb(client):
+def test_build_graph_button_visible_text(client):
     row = _open(client)
     save_side_container(row.id, "old", "odoo-old")
     html = client.get("/tree").text
 
-    assert ">Resolve<" in html
-    assert 'aria-label="Resolve the module graph from the old container"' in html
+    assert ">Build graph<" in html
+    assert 'aria-label="Build the module graph from the old container"' in html
 
 
 def test_cytoscape_is_vendored_with_a_hash(client):
@@ -298,8 +298,8 @@ def test_tree_json_carries_node_id_and_step(client):
     assert "graph-stage" in html
     assert "module-rows" not in html
     assert 'id="node-card"' in html
-    assert "Leave out" in html
-    assert ">Leave out all<" in html
+    assert "Exclude" in html
+    assert ">Exclude all<" in html
     assert ">Include all<" in html
 
 
@@ -335,7 +335,7 @@ def test_styleguide_has_a_graph_node_and_a_struck_node(client):
     assert "step-legend" in html
     assert "graph-node-index" in html
     assert "#1/1" in html
-    assert "Leave out" in html
+    assert "Exclude" in html
     assert 'id="node-card"' in html or "node-card" in html
 
 
@@ -348,7 +348,7 @@ def test_focus_opens_the_node_card_for_that_module(client):
 
     assert f'data-module-id="{custom["id"]}"' in html
     assert "sale_custom" in html
-    assert "Leave out" in html
+    assert "Exclude" in html
 
 
 def _resolved(client):
