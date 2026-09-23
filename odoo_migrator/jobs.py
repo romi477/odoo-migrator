@@ -148,6 +148,7 @@ def start_job(
     hub: EventHub,
     batch_id: int | None = None,
     smoke: bool = False,
+    cartridge=None,
 ) -> Job:
     with database.connection_context():
         module_row = Module.get_or_none(
@@ -215,14 +216,16 @@ def start_job(
             batch.model_webhook_url or migration.model_webhook_path or "migrate-module"
         ).strip("/")
         payload["webhook_path"] = webhook_path
+        pinned = _pinned_identity(migration, cartridge)
         job = Job.create(
             job_id=job_id,
             batch=batch,
             module=module,
             status="queued",
             rules_hash=stack_hash(payload["rules"]),
-            cartridge_id=migration.cartridge_id or "stock",
-            cartridge_version=migration.cartridge_version or "1.0.0",
+            cartridge_id=pinned[0],
+            cartridge_version=pinned[1],
+            cartridge_sha256=pinned[2],
         )
         was = module.status
         module.status = "queued"
@@ -250,6 +253,26 @@ def start_job(
         raise ContractError(f"The executor did not take the job: {refused}") from refused
 
     return job
+
+
+def _pinned_identity(migration, cartridge) -> tuple[str, str, str]:
+    """Id, version and sha of the cartridge this job will record."""
+    if cartridge is not None:
+
+        return (cartridge.cartridge_id, cartridge.version, cartridge.sha256 or "")
+    from odoo_migrator.models import CartridgeInstall
+
+    wanted_id = migration.cartridge_id or "stock"
+    wanted_version = migration.cartridge_version or "1.0.0"
+    row = CartridgeInstall.get_or_none(
+        (CartridgeInstall.cartridge_id == wanted_id)
+        & (CartridgeInstall.version == wanted_version)
+    )
+    if row is None:
+
+        return (wanted_id, wanted_version, "")
+
+    return (row.cartridge_id, row.version, row.sha256 or "")
 
 
 def _undo_start(

@@ -28,6 +28,7 @@ def _row(migration: Migration) -> dict:
         "cartridge_id": migration.cartridge_id or "stock",
         "cartridge_version": migration.cartridge_version or "1.0.0",
         "model_webhook_path": migration.model_webhook_path or "migrate-module",
+        "model_override": migration.model_override or "",
     }
 
 
@@ -275,6 +276,7 @@ def save_migration_settings(
     cartridge_id: str | None = None,
     cartridge_version: str | None = None,
     model_webhook_path: str | None = None,
+    model_override: str | None = None,
 ) -> dict | None:
     if strictness_default not in ("basic", "enhanced"):
 
@@ -301,6 +303,12 @@ def save_migration_settings(
             row.cartridge_version = cartridge_version.strip() or None
         if model_webhook_path is not None:
             row.model_webhook_path = model_webhook_path.strip()
+        if model_override is not None:
+            name = model_override.strip()
+            if name and name not in ("claude-opus-5", "claude-sonnet-5"):
+
+                return None
+            row.model_override = name
         row.save()
 
         return _row(row)

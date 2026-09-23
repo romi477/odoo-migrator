@@ -95,18 +95,24 @@
         id and version. The pin is recorded on every job.</p>
       </li>
       <li>
-        <label>Model wrapper
-          <select name="model_webhook_path">
-            <option value="migrate-module"{% if expanded.model_webhook_path == "migrate-module" %} selected{% endif %}>stock (migrate-module)</option>
-            <option value="migrate-module-openai"{% if expanded.model_webhook_path == "migrate-module-openai" %} selected{% endif %}>openai</option>
-            <option value="migrate-module-claude"{% if expanded.model_webhook_path == "migrate-module-claude" %} selected{% endif %}>claude</option>
+        <label>Model
+          <select name="model_override">
+            <option value=""{% if not expanded.model_override %} selected{% endif %}>cartridge default</option>
+            <option value="claude-opus-5"{% if expanded.model_override == "claude-opus-5" %} selected{% endif %}>claude-opus-5</option>
+            <option value="claude-sonnet-5"{% if expanded.model_override == "claude-sonnet-5" %} selected{% endif %}>claude-sonnet-5</option>
           </select>
         </label>
-        <p class="field-hint">Which model the flow calls: the stock path, or a
-        thin OpenAI / Claude parent that runs the same loop.</p>
+        <p class="field-hint">Overrides the cartridge's model for this migration.
+        A step that names its own model still wins.</p>
       </li>
     </ol>
     <button type="submit" class="primary">Save</button>
+      </form>
+      <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
+        <label>Import a flow
+          <input type="file" name="file" accept=".yaml,.yml,.json">
+        </label>
+        <button type="submit">Import</button>
       </form>
       {% endif %}
     </div>
@@ -158,18 +164,24 @@
         id and version. The pin is recorded on every job.</p>
       </li>
       <li>
-        <label>Model wrapper
-          <select name="model_webhook_path">
-            <option value="migrate-module"{% if expanded.model_webhook_path == "migrate-module" %} selected{% endif %}>stock (migrate-module)</option>
-            <option value="migrate-module-openai"{% if expanded.model_webhook_path == "migrate-module-openai" %} selected{% endif %}>openai</option>
-            <option value="migrate-module-claude"{% if expanded.model_webhook_path == "migrate-module-claude" %} selected{% endif %}>claude</option>
+        <label>Model
+          <select name="model_override">
+            <option value=""{% if not expanded.model_override %} selected{% endif %}>cartridge default</option>
+            <option value="claude-opus-5"{% if expanded.model_override == "claude-opus-5" %} selected{% endif %}>claude-opus-5</option>
+            <option value="claude-sonnet-5"{% if expanded.model_override == "claude-sonnet-5" %} selected{% endif %}>claude-sonnet-5</option>
           </select>
         </label>
-        <p class="field-hint">Which model the flow calls: the stock path, or a
-        thin OpenAI / Claude parent that runs the same loop.</p>
+        <p class="field-hint">Overrides the cartridge's model for this migration.
+        A step that names its own model still wins.</p>
       </li>
     </ol>
     <button type="submit" class="primary">Save</button>
+  </form>
+  <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
+    <label>Import a flow
+      <input type="file" name="file" accept=".yaml,.yml,.json">
+    </label>
+    <button type="submit">Import</button>
   </form>
   {% endif %}
 </div>

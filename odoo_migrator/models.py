@@ -52,8 +52,10 @@ class AppSettings(BaseModel):
 class CartridgeInstall(BaseModel):
     cartridge_id = CharField()
     version = CharField()
-    contract_version = CharField()
-    webhook_path = TextField(default="")
+    sha256 = CharField(default="")
+    schema_version = IntegerField(default=1)
+    # The file as imported, so a pin can be loaded without the original path.
+    body = TextField(default="")
     capabilities = TextField(default="{}")
     smoke_status = CharField(default="untested")
 
@@ -156,6 +158,7 @@ class Job(BaseModel):
     rules_hash = CharField(null=True)
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)
+    cartridge_sha256 = CharField(default="")
     # Unified diffs of File API writes on the new side, keyed by attempt.
     # The cartridge callback's attempt.diff is often empty; this is what
     # the checkpoint actually has to show.

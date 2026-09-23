@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     JSONResponse,
@@ -20,9 +20,9 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from odoo_migrator.cartridges import list_installs, smoke_run
+from odoo_migrator.cartridges import install_from_text, list_installs, smoke_run
 from odoo_migrator.contract import ContractError
-from odoo_migrator.db import init_db
+from odoo_migrator.db import database, init_db
 from odoo_migrator.events import CLOSED, EventHub
 from odoo_migrator.executor import StubExecutor
 from odoo_migrator.graph import (
@@ -85,6 +85,7 @@ from odoo_migrator.provision import (
 )
 from odoo_migrator.provision.actions import attach, rebuild, restart, stop, up
 from odoo_migrator.rules import RulesError, stack_versions
+from odoo_migrator.runner.cartridge import CartridgeError
 from odoo_migrator.settings import get_app_settings, save_app_settings
 from odoo_migrator.sheller import HttpShellerClient
 
@@ -1015,6 +1016,7 @@ def create_app(
         cartridge_id: str | None = Form(None),
         cartridge_version: str | None = Form(None),
         model_webhook_path: str | None = Form(None),
+        model_override: str | None = Form(None),
     ):
         """Every rejection says so. Silently discarding what someone typed
         into a settings form and re-rendering the old values is the worst
@@ -1045,6 +1047,7 @@ def create_app(
             cartridge_id=cartridge_id,
             cartridge_version=cartridge_version,
             model_webhook_path=model_webhook_path,
+            model_override=model_override,
         ) is None:
 
             return _overview(
@@ -1052,6 +1055,35 @@ def create_app(
                 expanded=migration_id,
                 error="Those settings were rejected. Nothing saved.",
             )
+
+        return RedirectResponse(f"/?settings={migration_id}", status_code=303)
+
+    @app.post("/migrations/{migration_id}/cartridge")
+    async def migration_cartridge(
+        request: Request,
+        migration_id: str,
+        file: Annotated[UploadFile, File()],
+    ):
+        if get_active(migration_id) is None:
+
+            return _overview(request, error="No such migration.")
+        raw = await file.read()
+        try:
+            text = raw.decode("utf-8")
+            install_from_text(text)
+        except (CartridgeError, UnicodeError) as exc:
+
+            return _overview(request, expanded=migration_id, error=str(exc))
+        with database.connection_context():
+            from odoo_migrator.models import CartridgeInstall as Install
+            from odoo_migrator.models import Migration
+
+            row = Install.select().order_by(Install.id.desc()).first()
+            migration = Migration.get_or_none(Migration.id == migration_id)
+            if row is not None and migration is not None:
+                migration.cartridge_id = row.cartridge_id
+                migration.cartridge_version = row.version
+                migration.save()
 
         return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 

@@ -849,7 +849,7 @@ git add -A && git commit -m "feat: the native runner, its records and its events
 - Produces: `def install_from_text(text: str) -> CartridgeInstall`,
   `def pinned_for(migration) -> Cartridge`, `def smoke_run(migration, module)`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_a_run_records_the_cartridge_it_used(client, migration):
@@ -871,7 +871,7 @@ def test_an_invalid_upload_is_refused_before_it_is_stored(client, migration):
         assert CartridgeInstall.select().count() == 0
 ```
 
-- [ ] **Steps 2–5:** fail, implement, pass, commit as in previous tasks.
+- [x] **Steps 2–5:** fail, implement, pass, commit as in previous tasks.
 
 ```bash
 git commit -m "feat: import, pin and smoke-run a YAML cartridge"
