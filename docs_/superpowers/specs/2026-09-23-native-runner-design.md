@@ -78,7 +78,9 @@ reopened here:
 - **Prompts and rules travel as resolved text**, never as paths handed to an
   executor.
 - **Sessions belong to the agent.** A rewrite invalidates a session open on
-  the new container; the old container is read-only for the whole run.
+  the new container; the old container is read-only for the whole run. (One
+  exception is introduced below: a job parked on a human closes its
+  sessions.)
 - **Peewee, not SQLAlchemy. Alpine, not React.** Every operation inside its
   own `db.connection_context()`; a connection never crosses a thread
   boundary.
@@ -190,12 +192,13 @@ pipeline:
       methods, check they respond, roll back. The recipe travels with your
       answer — the port will be judged by replaying it on both versions.
 
-  - step: rewrite
+  - step: port
     prompt: |
       Port the module to the target version. Write files into the new
       project. The old container's session stays open — use it whenever
       you need to check what the original actually does.
 
+  - step: lint
   - step: upgrade
   - step: tests
 
@@ -207,6 +210,13 @@ pipeline:
       report every difference. A recipe that will not replay on the new
       version is a failure worth reporting on its own.
 
+  - step: write_test
+    when: no_tests
+    prompt: |
+      Turn the recipe you just replayed into a real test in the ported
+      module, asserting what the old version actually did. Run it before
+      you finish.
+
   - step: verdict
 
 on_failure:
@@ -214,8 +224,9 @@ on_failure:
     - step: diagnose
       prompt: |
         Work out why it failed. Logs, the journal, source and a live
-        session are all available. Decide what to change on the next
-        attempt, and say so if this needs a human.
+        session are all available. Decide whether a targeted fix is
+        enough or the port should be started over, whether you need to
+        look at the old version again, and whether this needs a human.
 
     - step: ask_human
       when: needs_human
@@ -226,29 +237,67 @@ on_failure:
         Go back to the old version with the specific question the
         diagnosis raised.
 
+    - step: patch
+      when: small_fix
+      prompt: |
+        Apply the fix the diagnosis named. You have the previous diff —
+        change what is wrong, leave the rest alone.
+
+    - step: rewrite
+      when: start_over
+      prompt: |
+        The previous port was judged unsound, for the reason in the
+        diagnosis. Write the module again from the old version. Do not
+        build on the previous attempt.
+
   retry:
-    resume_at: rewrite
+    resume_at: lint
 ```
 
-Dropping `probe` is four lines. Never asking a human is two. That is the
-legibility bar: a consultant who does not write Python must be able to read
-this file and change it correctly.
+Dropping `probe` and `write_test` is nine lines. Never asking a human is two.
+That is the legibility bar: a consultant who does not write Python must be
+able to read this file and change it correctly.
+
+Note where the retry re-enters: `lint`, not `port`. The failure lane now
+contains the fixing — `patch` or `rewrite`, whichever the diagnosis chose —
+so a retry rejoins the main line at the first check after the code changed.
 
 ### Step registry
 
-Nine names, closed, defined in code:
+Twelve names, closed, defined in code:
 
 | step | kind | what it does |
 |---|---|---|
 | `understand` | agent | studies the module on the source container; returns a description of current behaviour and a verified fixture recipe |
-| `rewrite` | agent | writes the module's files into the target project |
+| `port` | agent | writes the ported module's files into the target project |
+| `lint` | code | manifest, XML and syntax checks on the written files, before a container is involved |
 | `upgrade` | code | installs/upgrades the module on the target container through Sheller, commits |
 | `tests` | code | runs the module's declared test classes with Odoo's own runner |
 | `probe` | agent | replays `understand`'s fixture recipe on both sides and compares behaviour |
+| `write_test` | agent | turns the proven recipe into a real test file in the ported module |
 | `verdict` | code | judges the outcome against the migration's strictness |
 | `diagnose` | agent | reads the failure, decides what to change, raises flags |
+| `patch` | agent | applies a targeted fix, with the previous diff in hand |
+| `rewrite` | agent | ports the module again from scratch, discarding the previous attempt |
 | `reprobe` | agent | re-reads the old version with the question the diagnosis raised |
-| `ask_human` | code | parks the job, writes a checkpoint, waits for an answer |
+| `ask_human` | code | parks the job, opens a checkpoint thread, waits for an answer |
+
+Three of those deserve their reason stated:
+
+- **`port`, not `migrate`.** "Migration" already names the whole run in this
+  codebase — the `Migration` row, `migration_id`, the screens. A step called
+  `migrate` inside a migration is ambiguous in every event and log line it
+  appears in.
+- **`patch` against `rewrite`.** The difference is not mechanical — both
+  write files — it is what the step is given and what it is told. `patch`
+  receives the previous diff and changes what the diagnosis named; `rewrite`
+  is told the previous attempt was unsound and is denied it as a base. The
+  human answer that says "this code is bad, do it again" has a step to land
+  in, and the canvas shows which of the two the diagnosis chose.
+- **`lint` before `upgrade`.** A typo in `__manifest__.py` or a missing
+  `ref` in a view is a large share of failed installs in Odoo. Discovering it
+  by waiting for a container costs a minute to learn what a second would have
+  told us.
 
 Opening and closing sessions are not steps. The runner opens the source
 session once for the whole job and closes everything at the end; the agent
@@ -265,8 +314,15 @@ worse — does not read it.
 |---|---|
 | `no_tests` | `tests` — the module declares no test classes |
 | `tests_failed` | `tests` |
+| `lint_failed` | `lint` |
 | `needs_human` | `diagnose` |
 | `reexamine_old` | `diagnose` |
+| `small_fix` | `diagnose` — a targeted change is enough |
+| `start_over` | `diagnose` — the port is unsound as written |
+
+`small_fix` and `start_over` are mutually exclusive by the same rule that
+makes them useful: the diagnosis picks one. A diagnosis that raises both is a
+refused result, not a step that runs twice.
 
 ### Validation
 
@@ -404,6 +460,49 @@ What holds the rest:
 - **Budgets**: a ceiling on tool calls and on tokens per agent step, from
   migration settings, enforced by the runner.
 
+## The human in the loop
+
+`ask_human` parks the job and writes a checkpoint. Two decisions about that
+checkpoint are made here rather than discovered later.
+
+### The answer is a thread, not a string
+
+A checkpoint stores a thread of messages from the first version, even when
+the thread only ever holds one: the agent's question and the human's answer.
+The whole thread travels into the prompt of the step that resumes, so
+whoever fixes the module sees what was asked and what was decided, not a
+single line torn out of context.
+
+This is storage shape, not a feature. It is chosen now because the feature it
+admits — below — is otherwise a schema migration and a rewrite of the
+checkpoint screen.
+
+### Assisted answers (named now, built later)
+
+The realistic case is a human who cannot answer the question as asked: "is
+this override still needed?" is not answerable without reading something.
+What they want is to ask back — *go and read how the neighbouring module does
+this, then tell me* — decide, and only then let the flow go on.
+
+That is **not a step**. The pipeline does not advance; no attempt is spent;
+nothing new appears on the canvas. It is a side channel on the parked
+checkpoint: the human writes a turn, a short read-only agent turn answers
+with the same tools, and both land in the thread. A step would instead put a
+second cycle on the canvas returning into `ask_human`, which reads as the
+retry loop and is not one.
+
+Consequences to honour when `ask_human` is built:
+
+- The thread is append-only and attributed — who said what, agent or human.
+- A research turn is read-only and metered separately from the module's
+  attempt budget. It never writes files and never commits.
+- **A parked job closes its sessions.** A checkpoint can sit for a day, and a
+  live `odoo-bin` process per parked module is how a machine ends up with
+  forty of them. Sessions reopen on demand for a research turn and for the
+  step that resumes. This is a deliberate exception to "one source session
+  for the whole run" — that rule holds for a job that is running, not one
+  that is waiting on a person.
+
 ## The flow screen
 
 The `/n8n` stub becomes `/flow`, and it is the reason the runner is worth
@@ -516,9 +615,13 @@ then one command rather than archaeology.
 2. **What a prompt is allowed to carry off the machine.** Named above under
    security; the policy is not written yet.
 3. **Per-step model choice.** The cartridge declares one model for the run. A
-   cheaper model for `diagnose` than for `rewrite` is plausible and is not in
+   cheaper model for `diagnose` than for `port` is plausible and is not in
    this design.
-4. **The step registry's granularity.** Nine steps is the first cut. Splitting
-   `rewrite` into "plan the port" and "write the files" would make cartridges
-   more expressive and longer; merging `understand` into `rewrite` would make
-   the canvas emptier. Revisit after the first real project.
+4. **Assisted answers** are specified above but not scheduled. The first pass
+   builds the checkpoint thread that makes them additive later.
+5. **The step registry's granularity.** Twelve steps is the current cut.
+   `review` (the agent reading its own diff against the rules) and `report`
+   (a step that collects findings) were proposed and rejected: the first is
+   the model checking itself where `tests` and `probe` answer with facts, the
+   second is an empty node for something that accumulates anyway. Revisit
+   after the first real project.
