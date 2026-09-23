@@ -29,7 +29,8 @@ provisioning, every screen but one — is untouched.
 |---|---|
 | `odoo_migrator/runner/` | cartridge loader, step registry, the loop, step implementations, the model client, the agent's tools |
 | `n8n/stock/*.json` → one `cartridges/stock.yaml` | the flow as data: five deterministic step kinds, a generic agent step the cartridge configures, a failure lane, one retry edge |
-| `/flow` screen | the cartridge drawn and painted live; replaces the `/n8n` stub |
+| `/flow` screen | the cartridge drawn and painted live, with the tool trace under it; replaces the `/n8n` stub |
+| `StepRun` / `ToolCall` rows | the skeleton of a run — step, session, command id, timings, cost — while Sheller's journal keeps the bodies |
 | checkpoint threads | a human answer is a thread of messages, not a string |
 | Sheller client verbs | `source`, `journal`, `list_tests`, `interrupt` added to the existing client |
 
@@ -176,7 +177,8 @@ for everything this one does not touch:
 2. **The webhook contract is retired** as a transport. Its successor is the
    cartridge schema: same role — the product's real API — different shape.
 3. **The canvas is ours.** The "iframe: n8n canvas" line in the workspace
-   layout becomes a rendered flow of the loaded cartridge, painted live.
+   layout becomes a rendered flow of the loaded cartridge, painted live, with
+   the agent's tool trace under it.
 4. **`understand` and friends get code execution on both containers**, not a
    narrow read-only toolset. Sheller is the point of the product; the agent
    gets the shell, not a keyhole.
@@ -732,38 +734,114 @@ Consequences to honour when `ask_human` is built:
   for the whole run" — that rule holds for a job that is running, not one
   that is waiting on a person.
 
-## The flow screen
+## The screens
 
-The `/n8n` stub becomes `/flow`, and it is the reason the runner is worth
-building rather than merely cheaper.
+The run workspace keeps its four tabs and its progression. `n8n` becomes
+`Flow`; `Pipeline`, `Sheller` and `Result` keep their jobs, two of them
+changed.
 
-**The picture is derived, not authored.** The cartridge has no coordinates.
-The renderer lays the main pipeline out left to right, the `on_failure`
-pipeline in a lane below it, and the retry edge back to `resume_at`. Cytoscape
-is already vendored for the module tree; this is a preset layout over a graph
-we compute. A cartridge stays readable because nobody maintains positions in
-it.
+### Pipeline
 
-**The painting is live.** From the same SSE stream the run screen uses:
+Stays the queue hub: Selection, Queue, Run/Stop. What changes is its live
+panel, today a single line reading "module · stage · attempt". It becomes a
+**ribbon**: the cartridge's nodes as a row of marks, finished ones filled,
+the active one pulsing, the failure lane below. Not interactive — it is the
+across-the-room answer to "is it moving". Clicking it opens `Flow`.
 
-- the active node pulses; finished nodes dim; the failed one is red;
-- the edge actually taken is lit, so a second lap of the retry loop is
-  visible as a loop rather than inferred from a log;
-- each node carries its own elapsed time and token cost, because the model
-  calls are ours;
-- clicking a node opens what that attempt did: for an agent step the tool
-  calls and their results, for `tests` the report, for `verdict` the
-  judgement. The `Attempt` rows already hold diff, test output, verdict and
-  diagnosis.
+### Flow
 
-**The trace is the spectacle.** Under the flow, the live tool calls: the code
-the agent sent, and what each side answered. Differential probing shows two
-columns. This is the demonstration the n8n canvas was bought to provide and
-never could, because n8n never had this data.
+Three regions.
 
-**Replay.** A finished job can be replayed from its stored events. On a
-projector, a replay is stronger than a live run that may stall on a slow
-container.
+**The canvas**, top. Main pipeline left to right, `on_failure` as a lane
+below it, the retry edge as an arc back to `resume_at`. The picture is
+**derived, not authored**: the cartridge has no coordinates, the renderer
+computes the layout, and a cartridge stays readable because nobody maintains
+positions in it. Cytoscape is already vendored for the module tree; this is a
+preset layout over a graph we build.
+
+Painted from the SSE stream the run screen already uses: the active node
+pulses, finished nodes dim, the failed one is red, and **the edge actually
+taken is lit** — so a second lap of the retry loop reads as a loop instead of
+being inferred from a log. Each node carries its own elapsed time and token
+cost, because the model calls are ours.
+
+**The trace**, bottom, and this is the part the n8n canvas could never show.
+One line per tool call:
+
+```
+port · exec · new · env['sale.order'].browse(ids)._compute…   1.2s
+```
+
+The side chip — `old` or `new` — is coloured, so a `probe` step reads as two
+interleaved conversations: the same calls, the two answers. Clicking a line
+fetches that cell from Sheller's journal and expands it in place, with "open
+the session in Sheller" beside it.
+
+**The node inspector**, on click: that step's prompt, its answer, the tools
+it called, the flags it raised, its tokens and seconds.
+
+The header carries what the current screen does not have at all: module,
+attempt, elapsed, and money spent so far.
+
+**When nothing is running**, `Flow` is not empty. It draws the pinned
+cartridge statically — the steps, the branch, the model — which answers "what
+is going to happen" before a run and shows which cartridge is pinned, with
+the import control for a project's own YAML beside it.
+
+**Attempts.** The canvas shows now; the interesting question is usually what
+happened before. An attempt switcher in the header (`1 2 3`, current
+highlighted) redraws the canvas and the trace for that attempt. Replay of a
+finished job falls out of the same mechanism: every attempt is in the past.
+
+### Sheller
+
+Kept, and it finally has a job that is not duplication. `Flow` shows what the
+agent did; the Sheller tab shows everything that happened in a session,
+including what a human typed there by hand, as Sheller's own feed renders it.
+
+### Result and checkpoints
+
+Unchanged except for `ask_human`: a parked checkpoint shows the thread rather
+than one answer field, and it is where assisted answers land when they are
+built.
+
+## What the app records, and what it does not
+
+Sheller already journals every command: the code that went in, `stdout`,
+`stderr`, and Odoo's own log lines. Journals **outlive their session** —
+`/api/journals/{session_id}` serves a closed session's file, and the command
+feed is rebuilt from it — so a run from last week is still readable without
+the migrator keeping a second copy.
+
+So the app stores the skeleton and Sheller keeps the bodies:
+
+| | stored where |
+|---|---|
+| step, attempt, outcome, flags raised, tokens, cost, timings | the app |
+| an agent step's prompt and its answer | the app, on `Attempt` |
+| which tool was called, on which side, in which session, with what command id, how long it took, and a one-line preview | the app |
+| the command's full text, `stdout`, `stderr`, Odoo's log | Sheller's journal, fetched on demand |
+
+**Recording the session is the point.** A step is not one session: an agent
+that changes the module's code calls `reopen` and the target session is a new
+one, with a new id. The app therefore records the session id per tool call,
+in order, not per step — without it a trace line cannot find its own journal
+entry, which is the whole reason the bodies can live elsewhere.
+
+Three consequences to honour:
+
+1. **Read journals through the daemon's API, never from the filesystem.**
+   `~/.odoo-sheller/` is not ours to touch, and convenience does not soften
+   that rule. The Sheller client gains `journal` and the command feed.
+2. **Journals are unmasked.** Sheller's own architecture says so: anything
+   that passed through a session, credentials included, is in the file in
+   plain text. A trace line therefore expands its body on an explicit click,
+   never automatically, and never in a panel that is open by default. This
+   tool gets demonstrated on a projector.
+3. **A body can be gone.** Journals can be pruned and a different daemon can
+   be answering on 8765 tomorrow. A trace line must read correctly without
+   its body — "the journal for this session is not available" — rather than
+   showing an empty expander or a 500.
 
 ## Security posture after n8n
 
