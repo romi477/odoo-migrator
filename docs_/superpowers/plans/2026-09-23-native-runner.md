@@ -612,7 +612,7 @@ git add -A && git commit -m "feat: the runner loop, its branch and its retry edg
     budget: Budget) -> StepResult`
   - `class ModelDouble` in `tests/doubles/model.py` — replays scripted turns
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_a_tool_cannot_reach_a_session_the_step_did_not_declare(step_context):
@@ -648,12 +648,12 @@ def test_a_step_that_never_converges_ends_at_the_budget(step_context):
     assert model.calls == 5
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `uv run pytest tests/test_agent.py tests/test_tools.py -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the tools**
+- [x] **Step 3: Implement the tools**
 
 Each tool takes `side` and never a container name: the container comes from
 the migration row, which is what confines the agent to two of them. A tool
@@ -663,7 +663,7 @@ and refuse a path that escapes it — a 403-shaped refusal, not a clamp.
 `reopen` closes the target session and opens a fresh one, recording the new
 id on the context.
 
-- [ ] **Step 4: Implement the agent turn**
+- [x] **Step 4: Implement the agent turn**
 
 Use the SDK's beta tool runner: `@beta_tool` on the tool callables and
 `client.beta.messages.tool_runner(...)`, `runner.until_done()`. Adaptive
@@ -672,14 +672,14 @@ for long turns. The step ends when the model calls `report`; it also ends,
 unsuccessfully, at the budget. Read `python/claude-api/README.md` from the
 `claude-api` skill before writing this file, and do not guess SDK names.
 
-- [ ] **Step 5: Write the model double**
+- [x] **Step 5: Write the model double**
 
 `ModelDouble` replays scripted turns: a turn that calls a tool, a turn that
 calls `report`, a turn that returns nothing useful, and a mode that never
 converges. It must be able to fail — a double that always succeeds proves the
 loop compiles, not that it terminates.
 
-- [ ] **Step 6: Run and commit**
+- [x] **Step 6: Run and commit**
 
 ```bash
 uv run pytest && uv run ruff check

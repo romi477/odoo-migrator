@@ -21,6 +21,8 @@ class StepContext:
     emit: Callable[[dict], None]
     write_keys: dict[str, str] = field(default_factory=dict)
     prior_answers: dict[str, str] = field(default_factory=dict)
+    # The last run_test payload, so test_result can answer without a second call.
+    last_test: dict | None = None
 
 
 @dataclass

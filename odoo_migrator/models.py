@@ -45,6 +45,8 @@ class AppSettings(BaseModel):
     sheller_base_url = TextField(default="http://127.0.0.1:8765")
     sheller_image_tag = TextField(default="")
     min_sheller_version = TextField(default="")
+    # Never rendered. A blank save leaves the stored value in place.
+    anthropic_api_key = TextField(default="")
 
 
 class CartridgeInstall(BaseModel):

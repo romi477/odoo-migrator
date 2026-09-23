@@ -899,10 +899,12 @@ def create_app(
         request: Request,
         sheller_base_url: str = Form(""),
         sheller_image_tag: str = Form(""),
+        anthropic_api_key: str = Form(""),
     ):
         save_app_settings(
             sheller_base_url=sheller_base_url,
             sheller_image_tag=sheller_image_tag,
+            anthropic_api_key=anthropic_api_key,
         )
 
         return RedirectResponse("/settings", status_code=303)
