@@ -28,7 +28,7 @@ provisioning, every screen but one — is untouched.
 | | |
 |---|---|
 | `odoo_migrator/runner/` | cartridge loader, step registry, the loop, step implementations, the model client, the agent's tools |
-| `n8n/stock/*.json` → one `cartridges/stock.yaml` | the flow as data: twelve possible steps, a failure lane, one retry edge |
+| `n8n/stock/*.json` → one `cartridges/stock.yaml` | the flow as data: five deterministic step kinds, a generic agent step the cartridge configures, a failure lane, one retry edge |
 | `/flow` screen | the cartridge drawn and painted live; replaces the `/n8n` stub |
 | checkpoint threads | a human answer is a thread of messages, not a string |
 | Sheller client verbs | `source`, `journal`, `list_tests`, `interrupt` added to the existing client |
@@ -220,7 +220,7 @@ odoo_migrator/runner/
 ├── cartridge.py   load YAML, validate, resolve prompts, hash
 ├── registry.py    step name → implementation, tools per step
 ├── loop.py        execute step, read outcome, pick the next one
-├── steps/         one module per step implementation
+├── steps/         one module per deterministic step
 ├── agent.py       Anthropic client, tool-use loop, budgets
 └── tools.py       the Sheller and filesystem verbs given to agents
 ```
@@ -252,6 +252,72 @@ The ones that ship live in `cartridges/` at the repository root, next to
 through the UI is stored as a `CartridgeInstall` with its hash and is never
 written back into `cartridges/` — git is the source, the UI is an import.
 
+### Two kinds of step
+
+The registry holds **deterministic steps** — five of them, each a piece of
+code — and **one generic agent step**. Every agent step in the stock
+cartridge is an instance of that one kind, configured in YAML.
+
+This is the difference between a profile and a cartridge. An agent step is
+nothing but a prompt, a tool set, which sessions are open, what context it is
+given, and which flags it may raise. All of that is data; the only code is
+the tool-use loop, and it is identical for every one of them. Keeping eight
+near-identical step implementations in Python would buy nothing and would put
+"what steps exist" behind a release.
+
+| kind | what it is |
+|---|---|
+| `lint` | deterministic — manifest, XML and syntax checks on the written files |
+| `upgrade` | deterministic — installs/upgrades the module on the target container, commits |
+| `tests` | deterministic — runs the module's declared test classes with Odoo's own runner |
+| `verdict` | deterministic — judges the outcome against the migration's strictness |
+| `ask_human` | deterministic — parks the job, opens a checkpoint thread, waits |
+| `agent` | one model turn-loop, configured by the cartridge |
+
+### An agent step
+
+```yaml
+  - step: agent
+    id: port
+    sessions: [old, new]
+    tools: [exec, source, read_file, write_file]
+    context: [rules, module_source, prior_answers]
+    raises: []
+    prompt: |
+      ...
+```
+
+| field | meaning |
+|---|---|
+| `id` | the node's name on the canvas and the key its answer is stored under; unique within the cartridge |
+| `sessions` | `old`, `new`, or both — which live containers this step may reach |
+| `tools` | chosen from the code-defined catalog; a cartridge picks from it and can never extend it |
+| `context` | what goes into the prompt besides the prompt, from a closed vocabulary |
+| `raises` | the flags this step may set, which later steps gate on with `when` |
+| `budget` | optional `tool_calls` / `tokens`, honoured only when **lower** than the migration's ceiling |
+
+**The context vocabulary is closed**, for the same reason the flags are: a
+cartridge author selects from a list, never writes an expression.
+
+| context item | what it puts in the prompt |
+|---|---|
+| `rules` | the assembled per-version rules stack for this migration |
+| `module_source` | the module as it exists on the old version |
+| `prior_answers` | what earlier agent steps in this job answered |
+| `previous_diff` | what the last step that wrote files produced |
+| `last_failure` | the output of the step that failed: test report, traceback, lint findings |
+
+This is where `patch` and `rewrite` stop being a distinction hidden in code:
+`patch` declares `previous_diff`, `rewrite` declares `module_source` and
+deliberately does not. The difference between "fix this" and "do it again"
+is one line of the cartridge, and it is visible to whoever reads the file.
+
+**How a step raises a flag.** Its declared `raises` become the schema of a
+`report` tool given to that step alongside its other tools: one boolean per
+flag, plus the free-text answer. The step ends when the model calls it. A
+step with `raises: []` still gets `report`, with the answer alone. Nothing is
+parsed out of prose.
+
 ### The stock cartridge
 
 ```yaml
@@ -264,7 +330,11 @@ model:
   name: claude-opus-5
 
 pipeline:
-  - step: understand
+  - step: agent
+    id: understand
+    sessions: [old]
+    tools: [exec, source, run_test, list_tests, journal, read_file]
+    context: [module_source]
     prompt: |
       You are reading a module on the old Odoo version. A live session is
       open: do not guess from source alone — call methods and look at what
@@ -276,7 +346,11 @@ pipeline:
       methods, check they respond, roll back. The recipe travels with your
       answer — the port will be judged by replaying it on both versions.
 
-  - step: port
+  - step: agent
+    id: port
+    sessions: [old, new]
+    tools: [exec, source, read_file, write_file]
+    context: [rules, module_source, prior_answers]
     prompt: |
       Port the module to the target version. Write files into the new
       project. The old container's session stays open — use it whenever
@@ -286,16 +360,24 @@ pipeline:
   - step: upgrade
   - step: tests
 
-  - step: probe
+  - step: agent
+    id: probe
     when: no_tests
+    sessions: [old, new]
+    tools: [exec, source, reopen, rollback]
+    context: [prior_answers]
     prompt: |
       This module ships no tests. Replay the fixture recipe from the
       understand step on both sides, call the same methods on each, and
       report every difference. A recipe that will not replay on the new
       version is a failure worth reporting on its own.
 
-  - step: write_test
+  - step: agent
+    id: write_test
     when: no_tests
+    sessions: [new]
+    tools: [exec, run_test, read_file, write_file, reopen]
+    context: [prior_answers]
     prompt: |
       Turn the recipe you just replayed into a real test in the ported
       module, asserting what the old version actually did. Run it before
@@ -305,7 +387,12 @@ pipeline:
 
 on_failure:
   pipeline:
-    - step: diagnose
+    - step: agent
+      id: diagnose
+      sessions: [new]
+      tools: [exec, source, journal, history, read_file]
+      context: [previous_diff, last_failure, prior_answers]
+      raises: [needs_human, reexamine_old, small_fix, start_over]
       prompt: |
         Work out why it failed. Logs, the journal, source and a live
         session are all available. Decide whether a targeted fix is
@@ -315,98 +402,119 @@ on_failure:
     - step: ask_human
       when: needs_human
 
-    - step: reprobe
+    - step: agent
+      id: reprobe
       when: reexamine_old
+      sessions: [old]
+      tools: [exec, source, read_file]
+      context: [prior_answers, last_failure]
       prompt: |
         Go back to the old version with the specific question the
         diagnosis raised.
 
-    - step: patch
+    - step: agent
+      id: patch
       when: small_fix
+      sessions: [new]
+      tools: [exec, source, read_file, write_file, reopen]
+      context: [rules, previous_diff, last_failure, prior_answers]
       prompt: |
         Apply the fix the diagnosis named. You have the previous diff —
         change what is wrong, leave the rest alone.
 
-    - step: rewrite
+    - step: agent
+      id: rewrite
       when: start_over
+      sessions: [old, new]
+      tools: [exec, source, read_file, write_file, reopen]
+      context: [rules, module_source, prior_answers]
       prompt: |
         The previous port was judged unsound, for the reason in the
-        diagnosis. Write the module again from the old version. Do not
-        build on the previous attempt.
+        diagnosis. Write the module again from the old version. You are
+        not given the previous attempt; do not reconstruct it.
 
   retry:
     resume_at: lint
 ```
 
-Dropping `probe` and `write_test` is nine lines. Never asking a human is two.
-That is the legibility bar: a consultant who does not write Python must be
-able to read this file and change it correctly.
+Dropping `probe` and `write_test` is two blocks. Never asking a human is one
+line. Adding a step this product has never heard of is a block like the
+others — see below.
 
-Note where the retry re-enters: `lint`, not `port`. The failure lane now
-contains the fixing — `patch` or `rewrite`, whichever the diagnosis chose —
-so a retry rejoins the main line at the first check after the code changed.
+Note where the retry re-enters: `lint`, not `port`. The failure lane contains
+the fixing — `patch` or `rewrite`, whichever the diagnosis chose — so a retry
+rejoins the main line at the first check after the code changed.
 
-### Step registry
+### A step the product does not ship
 
-Twelve names, closed, defined in code:
+```yaml
+  - step: agent
+    id: check_reports
+    sessions: [new]
+    tools: [exec, source]
+    context: [prior_answers]
+    raises: [reports_broken]
+    prompt: |
+      Half of this client's value is in QWeb reports. Render every report
+      this module defines against the records from the recipe and confirm
+      each one builds. Raise reports_broken if any does not.
 
-| step | kind | what it does |
-|---|---|---|
-| `understand` | agent | studies the module on the source container; returns a description of current behaviour and a verified fixture recipe |
-| `port` | agent | writes the ported module's files into the target project |
-| `lint` | code | manifest, XML and syntax checks on the written files, before a container is involved |
-| `upgrade` | code | installs/upgrades the module on the target container through Sheller, commits |
-| `tests` | code | runs the module's declared test classes with Odoo's own runner |
-| `probe` | agent | replays `understand`'s fixture recipe on both sides and compares behaviour |
-| `write_test` | agent | turns the proven recipe into a real test file in the ported module |
-| `verdict` | code | judges the outcome against the migration's strictness |
-| `diagnose` | agent | reads the failure, decides what to change, raises flags |
-| `patch` | agent | applies a targeted fix, with the previous diff in hand |
-| `rewrite` | agent | ports the module again from scratch, discarding the previous attempt |
-| `reprobe` | agent | re-reads the old version with the question the diagnosis raised |
-| `ask_human` | code | parks the job, opens a checkpoint thread, waits for an answer |
+  - step: patch
+    when: reports_broken
+```
 
-Three of those deserve their reason stated:
+A node this codebase has never heard of, with its own name on the canvas, its
+own flag and its own branch — and no release. The boundary has not moved:
+`tools` are chosen from the catalog in code, budgets are capped by the
+migration's settings, and there is still no expression language anywhere.
+
+### Names, and what is not a step
+
+Three naming decisions in the stock cartridge are deliberate and should
+survive editing:
 
 - **`port`, not `migrate`.** "Migration" already names the whole run in this
   codebase — the `Migration` row, `migration_id`, the screens. A step called
   `migrate` inside a migration is ambiguous in every event and log line it
   appears in.
-- **`patch` against `rewrite`.** The difference is not mechanical — both
-  write files — it is what the step is given and what it is told. `patch`
-  receives the previous diff and changes what the diagnosis named; `rewrite`
-  is told the previous attempt was unsound and is denied it as a base. The
-  human answer that says "this code is bad, do it again" has a step to land
-  in, and the canvas shows which of the two the diagnosis chose.
-- **`lint` before `upgrade`.** A typo in `__manifest__.py` or a missing
-  `ref` in a view is a large share of failed installs in Odoo. Discovering it
-  by waiting for a container costs a minute to learn what a second would have
+- **`patch` against `rewrite`.** Both write files. The difference is entirely
+  in `context`: `patch` is handed the previous diff and changes what the
+  diagnosis named; `rewrite` is handed the old module instead and told the
+  last attempt was unsound. The human answer that says "this code is bad, do
+  it again" has a step to land in, and the canvas shows which one the
+  diagnosis chose.
+- **`lint` before `upgrade`.** A typo in `__manifest__.py` or a missing `ref`
+  in a view is a large share of failed installs in Odoo. Finding it by
+  waiting for a container costs a minute to learn what a second would have
   told us.
 
-Opening and closing sessions are not steps. The runner opens the source
-session once for the whole job and closes everything at the end; the agent
-reopens its own target session through a tool when it needs a fresh process.
-The picture still draws them as system nodes — they are simply not authored.
+**Opening and closing sessions are not steps.** The runner opens what a
+step's `sessions` declares and closes everything at the end of the job; an
+agent reopens its own target session through the `reopen` tool when the
+module's code has changed underneath it. The flow screen still draws them as
+system nodes — they are simply not authored, and a cartridge cannot forget
+them.
 
 ### Conditions are flags, not expressions
 
-`when:` takes the name of a flag from a closed list. No expression language:
-a non-programmer does not write `{{ $json.diagnosis.needs_human }}`, and —
-worse — does not read it.
+`when:` takes the name of a flag. No expression language: a non-programmer
+does not write `{{ $json.diagnosis.needs_human }}`, and — worse — does not
+read it.
+
+The vocabulary is **the built-in flags plus whatever this cartridge
+declares**. Built-in flags come from deterministic steps, which are the only
+steps whose outcomes the app itself interprets:
 
 | flag | raised by |
 |---|---|
 | `no_tests` | `tests` — the module declares no test classes |
 | `tests_failed` | `tests` |
 | `lint_failed` | `lint` |
-| `needs_human` | `diagnose` |
-| `reexamine_old` | `diagnose` |
-| `small_fix` | `diagnose` — a targeted change is enough |
-| `start_over` | `diagnose` — the port is unsound as written |
 
-`small_fix` and `start_over` are mutually exclusive by the same rule that
-makes them useful: the diagnosis picks one. A diagnosis that raises both is a
-refused result, not a step that runs twice.
+Everything else is a cartridge's own, declared in an agent step's `raises`
+and validated against the same file. `small_fix` and `start_over` are
+mutually exclusive by the rule that makes them useful: the diagnosis picks
+one. A `report` call raising both is a refused result, not two steps running.
 
 ### Validation
 
@@ -414,26 +522,61 @@ The file arrives through the UI and drives execution against live databases.
 Validation is a boundary, not a convenience. Every failure below is a refusal
 at load time with a message naming the alternatives, never a crash mid-run:
 
-1. Unknown step name.
-2. Unknown flag in `when`.
-3. A flag no step in this cartridge can raise — this catches the likeliest
-   error in such a file, a typo in a flag name, which would otherwise be a
-   step that silently never runs.
-4. `retry.resume_at` does not name a step in `pipeline`.
-5. A step name repeated within one pipeline (`resume_at` becomes ambiguous
-   and the canvas gets two nodes with one name).
-6. An agent step without a prompt; a deterministic step with one. The second
-   is a typo, and swallowing it lets someone believe they changed behaviour.
-7. Unknown `model.provider`, or a model name the provider does not serve.
-8. A `schema` this build does not implement.
+1. Unknown step kind (not one of the five deterministic ones or `agent`).
+2. An `agent` step without an `id`, or an `id` repeated anywhere in the
+   cartridge — `resume_at` would be ambiguous and the canvas would draw two
+   nodes with one name.
+3. A tool not in the code-defined catalog, or a tool a step's `sessions` do
+   not allow (`exec` on `[new]` when only `old` is declared).
+4. An unknown item in `context`.
+5. Unknown flag in `when` — where "known" means built-in or declared in some
+   step's `raises` **in this file**. This catches the likeliest error such a
+   file has, a typo in a flag name, which would otherwise be a step that
+   silently never runs.
+6. A flag declared in `raises` that no `when` ever reads. Dead branch logic,
+   and usually the other half of the same typo.
+7. `retry.resume_at` does not name a step in `pipeline`.
+8. An `agent` step without a prompt; a deterministic step with one. The
+   second is a typo, and swallowing it lets someone believe they changed
+   behaviour.
+9. Unknown `model.provider`, or a model name the provider does not serve —
+   at the cartridge level or on any step.
+10. More agent steps, or a larger declared budget, than the migration's
+    settings permit.
+11. A `schema` this build does not implement.
+
+### Model choice
+
+`model:` at the top of the cartridge is the model the cartridge was written
+for. This is not a detail: prompts are tuned against a model, and a cartridge
+whose prompts were written for one and run on another is a different product
+with the same file name.
+
+Precedence, most specific first:
+
+1. `model:` on an individual agent step, when present. Now that an agent step
+   is data, a cheaper model for `diagnose` than for `port` is one line, and
+   nothing in the runner has to learn about it.
+2. The migration card's override, when the operator set one for this run.
+3. The cartridge's own `model:`.
+
+So a client who wants everything on the expensive model sets it on the card;
+a cartridge author who knows `diagnose` does not need it says so in the file.
+Both are recorded on the job, because "which model produced this" is a
+question the first bad port will raise.
 
 ### What a cartridge does not carry
 
-`retry.limit`, `strictness`, tool-call ceilings and timeouts are migration
-settings, already on the card and in the database (`retry_limit`,
-`strictness_default`). The cartridge describes the *shape* of the flow; the
-migration card carries the *numbers* of one run. A cartridge may narrow a
-step's tools (`tools: [source]`); it may never widen them.
+`retry.limit`, `strictness`, the ceilings on tool calls, tokens and agent
+steps, and the command timeout are migration settings, already on the card
+and in the database (`retry_limit`, `strictness_default`). The cartridge
+describes the *shape* of the flow; the migration card carries the *limits* of
+one run.
+
+A cartridge may always **narrow** and never widen: `tools` are chosen from
+the catalog, a step's `budget` is honoured only when it is lower than the
+card's ceiling, and `sessions` restrict what a step can reach. This is the
+single rule that keeps an uploaded file from granting itself anything.
 
 ### Cartridge identity
 
@@ -456,7 +599,9 @@ migration, never silently.
 
 `model.provider` is validated against what this build implements. A second
 provider, when it is wanted, is a second thin client — not a provider
-abstraction written before there is a second provider.
+abstraction written before there is a second provider. Which model a given
+step runs on is settled by the precedence under "Model choice"; the client
+takes it as an argument and knows nothing about cartridges.
 
 ### Tools
 
@@ -698,14 +843,17 @@ then one command rather than archaeology.
    as it is; worth revisiting after real runs.
 2. **What a prompt is allowed to carry off the machine.** Named above under
    security; the policy is not written yet.
-3. **Per-step model choice.** The cartridge declares one model for the run. A
-   cheaper model for `diagnose` than for `port` is plausible and is not in
-   this design.
-4. **Assisted answers** are specified above but not scheduled. The first pass
+3. **Assisted answers** are specified above but not scheduled. The first pass
    builds the checkpoint thread that makes them additive later.
-5. **The step registry's granularity.** Twelve steps is the current cut.
-   `review` (the agent reading its own diff against the rules) and `report`
-   (a step that collects findings) were proposed and rejected: the first is
-   the model checking itself where `tests` and `probe` answer with facts, the
-   second is an empty node for something that accumulates anyway. Revisit
-   after the first real project.
+4. **How much a cartridge should be allowed to cost.** Agent steps are now
+   cheap to add and expensive to run, so the ceilings on the migration card
+   stop being a formality. What the defaults are is not decided.
+5. **A cartridge editor in the app.** Decided against for now: git is the
+   source, the UI imports. Revisit if clients start editing cartridges more
+   often than they start migrations.
+
+Two questions that earlier drafts left open are closed by the generic agent
+step and are recorded here so they are not reopened by habit: **per-step
+model choice** is one line in the file, and **the granularity of the step
+registry** is no longer a release decision, because the steps live in the
+cartridge.
