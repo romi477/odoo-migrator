@@ -165,8 +165,8 @@ def test_waiting_for_human_parks_the_batch_until_a_human_answers(client):
     assert client.app.state.executor.started == ["sale_custom"]
 
 
-def test_answering_stores_the_reply_and_leaves_the_job_parked(client):
-    """Nothing resumes a parked job yet. A reply must not pretend it is running."""
+def test_answering_stores_the_reply_and_resumes_the_job(client):
+    """A reply is the thread's human line, and the job is running again."""
     row, sale, stock = _park(client)
 
     answered = client.post(
@@ -182,8 +182,8 @@ def test_answering_stores_the_reply_and_leaves_the_job_parked(client):
         batch = Batch.select().where(Batch.migration == row.id).get()
         stock_row = Module.get_by_id(stock["id"])
     assert job.answer == ANSWER
-    assert job.status == "waiting_for_human"
-    assert module.status == "waiting_for_human"
+    assert job.status == "running"
+    assert module.status == "running"
     assert stock_row.status == "queued"
     assert batch.status == "running"
     assert client.app.state.executor.started == ["sale_custom"]

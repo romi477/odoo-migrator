@@ -27,6 +27,11 @@ class StepContext:
     client: object = None
     # The last run_test payload, so test_result can answer without a second call.
     last_test: dict | None = None
+    # Set by the native runner so a tool call lands on the step that made it.
+    step_run_id: int | None = None
+    record_tool: Callable | None = None
+    # When set, ask_human parks, waits, and returns the human's answer.
+    wait_for_human: Callable | None = None
 
 
 @dataclass

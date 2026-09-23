@@ -1,4 +1,8 @@
-"""Park the job. The loop stops; nothing here resumes it."""
+"""Park the job until a human answers.
+
+Without a waiter the loop stops and the job stays parked. The native runner
+installs a waiter that blocks this step and then lets the loop continue.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +19,11 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             "question": question,
         }
     )
+    waiter = getattr(ctx, "wait_for_human", None)
+    if callable(waiter):
+        answer = waiter(question)
+
+        return StepResult(ok=True, answer=answer or "", output=question)
 
     return StepResult(
         ok=False,

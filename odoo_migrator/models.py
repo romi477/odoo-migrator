@@ -185,6 +185,44 @@ class Assumption(BaseModel):
     assumption = TextField()
 
 
+class StepRun(BaseModel):
+    """One step of one attempt. The trace hangs off this, not off the job."""
+
+    job = ForeignKeyField(Job, backref="step_runs")
+    attempt = IntegerField(default=1)
+    step_id = CharField(default="")
+    kind = CharField(default="")
+    started_at = DateTimeField(default=_now)
+    finished_at = DateTimeField(null=True)
+    ok = BooleanField(null=True)
+    flags = TextField(default="")
+    tokens_in = IntegerField(default=0)
+    tokens_out = IntegerField(default=0)
+    cost_cents = IntegerField(default=0)
+
+
+class ToolCall(BaseModel):
+    """A skeleton row. The body stays in Sheller's journal until someone opens it."""
+
+    step_run = ForeignKeyField(StepRun, backref="tool_calls")
+    tool = CharField()
+    side = CharField(default="")
+    session_id = CharField(default="")
+    command_id = CharField(default="")
+    duration_ms = IntegerField(default=0)
+    ok = BooleanField(default=True)
+    preview = TextField(default="")
+
+
+class CheckpointMessage(BaseModel):
+    """One line of the checkpoint thread. author is ``agent`` or ``human``."""
+
+    job = ForeignKeyField(Job, backref="messages")
+    author = CharField()
+    text = TextField()
+    created_at = DateTimeField(default=_now)
+
+
 class PipelineQueueState(BaseModel):
     migration = ForeignKeyField(Migration, backref="pipeline_queue_state", unique=True)
     run_state = CharField(default="stopped")
@@ -212,4 +250,7 @@ ALL_MODELS = [
     Assumption,
     PipelineQueueState,
     PipelineQueueItem,
+    StepRun,
+    ToolCall,
+    CheckpointMessage,
 ]

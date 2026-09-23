@@ -65,6 +65,7 @@ class FakeShellerClient:
         self.graph_modules = [dict(row) for row in DEFAULT_GRAPH]
         self.opens: list[dict] = []
         self.execs: list[str] = []
+        self._next_command = 0
         self.closes: list[str] = []
         self.commits: list[str] = []
         self.exec_error: Exception | None = None
@@ -156,13 +157,17 @@ class FakeShellerClient:
         if self.exec_error is not None:
             raise self.exec_error
         self.execs.append(code)
-        session["commands"].append({"kind": "exec", "code": code, "status": "done"})
+        self._next_command += 1
+        command_id = self._next_command
+        session["commands"].append(
+            {"kind": "exec", "id": command_id, "code": code, "status": "done"}
+        )
         if "ir.module.module" in code:
             payload = json.dumps(self.graph_modules)
 
-            return {"ok": True, "result": repr(payload), "error": None}
+            return {"ok": True, "id": command_id, "result": repr(payload), "error": None}
 
-        return {"ok": True, "result": "None", "code": code, "error": None}
+        return {"ok": True, "id": command_id, "result": "None", "code": code, "error": None}
 
     def run_test(
         self,

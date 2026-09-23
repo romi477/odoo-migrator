@@ -25,6 +25,13 @@ STAGES = (
     "reprobe",
     "waiting_for_human",
     "cleanup",
+    "port",
+    "lint",
+    "probe",
+    "write_test",
+    "patch",
+    "rewrite",
+    "ask_human",
 )
 # What a cartridge is allowed to end a job with. The app's own statuses —
 # queued, running, unknown — are not in here: a cartridge does not get to

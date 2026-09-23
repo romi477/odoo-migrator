@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import queue
 import time
 from contextlib import asynccontextmanager
@@ -125,6 +126,16 @@ def app_version() -> str:
         return "unknown"
 
 
+def _choose_executor(*, sheller, hub, progress, result):
+    """Stub by default. ``ODOO_MIGRATOR_RUNNER=native`` runs the in-process loop."""
+    if os.environ.get("ODOO_MIGRATOR_RUNNER") == "native":
+        from odoo_migrator.runner.native import NativeRunner
+
+        return NativeRunner(sheller=sheller, hub=hub, progress=progress, result=result)
+
+    return StubExecutor(progress=progress, result=result)
+
+
 def create_app(
     db_path: Path | str | None = None,
     *,
@@ -179,7 +190,12 @@ def create_app(
     app.state.on_progress = _on_progress
     app.state.on_result = _on_result
     if executor is None:
-        executor = StubExecutor(progress=_on_progress, result=_on_result)
+        executor = _choose_executor(
+            sheller=app.state.sheller,
+            hub=app.state.hub,
+            progress=_on_progress,
+            result=_on_result,
+        )
     app.state.executor = executor
     app.state.rules_dir = Path(rules_dir) if rules_dir is not None else default_rules_dir()
     reconcile_jobs()

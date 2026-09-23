@@ -777,7 +777,7 @@ git add -A && git commit -m "feat: the cartridge's agent steps run"
   - SSE events named `step_started`, `step_finished`, `tool_called`,
     `attempt_started`, `job_finished`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_a_run_records_the_session_of_every_tool_call(client, native_job):
@@ -809,25 +809,25 @@ def test_the_thread_never_shares_a_connection(native_job):
     assert not database.is_closed() is False  # main thread untouched
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `uv run pytest tests/test_native_runner.py -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `NativeRunner.start` spawns one thread per job. Inside it, every database
 operation opens its own `connection_context()`. Progress reaches the app
 through the same `apply_progress` / `apply_result` functions, called
 directly. The schema change is a `playhouse.migrate` step.
 
-- [ ] **Step 4: Make the parked answer a thread**
+- [x] **Step 4: Make the parked answer a thread**
 
 `Job.answer` (a string) becomes `CheckpointMessage` rows — author
 (`agent` | `human`), text, created_at. The checkpoint screen renders the
 thread. Only one human message is written for now; the shape is what matters.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 uv run pytest && uv run ruff check

@@ -25,6 +25,7 @@ from odoo_migrator.models import (
     Assumption,
     Attempt,
     Batch,
+    CheckpointMessage,
     Finding,
     Job,
     Migration,
@@ -570,11 +571,9 @@ def save_notes(module_id: int, notes: str) -> None:
 
 
 def answer_job(*, module_id: int, answer: str, hub: EventHub) -> Job:
-    """Store the answer and leave the job parked.
+    """Append the human's reply and let the parked runner continue."""
+    from odoo_migrator.runner.native import resume_waiter
 
-    Nothing resumes it yet. The runner that reads the answer arrives later,
-    so a reply must not pretend the job is running again.
-    """
     text = (answer or "").strip()
     if not text:
         raise ContractError("Write an answer.")
@@ -588,7 +587,15 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub) -> Job:
         if job is None:
             raise ContractError("That module is not waiting for an answer.")
         job.answer = text
+        job.status = "running"
         job.save()
+        module = job.module
+        module.status = "running"
+        module.save()
+        CheckpointMessage.create(job=job, author="human", text=text)
+        job_id = job.job_id
+        _emit(hub, job, module)
+    resume_waiter(job_id, text)
 
     return job
 

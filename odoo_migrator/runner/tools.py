@@ -10,6 +10,7 @@ from the migration row, which is what confines the agent to two of them.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from odoo_migrator.sheller.errors import ShellerError
@@ -86,14 +87,46 @@ def _bind(name: str, step, ctx):
         if not isinstance(side, str):
             raise ToolRefused(f"{name} requires side")
         _require_side(step, name, side)
+        started = time.perf_counter()
         try:
-            return _text(_dispatch(name, ctx, side, kwargs))
+            value = _dispatch(name, ctx, side, kwargs)
         except ToolRefused:
             raise
         except (ShellerError, OSError) as exc:
+            _record(ctx, name, side, "", _elapsed(started), False, str(exc))
+
             return f"error: {exc}"
+        command_id = ""
+        if isinstance(value, dict) and value.get("id") is not None:
+            command_id = str(value["id"])
+        text = _text(value)
+        _record(ctx, name, side, command_id, _elapsed(started), True, text)
+
+        return text
 
     return call
+
+
+def _elapsed(started: float) -> int:
+
+    return max(0, int((time.perf_counter() - started) * 1000))
+
+
+def _record(ctx, name: str, side: str, command_id: str, duration_ms: int, ok: bool, preview: str):
+    recorder = getattr(ctx, "record_tool", None)
+    if not callable(recorder):
+
+        return
+    session_id = ctx.sessions.get(side, "")
+    recorder(
+        name,
+        side,
+        session_id,
+        command_id,
+        duration_ms,
+        ok,
+        preview[:120],
+    )
 
 
 def _require_side(step, name: str, side: str) -> None:
