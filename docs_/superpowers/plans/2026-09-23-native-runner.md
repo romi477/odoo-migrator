@@ -536,7 +536,7 @@ git add -A && git commit -m "feat: lint, upgrade, tests, verdict and ask_human a
   - `def run_job(cartridge: Cartridge, ctx: StepContext, *, retry_limit: int)
     -> str` returning `"passed" | "failed" | "waiting_for_human"`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_a_gated_step_is_skipped_when_its_flag_is_not_raised(loop_ctx):
@@ -567,12 +567,12 @@ def test_a_parked_job_stops_the_loop_without_spending_an_attempt(loop_ctx):
     assert ran.count("diagnose") == 1
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `uv run pytest tests/test_runner_loop.py -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the loop**
+- [x] **Step 3: Implement the loop**
 
 Walk `pipeline` in order, skipping a step whose `when` flag is not set. On a
 failing result, walk `on_failure.pipeline` the same way, then return to
@@ -581,7 +581,7 @@ step ends the loop immediately and leaves the job for Task 8 to resume.
 Flags live for one lap and are cleared when an attempt starts, except that
 `ask_human` parking does not clear anything.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 uv run pytest && uv run ruff check
