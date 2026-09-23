@@ -45,6 +45,7 @@ from odoo_migrator.jobs import (
     apply_result,
     attention_target,
     batch_is_checkpoint,
+    checkpoint_thread,
     continue_batch,
     dismiss_job,
     lamp_state,
@@ -710,12 +711,13 @@ def create_app(
     def result_page(request: Request):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         board = migration_results(current["id"]) if current else None
+        thread = checkpoint_thread(current["id"]) if current else []
 
         return _page(
             request,
             "result.html",
             "result",
-            {"board": board},
+            {"board": board, "thread": thread},
         )
 
     def _browsable(value: str, suffix: str = "") -> str:
@@ -735,10 +737,25 @@ def create_app(
 
         return base + suffix
 
+    def _ribbon(current: dict) -> list[str]:
+        from odoo_migrator.cartridges import pinned_for
+        from odoo_migrator.models import Migration
+
+        with database.connection_context():
+            migration = Migration.get_or_none(Migration.id == current["id"])
+        if migration is None:
+
+            return []
+        cartridge = pinned_for(migration)
+
+        return [step.id or step.kind for step in cartridge.pipeline]
+
     def _run_page(request: Request, error: str | None = None, screen: str = "pipeline"):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
+        ribbon = _ribbon(current) if current and live else []
+        thread = checkpoint_thread(current["id"]) if current else []
         settings = get_app_settings()
         versions = []
         pipeline_steps = []
@@ -760,6 +777,8 @@ def create_app(
                 "screen": screen,
                 "checkpoint": checkpoint,
                 "live": live,
+                "ribbon": ribbon,
+                "thread": thread,
                 "pipeline_steps": pipeline_steps,
                 "pipeline_queue": pipeline_queue,
                 "sheller_web_url": _browsable(settings["sheller_base_url"], "/web"),

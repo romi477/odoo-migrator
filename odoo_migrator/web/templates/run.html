@@ -173,6 +173,20 @@
           <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
         </header>
         <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
+        {% if ribbon %}
+        <ol class="ribbon" data-ribbon>
+          {% for step_id in ribbon %}
+          <li class="ribbon-node{% if step_id == live.stage %} is-active{% endif %}">{{ step_id }}</li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        {% if thread %}
+        <ol class="checkpoint-thread">
+          {% for message in thread %}
+          <li class="{{ message.author }}">{{ message.text }}</li>
+          {% endfor %}
+        </ol>
+        {% endif %}
       </div>
       <p data-pipeline-empty{% if live %} hidden{% endif %}>No module is running.</p>
     </article>

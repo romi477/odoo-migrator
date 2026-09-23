@@ -1,5 +1,19 @@
 /* Pipeline queue: compact next row, expandable full list, SSE updates. */
 (function () {
+  function markRibbon() {
+    const stage = document.querySelector("[data-stage]");
+    const ribbon = document.querySelector("[data-ribbon]");
+    if (!stage || !ribbon) {
+      return;
+    }
+    const label = (stage.textContent || "").split("·")[0].trim();
+    ribbon.querySelectorAll(".ribbon-node").forEach(function (node) {
+      node.classList.toggle("is-active", node.textContent.trim() === label);
+    });
+  }
+
+  markRibbon();
+
   const panel = document.querySelector("[data-pipeline-queue-panel]");
   if (!panel) {
     return;

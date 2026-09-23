@@ -1,5 +1,8 @@
 """End-of-batch review, continue/override, promote a finding. Task 12."""
 
+from types import SimpleNamespace
+
+import pytest
 from test_batch import _group, _named, _prepared
 from test_tree import _open
 
@@ -47,6 +50,25 @@ def _failed_checkpoint(client):
     client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
 
     return row, sale
+
+
+@pytest.fixture
+def parked_job(client):
+    question = "Which override do we drop?"
+    _row, sale = _prepared(client)
+    client.app.state.executor = ReviewExecutor(
+        client.app, status="waiting_for_human", question=question
+    )
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+
+    return SimpleNamespace(question=question)
+
+
+def test_a_checkpoint_shows_the_thread(client, parked_job):
+    page = client.get("/run").text
+
+    assert "checkpoint-thread" in page
+    assert parked_job.question in page
 
 
 def test_the_run_page_shows_the_checkpoint(client):

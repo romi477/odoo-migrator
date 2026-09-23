@@ -966,7 +966,7 @@ git commit -m "feat: the live trace, with bodies fetched from Sheller's journal"
   `components.html`
 - Test: `tests/test_run_workspace.py`, `tests/test_checkpoint.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_the_pipeline_live_panel_is_a_ribbon_of_the_cartridge(client, live_job):
@@ -983,7 +983,7 @@ def test_a_checkpoint_shows_the_thread(client, parked_job):
     assert parked_job.question in page
 ```
 
-- [ ] **Steps 2–5:** fail, implement, pass, add the `/components` rows,
+- [x] **Steps 2–5:** fail, implement, pass, add the `/components` rows,
   commit.
 
 ```bash

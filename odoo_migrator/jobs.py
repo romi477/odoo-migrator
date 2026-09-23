@@ -623,6 +623,38 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub) -> Job:
     return job
 
 
+def checkpoint_thread(migration_id: str) -> list[dict]:
+    """The human and the agent, in order. A parked question counts even
+    before its row is written."""
+    with database.connection_context():
+        rows = (
+            CheckpointMessage.select()
+            .join(Job)
+            .join(Module)
+            .where(Module.migration == migration_id)
+            .order_by(CheckpointMessage.id)
+        )
+        messages = [{"author": row.author, "text": row.text} for row in rows]
+        waiting = (
+            Job.select()
+            .join(Module)
+            .where(
+                (Module.migration == migration_id)
+                & (Job.status == "waiting_for_human")
+                & (Job.question.is_null(False))
+                & (Job.question != "")
+            )
+            .order_by(Job.id.desc())
+            .first()
+        )
+        if waiting is not None and not any(
+            item["text"] == waiting.question for item in messages
+        ):
+            messages.append({"author": "agent", "text": waiting.question})
+
+        return messages
+
+
 def live_run(migration_id: str) -> dict | None:
     """The in-flight job the run workspace should show, if any."""
     with database.connection_context():
@@ -644,6 +676,7 @@ def live_run(migration_id: str) -> dict | None:
             "stage": job.current_stage or "",
             "attempt": job.attempt,
             "session_id": job.current_session_id or "",
+            "question": job.question or "",
         }
 
 

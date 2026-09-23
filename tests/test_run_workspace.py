@@ -1,5 +1,6 @@
 """Pipeline and Sheller are separate full-width screens. Task 13."""
 
+import pytest
 from test_batch import _prepared
 from test_checkpoint import DIFF, FINDING, _failed_checkpoint
 from test_hitl import QUESTION, RESUME_URL
@@ -105,6 +106,23 @@ def test_sheller_iframe_is_observer_web_without_a_write_key_or_session_query(cli
     assert "write_key" not in page.text
     assert "session=" not in tag
     assert "X-OS-Session-Key" not in page.text
+
+
+@pytest.fixture
+def live_job(client):
+    _row, sale = _prepared(client)
+    client.app.state.executor = ProgressingExecutor(client.app)
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+
+    return sale
+
+
+def test_the_pipeline_live_panel_is_a_ribbon_of_the_cartridge(client, live_job):
+    del live_job
+    page = client.get("/run").text
+
+    assert "data-ribbon" in page
+    assert page.count('class="ribbon-node') >= 7
 
 
 def test_pipeline_shows_live_stage_and_attempt(client):
