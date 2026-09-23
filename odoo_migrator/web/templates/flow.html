@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}odoo-migrator — flow{% endblock %}
+{% block extra_head %}
+<script src="/static/vendor/cytoscape.min.js"></script>
+<script defer src="/static/flow.js"></script>
+{% endblock %}
+{% block screen %}
+<section class="screen">
+  <header class="screen-head">
+    <div>
+      <h1>Flow</h1>
+      <p>The pinned cartridge. <span class="mono">{{ flow_name }}</span> {{ flow_version }}</p>
+    </div>
+  </header>
+  <div id="flow-canvas" class="flow-canvas" data-migration="{{ flow_migration_id }}"></div>
+  {% if flow_embedded %}
+  <script type="application/json" id="flow-graph">{{ flow_embedded | tojson }}</script>
+  {% endif %}
+</section>
+{% endblock %}

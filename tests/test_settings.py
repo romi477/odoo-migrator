@@ -25,14 +25,17 @@ def test_no_route_requires_a_machine_key(client):
     """The File API and the Sheller proxy were the only authenticated routes.
 
     They existed because a remote executor ran in a container and could not
-    reach a daemon that publishes to loopback. Nothing machine-facing is left.
+    reach a daemon that publishes to loopback. /api/flow is the page's own
+    graph, not a machine key.
     """
     paths = [route.path for route in client.app.routes]
 
     assert not [p for p in paths if p.startswith("/api/files")]
     assert not [p for p in paths if p.startswith("/api/sheller")]
     assert not [p for p in paths if "webhook" in p or "resume" in p]
-    assert not [p for p in paths if p.startswith("/api/")]
+    assert not [
+        p for p in paths if p.startswith("/api/") and not p.startswith("/api/flow")
+    ]
 
 
 def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client):

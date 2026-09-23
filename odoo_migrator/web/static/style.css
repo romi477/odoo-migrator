@@ -2531,3 +2531,28 @@ pre.test-output {
   margin: 0;
   color: var(--text);
 }
+
+.flow-canvas {
+  height: 70vh;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.flow-node {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #c4552a;
+  color: #1c140f;
+  font-size: 12px;
+}
+
+.flow-edge {
+  color: var(--text-dim, #8a7568);
+  font-size: 12px;
+}
+
+.flow-edge.retry {
+  color: #c4552a;
+}

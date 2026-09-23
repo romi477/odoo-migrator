@@ -892,7 +892,7 @@ git commit -m "feat: import, pin and smoke-run a YAML cartridge"
 - Produces: `GET /flow` and `GET /api/flow/{migration_id}/graph` returning
   `{nodes: [{id, kind, lane, gated_on}], edges: [{from, to, kind}]}`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_the_graph_is_derived_from_the_cartridge_not_stored(client, migration):
@@ -909,7 +909,7 @@ def test_flow_draws_the_pinned_cartridge_with_nothing_running(client, migration)
     assert "stock" in page and "1.0.0" in page
 ```
 
-- [ ] **Steps 2–5:** fail, implement with Cytoscape and a computed preset
+- [x] **Steps 2–5:** fail, implement with Cytoscape and a computed preset
   layout, pass, add the `/components` row, commit.
 
 ```bash

@@ -1213,6 +1213,48 @@ def create_app(
             headers={**NO_STORE, "X-Accel-Buffering": "no"},
         )
 
+    @app.get("/flow")
+    def flow(request: Request):
+        from odoo_migrator.paths import repo_dir
+        from odoo_migrator.runner.cartridge import load_cartridge_file
+        from odoo_migrator.runner.flow import flow_graph
+
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        name = current["cartridge_id"] if current else "stock"
+        version = current["cartridge_version"] if current else "1.0.0"
+        migration_id = current["id"] if current else ""
+        embedded = None
+        if not migration_id:
+            embedded = flow_graph(
+                load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
+            )
+
+        return _page(
+            request,
+            "flow.html",
+            "flow",
+            {
+                "flow_name": name,
+                "flow_version": version,
+                "flow_migration_id": migration_id,
+                "flow_embedded": embedded,
+            },
+        )
+
+    @app.get("/api/flow/{migration_id}/graph")
+    def flow_graph_route(migration_id: str):
+        from odoo_migrator.models import Migration
+        from odoo_migrator.runner.flow import flow_graph
+
+        with database.connection_context():
+            row = Migration.get_or_none(Migration.id == migration_id)
+        if row is None:
+
+            return JSONResponse({"error": "unknown migration"}, status_code=404)
+        from odoo_migrator.cartridges import pinned_for
+
+        return JSONResponse(flow_graph(pinned_for(row)))
+
     @app.get("/styleguide")
     def styleguide(request: Request):
 
