@@ -8,6 +8,7 @@ from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.sheller.errors import ShellerError
 
+
 def project_addons_roots(project_path: str) -> list[str]:
     """Directories on the host where this migration's custom addons live."""
     if not project_path.strip():

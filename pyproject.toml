@@ -38,6 +38,7 @@ include = ["odoo_migrator*"]
 
 [tool.setuptools.package-data]
 odoo_migrator = ["web/**/*"]
+cartridges = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

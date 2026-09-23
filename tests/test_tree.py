@@ -132,7 +132,7 @@ def test_resolve_when_source_is_down_points_to_the_card(client, tmp_path):
 
 def test_strike_json_skips_downstream_modules(client):
     """Exclude on the API side is skip_subtree: dependents go out too."""
-    migration_id, modules = _resolved(client)
+    _migration_id, modules = _resolved(client)
     base = modules["sale_custom"]
     stock = modules["stock_custom"]
     response = client.post(
@@ -150,7 +150,7 @@ def test_strike_json_skips_downstream_modules(client):
 
 
 def test_restore_json_brings_ancestors_before_dependents(client):
-    migration_id, modules = _resolved(client)
+    _migration_id, modules = _resolved(client)
     partner = modules["sale_custom"]
     stock = modules["stock_custom"]
     client.post(

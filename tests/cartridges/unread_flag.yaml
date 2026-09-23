@@ -1,0 +1,30 @@
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: port
+    sessions: [new]
+    tools: [write_file]
+    context: [rules]
+    prompt: write it
+  - step: verdict
+on_failure:
+  pipeline:
+    - step: agent
+      id: diagnose
+      sessions: [new]
+      tools: [exec]
+      context: [last_failure]
+      raises: [small_fix, start_over]
+      prompt: why
+    - step: agent
+      id: patch
+      when: small_fix
+      sessions: [new]
+      tools: [write_file]
+      context: [previous_diff]
+      prompt: fix it
+  retry:
+    resume_at: verdict

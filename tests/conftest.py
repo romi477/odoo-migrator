@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -32,3 +34,14 @@ def app(tmp_path, compose, fake_sheller):
 def client(app):
 
     return TestClient(app)
+
+
+@pytest.fixture
+def cartridge_text():
+    root = Path(__file__).parent / "cartridges"
+
+    def read(name: str) -> str:
+
+        return (root / f"{name}.yaml").read_text(encoding="utf-8")
+
+    return read

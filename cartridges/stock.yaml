@@ -1,0 +1,114 @@
+cartridge: stock
+version: 1.0.0
+schema: 1
+
+model:
+  provider: anthropic
+  name: claude-opus-5
+
+pipeline:
+  - step: agent
+    id: understand
+    sessions: [old]
+    tools: [exec, source, run_test, list_tests, journal, read_file]
+    context: [module_source]
+    prompt: |
+      You are reading a module on the old Odoo version. A live session is
+      open: do not guess from source alone — call methods and look at what
+      comes back. Describe current behaviour, what the module overrides,
+      and what will break on the target version.
+
+      Then build the smallest set of records this module needs in order to
+      do anything, and prove the recipe works here: create them, call the
+      methods, check they respond, roll back. The recipe travels with your
+      answer — the port will be judged by replaying it on both versions.
+
+  - step: agent
+    id: port
+    sessions: [old, new]
+    tools: [exec, source, read_file, write_file]
+    context: [rules, module_source, prior_answers]
+    prompt: |
+      Port the module to the target version. Write files into the new
+      project. The old container's session stays open — use it whenever
+      you need to check what the original actually does.
+
+  - step: lint
+  - step: upgrade
+  - step: tests
+
+  - step: agent
+    id: probe
+    when: no_tests
+    sessions: [old, new]
+    tools: [exec, source, reopen, rollback]
+    context: [prior_answers]
+    prompt: |
+      This module ships no tests. Replay the fixture recipe from the
+      understand step on both sides, call the same methods on each, and
+      report every difference. A recipe that will not replay on the new
+      version is a failure worth reporting on its own.
+
+  - step: agent
+    id: write_test
+    when: no_tests
+    sessions: [new]
+    tools: [exec, run_test, read_file, write_file, reopen]
+    context: [prior_answers]
+    prompt: |
+      Turn the recipe you just replayed into a real test in the ported
+      module, asserting what the old version actually did. Run it before
+      you finish.
+
+  - step: verdict
+
+on_failure:
+  pipeline:
+    - step: agent
+      id: diagnose
+      sessions: [new]
+      tools: [exec, source, journal, history, read_file]
+      context: [previous_diff, last_failure, prior_answers]
+      raises: [needs_human, reexamine_old, small_fix, start_over]
+      prompt: |
+        Work out why it failed. Logs, the journal, source and a live
+        session are all available. Decide whether a targeted fix is
+        enough or the port should be started over, whether you need to
+        look at the old version again, and whether this needs a human.
+
+    - step: ask_human
+      when: needs_human
+
+    - step: agent
+      id: reprobe
+      when: reexamine_old
+      sessions: [old]
+      tools: [exec, source, read_file]
+      context: [prior_answers, last_failure]
+      prompt: |
+        Go back to the old version with the specific question the
+        diagnosis raised.
+
+    - step: agent
+      id: patch
+      when: small_fix
+      sessions: [new]
+      tools: [exec, source, read_file, write_file, reopen]
+      context: [rules, previous_diff, last_failure, prior_answers]
+      prompt: |
+        Apply the fix the diagnosis named. You have the previous diff —
+        change what is wrong, leave the rest alone.
+
+    - step: agent
+      id: rewrite
+      when: start_over
+      sessions: [old, new]
+      tools: [exec, source, read_file, write_file, reopen]
+      context: [rules, module_source, prior_answers]
+      prompt: |
+        The previous port was judged unsound, for the reason in the
+        diagnosis. Write the module again from the old version. You are
+        not given the previous attempt; do not reconstruct it.
+
+  retry:
+    resume_at: lint

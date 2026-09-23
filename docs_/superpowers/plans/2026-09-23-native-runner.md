@@ -188,7 +188,7 @@ git commit -m "refactor: remove the n8n transport and the surface it needed"
   - `CONTEXT_ITEMS = ("rules", "module_source", "prior_answers",
     "previous_diff", "last_failure")`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_cartridge.py`:
 
@@ -290,7 +290,7 @@ def cartridge_text():
     return read
 ```
 
-- [ ] **Step 2: Write the thirteen broken fixtures**
+- [x] **Step 2: Write the thirteen broken fixtures**
 
 One file per row of the parametrize list, each a copy of `MINIMAL` with
 exactly one thing wrong. For example `tests/cartridges/unread_flag.yaml`
@@ -299,12 +299,12 @@ reads `start_over`; `tests/cartridges/tool_without_session.yaml` gives a step
 `sessions: [new]` and `tools: [exec]` with `exec` aimed at `old`. Keep each
 file minimal — a reviewer should see the defect by reading the file alone.
 
-- [ ] **Step 3: Run the tests and watch them fail**
+- [x] **Step 3: Run the tests and watch them fail**
 
 Run: `uv run pytest tests/test_cartridge.py -v`
 Expected: FAIL — `odoo_migrator.runner.cartridge` does not exist.
 
-- [ ] **Step 4: Implement the loader**
+- [x] **Step 4: Implement the loader**
 
 `odoo_migrator/runner/cartridge.py` validates with Pydantic and then runs the
 cross-field rules that Pydantic cannot express: the flag vocabulary is
@@ -334,17 +334,17 @@ TOOL_SIDES = {
 `sha256` is the digest of the file text as given, before parsing — the
 identity of what the human uploaded, not of what Pydantic made of it.
 
-- [ ] **Step 5: Run the tests and watch them pass**
+- [x] **Step 5: Run the tests and watch them pass**
 
 Run: `uv run pytest tests/test_cartridge.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Write `cartridges/stock.yaml`**
+- [x] **Step 6: Write `cartridges/stock.yaml`**
 
 Copy it verbatim from the spec's "The stock cartridge" section. Do not
 reword the prompts: the spec is where they are reviewed.
 
-- [ ] **Step 7: Test that the shipped cartridge loads**
+- [x] **Step 7: Test that the shipped cartridge loads**
 
 ```python
 def test_the_shipped_stock_cartridge_loads():
@@ -358,7 +358,7 @@ def test_the_shipped_stock_cartridge_loads():
     assert loaded.on_failure.retry.resume_at == "lint"
 ```
 
-- [ ] **Step 8: Run the suite and commit**
+- [x] **Step 8: Run the suite and commit**
 
 ```bash
 uv run pytest && uv run ruff check

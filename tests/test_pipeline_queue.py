@@ -1,11 +1,10 @@
 """Pipeline queue: add steps, dedupe, run/stop."""
 
 from test_batch import _prepared
-from test_tree import _open
 
 from odoo_migrator.db import database
 from odoo_migrator.models import PipelineQueueItem
-from odoo_migrator.pipeline_queue import add_step, queue_snapshot, run_state
+from odoo_migrator.pipeline_queue import queue_snapshot, run_state
 
 
 def test_queue_add_json_avoids_redirect(client):
