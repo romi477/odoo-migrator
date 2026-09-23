@@ -31,7 +31,6 @@ from odoo_migrator.models import (
     Module,
 )
 from odoo_migrator.rules import RulesError, append_finding
-from odoo_migrator.settings import get_app_settings
 
 # What a restart reconciles. A job parked on waiting_for_human is not a
 # casualty of the restart — the human still owes it an answer — so it is
@@ -149,7 +148,6 @@ def start_job(
     batch_id: int | None = None,
     smoke: bool = False,
 ) -> Job:
-    settings = get_app_settings()
     with database.connection_context():
         module_row = Module.get_or_none(
             (Module.id == module_id) & (Module.migration == migration_id)
@@ -187,12 +185,10 @@ def start_job(
         ).exists():
             raise ContractError("Review the last batch before starting another.")
     job_id = str(uuid.uuid4())
-    # Build first so a loopback app_base_url never leaves a queued row behind.
     payload = build_trigger(
         migration_id=migration_id,
         job_id=job_id,
         module_id=module_id,
-        app_base_url=settings["app_base_url"],
     )
     with database.connection_context():
         migration = Migration.get_by_id(migration_id)
@@ -248,7 +244,7 @@ def start_job(
         # This used to leave a job and a module stuck on "running" and a
         # batch stuck on "running" with it: Migrate then answered "already
         # being migrated", a new batch answered "already running", and only
-        # a restart cleared it. With n8n down it was a 500 and a traceback.
+        # a restart cleared it. A refused start was a 500 and a traceback.
         _undo_start(job_id, module_id, was, batch_id if owns_batch else None, hub)
         raise ContractError(f"The executor did not take the job: {refused}") from refused
 
@@ -573,8 +569,12 @@ def save_notes(module_id: int, notes: str) -> None:
         module.save()
 
 
-def answer_job(*, module_id: int, answer: str, resume, hub: EventHub) -> Job:
-    """POST the spike body to the Wait URL, then mark the job running again."""
+def answer_job(*, module_id: int, answer: str, hub: EventHub) -> Job:
+    """Store the answer and leave the job parked.
+
+    Nothing resumes it yet. The runner that reads the answer arrives later,
+    so a reply must not pretend the job is running again.
+    """
     text = (answer or "").strip()
     if not text:
         raise ContractError("Write an answer.")
@@ -587,29 +587,8 @@ def answer_job(*, module_id: int, answer: str, resume, hub: EventHub) -> Job:
         )
         if job is None:
             raise ContractError("That module is not waiting for an answer.")
-        url = job.resume_webhook_url
-        if not url:
-            raise ContractError("This job has no resume URL.")
-        job_id = job.job_id
-    # The POST is the resume. Holding the SQLite connection across it
-    # would pin a writer for however long n8n takes to answer.
-    resume.resume(url, text)
-    with database.connection_context():
-        job = Job.get(Job.job_id == job_id)
-        if job.status != "waiting_for_human":
-            # n8n resumed, ran to the end and posted its result before the
-            # resume call returned. Writing "running" over that put a
-            # finished module back in flight, on a batch that had already
-            # closed, so nothing would ever move it again.
-
-            return job
-        job.status = "running"
         job.answer = text
         job.save()
-        module = job.module
-        module.status = "running"
-        module.save()
-        _emit(hub, job, module)
 
     return job
 
@@ -765,7 +744,7 @@ def promote_finding(
             )
         # The finding belongs to a job on this machine; the file write is
         # the promotion. Holding the SQLite connection across it is the
-        # same mistake answer_job used to make with n8n.
+        # same mistake a long write used to make while a callback was in flight.
         text = finding.text
         came_from = finding.job.module.technical_name
         job_ref = finding.job.job_id

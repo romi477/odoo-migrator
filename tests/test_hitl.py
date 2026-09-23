@@ -3,20 +3,17 @@
 from test_batch import _group, _named, _prepared
 
 from odoo_migrator.db import database
-from odoo_migrator.executor import StubExecutor
+from odoo_migrator.executor import STUB_RESUME_URL, StubExecutor
 from odoo_migrator.jobs import reconcile_jobs
 from odoo_migrator.models import Assumption, Batch, Job, Module
 
-RESUME_URL = (
-    "http://n8n.example:5678/webhook-waiting/1"
-    "?signature=6afb719692c2466a203a511d362157e8f963b46c99332b42d3fa5b03c4aa57e4"
-)
+RESUME_URL = STUB_RESUME_URL
 QUESTION = "which tax mapping?"
 ANSWER = "use the new tax mapping"
 
 
 class RecordingResume:
-    """The suite does not POST at n8n. A real resume is that POST."""
+    """Kept so a test can show that answering no longer posts anywhere."""
 
     def __init__(self):
         self.calls = []
@@ -41,7 +38,7 @@ class CaptureExecutor:
 
 
 class AskingExecutor:
-    """Parks the first start with a question, the way n8n's Wait node does.
+    """Parks the first start with a question, the way a waiting step does.
 
     Later starts (the rest of the batch) pass. Continuations of the parked
     job are the app's own callback, not a second ``start``.
@@ -114,24 +111,18 @@ def test_saved_notes_are_injected_as_module_notes(client):
 
 
 def test_notes_survive_a_restart(tmp_path, compose, fake_sheller):
-    from conftest import API_KEY
     from fastapi.testclient import TestClient
 
     from odoo_migrator.api import create_app
-    from odoo_migrator.authkey import API_KEY_HEADER
 
     db = tmp_path / "notes.sqlite"
-    first = create_app(
-        db, compose=compose, sheller=fake_sheller, api_key=API_KEY
-    )
-    client = TestClient(first, headers={API_KEY_HEADER: API_KEY})
+    first = create_app(db, compose=compose, sheller=fake_sheller)
+    client = TestClient(first)
     _row, sale = _prepared(client)
     client.post(f"/tree/modules/{sale['id']}/notes", data={"notes": ANSWER})
 
-    second = create_app(
-        db, compose=compose, sheller=fake_sheller, api_key=API_KEY
-    )
-    again = TestClient(second, headers={API_KEY_HEADER: API_KEY})
+    second = create_app(db, compose=compose, sheller=fake_sheller)
+    again = TestClient(second)
     again.post(f"/migrations/{_row.id}/open", follow_redirects=True)
 
     assert ANSWER in again.get("/tree").text
@@ -174,11 +165,9 @@ def test_waiting_for_human_parks_the_batch_until_a_human_answers(client):
     assert client.app.state.executor.started == ["sale_custom"]
 
 
-def test_answering_posts_the_spike_body_to_the_resume_url_and_the_job_continues(
-    client,
-):
-    resume = RecordingResume()
-    row, sale, stock = _park(client, resume)
+def test_answering_stores_the_reply_and_leaves_the_job_parked(client):
+    """Nothing resumes a parked job yet. A reply must not pretend it is running."""
+    row, sale, stock = _park(client)
 
     answered = client.post(
         f"/tree/modules/{sale['id']}/answer",
@@ -187,23 +176,17 @@ def test_answering_posts_the_spike_body_to_the_resume_url_and_the_job_continues(
     )
 
     assert answered.status_code == 200
-    assert resume.calls == [{"url": RESUME_URL, "answer": ANSWER}]
     with database.connection_context():
         job = Job.select().join(Module).where(Module.id == sale["id"]).get()
         module = Module.get_by_id(sale["id"])
         batch = Batch.select().where(Batch.migration == row.id).get()
-    assert job.status == "running"
-    assert module.status == "running"
+        stock_row = Module.get_by_id(stock["id"])
+    assert job.answer == ANSWER
+    assert job.status == "waiting_for_human"
+    assert module.status == "waiting_for_human"
+    assert stock_row.status == "queued"
     assert batch.status == "running"
     assert client.app.state.executor.started == ["sale_custom"]
-
-    client.app.state.on_result({"job_id": job.job_id, "status": "passed"})
-
-    assert client.app.state.executor.started == ["sale_custom", "stock_custom"]
-    with database.connection_context():
-        assert Module.get_by_id(sale["id"]).status == "passed"
-        assert Module.get_by_id(stock["id"]).status == "passed"
-        assert Batch.select().where(Batch.migration == row.id).get().status == "checkpoint"
 
 
 def test_an_empty_answer_is_refused(client):
@@ -218,24 +201,6 @@ def test_an_empty_answer_is_refused(client):
 
     assert "Write an answer." in page.text
     assert resume.calls == []
-    with database.connection_context():
-        assert Module.get_by_id(sale["id"]).status == "waiting_for_human"
-
-
-def test_a_failed_resume_stays_loud_and_keeps_the_job_waiting(client):
-    from odoo_migrator.resume import ResumeError
-
-    resume = RecordingResume()
-    resume.error = ResumeError("n8n did not accept the answer: connection refused")
-    _row, sale, _stock = _park(client, resume)
-
-    page = client.post(
-        f"/tree/modules/{sale['id']}/answer",
-        data={"answer": ANSWER},
-        follow_redirects=True,
-    )
-
-    assert "n8n did not accept the answer" in page.text
     with database.connection_context():
         assert Module.get_by_id(sale["id"]).status == "waiting_for_human"
 
@@ -323,48 +288,6 @@ def test_styleguide_shows_notes_and_answer(client):
 
 
 
-class FinishingResume:
-    """n8n resumes, runs to the end and posts its result before the resume
-    call returns. Nothing makes that impossible — the Wait node hands control
-    straight back to the workflow."""
-
-    def __init__(self, app):
-        self.app = app
-        self.job_id = None
-        self.calls = []
-
-    def resume(self, url, answer):
-        self.calls.append({"url": url, "answer": answer})
-        self.app.state.on_result({"job_id": self.job_id, "status": "passed"})
-
-
-def test_an_answer_does_not_overwrite_a_job_that_finished_meanwhile(client):
-    """Writing "running" over a result that already landed left a finished
-    module in flight on a batch that had already closed, so nothing would
-    ever move it again."""
-    _row, sale = _prepared(client)
-    resume = FinishingResume(client.app)
-    client.app.state.resume = resume
-    client.app.state.executor = StubExecutor(
-        progress=client.app.state.on_progress,
-        result=client.app.state.on_result,
-        ask=QUESTION,
-    )
-    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
-    with database.connection_context():
-        resume.job_id = Job.get(Job.module == sale["id"]).job_id
-
-    client.post(
-        f"/tree/modules/{sale['id']}/answer",
-        data={"answer": ANSWER},
-        follow_redirects=True,
-    )
-
-    with database.connection_context():
-        assert Job.get(Job.module == sale["id"]).status == "passed"
-        assert Module.get_by_id(sale["id"]).status == "passed"
-
-
 def test_a_clean_re_run_clears_the_assumptions_badge(client):
     """Nothing cleared the flag, so a module that carried one assumption once
     wore the badge for the rest of the project."""
@@ -383,7 +306,7 @@ def test_a_clean_re_run_clears_the_assumptions_badge(client):
 
 def test_the_answer_is_kept_beside_the_question(client):
     """The question was persisted and the reply was not, so the half that
-    unblocked the job lived only in n8n's own execution log."""
+    unblocked the job lived only in the executor's own log."""
     _row, sale = _prepared(client)
     resume = RecordingResume()
     client.app.state.resume = resume

@@ -1,11 +1,8 @@
-"""Remember the write key n8n was handed, so a crashed run can be cleaned up.
+"""Remember the write key a session was opened with, so a crashed run can close it.
 
-The proxy is the only route n8n has to the daemon, so the key passes through
-this process at open time whether we record it or not. Recording it is what
-makes the session janitor possible at all: measured against the daemon, a
-close with an empty key is 403 not_owner even for an agent session, and a
-session whose process dies is announced and drops out of the registry, so
-there is no dead one left in a listing to sweep instead.
+Measured against the daemon, a close with an empty key is 403 not_owner even
+for an agent session, and a session whose process dies drops out of the
+registry on its own.
 """
 
 from odoo_migrator.db import database

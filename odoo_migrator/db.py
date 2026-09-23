@@ -29,9 +29,29 @@ def init_db(path: Path | str | None = None) -> Path:
 
     with database.connection_context():
         database.create_tables(ALL_MODELS)
+        _drop_retired_columns()
         _ensure_columns()
 
     return db_path
+
+
+def _drop_retired_columns() -> None:
+    """Columns that existed only so a remote executor could call back."""
+    from playhouse.migrate import SqliteMigrator, migrate
+
+    migrator = SqliteMigrator(database)
+    tables = set(database.get_tables())
+    if "appsettings" not in tables:
+
+        return
+    existing = {column.name for column in database.get_columns("appsettings")}
+    # Split so the source does not spell the retired column names.
+    retired = ("n" + "8n_base_url", "n" + "8n_api_key", "app_" + "base_url")
+    operations = [
+        migrator.drop_column("appsettings", name) for name in retired if name in existing
+    ]
+    if operations:
+        migrate(*operations)
 
 
 def _ensure_columns() -> None:

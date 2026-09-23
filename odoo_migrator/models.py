@@ -42,9 +42,6 @@ class BaseModel(Model):
 
 
 class AppSettings(BaseModel):
-    n8n_base_url = TextField(default="")
-    n8n_api_key = TextField(default="")
-    app_base_url = TextField(default="")
     sheller_base_url = TextField(default="http://127.0.0.1:8765")
     sheller_image_tag = TextField(default="")
     min_sheller_version = TextField(default="")
@@ -121,13 +118,10 @@ class Batch(BaseModel):
 
 
 class ShellerSession(BaseModel):
-    """A session n8n opened through our proxy, and the key it was handed.
+    """A Sheller session this process opened, and the write key it was handed.
 
-    The key crosses this process anyway — the proxy is the only route n8n
-    has to the daemon — and without keeping it the app can never close a
-    session it did not open. Measured: the daemon refuses a keyless close
-    with 403, and a session whose process dies leaves the registry on its
-    own, so there is no corpse to sweep later either.
+    The daemon refuses a keyless close with 403. A session whose process dies
+    leaves the registry on its own.
     """
 
     session_id = CharField(unique=True)
@@ -147,9 +141,7 @@ class Job(BaseModel):
     resume_webhook_url = TextField(null=True)
     # The question the Wait node is parked on. Shown in the row until answered.
     question = TextField(null=True)
-    # And what the human replied. It leaves for n8n and is not in any
-    # callback, so without this the half that unblocked the job exists only
-    # in an execution log inside the container.
+    # What the human replied. Stored here so the runner can read it later.
     answer = TextField(null=True)
     # Set by Dismiss on the checkpoint. Continue stays disabled until every
     # failed or waiting job in the batch has been read, unless Override.

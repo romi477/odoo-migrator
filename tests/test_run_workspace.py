@@ -1,4 +1,4 @@
-"""Pipeline, n8n and Sheller are separate full-width screens. Task 13."""
+"""Pipeline and Sheller are separate full-width screens. Task 13."""
 
 from test_batch import _prepared
 from test_checkpoint import DIFF, FINDING, _failed_checkpoint
@@ -9,7 +9,7 @@ SESSION = "sess-new-observer"
 
 
 class ProgressingExecutor:
-    """Leaves the job running after a stage, the way n8n posts progress."""
+    """Leaves the job running after a stage, the way a live executor posts progress."""
 
     def __init__(self, app):
         self.app = app
@@ -44,13 +44,10 @@ class SessionExecutor:
         )
 
 
-def _save_urls(client, *, n8n="http://n8n.example:5678", sheller="http://sheller.test:8765"):
+def _save_urls(client, *, sheller="http://sheller.test:8765"):
     client.post(
         "/settings",
         data={
-            "n8n_base_url": n8n,
-            "n8n_api_key": "n8n_secret_value",
-            "app_base_url": "http://host.docker.internal:8000",
             "sheller_base_url": sheller,
             "sheller_image_tag": "",
         },
@@ -75,45 +72,10 @@ def test_run_page_is_the_pipeline_only(client):
     assert 'class="workspace"' in page.text
     assert page.text.count("workspace-panel") == 1
     assert "data-pipeline" in page.text
-    assert "n8n-stub" not in page.text
     assert "data-observer" not in page.text
     assert "No module is running." in page.text
     assert 'data-screen="pipeline"' in page.text
-    assert 'data-screen="n8n"' in page.text
     assert 'data-screen="sheller"' in page.text
-
-
-def test_n8n_panel_is_a_placeholder_and_opens_the_saved_base_url(client):
-    _open(client)
-    _save_urls(client)
-
-    page = client.get("/n8n")
-
-    assert ">Open in n8n<" in page.text
-    assert 'href="http://n8n.example:5678"' in page.text
-    assert "The canvas is not embedded" in page.text
-    assert "<iframe" not in page.text
-
-
-def test_n8n_panel_does_not_invent_a_host_when_the_base_url_is_empty(client):
-    _open(client)
-    _save_urls(client, n8n="")
-
-    page = client.get("/n8n")
-
-    assert ">Open in n8n<" not in page.text
-    assert "Set the n8n base URL in settings." in page.text
-    assert "5678" not in page.text
-    assert "n8n.example" not in page.text
-
-
-def test_n8n_api_key_is_not_on_the_run_page(client):
-    _open(client)
-    _save_urls(client)
-
-    page = client.get("/n8n")
-
-    assert "n8n_secret_value" not in page.text
 
 
 def test_sheller_page_is_the_iframe_without_extra_chrome(client):
@@ -210,7 +172,6 @@ def test_checkpoint_renders_on_the_pipeline_screen(client):
 
     assert "data-pipeline" in page.text
     assert 'class="checkpoint"' in page.text
-    assert "data-pipeline" not in client.get("/n8n").text
     assert 'class="checkpoint"' not in client.get("/sheller").text
     assert FINDING in page.text
     assert DIFF in page.text
@@ -222,9 +183,7 @@ def test_styleguide_shows_the_run_workspace(client):
 
     assert 'class="workspace"' in html
     assert "data-pipeline" in html
-    assert ">Open in n8n<" in html
     assert 'title="Sheller observer"' in html
-    assert "n8n-stub" in html
     assert "rewrite · attempt 2" in html
 
 
@@ -261,9 +220,6 @@ def test_a_settings_url_that_is_not_http_never_becomes_a_frame_src(client):
     client.post(
         "/settings",
         data={
-            "n8n_base_url": "javascript:alert(1)",
-            "n8n_api_key": "",
-            "app_base_url": "http://host.docker.internal:8000",
             "sheller_base_url": "javascript:alert(2)",
             "sheller_image_tag": "",
         },
@@ -271,13 +227,10 @@ def test_a_settings_url_that_is_not_http_never_becomes_a_frame_src(client):
     )
 
     pipeline = client.get("/run").text
-    n8n = client.get("/n8n").text
     sheller = client.get("/sheller").text
 
     assert "javascript:alert" not in pipeline
-    assert "javascript:alert" not in n8n
     assert "javascript:alert" not in sheller
-    assert "Set the n8n base URL in settings" in n8n
     # An empty src is not an empty frame — the browser resolves it to the
     # current document and loads this page inside itself.
     assert 'src=""' not in sheller

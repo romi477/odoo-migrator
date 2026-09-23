@@ -92,7 +92,7 @@ first, so nothing later is built on top of it. The app keeps working on
   module_id: int, answer: str, hub: EventHub) -> Job` (the `resume` argument
   is gone); an app with no authenticated routes and no `--host`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/test_settings.py`:
 
@@ -110,12 +110,12 @@ def test_no_route_requires_a_machine_key(client):
     assert not [p for p in paths if "webhook" in p or "resume" in p]
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `uv run pytest tests/test_settings.py::test_no_route_requires_a_machine_key -v`
 Expected: FAIL — the routes are still registered.
 
-- [ ] **Step 3: Delete the modules and their tests**
+- [x] **Step 3: Delete the modules and their tests**
 
 ```bash
 git rm -r odoo_migrator/n8n n8n/stock packaging/n8n.sh packaging/publish_stock.py
@@ -124,7 +124,7 @@ git rm tests/test_sheller_proxy.py tests/test_files.py tests/test_n8n_stock.py \
        tests/test_n8n_agents.py tests/test_contract.py tests/test_cartridges.py
 ```
 
-- [ ] **Step 4: Cut the routes and settings**
+- [x] **Step 4: Cut the routes and settings**
 
 In `api.py` remove every route that mounted the deleted modules, the
 `X-Odoo-Migrator-Key` dependency, and the startup warning about a widened
@@ -138,18 +138,18 @@ and return the job. Nothing resumes it yet — Task 8 wires that — so a test
 that asserted the job left `waiting_for_human` on answer is changed to assert
 the answer is stored and the job stays parked.
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 Run: `uv run pytest`
 Expected: PASS. Roughly a hundred tests are gone with their subjects.
 
-- [ ] **Step 6: Check the tree for leftovers**
+- [x] **Step 6: Check the tree for leftovers**
 
 Run: `grep -rn "n8n\|X-Odoo-Migrator-Key\|app_base_url" odoo_migrator/ tests/ packaging/ README.md`
 Expected: no hits outside `docs_/`. Any hit is either a deletion you missed
 or a thing that must be renamed — nothing kept may need the word.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A

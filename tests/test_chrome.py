@@ -6,7 +6,6 @@ PAGES = (
     ("/", "overview", "Migrations"),
     ("/tree", "tree", "Module tree"),
     ("/run", "pipeline", "Pipeline"),
-    ("/n8n", "n8n", "n8n"),
     ("/sheller", "sheller", "Sheller"),
     ("/result", "result", "Result"),
     ("/settings", "settings", "App settings"),
@@ -134,7 +133,6 @@ def test_guide_lists_the_menu_steps_in_order(client):
     assert re.findall(r"<h2>(.*?)</h2>", steps) == [
         "Tree",
         "Pipeline",
-        "n8n",
         "Sheller",
         "Result",
     ]

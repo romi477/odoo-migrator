@@ -1,4 +1,4 @@
-"""Job executor. n8n will POST the trigger; the stub runs in-process."""
+"""Job executor. The stub runs in-process until the native runner takes over."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Protocol
 STUB_STAGES = ("understand", "rewrite", "upgrade", "tests", "verdict")
 # Same shape as the spike: the query string is part of the URL.
 STUB_RESUME_URL = (
-    "http://n8n.example:5678/webhook-waiting/1"
+    "http://runner.example:5678/waiting/1"
     "?signature=6afb719692c2466a203a511d362157e8f963b46c99332b42d3fa5b03c4aa57e4"
 )
 
@@ -19,7 +19,7 @@ class Executor(Protocol):
 
 
 class StubExecutor:
-    """Fake stages, fake callback. The suite does not need n8n running."""
+    """Fake stages, fake callback. The suite does not need a live runner."""
 
     def __init__(
         self,

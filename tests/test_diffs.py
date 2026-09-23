@@ -1,6 +1,6 @@
 """The checkpoint diff is what the rewrite wrote, not what the cartridge sent.
 
-The agent writes through the File API. Until this task nobody compared
+Writes are noted on the in-flight job. Until this task nobody compared
 before and after, so the block that exists to show what happened to the
 module stayed empty on a live run. The cartridge may still send a diff;
 an empty one is filled from the writes.
@@ -11,6 +11,7 @@ import uuid
 from test_batch import _named, _prepared
 
 from odoo_migrator.db import database
+from odoo_migrator.diffs import note_new_write
 from odoo_migrator.models import Attempt, Job
 
 
@@ -31,14 +32,7 @@ def test_a_new_side_write_fills_an_empty_attempt_diff(client):
     row, sale = _prepared(client)
     holder = _running(client, sale)
     marker = f"x = {uuid.uuid4().hex}\n"
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "new",
-            "path": "sale_custom/models.py",
-            "content": marker,
-        },
-    )
+    note_new_write(str(row.id), "sale_custom/models.py", "", marker)
     client.app.state.on_result(
         {
             "job_id": holder.job_id,
@@ -57,14 +51,7 @@ def test_a_new_side_write_fills_an_empty_attempt_diff(client):
 def test_a_cartridge_diff_is_kept_when_it_sent_one(client):
     row, sale = _prepared(client)
     holder = _running(client, sale)
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "new",
-            "path": "sale_custom/models.py",
-            "content": f"x = {uuid.uuid4().hex}\n",
-        },
-    )
+    note_new_write(str(row.id), "sale_custom/models.py", "", f"x = {uuid.uuid4().hex}\n")
     client.app.state.on_result(
         {
             "job_id": holder.job_id,
@@ -84,42 +71,11 @@ def test_a_cartridge_diff_is_kept_when_it_sent_one(client):
     assert attempt.diff == "- mapping = old\n+ mapping = new"
 
 
-def test_an_old_side_write_is_not_the_module_diff(client):
-    row, sale = _prepared(client)
-    holder = _running(client, sale)
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "old",
-            "path": "sale_custom/models.py",
-            "content": "should_not_appear\n",
-        },
-    )
-    client.app.state.on_result(
-        {
-            "job_id": holder.job_id,
-            "status": "failed",
-            "attempts": [{"iteration": 1, "verdict": "fail", "diff": ""}],
-        }
-    )
-
-    with database.connection_context():
-        attempt = Attempt.select().join(Job).where(Job.job_id == holder.job_id).get()
-    assert "should_not_appear" not in attempt.diff
-
-
 def test_a_write_to_another_module_stays_off_this_job(client):
     row, sale = _prepared(client)
     _named(row.id, "stock_custom")
     holder = _running(client, sale)
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "new",
-            "path": "stock_custom/__init__.py",
-            "content": "from . import models\n",
-        },
-    )
+    note_new_write(str(row.id), "stock_custom/__init__.py", "", "from . import models\n")
     client.app.state.on_result(
         {
             "job_id": holder.job_id,
@@ -138,25 +94,11 @@ def test_writes_after_a_later_progress_land_on_that_attempt(client):
     holder = _running(client, sale)
     first = f"first = {uuid.uuid4().hex}\n"
     second = f"second = {uuid.uuid4().hex}\n"
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "new",
-            "path": "sale_custom/first.py",
-            "content": first,
-        },
-    )
+    note_new_write(str(row.id), "sale_custom/first.py", "", first)
     client.app.state.on_progress(
         {"job_id": holder.job_id, "stage": "rewrite", "attempt": 2}
     )
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "new",
-            "path": "sale_custom/second.py",
-            "content": second,
-        },
-    )
+    note_new_write(str(row.id), "sale_custom/second.py", "", second)
     client.app.state.on_result(
         {
             "job_id": holder.job_id,
@@ -182,17 +124,12 @@ def test_writes_after_a_later_progress_land_on_that_attempt(client):
 
 
 def test_a_module_that_passes_first_time_still_shows_its_diff(client):
-    """The stock canvas appended an attempt when it retried or failed and
-    none when it passed, and the app only filled diffs into attempts the
-    cartridge had sent. So the outcome most worth reading — the rewrite
-    that worked — recorded its diff and showed it to nobody."""
+    """A cartridge that reports no attempt still rewrote the module. The
+    outcome most worth reading — the rewrite that worked — must show its diff."""
     row, sale = _prepared(client)
     holder = _running(client, sale)
     marker = f"x = {uuid.uuid4().hex}\n"
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={"side": "new", "path": "sale_custom/models.py", "content": marker},
-    )
+    note_new_write(str(row.id), "sale_custom/models.py", "", marker)
 
     client.app.state.on_result(
         {"job_id": holder.job_id, "status": "passed", "attempts": []}
@@ -206,22 +143,6 @@ def test_a_module_that_passes_first_time_still_shows_its_diff(client):
     assert "sale_custom/models.py" in client.get("/run").text
 
 
-def test_the_stock_canvas_logs_the_attempt_that_passed():
-    import json
-    from pathlib import Path
-
-    from odoo_migrator.n8n.stock import PARENT
-
-    parent = json.loads(
-        (Path("n8n/stock") / f"{PARENT}.json").read_text(encoding="utf-8")
-    )
-    node = next(one for one in parent["nodes"] if one["name"] == "Mark passed")
-
-    assert node["type"] == "n8n-nodes-base.code"
-    assert "attempts" in node["parameters"]["jsCode"]
-    assert "'passed'" in node["parameters"]["jsCode"]
-
-
 def test_a_module_nested_under_addons_is_still_attributed(client):
     """A prefix test only matched a module sitting at the root of the new
     project. addons/<module>/... is an ordinary layout, and its diff was
@@ -229,14 +150,7 @@ def test_a_module_nested_under_addons_is_still_attributed(client):
     row, sale = _prepared(client)
     holder = _running(client, sale)
     marker = f"y = {uuid.uuid4().hex}\n"
-    client.put(
-        f"/api/migrations/{row.id}/files",
-        json={
-            "side": "new",
-            "path": "addons/sale_custom/models/sale.py",
-            "content": marker,
-        },
-    )
+    note_new_write(str(row.id), "addons/sale_custom/models/sale.py", "", marker)
 
     client.app.state.on_result(
         {"job_id": holder.job_id, "status": "passed", "attempts": []}

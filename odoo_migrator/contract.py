@@ -1,11 +1,10 @@
-"""Webhook contract: trigger, progress, result. Locked against the Task 3b spike."""
+"""Job payload, progress and result. The runner calls these in-process."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
-from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -15,7 +14,6 @@ from odoo_migrator.rules import assemble_rules, load_system_prompt
 
 CONTRACT_VERSION = "1"
 DEFAULT_CARTRIDGE = {"id": "stock", "version": "1.0.0"}
-LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
 STAGES = (
     "understand",
     "rewrite",
@@ -36,10 +34,6 @@ RESULT_STATUSES = ("passed", "failed", "waiting_for_human")
 
 class ContractError(Exception):
     """The trigger could not be built. Silent skip would send a bad payload."""
-
-
-class LoopbackInPayload(ContractError):
-    """A URL n8n would call is host loopback. That only works on Docker Desktop."""
 
 
 class AttemptPayload(BaseModel):
@@ -67,9 +61,9 @@ class AssumptionPayload(BaseModel):
 
 
 class ProgressPayload(BaseModel):
-    """n8n 2.39.9 posted ``resumeUrl``; the spec named it ``resume_webhook_url``.
+    """Accept ``resumeUrl`` or ``resume_webhook_url``. Persist the latter.
 
-    Accept both. Persist the spec name. The query string is part of the URL.
+    The query string is part of the URL.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -132,31 +126,10 @@ class ResultPayload(BaseModel):
         return self
 
 
-def reject_loopback(payload: dict) -> None:
-    for key in ("sheller_base_url", "callback_url", "progress_url"):
-        host = (urlparse(payload[key]).hostname or "").lower()
-        if host in LOOPBACK_HOSTS:
-            raise LoopbackInPayload(
-                f"{key} must be reachable from n8n, not loopback ({host}). "
-                "Set the app base URL to an address the container can call."
-            )
-
-
 def stack_hash(rules: list[dict]) -> str:
     body = json.dumps(rules, sort_keys=True, ensure_ascii=False)
 
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
-
-
-def _base_url(app_base_url: str) -> str:
-    base = (app_base_url or "").strip().rstrip("/")
-    if not base:
-        raise ContractError(
-            "Set the app base URL — n8n calls File API, the Sheller proxy "
-            "and callbacks on it."
-        )
-
-    return base
 
 
 def build_trigger(
@@ -164,16 +137,8 @@ def build_trigger(
     migration_id: str,
     job_id: str,
     module_id: int,
-    app_base_url: str,
 ) -> dict:
-    """Resolved text, never paths. Every URL is ``app_base_url``.
-
-    ``sheller_base_url`` in this payload is the app itself (the proxy lives
-    at Sheller's native paths). The daemon's ``127.0.0.1:8765`` must not
-    appear here: on this Mac ``host.docker.internal`` forwards onto loopback
-    and the mistake only shows up on Linux.
-    """
-    base = _base_url(app_base_url)
+    """Resolved text for one module. Paths stay on the host; nothing is called back."""
     with database.connection_context():
         migration = Migration.get_or_none(Migration.id == migration_id)
         module = Module.get_or_none(
@@ -203,16 +168,12 @@ def build_trigger(
         "source_version": migration.source_version,
         "target_version": migration.target_version,
         "containers": {"old": migration.old_container, "new": migration.new_container},
-        "sheller_base_url": base,
         "system_prompt": load_system_prompt(),
         "rules": rules,
         "module_notes": notes,
         "strictness_level": module.strictness or migration.strictness_default,
         "retry_limit": migration.retry_limit,
         "ask_human_mode": migration.ask_human_mode,
-        "callback_url": f"{base}/api/jobs/{job_id}/result",
-        "progress_url": f"{base}/api/jobs/{job_id}/progress",
     }
-    reject_loopback(payload)
 
     return payload

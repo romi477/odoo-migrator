@@ -353,7 +353,7 @@ pre,
   pointer-events: none;
 }
 
-/* Pipeline, n8n and Sheller are the run tools; Result follows them. */
+/* Pipeline and Sheller are the run tools; Result follows them. */
 .step-bridge {
   display: inline-flex;
   align-items: center;
@@ -2517,12 +2517,6 @@ pre.test-output {
 .pipeline-live .name-line {
   margin: 0;
 }
-
-.n8n-stub p {
-  margin: 0;
-  color: var(--muted);
-}
-
 
 .checkpoint-ready {
   margin: 0 0 12px;

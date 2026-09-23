@@ -1,5 +1,4 @@
 import re
-from pathlib import Path
 
 from odoo_migrator import api
 from odoo_migrator.db import database
@@ -22,6 +21,20 @@ def _create(client, name="Acme"):
     )
 
 
+def test_no_route_requires_a_machine_key(client):
+    """The File API and the Sheller proxy were the only authenticated routes.
+
+    They existed because a remote executor ran in a container and could not
+    reach a daemon that publishes to loopback. Nothing machine-facing is left.
+    """
+    paths = [route.path for route in client.app.routes]
+
+    assert not [p for p in paths if p.startswith("/api/files")]
+    assert not [p for p in paths if p.startswith("/api/sheller")]
+    assert not [p for p in paths if "webhook" in p or "resume" in p]
+    assert not [p for p in paths if p.startswith("/api/")]
+
+
 def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client):
     """App-wide settings are behind the gear. A migration's own settings
     belong to that migration, so they open inside its row on Overview and
@@ -32,7 +45,7 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
 
     app_page = client.get("/settings").text
 
-    assert 'name="n8n_base_url"' in app_page
+    assert 'name="sheller_base_url"' in app_page
     assert 'name="strictness_default"' not in app_page
     assert "/settings/migration" not in app_page
 
@@ -47,19 +60,16 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
     assert 'name="strictness_default"' in expanded
     assert f'action="/migrations/{row.id}/settings"' in expanded
     assert f'action="/migrations/{row.id}/containers/old/up"' in expanded
-    assert 'name="n8n_base_url"' not in expanded
+    assert 'name="sheller_base_url"' not in expanded
     assert ">Settings<" not in expanded
     assert "row-card expanded" in expanded
     assert 'aria-expanded="true"' in expanded
 
 
-def test_n8n_base_url_saves_and_stays_off_other_pages(client):
+def test_sheller_base_url_saves_and_stays_off_other_pages(client):
     saved = client.post(
         "/settings",
         data={
-            "n8n_base_url": "http://127.0.0.1:5678",
-            "n8n_api_key": "n8n_test_key",
-            "app_base_url": "http://host.docker.internal:8000",
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "1.7.0",
         },
@@ -67,30 +77,13 @@ def test_n8n_base_url_saves_and_stays_off_other_pages(client):
     )
 
     assert saved.status_code == 200
-    assert 'value="http://127.0.0.1:5678"' in saved.text
-    assert "http://127.0.0.1:5678" not in client.get("/").text
-    assert "http://127.0.0.1:5678" not in client.get("/tree").text
+    assert 'value="http://127.0.0.1:8765"' in saved.text
+    assert "1.7.0" not in client.get("/").text
+    assert "1.7.0" not in client.get("/tree").text
     with database.connection_context():
-        assert AppSettings.get().n8n_base_url == "http://127.0.0.1:5678"
-
-
-def test_n8n_base_url_is_not_hardcoded_in_the_app():
-    """The URL lives in settings. A host baked into templates or Python is a
-    second source of truth and the thing the later reverse-proxy move would
-    have to hunt down."""
-    root = Path(__file__).resolve().parents[1] / "odoo_migrator"
-    offenders = []
-    for path in root.rglob("*"):
-        if path.suffix not in {".py", ".html", ".js", ".css"}:
-            continue
-        if "vendor" in path.parts:
-            continue
-        text = path.read_text(encoding="utf-8")
-        for needle in ("n8n.io", "localhost:5678", "127.0.0.1:5678"):
-            if needle in text:
-                offenders.append(f"{path.relative_to(root)}: {needle}")
-
-    assert offenders == []
+        stored = AppSettings.get()
+        assert stored.sheller_base_url == "http://127.0.0.1:8765"
+        assert stored.sheller_image_tag == "1.7.0"
 
 
 def test_migration_settings_save_on_the_open_migration(client):
@@ -169,68 +162,6 @@ def test_migration_settings_say_when_nothing_was_saved(client):
     with database.connection_context():
         assert Migration.get_by_id(row.id).strictness_default == "basic"
         assert Migration.get_by_id(row.id).retry_limit == 5
-
-
-def test_api_key_is_masked_on_settings_only(client):
-    client.post(
-        "/settings",
-        data={
-            "n8n_base_url": "http://127.0.0.1:5678",
-            "n8n_api_key": "n8n_secret_value",
-            "app_base_url": "",
-            "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "",
-        },
-        follow_redirects=True,
-    )
-    settings = client.get("/settings").text
-
-    assert 'id="n8n-api-key"' in settings
-    assert 'type="password"' in settings
-    assert 'value="****************"' in settings
-    assert "n8n_secret_value" not in settings
-    assert 'aria-label="Clear the stored n8n API key"' in settings
-    assert "bin-icon" in settings
-    assert "n8n_secret_value" not in client.get("/").text
-    assert "n8n_secret_value" not in client.get("/tree").text
-    with database.connection_context():
-        assert AppSettings.get().n8n_api_key == "n8n_secret_value"
-
-
-def test_saving_with_a_blank_key_keeps_the_stored_one(client):
-    client.post(
-        "/settings",
-        data={
-            "n8n_base_url": "http://127.0.0.1:5678",
-            "n8n_api_key": "n8n_secret_value",
-            "app_base_url": "",
-            "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "",
-        },
-        follow_redirects=True,
-    )
-    client.post(
-        "/settings",
-        data={
-            "n8n_base_url": "http://127.0.0.1:5679",
-            "n8n_api_key": "",
-            "app_base_url": "",
-            "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "",
-        },
-        follow_redirects=True,
-    )
-
-    with database.connection_context():
-        stored = AppSettings.get()
-
-        assert stored.n8n_api_key == "n8n_secret_value"
-        assert stored.n8n_base_url == "http://127.0.0.1:5679"
-
-    client.post("/settings/n8n-api-key/clear", follow_redirects=True)
-
-    with database.connection_context():
-        assert AppSettings.get().n8n_api_key == ""
 
 
 def test_attention_lamp_and_running_count_are_rendered_from_the_database(client):

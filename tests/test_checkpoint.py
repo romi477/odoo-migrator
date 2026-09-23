@@ -13,7 +13,7 @@ ASSUMPTION_A = "use the new tax mapping"
 
 
 class ReviewExecutor:
-    """Calls back through the app, the way n8n does."""
+    """Calls back through the app, the way a real executor does."""
 
     def __init__(self, app, status="passed", **extra):
         self.app = app
@@ -129,11 +129,9 @@ def test_a_new_batch_is_refused_while_the_checkpoint_is_open(client):
 
 
 def test_promote_without_a_version_is_refused(tmp_path, compose, fake_sheller):
-    from conftest import API_KEY
     from fastapi.testclient import TestClient
 
     from odoo_migrator.api import create_app
-    from odoo_migrator.authkey import API_KEY_HEADER
 
     rules = tmp_path / "rules"
     rules.mkdir()
@@ -143,10 +141,9 @@ def test_promote_without_a_version_is_refused(tmp_path, compose, fake_sheller):
         tmp_path / "cp.sqlite",
         compose=compose,
         sheller=fake_sheller,
-        api_key=API_KEY,
         rules_dir=rules,
     )
-    client = TestClient(app, headers={API_KEY_HEADER: API_KEY})
+    client = TestClient(app)
     _failed_checkpoint(client)
     with database.connection_context():
         finding = Finding.select().get()
@@ -168,11 +165,9 @@ def test_promote_writes_the_file_the_human_picked_not_the_target(
 ):
     """The app cannot infer which version caused the issue. Picking 17.0
     on a 17→18 migration is the user's call, even if 18.0 looks obvious."""
-    from conftest import API_KEY
     from fastapi.testclient import TestClient
 
     from odoo_migrator.api import create_app
-    from odoo_migrator.authkey import API_KEY_HEADER
 
     rules = tmp_path / "rules"
     rules.mkdir()
@@ -182,10 +177,9 @@ def test_promote_writes_the_file_the_human_picked_not_the_target(
         tmp_path / "cp.sqlite",
         compose=compose,
         sheller=fake_sheller,
-        api_key=API_KEY,
         rules_dir=rules,
     )
-    client = TestClient(app, headers={API_KEY_HEADER: API_KEY})
+    client = TestClient(app)
     _failed_checkpoint(client)
     with database.connection_context():
         finding = Finding.select().get()
@@ -205,11 +199,9 @@ def test_promote_writes_the_file_the_human_picked_not_the_target(
 
 
 def test_promote_to_eighteen_writes_rules_eighteen(tmp_path, compose, fake_sheller):
-    from conftest import API_KEY
     from fastapi.testclient import TestClient
 
     from odoo_migrator.api import create_app
-    from odoo_migrator.authkey import API_KEY_HEADER
 
     rules = tmp_path / "rules"
     rules.mkdir()
@@ -219,10 +211,9 @@ def test_promote_to_eighteen_writes_rules_eighteen(tmp_path, compose, fake_shell
         tmp_path / "cp.sqlite",
         compose=compose,
         sheller=fake_sheller,
-        api_key=API_KEY,
         rules_dir=rules,
     )
-    client = TestClient(app, headers={API_KEY_HEADER: API_KEY})
+    client = TestClient(app)
     _failed_checkpoint(client)
     with database.connection_context():
         finding = Finding.select().get()
@@ -249,11 +240,9 @@ def test_styleguide_shows_checkpoint_actions(client):
 
 
 def _rules_app(tmp_path, compose, fake_sheller):
-    from conftest import API_KEY
     from fastapi.testclient import TestClient
 
     from odoo_migrator.api import create_app
-    from odoo_migrator.authkey import API_KEY_HEADER
 
     rules = tmp_path / "rules"
     rules.mkdir()
@@ -263,11 +252,10 @@ def _rules_app(tmp_path, compose, fake_sheller):
         tmp_path / "cp.sqlite",
         compose=compose,
         sheller=fake_sheller,
-        api_key=API_KEY,
         rules_dir=rules,
     )
 
-    return TestClient(app, headers={API_KEY_HEADER: API_KEY}), rules
+    return TestClient(app), rules
 
 
 def test_a_promotion_says_where_it_came_from(tmp_path, compose, fake_sheller):

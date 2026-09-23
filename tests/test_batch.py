@@ -1,6 +1,5 @@
 """Sequential batch runner, stop rules, global attention. Task 10."""
 
-from test_contract import _reachable_settings
 from test_tree import _open
 
 from odoo_migrator.db import database
@@ -16,7 +15,6 @@ def _named(migration_id, name):
 
 def _prepared(client, name="Acme"):
     row = _open(client, name)
-    _reachable_settings(client)
     save_side_container(row.id, "old", "odoo-old")
     save_side_container(row.id, "new", "odoo-new")
     client.post("/tree/resolve", follow_redirects=True)
@@ -40,7 +38,7 @@ class OutcomeExecutor:
     """Calls back with a per-module status, through the app's own callback.
 
     It used to call ``apply_result`` directly, which is the one thing a real
-    executor cannot do: n8n reaches the app through the callback URL. Going
+    executor cannot do: a remote executor reaches the app through the callback. Going
     around it meant the double skipped everything a result sets off — the
     batch advancing, above all — and the runner looked sequential while it
     was not.
@@ -195,7 +193,7 @@ def test_styleguide_shows_the_pipeline_queue(client):
 
 
 class DeferredExecutor:
-    """Takes the trigger and answers later — the only shape n8n has.
+    """Takes the trigger and answers later — the only shape a real executor has.
 
     The runner used to loop over the whole group calling ``start`` and then
     read the job status it had just created, which is still ``running``
