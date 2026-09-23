@@ -33,7 +33,10 @@ def run_job(cartridge: Cartridge, ctx: StepContext, *, retry_limit: int) -> str:
 
                 return _PARKED
             if result.ok:
+                if step.id and result.answer:
+                    ctx.prior_answers[step.id] = result.answer
                 continue
+            ctx.last_failure = result.output or ""
             for lane in cartridge.on_failure.pipeline:
                 if lane.when and lane.when not in flags:
                     continue

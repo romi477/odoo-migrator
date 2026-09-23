@@ -12,8 +12,15 @@ class ModelDouble:
 
     scripted = True
 
-    def __init__(self, *, always_calls: str | None = None, turns: list | None = None):
+    def __init__(
+        self,
+        *,
+        always_calls: str | None = None,
+        always_reports: bool = False,
+        turns: list | None = None,
+    ):
         self.always_calls = always_calls
+        self.always_reports = always_reports
         self._turns = list(turns or [])
         self.calls = 0
 
@@ -24,6 +31,8 @@ class ModelDouble:
                 "name": self.always_calls,
                 "input": {"side": "new", "code": "1"},
             }
+        if self.always_reports:
+            return {"name": "report", "input": {"answer": "noted"}}
         if not self._turns:
             return None
         turn = self._turns.pop(0)

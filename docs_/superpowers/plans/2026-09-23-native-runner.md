@@ -701,7 +701,7 @@ git add -A && git commit -m "feat: the agent turn, its tool catalog and a model 
 - Produces: `def build_context(step: Step, ctx: StepContext) -> str` —
   renders only the declared `context` items, in the order of `CONTEXT_ITEMS`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_rewrite_is_not_given_the_previous_attempt(agent_ctx):
@@ -725,19 +725,19 @@ def test_patch_is_given_it(agent_ctx):
     assert "--- a/models.py" in rendered
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `uv run pytest tests/test_agent_step.py -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `rules` renders the assembled per-version stack the app already builds.
 `prior_answers` renders each earlier agent step's `id` and answer for this
 job. The model for a step is resolved by the spec's precedence: the step's
 own `model`, else the migration card's override, else the cartridge's.
 
-- [ ] **Step 4: Run the stock cartridge end to end against doubles**
+- [x] **Step 4: Run the stock cartridge end to end against doubles**
 
 ```python
 def test_the_stock_cartridge_runs_to_passed_against_doubles(loop_ctx):
@@ -747,7 +747,7 @@ def test_the_stock_cartridge_runs_to_passed_against_doubles(loop_ctx):
     assert ran[:4] == ["understand", "port", "lint", "upgrade"]
 ```
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 ```bash
 uv run pytest && uv run ruff check

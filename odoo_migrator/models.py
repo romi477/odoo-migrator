@@ -72,6 +72,8 @@ class Migration(BaseModel):
     cartridge_version = CharField(null=True)
     model_webhook_path = TextField(default="")
     strictness_default = CharField(default="basic")
+    # Empty means the cartridge's model. A name here is the card's override.
+    model_override = CharField(default="")
     retry_limit = IntegerField(default=5)
     ask_human_mode = CharField(default="sync")
     status = CharField(default="idle")

@@ -21,6 +21,10 @@ class StepContext:
     emit: Callable[[dict], None]
     write_keys: dict[str, str] = field(default_factory=dict)
     prior_answers: dict[str, str] = field(default_factory=dict)
+    previous_diff: str = ""
+    last_failure: str = ""
+    # The model client for agent steps. Deterministic steps never touch it.
+    client: object = None
     # The last run_test payload, so test_result can answer without a second call.
     last_test: dict | None = None
 

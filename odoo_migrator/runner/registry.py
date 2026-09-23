@@ -1,10 +1,12 @@
-"""Which code runs a step kind. Agent steps arrive in a later task."""
+"""Which code runs a step kind."""
 
 from __future__ import annotations
 
+from odoo_migrator.runner.prompting import run_agent_step
 from odoo_migrator.runner.steps import ask_human, lint, tests, upgrade, verdict
 
 _RUNNERS = {
+    "agent": run_agent_step,
     "lint": lint.run,
     "upgrade": upgrade.run,
     "tests": tests.run,
@@ -14,8 +16,6 @@ _RUNNERS = {
 
 
 def resolve(kind: str):
-    if kind == "agent":
-        raise NotImplementedError(kind)
     runner = _RUNNERS.get(kind)
     if runner is None:
         raise NotImplementedError(kind)
