@@ -793,6 +793,16 @@ happened before. An attempt switcher in the header (`1 2 3`, current
 highlighted) redraws the canvas and the trace for that attempt. Replay of a
 finished job falls out of the same mechanism: every attempt is in the past.
 
+**What the first pass builds.** The tool has to work before it has to be
+impressive. The first version of `Flow` is the canvas, the live painting, the
+trace with journal bodies on click, and the attempt switcher. The node
+inspector is deferred deliberately: what belongs in it is easier to decide
+once there is a real screen to measure — how much room is left, how long a
+trace gets on a real module, what a person actually reaches for. Same for the
+two-column reading of a `probe` step, and for what happens to the canvas when
+a cartridge has more nodes than fit on one row. These are recorded as open
+questions rather than guessed at now.
+
 ### Sheller
 
 Kept, and it finally has a job that is not duplication. `Flow` shows what the
@@ -929,6 +939,15 @@ then one command rather than archaeology.
 5. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.
+6. **The node inspector on `Flow`** — what it holds, and whether it is a
+   drawer beside the canvas or a card above a trace filtered to that node.
+   Deferred until the screen exists and the space it leaves can be measured.
+7. **A `probe` step in two columns**, the same calls facing their two
+   answers, as a reading mode for one node rather than the whole trace.
+8. **A canvas wider than the screen.** Twelve nodes do not fit one row.
+   Wrapping to two rows is preferred over a horizontal scroll inside a page
+   that already scrolls, but this is a decision to make against a real
+   cartridge, not a sketch.
 
 Two questions that earlier drafts left open are closed by the generic agent
 step and are recorded here so they are not reopened by habit: **per-step
