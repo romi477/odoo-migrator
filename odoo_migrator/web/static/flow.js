@@ -18,6 +18,36 @@
     draw(JSON.parse(embedded.textContent));
   }
 
+  var trace = document.getElementById("flow-trace");
+  var body = document.getElementById("flow-body");
+  var job = trace && trace.getAttribute("data-job");
+  if (trace && job) {
+    fetch("/api/flow/" + job + "/trace")
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (rows) {
+        rows.forEach(function (row) {
+          var item = document.createElement("li");
+          var button = document.createElement("button");
+          button.type = "button";
+          button.textContent = row.side + " " + row.tool + " " + row.preview;
+          button.addEventListener("click", function () {
+            fetch("/api/flow/trace/" + row.id + "/body")
+              .then(function (response) {
+                return response.text();
+              })
+              .then(function (text) {
+                body.hidden = false;
+                body.textContent = text;
+              });
+          });
+          item.appendChild(button);
+          trace.appendChild(item);
+        });
+      });
+  }
+
   function draw(graph) {
       var elements = [];
       var mainIndex = 0;

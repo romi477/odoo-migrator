@@ -207,6 +207,12 @@ class FakeShellerClient:
 
         return self.exec(session_id, dotted, write_key=write_key)
 
+    def forget_journal(self, session_id: str) -> None:
+        """The journal file is gone. The trace row still has the ids."""
+        self._sessions.pop(session_id, None)
+        if isinstance(self._journals, dict):
+            self._journals.pop(session_id, None)
+
     def journal(self, session_id: str) -> dict:
         session = self._remembered(session_id)
 

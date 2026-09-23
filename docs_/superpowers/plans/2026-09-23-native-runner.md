@@ -929,7 +929,7 @@ git commit -m "feat: the Flow screen draws the pinned cartridge"
   `GET /api/flow/trace/{tool_call_id}/body` (fetches the cell from Sheller's
   journal on demand)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_a_trace_line_survives_a_journal_that_is_gone(client, tool_call, sheller_fake):
@@ -949,7 +949,7 @@ def test_the_trace_is_the_skeleton_and_not_the_bodies(client, finished_job):
     assert "stdout" not in rows[0]
 ```
 
-- [ ] **Steps 2–5:** fail, implement, pass, commit. The body expands on an
+- [x] **Steps 2–5:** fail, implement, pass, commit. The body expands on an
   explicit click only — journals are unmasked, and this tool is demonstrated
   on a projector.
 

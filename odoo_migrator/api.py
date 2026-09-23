@@ -1223,6 +1223,20 @@ def create_app(
         name = current["cartridge_id"] if current else "stock"
         version = current["cartridge_version"] if current else "1.0.0"
         migration_id = current["id"] if current else ""
+        job_id = ""
+        if current:
+            from odoo_migrator.models import Job, Module
+
+            with database.connection_context():
+                latest = (
+                    Job.select()
+                    .join(Module)
+                    .where(Module.migration == current["id"])
+                    .order_by(Job.id.desc())
+                    .first()
+                )
+                if latest is not None:
+                    job_id = latest.job_id
         embedded = None
         if not migration_id:
             embedded = flow_graph(
@@ -1237,6 +1251,7 @@ def create_app(
                 "flow_name": name,
                 "flow_version": version,
                 "flow_migration_id": migration_id,
+                "flow_job_id": job_id,
                 "flow_embedded": embedded,
             },
         )
@@ -1254,6 +1269,67 @@ def create_app(
         from odoo_migrator.cartridges import pinned_for
 
         return JSONResponse(flow_graph(pinned_for(row)))
+
+    @app.get("/api/flow/{job_id}/trace")
+    def flow_trace(job_id: str, attempt: int | None = None):
+        from odoo_migrator.models import Job, StepRun, ToolCall
+
+        with database.connection_context():
+            job = Job.get_or_none(Job.job_id == job_id)
+            if job is None:
+
+                return JSONResponse([], status_code=404)
+            runs = StepRun.select().where(StepRun.job == job)
+            if attempt is not None:
+                runs = runs.where(StepRun.attempt == attempt)
+            run_ids = [run.id for run in runs]
+            calls = list(
+                ToolCall.select()
+                .where(ToolCall.step_run.in_(run_ids))
+                .order_by(ToolCall.id)
+            )
+            rows = [
+                {
+                    "id": call.id,
+                    "tool": call.tool,
+                    "side": call.side,
+                    "session_id": call.session_id,
+                    "command_id": call.command_id,
+                    "preview": (call.preview or "")[:120],
+                    "ok": call.ok,
+                    "duration_ms": call.duration_ms,
+                }
+                for call in calls
+            ]
+
+        return JSONResponse(rows)
+
+    @app.get("/api/flow/trace/{tool_call_id}/body")
+    def flow_trace_body(request: Request, tool_call_id: int):
+        from fastapi.responses import PlainTextResponse
+
+        from odoo_migrator.models import ToolCall
+        from odoo_migrator.sheller.errors import ShellerError
+
+        with database.connection_context():
+            call = ToolCall.get_or_none(ToolCall.id == tool_call_id)
+            session_id = call.session_id if call is not None else ""
+            command_id = call.command_id if call is not None else ""
+        if not session_id:
+
+            return PlainTextResponse("not available")
+        try:
+            journal = request.app.state.sheller.journal(session_id)
+        except ShellerError:
+
+            return PlainTextResponse("not available")
+        records = journal.get("records") or []
+        matched = [
+            record for record in records if str(record.get("id", "")) == str(command_id)
+        ]
+        chosen = matched[0] if matched else {"records": records}
+
+        return PlainTextResponse(json.dumps(chosen, default=str))
 
     @app.get("/styleguide")
     def styleguide(request: Request):

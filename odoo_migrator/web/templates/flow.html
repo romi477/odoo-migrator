@@ -12,7 +12,9 @@
       <p>The pinned cartridge. <span class="mono">{{ flow_name }}</span> {{ flow_version }}</p>
     </div>
   </header>
-  <div id="flow-canvas" class="flow-canvas" data-migration="{{ flow_migration_id }}"></div>
+  <div id="flow-canvas" class="flow-canvas" data-migration="{{ flow_migration_id }}" data-job="{{ flow_job_id }}"></div>
+  <ol id="flow-trace" class="flow-trace" data-job="{{ flow_job_id }}"></ol>
+  <pre id="flow-body" class="flow-body" hidden></pre>
   {% if flow_embedded %}
   <script type="application/json" id="flow-graph">{{ flow_embedded | tojson }}</script>
   {% endif %}
