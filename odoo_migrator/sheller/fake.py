@@ -53,6 +53,10 @@ class FakeShellerClient:
         self._container = container
         self._mcp = mcp
         self._sessions: dict[str, dict] = {}
+        self._journals: dict[str, dict] = {}
+        # The journal file outlives the session. close drops the live row and
+        # leaves this, which is what history and the export still read.
+        self._journals: dict[str, list] = {}
         self._containers = [
             {"id": "0123456789ab", "name": "odoo-old", "image": "odoo:17", "status": "Up"},
             {"id": "ba9876543210", "name": "odoo-new", "image": "odoo:18", "status": "Up"},
@@ -118,6 +122,7 @@ class FakeShellerClient:
             "owner": dict(owner or {}),
             "allow_commit": bool(allow_commit),
             "write_key": write_key,
+            "commands": [],
         }
         described = self.get_session(session_id)
         described["write_key"] = write_key
@@ -146,10 +151,11 @@ class FakeShellerClient:
         return {key: value for key, value in session.items() if key != "write_key"}
 
     def exec(self, session_id: str, code: str, *, write_key: str) -> dict:
-        self._require(session_id, write_key)
+        session = self._require(session_id, write_key)
         if self.exec_error is not None:
             raise self.exec_error
         self.execs.append(code)
+        session["commands"].append({"kind": "exec", "code": code, "status": "done"})
         if "ir.module.module" in code:
             payload = json.dumps(self.graph_modules)
 
@@ -183,11 +189,71 @@ class FakeShellerClient:
         return {"ok": True}
 
     def close(self, session_id: str, *, write_key: str) -> dict:
-        self._require(session_id, write_key)
+        session = self._require(session_id, write_key)
         self.closes.append(session_id)
+        self._journals[session_id] = session
         del self._sessions[session_id]
 
         return {"ok": True}
+
+    def source(self, session_id: str, *, dotted: str, write_key: str) -> dict:
+        """Same path as the daemon: source is an exec, not its own route."""
+
+        return self.exec(session_id, dotted, write_key=write_key)
+
+    def journal(self, session_id: str) -> dict:
+        session = self._remembered(session_id)
+
+        return {"records": list(session["commands"])}
+
+    def feed(
+        self, session_id: str, *, logs: bool = False, log_tail: int | None = None
+    ) -> dict:
+        session = self._remembered(session_id)
+        entries = list(session["commands"])
+        body = {
+            "history": [entry["code"] for entry in entries if "code" in entry],
+            "entries": entries,
+            "session": {
+                "id": session_id,
+                "state": "ready" if session_id in self._sessions else "gone",
+            },
+        }
+        if logs:
+            kept = session.get("logs", [])
+            if log_tail:
+                kept = kept[-log_tail:]
+            body["logs"] = kept
+            body["logs_truncated"] = bool(log_tail) and len(session.get("logs", [])) > log_tail
+
+        return body
+
+    def list_tests(self, session_id: str, *, module: str, write_key: str) -> dict:
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise ShellerError("unknown session", status=404)
+        # The catalogue route does not check a session key. The argument stays
+        # so every session verb has the same shape.
+        del write_key
+
+        return {
+            "module": module,
+            "path": f"/opt/project/{module}",
+            "classes": [],
+            "container": session["container"],
+        }
+
+    def interrupt(self, session_id: str, *, write_key: str) -> dict:
+        self._require(session_id, write_key)
+
+        return {"ok": True}
+
+    def _remembered(self, session_id: str) -> dict:
+        session = self._sessions.get(session_id) or self._journals.get(session_id)
+        if session is None:
+            raise ShellerError("unknown session", status=404)
+
+        return session
 
     def _require(self, session_id: str, write_key: str) -> dict:
         session = self._sessions.get(session_id)

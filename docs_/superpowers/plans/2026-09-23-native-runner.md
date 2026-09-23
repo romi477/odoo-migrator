@@ -382,7 +382,7 @@ git add -A && git commit -m "feat: the cartridge language, its validation and th
   - `list_tests(self, session_id: str, *, module: str, write_key: str) -> dict`
   - `interrupt(self, session_id: str, *, write_key: str) -> dict`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_the_feed_of_a_closed_session_still_answers(sheller):
@@ -411,12 +411,12 @@ def test_interrupt_needs_the_write_key(sheller):
     assert refused.value.status == 403
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `uv run pytest tests/test_sheller_client.py -k "feed or interrupt" -v`
 Expected: FAIL — the methods do not exist.
 
-- [ ] **Step 3: Implement the client methods**
+- [x] **Step 3: Implement the client methods**
 
 Against the daemon's real routes: `GET /api/journals/{session_id}`, the
 command feed endpoint with its `logs` and `log_tail` query parameters,
@@ -425,7 +425,7 @@ command feed endpoint with its `logs` and `log_tail` query parameters,
 for the exact paths and status codes before writing any of them; do not
 invent a route.
 
-- [ ] **Step 4: Teach the fake to answer the same way**
+- [x] **Step 4: Teach the fake to answer the same way**
 
 The fake keeps a journal per session that survives `close`, refuses a wrong
 or missing write key with 403 `not_owner` — measured against the live daemon
@@ -434,7 +434,7 @@ certain what the daemon returns, run it: there is a `live` pytest marker for
 tests that talk to a real daemon, and the answer belongs in the fake, not in
 a guess.
 
-- [ ] **Step 5: Run the suite and commit**
+- [x] **Step 5: Run the suite and commit**
 
 ```bash
 uv run pytest && uv run ruff check

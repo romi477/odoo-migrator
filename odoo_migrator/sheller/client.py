@@ -1,5 +1,6 @@
 """HTTP client for a Sheller daemon, and the helper that must not invent an MCP command."""
 
+import json
 from typing import Protocol
 
 import httpx2
@@ -65,6 +66,18 @@ class ShellerClient(Protocol):
     def rollback(self, session_id: str, *, write_key: str) -> dict: ...
 
     def close(self, session_id: str, *, write_key: str) -> dict: ...
+
+    def source(self, session_id: str, *, dotted: str, write_key: str) -> dict: ...
+
+    def journal(self, session_id: str) -> dict: ...
+
+    def feed(
+        self, session_id: str, *, logs: bool = False, log_tail: int | None = None
+    ) -> dict: ...
+
+    def list_tests(self, session_id: str, *, module: str, write_key: str) -> dict: ...
+
+    def interrupt(self, session_id: str, *, write_key: str) -> dict: ...
 
 
 class HttpShellerClient:
@@ -186,6 +199,56 @@ class HttpShellerClient:
 
         return self._request(
             "DELETE", f"/api/sessions/{session_id}", write_key=write_key
+        )
+
+    def source(self, session_id: str, *, dotted: str, write_key: str) -> dict:
+        """Read through ``exec``. The daemon has no source route; its MCP tool is this call."""
+
+        return self.exec(session_id, dotted, write_key=write_key)
+
+    def journal(self, session_id: str) -> dict:
+        """``GET /api/journals/{id}`` is ndjson, not a JSON object."""
+        try:
+            response = self._http.request("GET", f"/api/journals/{session_id}")
+        except httpx2.RequestError as exc:
+            raise ShellerUnreachable(
+                f"Sheller daemon at {self._http.base_url} did not answer"
+            ) from exc
+        if response.status_code >= 400:
+            _raise_http(response)
+        records = [
+            json.loads(line) for line in response.text.splitlines() if line.strip()
+        ]
+
+        return {"records": records}
+
+    def feed(
+        self, session_id: str, *, logs: bool = False, log_tail: int | None = None
+    ) -> dict:
+        """``GET /api/sessions/{id}/history``. A closed session still answers."""
+        params: dict = {"logs": logs}
+        if log_tail is not None:
+            params["log_tail"] = log_tail
+
+        return self._request(
+            "GET", f"/api/sessions/{session_id}/history", params=params
+        )
+
+    def list_tests(self, session_id: str, *, module: str, write_key: str) -> dict:
+        """``GET /api/containers/{container}/tests``. The catalogue is not session-keyed."""
+        session = self.get_session(session_id)
+
+        return self._request(
+            "GET",
+            f"/api/containers/{session['container']}/tests",
+            params={"module": module},
+            write_key=write_key,
+        )
+
+    def interrupt(self, session_id: str, *, write_key: str) -> dict:
+
+        return self._request(
+            "POST", f"/api/sessions/{session_id}/interrupt", write_key=write_key
         )
 
     def _request(self, method: str, path: str, *, write_key: str | None = None, **kwargs):

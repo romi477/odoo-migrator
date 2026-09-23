@@ -1,7 +1,10 @@
 """Sheller client contract: the fake and the HTTP client pass the same tests."""
 
+import json
+
 import httpx2
 import pytest
+from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
 
 from odoo_migrator.sheller import (
@@ -147,6 +150,50 @@ def _stub_app(fake: FakeShellerClient):
         except ShellerError as exc:
             raise translate(exc) from None
 
+    @app.get("/api/sessions/{session_id}/history")
+    def history(session_id: str, logs: bool = False, log_tail: int = 2000):
+        try:
+
+            return fake.feed(session_id, logs=logs, log_tail=log_tail)
+        except ShellerError as exc:
+            raise translate(exc) from None
+
+    @app.post("/api/sessions/{session_id}/interrupt")
+    def interrupt(
+        session_id: str,
+        x_os_session_key: str | None = Header(None),
+        x_os_admin_key: str | None = Header(None),
+    ):
+        refuse_admin(x_os_admin_key)
+        try:
+
+            return fake.interrupt(session_id, write_key=x_os_session_key or "")
+        except ShellerError as exc:
+            raise translate(exc) from None
+
+    @app.get("/api/journals/{session_id}")
+    def journal_export(session_id: str):
+        try:
+            body = fake.journal(session_id)
+        except ShellerError as exc:
+            raise translate(exc) from None
+        lines = [json.dumps(row) for row in body["records"]]
+
+        return PlainTextResponse(
+            ("\n".join(lines) + "\n") if lines else "",
+            media_type="application/x-ndjson",
+        )
+
+    @app.get("/api/containers/{container}/tests")
+    def container_tests(container: str, module: str = ""):
+
+        return {
+            "module": module,
+            "path": f"/opt/project/{module}",
+            "classes": [],
+            "container": container,
+        }
+
     @app.delete("/api/sessions/{session_id}")
     def close(
         session_id: str,
@@ -253,6 +300,38 @@ def test_exec_run_test_commit_rollback_close(sheller):
     assert sheller.commit(sid, write_key=key)["ok"] is True
     assert sheller.rollback(sid, write_key=key)["ok"] is True
     assert sheller.close(sid, write_key=key)["ok"] is True
+
+
+def test_the_feed_of_a_closed_session_still_answers(sheller):
+    """The history route answers after close. The array is ``entries``."""
+    opened = sheller.open_session(
+        container="c",
+        database="d",
+        odoo_bin="/odoo/odoo-bin",
+        owner={"kind": "agent"},
+        allow_commit=False,
+    )
+    sheller.exec(opened["id"], "1 + 1", write_key=opened["write_key"])
+    sheller.close(opened["id"], write_key=opened["write_key"])
+
+    feed = sheller.feed(opened["id"])
+
+    assert [entry["code"] for entry in feed["entries"]] == ["1 + 1"]
+
+
+def test_interrupt_needs_the_write_key(sheller):
+    opened = sheller.open_session(
+        container="c",
+        database="d",
+        odoo_bin="/odoo/odoo-bin",
+        owner={"kind": "agent"},
+        allow_commit=False,
+    )
+
+    with pytest.raises(ShellerError) as refused:
+        sheller.interrupt(opened["id"], write_key="not-the-key")
+
+    assert refused.value.status == 403
 
 
 def test_wrong_write_key_is_not_owner(sheller):
