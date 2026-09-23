@@ -1,0 +1,31 @@
+"""What every step receives, and what it hands back."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
+from odoo_migrator.models import Migration, Module
+from odoo_migrator.runner.cartridge import Cartridge
+
+
+@dataclass
+class StepContext:
+    job_id: str
+    attempt: int
+    migration: Migration
+    module: Module
+    cartridge: Cartridge
+    sheller: object
+    sessions: dict[str, str]
+    emit: Callable[[dict], None]
+    write_keys: dict[str, str] = field(default_factory=dict)
+    prior_answers: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class StepResult:
+    ok: bool
+    flags: set[str] = field(default_factory=set)
+    answer: str = ""
+    output: str = ""

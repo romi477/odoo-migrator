@@ -54,6 +54,7 @@ class FakeShellerClient:
         self._mcp = mcp
         self._sessions: dict[str, dict] = {}
         self._journals: dict[str, dict] = {}
+        self._catalogues: dict[str, list] = {}
         # The journal file outlives the session. close drops the live row and
         # leaves this, which is what history and the export still read.
         self._journals: dict[str, list] = {}
@@ -228,6 +229,9 @@ class FakeShellerClient:
 
         return body
 
+    def tests_for(self, module: str, classes: list) -> None:
+        self._catalogues[module] = list(classes)
+
     def list_tests(self, session_id: str, *, module: str, write_key: str) -> dict:
         session = self._sessions.get(session_id)
         if session is None:
@@ -239,7 +243,7 @@ class FakeShellerClient:
         return {
             "module": module,
             "path": f"/opt/project/{module}",
-            "classes": [],
+            "classes": list(self._catalogues.get(module, [])),
             "container": session["container"],
         }
 

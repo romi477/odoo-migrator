@@ -463,7 +463,7 @@ git add -A && git commit -m "feat: source, journal, feed, list_tests and interru
     `answer: str = ""`, `output: str = ""`
   - `def run_step(step: Step, ctx: StepContext) -> StepResult` per module
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_lint_fails_a_manifest_that_is_not_python(tmp_path, step_context):
@@ -495,12 +495,12 @@ def test_verdict_is_basic_by_default_and_reads_the_migration(step_context):
     assert result.ok is False  # strict wants a probe answer, and there is none
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `uv run pytest tests/test_steps_deterministic.py -v`
 Expected: FAIL — the package does not exist.
 
-- [ ] **Step 3: Implement the five steps**
+- [x] **Step 3: Implement the five steps**
 
 `lint` reads the written module with `ast.parse` for `.py` and
 `xml.etree.ElementTree` for `.xml`, plus the manifest keys Odoo requires. It
@@ -513,7 +513,7 @@ module, then commits. `tests` uses `list_tests` and `run_test`, raising
 `ask_human` writes the checkpoint and returns a result that parks the job —
 the loop in Task 5 interprets that.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 ```bash
 uv run pytest && uv run ruff check
