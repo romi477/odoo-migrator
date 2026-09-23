@@ -51,8 +51,7 @@
                 return row ? row.modules.join(", ") : "";
               }
             }'>
-        <label>
-          Step
+        <label class="pipeline-step-picker">
           <select name="step" required x-model.number="pick"
                   aria-label="Migration step to queue">
             {% for row in pipeline_steps %}
@@ -61,9 +60,16 @@
           </select>
         </label>
         <p class="pipeline-step-modules mono" x-text="moduleLine()"></p>
-        <button type="submit" class="outline-cyan"
-                title="Add this step to the pipeline queue"
-                aria-label="Add the selected step to the queue">Add to queue</button>
+        <p class="form-error" id="pipeline-start-error" hidden></p>
+        <div class="pipeline-start-actions">
+          <button type="submit"
+                  title="Add this step to the pipeline queue"
+                  aria-label="Add the selected step to the queue">Add to queue</button>
+          <button type="submit" class="primary"
+                  formaction="/run/queue/add-all" formmethod="post"
+                  title="Add every dependency step to the pipeline queue"
+                  aria-label="Add all dependency steps to the queue">Add all steps to queue</button>
+        </div>
       </form>
       {% else %}
       <p class="field-hint">Resolve on Tree to draw dependency steps.</p>
@@ -127,9 +133,9 @@
           </form>
         </div>
       </header>
-      {% if pipeline_queue.modules %}
-      <div class="pipeline-queue-body">
+      <div class="pipeline-queue-body"{% if not pipeline_queue.modules %} hidden{% endif %}>
         <div class="pipeline-queue-next" data-pipeline-queue-next>
+          {% if pipeline_queue.modules %}
           {% set mod = pipeline_queue.modules[0] %}
           <div class="pipeline-queue-item{% if mod.active %} pipeline-queue-active{% endif %}"
                data-module-id="{{ mod.id }}">
@@ -139,6 +145,7 @@
             <span class="name mono">{{ mod.technical_name }}</span>
             <span class="badge">step {{ mod.step }}</span>
           </div>
+          {% endif %}
         </div>
         <ol class="pipeline-queue-list" data-pipeline-queue>
           {% for mod in pipeline_queue.modules %}
@@ -153,11 +160,9 @@
           {% endfor %}
         </ol>
       </div>
-      {% else %}
-      <div class="pipeline-queue-body pipeline-queue-body-empty">
-        <p class="field-hint" data-pipeline-queue-empty>Add steps from Selection.</p>
-      </div>
-      {% endif %}
+      <p class="field-hint pipeline-queue-empty-hint" data-pipeline-queue-empty{% if pipeline_queue.modules %} hidden{% endif %}>
+        Add steps from Selection.
+      </p>
     </section>
   </div>
   {% endif %}

@@ -78,6 +78,7 @@ from odoo_migrator.n8n import HttpN8nClient, N8nExecutor, sweep_orphaned_session
 from odoo_migrator.paths import rules_dir as default_rules_dir
 from odoo_migrator.paths import static_dir, templates_dir
 from odoo_migrator.pipeline_queue import (
+    add_all_steps as queue_add_all_steps,
     add_step as queue_add_step,
     queue_snapshot,
     start as queue_start,
@@ -893,7 +894,7 @@ def create_app(
                 )
             except RulesError:
                 versions = []
-            pipeline_steps = list_pipeline_steps(current["id"])
+            pipeline_steps = list_pipeline_steps(current["id"], pending_only=True)
         pipeline_queue = queue_snapshot(current["id"]) if current else None
 
         return _page(
@@ -916,20 +917,57 @@ def create_app(
     @app.post("/run/queue/add")
     def run_queue_add(request: Request, step: str = Form("")):
         current = get_active(request.cookies.get(OPEN_COOKIE))
+        wants_json = "application/json" in request.headers.get("accept", "")
         if current is None:
+            if wants_json:
+
+                return JSONResponse({"error": "no open migration"}, status_code=400)
 
             return RedirectResponse("/run", status_code=303)
         if not step.strip():
+            if wants_json:
+
+                return JSONResponse({"error": "Pick a step to queue."}, status_code=400)
 
             return _run_page(request, error="Pick a step to queue.")
         try:
             queue_add_step(current["id"], int(step))
         except ValueError as refused:
+            if wants_json:
+
+                return JSONResponse({"error": str(refused)}, status_code=400)
 
             return _run_page(request, error=str(refused))
         from odoo_migrator.pipeline_queue import publish_queue
 
         publish_queue(request.app.state.hub, current["id"])
+        if wants_json:
+
+            return JSONResponse(
+                {"migration_id": current["id"], **queue_snapshot(current["id"])}
+            )
+
+        return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/add-all")
+    def run_queue_add_all(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        wants_json = "application/json" in request.headers.get("accept", "")
+        if current is None:
+            if wants_json:
+
+                return JSONResponse({"error": "no open migration"}, status_code=400)
+
+            return RedirectResponse("/run", status_code=303)
+        queue_add_all_steps(current["id"])
+        from odoo_migrator.pipeline_queue import publish_queue
+
+        publish_queue(request.app.state.hub, current["id"])
+        if wants_json:
+
+            return JSONResponse(
+                {"migration_id": current["id"], **queue_snapshot(current["id"])}
+            )
 
         return RedirectResponse("/run", status_code=303)
 

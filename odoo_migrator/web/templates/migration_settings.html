@@ -16,42 +16,103 @@
     {{ provision.resources.total }} containers on this machine
     {% endif %}
   </p>
-  <div class="container-sides">
+  <div class="migration-settings-cols">
     {% for side, role, status in [("old", "source", provision.old), ("new", "target", provision.new)] %}
-    <div class="card container-side">
-      {# Role, then the state, on one line. The path sits right under it. The
-         technical container name is quiet, next to the badge. #}
-      <div class="side-head">
-        <h3>{{ role }}</h3>
-        <span class="badge {{ status.state }}">{{ status.state }}</span>
-        {% if status.container %}
-        <span class="mono side-container">{{ status.container }}</span>
+    <div class="migration-settings-col">
+      <div class="card container-side">
+        {# Role, then the state, on one line. The path sits right under it. The
+           technical container name is quiet, next to the badge. #}
+        <div class="side-head">
+          <h3>{{ role }}</h3>
+          <span class="badge {{ status.state }}">{{ status.state }}</span>
+          {% if status.container %}
+          <span class="mono side-container">{{ status.container }}</span>
+          {% endif %}
+        </div>
+        <p class="mono side-path">{{ expanded.old_project_path if side == "old" else expanded.new_project_path }}</p>
+        {% if status.detail %}
+        <p class="field-hint">{{ status.detail }}</p>
         {% endif %}
+        <div class="side-actions">
+          {# The migration and the side are the card's heading and the row's,
+             so spelling them out on every button wrapped each one over two
+             lines. They stay as the accessible name, read out in full and
+             shown on hover. #}
+          {% for action, label in [("up", "Up"), ("stop", "Stop"), ("attach", "Attach"), ("restart", "Restart"), ("rebuild", "Rebuild")] %}
+          <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/{{ action }}">
+            <button type="submit"{% if action == "up" %} class="primary"{% endif %}
+                    title="{{ label }} the {{ side }} container of {{ expanded.name }}"
+                    aria-label="{{ label }} the {{ side }} container of {{ expanded.name }}">{{ label }}</button>
+          </form>
+          {% endfor %}
+        </div>
       </div>
-      <p class="mono side-path">{{ expanded.old_project_path if side == "old" else expanded.new_project_path }}</p>
-      {% if status.detail %}
-      <p class="field-hint">{{ status.detail }}</p>
+      {% if side == "old" %}
+      {# One numbered setting per row, each with a plain-language line under it,
+         so the form explains itself instead of being five bare selects. #}
+      <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">
+    <ol class="settings-fields">
+      <li>
+        <label>Strictness
+          <select name="strictness_default">
+            <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
+            <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
+          </select>
+        </label>
+        <p class="field-hint">How hard a rewrite is checked. <code>enhanced</code>
+        asks for more; the stock flow runs what <code>basic</code> runs until a
+        flow honours the difference.</p>
+      </li>
+      <li>
+        <label>Retry limit
+          <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
+        </label>
+        <p class="field-hint">How many times one module is retried on the n8n
+        canvas before the batch stops on it.</p>
+      </li>
+      <li>
+        <label>Ask-human mode
+          <select name="ask_human_mode">
+            <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
+            <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
+          </select>
+        </label>
+        <p class="field-hint"><code>sync</code> stops and waits for your answer on
+        Tree. <code>batch_defer</code> records an assumption and keeps going; you
+        read it at the checkpoint.</p>
+      </li>
+      <li>
+        <label>Flow
+          <select name="cartridge_id">
+            {% for item in cartridges %}
+            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
+            {% else %}
+            <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
+            {% endfor %}
+          </select>
+        </label>
+        <p class="field-hint">The n8n workflow package that does the rewrite,
+        pinned by id and version. The pin is recorded on every job.</p>
+      </li>
+      <li>
+        <label>Model wrapper
+          <select name="model_webhook_path">
+            <option value="migrate-module"{% if expanded.model_webhook_path == "migrate-module" %} selected{% endif %}>stock (migrate-module)</option>
+            <option value="migrate-module-openai"{% if expanded.model_webhook_path == "migrate-module-openai" %} selected{% endif %}>openai</option>
+            <option value="migrate-module-claude"{% if expanded.model_webhook_path == "migrate-module-claude" %} selected{% endif %}>claude</option>
+          </select>
+        </label>
+        <p class="field-hint">Which model the flow calls: the stock path, or a
+        thin OpenAI / Claude parent that runs the same loop.</p>
+      </li>
+    </ol>
+    <button type="submit" class="primary">Save</button>
+      </form>
       {% endif %}
-      <div class="side-actions">
-        {# The migration and the side are the card's heading and the row's,
-           so spelling them out on every button wrapped each one over two
-           lines. They stay as the accessible name, read out in full and
-           shown on hover. #}
-        {% for action, label in [("up", "Up"), ("stop", "Stop"), ("attach", "Attach"), ("restart", "Restart"), ("rebuild", "Rebuild")] %}
-        <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/{{ action }}">
-          <button type="submit"{% if action == "up" %} class="primary"{% endif %}
-                  title="{{ label }} the {{ side }} container of {{ expanded.name }}"
-                  aria-label="{{ label }} the {{ side }} container of {{ expanded.name }}">{{ label }}</button>
-        </form>
-        {% endfor %}
-      </div>
     </div>
     {% endfor %}
   </div>
-  {% endif %}
-
-  {# One numbered setting per row, each with a plain-language line under it,
-     so the form explains itself instead of being five bare selects. #}
+  {% else %}
   <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">
     <ol class="settings-fields">
       <li>
@@ -110,4 +171,5 @@
     </ol>
     <button type="submit" class="primary">Save</button>
   </form>
+  {% endif %}
 </div>

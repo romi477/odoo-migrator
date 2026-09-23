@@ -185,12 +185,18 @@ def list_modules(migration_id: str) -> list[dict]:
     return listed
 
 
-def list_pipeline_steps(migration_id: str) -> list[dict]:
-    """Dependency steps still in the plan — same waves as Tree."""
+def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> list[dict]:
+    """Dependency steps still in the plan — same waves as Tree.
+
+    With ``pending_only``, skip excluded modules and those already passed, and
+    omit waves that have no remaining work.
+    """
     listed = list_modules(migration_id)
     by_step: dict[int, list[str]] = {}
     for row in listed:
         if row["struck_out"]:
+            continue
+        if pending_only and row["status"] == "passed":
             continue
         wave = row.get("step") or 1
         by_step.setdefault(wave, []).append(row["technical_name"])

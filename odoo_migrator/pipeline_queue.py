@@ -62,6 +62,21 @@ def add_step(migration_id: str, step: int) -> bool:
     return True
 
 
+def add_all_steps(migration_id: str) -> int:
+    """Append every wave that still has in-plan, not-yet-passed modules.
+
+    Returns how many queue entries were added.
+    """
+    from odoo_migrator.graph import list_pipeline_steps
+
+    added = 0
+    for row in list_pipeline_steps(migration_id, pending_only=True):
+        if add_step(migration_id, row["step"]):
+            added += 1
+
+    return added
+
+
 def remove_finished_steps(migration_id: str) -> None:
     """Drop queue entries whose modules are all passed."""
     with database.connection_context():

@@ -157,8 +157,9 @@ Four run screens after Tree, not four columns. Pipeline also holds the
 checkpoint once a batch has finished. Result is the scoreboard.
 
 **Pipeline** (`/run`) has **Selection** and **Queue**. In Selection, pick
-a **Step** (same waves as Tree) and **Add to queue** — duplicates are
-ignored. **Queue** lists pending modules in order; **Run** / **Stop**
+a **Step** (same waves as Tree), **Add to queue**, or **Add all steps to
+queue** — only modules still in the plan and not yet passed; excluded
+modules and finished waves are skipped. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
 the current module first). The active module pulses in the queue; passed
 modules drop off the list and show on **Result**. The live panel below is

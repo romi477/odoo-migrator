@@ -307,14 +307,16 @@
     <section class="pipeline-panel pipeline-selection row-card">
       <h2 class="pipeline-panel-title">Selection</h2>
       <form class="pipeline-start">
-        <label>
-          Step
+        <label class="pipeline-step-picker">
           <select aria-label="Migration step to queue">
             <option>Step 1 · 3 modules</option>
           </select>
         </label>
         <p class="pipeline-step-modules mono">mig_test_base, mig_test_partner, mig_test_product</p>
-        <button type="button" class="outline-cyan">Add to queue</button>
+        <div class="pipeline-start-actions">
+          <button type="button">Add to queue</button>
+          <button type="button" class="primary">Add all steps to queue</button>
+        </div>
       </form>
     </section>
     <section class="pipeline-queue-card card is-queue-expanded">
