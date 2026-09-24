@@ -795,56 +795,64 @@ provider, reports whether a key is set, and never renders the value.
 7. A line in this section saying **how it behaves differently**, not only
    that it exists.
 
-### Cursor and the other harnesses are a different thing
+### Cursor is a provider; the CLI-only harnesses are not
 
-Anthropic and OpenAI are model APIs: we supply the tools, we run the loop, we
-own every step. Cursor — like Claude Code CLI, Aider or OpenCode — is a
-finished agent harness with its own loop, its own tools and its own way of
-editing files.
+Cursor ships a Python SDK (`pip install cursor-sdk`, Python 3.10+), and with
+it Cursor fits the `Provider` protocol above rather than needing a step kind
+of its own. Checked against its documentation, not assumed:
 
-Connecting one is possible and not expensive. Checked against Cursor's CLI
-documentation rather than assumed, it offers everything the integration
-needs:
+```python
+from cursor_sdk import Agent, LocalAgentOptions, StdioMcpServerConfig
 
-- headless runs — `agent -p "..." --model ... --output-format stream-json
-  --stream-partial-output`;
-- a machine-readable event stream: `system/init`, assistant deltas,
-  `tool_call` with `started` and `completed`, and a final `result` with
-  `duration_ms`. **The trace survives**: those events map onto our `ToolCall`
-  rows and the Flow screen paints them like any other step;
-- MCP servers (`agent mcp list`, `agent mcp list-tools`, `--approve-mcps`),
-  so it can be given our own catalog;
-- a permissions file with `allow` / `deny` over `Read(...)`, `Write(...)` and
-  `Shell(...)`.
+agent = Agent.create(
+    model="composer-2.5",
+    tools=["mcp"],                        # its own read/edit/shell are off
+    local=LocalAgentOptions(cwd=target_project),
+    mcp_servers={"migrator": StdioMcpServerConfig(command=..., args=[...])},
+)
+run = agent.send(prompt)
+for message in run.messages():            # assistant | thinking | tool_call | status | usage
+    ...
+result = run.wait()
+```
 
-What it costs, and this is the part to accept deliberately: a harness brings
-its own read, write and shell tools, and in non-interactive mode it has full
-write access. Our containment — an agent confined to two containers by the
-shape of its tools, with `ToolRefused` raised before any HTTP — does not
-apply to it. What confines a harness is its own permissions file: someone
-else's lock on our door.
+Four things make it a provider rather than a harness:
 
-The shape that follows:
+1. **Its built-in tools can be switched off.** `tools=[]` means "no built-in
+   tools; the model can only respond with text", and `"mcp"` is a capability
+   group. So the agent reaches the world only through the catalog we serve —
+   the same containment the Anthropic path has, rather than someone else's
+   permissions file.
+2. **MCP over stdio.** `StdioMcpServerConfig(command, args, env, cwd)` needs
+   no port, which matters because this branch has just deleted every
+   machine-facing surface the app had. The MCP server is a subprocess over
+   the same `tools_for` catalog, and it lives as long as the step.
+3. **`report` is just another tool in that catalog.** The step therefore ends
+   the way every agent step ends — the model declares a result — and a
+   Cursor step raises flags and takes branches like any other.
+4. **The trace and the cost survive.** `tool_call` arrives twice, `running`
+   with arguments and `completed` with the result, which maps onto `ToolCall`
+   directly; `usage` carries `input_tokens`, `output_tokens` and the cache
+   counters, with cost from `agent.get_usage()`.
 
-1. A local MCP server over the same catalog `tools_for` already builds, so
-   the harness works with our sessions and our sides.
-2. `permissions.deny` everything outside the target project root, so its own
-   write tools cannot leave it.
-3. Parse `stream-json`: `tool_call` events become `ToolCall` rows, `result`
-   ends the step.
-4. It cannot call `report`. A harness step therefore raises no flags, and its
-   outcome is read from the `result` plus what `lint` and `tests` say
-   afterwards.
+**Check before building the MCP server:** `LocalAgentOptions` has a
+`custom_tools` field. If it accepts Python callables, the result of
+`tools_for(step, ctx)` goes straight in and there is no MCP server, no
+subprocess and no transport — which would make Cursor the cheapest of the
+three providers to add. This is not confirmed in the documentation read so
+far, and it decides how much work the provider is.
 
-Point 4 is the real difference, and it is why this is a `harness` step kind
-rather than a third entry in `REGISTRY`: **an agent step ends when the model
-declares a result; a harness step ends when the harness stops, and we judge
-it by what it left behind.**
+Two caveats to carry: the SDK authenticates with `CURSOR_API_KEY` (user or
+service-account keys; team admin keys are documented as unsupported), and
+inline MCP servers are not persisted across `Agent.resume()` — irrelevant
+here, because a step never resumes an agent.
 
-The 2026-09-20 spec put "swapping the whole execution agent (Cursor,
-OpenCode, Claude Code CLI)" in its non-goals. That still holds for this
-round — it is a step kind nobody has built — but the reason is scope, not
-feasibility.
+**The harnesses that have no SDK** — Aider, OpenCode, Claude Code CLI — keep
+the shape this section used to describe for Cursor: driven headless, writing
+files with their own tools, unable to call `report`, and therefore judged by
+what `lint`, `tests` and `verdict` find afterwards. That is a `harness` step
+kind, not a provider, and nobody has built it. The 2026-09-20 spec's non-goal
+on swapping the whole execution agent still covers them.
 
 ## The human in the loop
 
@@ -1101,11 +1109,11 @@ then one command rather than archaeology.
    `MAX_TOKENS`), which enforces "narrow, never widen" but puts the numbers
    in code rather than on the migration card, where the spec says they
    belong. Moving them is a schema change and two form fields.
-5. **Whether a `harness` step is wanted** — Cursor or another finished agent
-   CLI, driven headless, given our catalog over MCP and judged by what it
-   leaves behind. Feasible, described under "Providers", and not scheduled.
-   The open part is the containment: a harness is held by its own permissions
-   file rather than by the shape of the tools we hand it.
+5. **Whether a `harness` step is wanted** for the agent CLIs that ship no
+   SDK — Aider, OpenCode, Claude Code CLI. They cannot call `report`, so they
+   are judged by what they leave behind, which is a different step kind.
+   Cursor is not among them: it has a Python SDK and is an ordinary provider.
+   Not scheduled either way.
 6. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.
