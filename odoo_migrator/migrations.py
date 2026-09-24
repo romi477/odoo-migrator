@@ -305,7 +305,9 @@ def save_migration_settings(
             row.model_webhook_path = model_webhook_path.strip()
         if model_override is not None:
             name = model_override.strip()
-            if name and name not in ("claude-opus-5", "claude-sonnet-5"):
+            from odoo_migrator.runner.providers import model_allowed
+
+            if name and not model_allowed(name):
 
                 return None
             row.model_override = name

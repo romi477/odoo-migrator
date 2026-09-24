@@ -1,0 +1,152 @@
+"""Anthropic, via the SDK's beta tool runner."""
+
+from __future__ import annotations
+
+from odoo_migrator.runner.agent import MAX_OUTPUT_TOKENS
+from odoo_migrator.runner.cartridge import Budget
+from odoo_migrator.runner.context import StepResult
+from odoo_migrator.runner.providers.base import SettingField
+from odoo_migrator.runner.tools import BoundTool, ReportTool
+
+_EFFORT = "high"
+
+
+class NoModelClient(RuntimeError):
+    """An agent step ran and this provider had no key."""
+
+
+class AnthropicProvider:
+    name = "anthropic"
+    models = frozenset({"claude-opus-5", "claude-sonnet-5"})
+    settings = (SettingField("api_key", "Anthropic API key"),)
+
+    def accepts_model(self, name: str) -> bool:
+
+        return name in self.models
+
+    def ensure_ready(self) -> None:
+        if not _key():
+            raise NoModelClient(
+                "no Anthropic API key is set — the agent steps of a cartridge "
+                "cannot run. Set it on the settings page."
+            )
+
+    def run_step(
+        self,
+        *,
+        prompt: str,
+        tools: list[BoundTool],
+        report: ReportTool,
+        model: str,
+        budget: Budget,
+    ) -> StepResult:
+        import anthropic
+        from anthropic import beta_tool
+
+        self.ensure_ready()
+        captured: dict = {}
+        usage = {"in": 0, "out": 0, "cached": 0}
+        runnable = [_as_beta(beta_tool, tool) for tool in tools]
+        runnable.append(_report_beta(beta_tool, report, captured))
+        kwargs = {
+            "max_tokens": min(budget.tokens or MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
+            "model": model,
+            "tools": runnable,
+            "messages": [{"role": "user", "content": prompt or ""}],
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": _EFFORT},
+            "stream": True,
+        }
+        if budget.tool_calls is not None:
+            kwargs["max_iterations"] = budget.tool_calls
+        client = anthropic.Anthropic(api_key=_key())
+        runner = client.beta.messages.tool_runner(**kwargs)
+        try:
+            final = runner.until_done()
+        except anthropic.APIError as exc:
+            if captured:
+
+                return _from_report(report, captured, usage)
+
+            return StepResult(ok=False, output=str(exc))
+        _note_usage(final, usage)
+        if not captured:
+
+            return StepResult(
+                ok=False,
+                output="stopped at the tool-call budget",
+                tokens_in=usage["in"],
+                tokens_out=usage["out"],
+                tokens_cached=usage["cached"],
+            )
+
+        return _from_report(report, captured, usage)
+
+
+def _key() -> str:
+    from odoo_migrator.settings import provider_setting
+
+    stored = provider_setting("anthropic", "api_key")
+    if stored:
+
+        return stored
+    from odoo_migrator.settings import anthropic_api_key
+
+    return anthropic_api_key()
+
+
+def _as_beta(beta_tool, tool: BoundTool):
+    def call(**payload: object) -> str:
+        """Run this tool on a side the step declared."""
+
+        return tool(**payload)
+
+    return beta_tool(
+        call,
+        name=tool.name,
+        description=tool.description,
+        input_schema=tool.input_schema,
+    )
+
+
+def _report_beta(beta_tool, report: ReportTool, captured: dict):
+    def submit(**payload: object) -> str:
+        """End the step. Set a flag only when it is true."""
+        captured.clear()
+        captured.update(payload)
+
+        return "reported"
+
+    return beta_tool(
+        submit,
+        name=report.name,
+        description=report.description,
+        input_schema=report.input_schema,
+    )
+
+
+def _note_usage(message, usage: dict) -> None:
+    counted = getattr(message, "usage", None)
+    if counted is None:
+
+        return
+    usage["in"] = int(getattr(counted, "input_tokens", 0) or 0)
+    usage["out"] = int(getattr(counted, "output_tokens", 0) or 0)
+    usage["cached"] = int(getattr(counted, "cache_read_input_tokens", 0) or 0)
+
+
+def _from_report(report: ReportTool, payload: dict, usage: dict) -> StepResult:
+    flags = {
+        flag
+        for flag in report.input_schema["properties"]
+        if flag != "answer" and payload.get(flag)
+    }
+
+    return StepResult(
+        ok=True,
+        flags=flags,
+        answer=str(payload.get("answer") or ""),
+        tokens_in=usage["in"],
+        tokens_out=usage["out"],
+        tokens_cached=usage["cached"],
+    )

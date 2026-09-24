@@ -49,6 +49,17 @@ class AppSettings(BaseModel):
     anthropic_api_key = TextField(default="")
 
 
+class ProviderSetting(BaseModel):
+    """One setting for one provider. A key for an SDK, a URL for a daemon."""
+
+    provider = CharField()
+    key = CharField()
+    value = TextField(default="")
+
+    class Meta:
+        indexes = ((("provider", "key"), True),)
+
+
 class CartridgeInstall(BaseModel):
     cartridge_id = CharField()
     version = CharField()
@@ -243,6 +254,7 @@ class PipelineQueueItem(BaseModel):
 ALL_MODELS = [
     ShellerSession,
     AppSettings,
+    ProviderSetting,
     CartridgeInstall,
     Migration,
     Module,

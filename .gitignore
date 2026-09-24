@@ -10,7 +10,7 @@ __pycache__/
 data/*.sqlite
 data/*.db
 
-docs_
+docs_/
 
 # Local n8n choices (packaging/n8n.sh reads this; compose substitutes from it)
 n8n/.env

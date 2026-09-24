@@ -1,5 +1,7 @@
 """The native runner records every tool call on its own thread."""
 
+import time
+
 import pytest
 from doubles.model import ModelDouble
 
@@ -76,8 +78,50 @@ def native_job(app, fake_sheller, tmp_path):
     return job, runner
 
 
+_ASKS = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: diagnose
+    sessions: [new]
+    tools: [exec]
+    raises: [needs_human]
+    prompt: diagnose
+  - step: ask_human
+    when: needs_human
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: diagnose
+"""
+
+
 @pytest.fixture
-def parked_job(app, tmp_path):
+def parked_job(app, fake_sheller, tmp_path):
+    """Parked by the runner itself, so a thread is really waiting on it."""
+    job = _module(tmp_path)
+    model = ModelDouble(
+        turns=[
+            {"name": "report", "input": {"answer": "which override?", "needs_human": True}},
+            {"name": "report", "input": {"answer": "done"}},
+        ]
+    )
+    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub, client=model)
+    runner.start({"job_id": job.job_id, "cartridge_text": _ASKS})
+    for _ in range(200):
+        if reloaded(job).status == "waiting_for_human":
+            break
+        time.sleep(0.01)
+
+    return job, runner
+
+
+@pytest.fixture
+def abandoned_job(app, tmp_path):
+    """Parked with nothing waiting: the app restarted while a human thought."""
     del app
     job = _module(tmp_path)
     with database.connection_context():
@@ -117,13 +161,33 @@ def test_a_run_records_the_session_of_every_tool_call(client, native_job):
 
 
 def test_an_answer_resumes_a_parked_job(client, parked_job):
+    job, runner = parked_job
+
     answer_job(
-        module_id=parked_job.module_id,
+        module_id=job.module_id,
         answer="drop the override",
         hub=client.app.state.hub,
+        resume=runner.resume,
+    )
+    runner.wait(job.job_id)
+
+    assert reloaded(job).status == "passed"
+
+
+def test_an_answer_to_a_job_whose_runner_is_gone_does_not_pretend(client, abandoned_job):
+    """The loop lived in a thread, and a restart took it. Saying "running"
+    would be a row nobody is running."""
+    runner = NativeRunner(sheller=None, hub=client.app.state.hub)
+
+    answered = answer_job(
+        module_id=abandoned_job.module_id,
+        answer="drop the override",
+        hub=client.app.state.hub,
+        resume=runner.resume,
     )
 
-    assert reloaded(parked_job).status == "running"
+    assert answered.answer == "drop the override"
+    assert reloaded(abandoned_job).status == "unknown"
 
 
 def test_the_thread_never_shares_a_connection(native_job):

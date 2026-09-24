@@ -14,6 +14,15 @@ class ShellerUnreachable(ShellerError):
     """Nothing answered at the daemon URL. The resolver's cue to try the next level."""
 
 
+class ShellerTimeout(ShellerError):
+    """The call did not come back in time. The command is still running.
+
+    The daemon takes no timeout for `exec` — `ExecBody` is `{code}` and
+    nothing else — so this is ours, on the HTTP call. The session stays busy
+    with the command afterwards, which is what `interrupt` is for.
+    """
+
+
 class ShellerNotOwner(ShellerError):
     """Wrong or missing X-OS-Session-Key. Never retry this with an admin key."""
 

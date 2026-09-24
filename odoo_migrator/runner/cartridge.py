@@ -21,7 +21,6 @@ CONTEXT_ITEMS = (
     "last_failure",
 )
 SCHEMA_VERSION = 1
-PROVIDERS = {"anthropic": frozenset({"claude-opus-5", "claude-sonnet-5"})}
 SIDES = frozenset({"old", "new"})
 
 
@@ -125,12 +124,17 @@ def _steps(loaded: Cartridge) -> list[Step]:
 
 
 def _check_model(ref: ModelRef) -> None:
-    served = PROVIDERS.get(ref.provider)
-    if served is None:
-        raise CartridgeError(f"unknown provider '{ref.provider}'")
-    if ref.name not in served:
-        known = ", ".join(sorted(served))
-        raise CartridgeError(f"provider '{ref.provider}' does not serve '{ref.name}' ({known})")
+    from odoo_migrator.runner.providers import get
+
+    try:
+        provider = get(ref.provider)
+    except KeyError:
+        raise CartridgeError(f"unknown provider '{ref.provider}'") from None
+    if not provider.accepts_model(ref.name):
+        known = ", ".join(sorted(provider.models)) or "none"
+        raise CartridgeError(
+            f"provider '{ref.provider}' does not serve '{ref.name}' ({known})"
+        )
 
 
 def _refuse_invalid(loaded: Cartridge) -> None:

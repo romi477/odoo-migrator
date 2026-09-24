@@ -17,6 +17,14 @@ class Executor(Protocol):
     def start(self, payload: dict) -> None:
         """Hand the trigger to the cartridge. The stub callbacks into the app."""
 
+    def resume(self, job_id: str, answer: str) -> bool:
+        """Whether this executor can carry the parked job on from here.
+
+        False is a real answer, not a failure: the native runner keeps a
+        parked job's loop in a thread, and a restart takes it with it. The
+        app needs to know, or it marks a job running that nobody runs.
+        """
+
 
 class StubExecutor:
     """Fake stages, fake callback. The suite does not need a live runner."""
@@ -33,6 +41,12 @@ class StubExecutor:
         self._result = result
         self.stages = stages
         self.ask = ask
+
+    def resume(self, job_id: str, answer: str) -> bool:
+        """The stub holds nothing, so there is nothing to lose on a restart."""
+        del job_id, answer
+
+        return True
 
     def start(self, payload: dict) -> None:
         job_id = payload["job_id"]

@@ -255,3 +255,63 @@ def test_progress_still_refuses_something_that_is_not_a_label():
 
     with pytest.raises(ValueError, match="unusable stage"):
         ProgressPayload.model_validate({"job_id": "job-1", "stage": "  ", "attempt": 1})
+
+
+def test_a_setup_failure_fails_the_job_instead_of_vanishing(app, tmp_path, fake_sheller):
+    """A container that is not up killed the thread with nobody told."""
+    from odoo_migrator.models import Batch, Job
+    from odoo_migrator.runner.native import NativeRunner
+
+    with database.connection_context():
+        migration = Migration.create(
+            name="NoContainers",
+            accent_color="oklch(0.70 0.15 305)",
+            source_version="17.0",
+            target_version="18.0",
+            old_project_path=str(tmp_path / "old"),
+            new_project_path=str(tmp_path / "new"),
+        )
+        module = Module.create(migration=migration, technical_name="sale_custom")
+        batch = Batch.create(migration=migration, status="running")
+        job = Job.create(batch=batch, module=module, status="queued")
+
+    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub)
+    runner.start({"job_id": job.job_id})
+    with pytest.raises(RuntimeError, match="not up"):
+        runner.wait(job.job_id)
+
+    with database.connection_context():
+        assert Job.get_by_id(job.id).status == "failed"
+
+
+def test_a_command_that_outlives_its_timeout_is_interrupted(app, tmp_path):
+    sheller = FakeShellerClient()
+    sheller.hangs_on = "search([])"
+    ctx = _ctx(tmp_path, sheller, command_timeout=0.5)
+    step = Step(kind="agent", id="probe", sessions=["new"], tools=["exec"], prompt="x")
+    exec_tool = next(tool for tool in tools_for(step, ctx) if tool.name == "exec")
+
+    answer = exec_tool(side="new", code="env['res.partner'].search([])")
+
+    assert "interrupted" in answer
+    assert sheller.interrupts
+
+
+def test_a_huge_diff_does_not_go_into_the_prompt_whole(app, tmp_path):
+    from odoo_migrator.runner.prompting import MAX_DIFF_CHARS, build_context
+
+    sheller = FakeShellerClient()
+    ctx = _ctx(tmp_path, sheller, previous_diff="+" * (MAX_DIFF_CHARS * 2))
+    step = Step(
+        kind="agent",
+        id="patch",
+        sessions=["new"],
+        tools=["write_file"],
+        context=["previous_diff"],
+        prompt="fix",
+    )
+
+    rendered = build_context(step, ctx)
+
+    assert len(rendered) < MAX_DIFF_CHARS * 2
+    assert "truncated" in rendered

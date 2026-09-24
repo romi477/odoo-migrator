@@ -117,6 +117,14 @@ class NoCacheStaticFiles(StaticFiles):
         return response
 
 
+def _model_names() -> list[str]:
+    from odoo_migrator.runner.providers import known_models
+
+    names = {name for listed in known_models().values() for name in listed}
+
+    return sorted(names)
+
+
 def app_version() -> str:
     from importlib.metadata import PackageNotFoundError, version
 
@@ -131,7 +139,6 @@ def app_version() -> str:
 def _choose_executor(*, sheller, hub, progress, result):
     """Stub by default. ``ODOO_MIGRATOR_RUNNER=native`` runs the in-process loop."""
     if os.environ.get("ODOO_MIGRATOR_RUNNER") == "native":
-        from odoo_migrator.runner.agent import default_client
         from odoo_migrator.runner.native import NativeRunner
 
         return NativeRunner(
@@ -139,10 +146,6 @@ def _choose_executor(*, sheller, hub, progress, result):
             hub=hub,
             progress=progress,
             result=result,
-            # Built lazily: starting the app without a key is fine, running a
-            # cartridge that has agent steps is not, and the difference has to
-            # be a message rather than an AttributeError on None.
-            client=default_client,
         )
 
     return StubExecutor(progress=progress, result=result)
@@ -226,6 +229,7 @@ def create_app(
             # while a module waited for an answer showed a calm nav bar.
             "running_count": running_migration_count(),
             "lamp": lamp_state(),
+            "model_names": _model_names(),
         }
 
     def _page(request: Request, template: str, active: str, extra: dict | None = None):
@@ -612,6 +616,7 @@ def create_app(
                 module_id=module_id,
                 answer=answer,
                 hub=request.app.state.hub,
+                resume=getattr(request.app.state.executor, "resume", None),
             )
         except (GraphError, ContractError) as refused:
 
@@ -941,16 +946,17 @@ def create_app(
         )
 
     @app.post("/settings")
-    def settings_save(
-        request: Request,
-        sheller_base_url: str = Form(""),
-        sheller_image_tag: str = Form(""),
-        anthropic_api_key: str = Form(""),
-    ):
+    async def settings_save(request: Request):
+        form = await request.form()
+        values = {
+            key.removeprefix("provider_").replace("_", "__", 1): str(form.get(key) or "")
+            for key in form
+            if key.startswith("provider_")
+        }
         save_app_settings(
-            sheller_base_url=sheller_base_url,
-            sheller_image_tag=sheller_image_tag,
-            anthropic_api_key=anthropic_api_key,
+            sheller_base_url=str(form.get("sheller_base_url") or ""),
+            sheller_image_tag=str(form.get("sheller_image_tag") or ""),
+            provider_values=values,
         )
 
         return RedirectResponse("/settings", status_code=303)

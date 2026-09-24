@@ -25,14 +25,17 @@
         <p class="field-hint">Docker image tag when the app must spawn Sheller
         because nothing answers on the base URL above.</p>
       </li>
+      {% for field in settings.provider_fields %}
       <li>
-        <label>Anthropic API key
-          <input class="mono" type="password" name="anthropic_api_key" value=""
-                 autocomplete="off" placeholder="{% if settings.anthropic_api_key_set %}saved{% endif %}">
+        <label>{{ field.label }}
+          <input class="mono" {% if field.secret %}type="password"{% endif %}
+                 name="{{ field.input_name }}" value="" autocomplete="off"
+                 placeholder="{% if field.set %}saved{% endif %}">
         </label>
-        <p class="field-hint">Used by agent steps. Leave blank to keep the
-        saved key. The value is never shown again.</p>
+        <p class="field-hint">Leave blank to keep the saved value. A secret
+        is never shown again.</p>
       </li>
+      {% endfor %}
     </ol>
     <button type="submit" class="primary">Save</button>
   </form>

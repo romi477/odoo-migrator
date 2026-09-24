@@ -48,6 +48,12 @@ class AskingExecutor:
         self.app = app
         self.started = []
 
+    def resume(self, job_id, answer):
+        """This executor holds the parked job, so it can carry it on."""
+        del job_id, answer
+
+        return True
+
     def start(self, payload):
         self.started.append(payload["module"]["technical_name"])
         if len(self.started) == 1:

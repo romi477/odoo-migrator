@@ -9,6 +9,7 @@ from odoo_migrator.sheller.errors import (
     ShellerError,
     ShellerNotOwner,
     ShellerSessionDead,
+    ShellerTimeout,
     ShellerUnreachable,
 )
 
@@ -50,7 +51,9 @@ class ShellerClient(Protocol):
 
     def get_session(self, session_id: str) -> dict: ...
 
-    def exec(self, session_id: str, code: str, *, write_key: str) -> dict: ...
+    def exec(
+        self, session_id: str, code: str, *, write_key: str, timeout: float | None = None
+    ) -> dict: ...
 
     def run_test(
         self,
@@ -155,13 +158,22 @@ class HttpShellerClient:
 
         return self._request("GET", f"/api/sessions/{session_id}")
 
-    def exec(self, session_id: str, code: str, *, write_key: str) -> dict:
+    def exec(
+        self, session_id: str, code: str, *, write_key: str, timeout: float | None = None
+    ) -> dict:
+        """``timeout`` is ours, on the HTTP call: the daemon's ExecBody has
+
+        no such field. On expiry the command keeps running in the session,
+        so a caller that cares calls ``interrupt``.
+        """
+        extra = {} if timeout is None else {"timeout": timeout}
 
         return self._request(
             "POST",
             f"/api/sessions/{session_id}/exec",
             json={"code": code},
             write_key=write_key,
+            **extra,
         )
 
     def run_test(
@@ -259,6 +271,10 @@ class HttpShellerClient:
             response = self._http.request(
                 method, path, headers=headers or None, **kwargs
             )
+        except httpx2.TimeoutException as exc:
+            # Not "the daemon did not answer": it is answering, the command
+            # is simply still running. The caller may want to interrupt it.
+            raise ShellerTimeout(f"no answer within the timeout for {path}") from exc
         except httpx2.RequestError as exc:
             raise ShellerUnreachable(
                 f"Sheller daemon at {self._http.base_url} did not answer"

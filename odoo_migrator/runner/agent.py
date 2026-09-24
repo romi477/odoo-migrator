@@ -1,44 +1,22 @@
-"""One agent step: tools, then a report, or the budget.
+"""One agent step. The turn itself belongs to a provider.
 
-The live client is the Anthropic SDK's beta tool runner. Tests pass a
-``ModelDouble`` instead, which replays scripted turns and is allowed to
-never converge.
+Tests still call ``run_agent`` with a ``ModelDouble``. That double is a
+``ScriptedProvider``, so the loop under test is the one a live provider runs.
 """
 
 from __future__ import annotations
 
 from odoo_migrator.runner.cartridge import Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
-from odoo_migrator.runner.tools import ToolRefused, report_tool, tools_for
+from odoo_migrator.runner.tools import report_tool, tools_for
 
-# The cap on one response, which is not the budget for the step. The budget
-# is what the whole turn loop may spend; `max_tokens` is how long a single
-# answer may be, and the models top out at 128K. Passing a 200K run budget
-# here is a 400 on the first call.
+# The cap on one response, which is not the budget for the step. The models
+# top out at 128K. Passing a 200K run budget as ``max_tokens`` is a 400.
 MAX_OUTPUT_TOKENS = 64_000
 
 
 class NoModelClient(RuntimeError):
     """An agent step ran with no model client behind it."""
-
-
-def default_client():
-    """The Anthropic client, built from the key in settings.
-
-    One place, so the second provider replaces a function rather than a
-    branch scattered through the runner.
-    """
-    from odoo_migrator.settings import anthropic_api_key
-
-    key = anthropic_api_key()
-    if not key:
-        raise NoModelClient(
-            "no Anthropic API key is set — the agent steps of a cartridge "
-            "cannot run. Set it on the settings page."
-        )
-    import anthropic
-
-    return anthropic.Anthropic(api_key=key)
 
 
 def run_agent(
@@ -54,166 +32,17 @@ def run_agent(
             f"step {step.id or step.kind!r} is an agent step and there is no "
             "model client"
         )
-    if getattr(client, "scripted", False):
-        return _scripted(step, ctx, client, budget)
+    if not getattr(client, "scripted", False):
+        raise NoModelClient(
+            "a live turn is run by the provider registry, not by a client "
+            "object passed in"
+        )
+    from odoo_migrator.runner.providers.scripted import ScriptedProvider
 
-    return _anthropic(step, ctx, client, model, budget)
-
-
-def _scripted(step: Step, ctx: StepContext, client, budget: Budget) -> StepResult:
-    """Replay the double until it reports, or until the tool-call budget."""
-    tools = {tool.name: tool for tool in tools_for(step, ctx)}
-    limit = budget.tool_calls
-    while True:
-        if limit is not None and client.calls >= limit:
-            return StepResult(ok=False, output="stopped at the tool-call budget")
-        action = client.next_action()
-        if action is None:
-            return StepResult(ok=False, output="the model returned nothing useful")
-        name = action.get("name") or action.get("tool")
-        payload = action.get("input") or {}
-        if name == "report":
-            return _from_report(step, payload)
-        tool = tools.get(name)
-        if tool is None:
-            return StepResult(ok=False, output=f"unknown tool {name}")
-        try:
-            tool(**payload)
-        except ToolRefused as refused:
-            return StepResult(ok=False, output=str(refused))
-
-
-def _from_report(step: Step, payload: dict) -> StepResult:
-    flags = {flag for flag in step.raises if payload.get(flag)}
-
-    return StepResult(ok=True, flags=flags, answer=str(payload.get("answer") or ""))
-
-
-def _anthropic(step: Step, ctx: StepContext, client, model: str, budget: Budget) -> StepResult:
-    """Drive ``client.beta.messages.tool_runner`` until ``report`` or the budget.
-
-    Thinking is adaptive. Effort comes from the migration when it has one.
-    Streaming is on so a long turn is not one buffered response.
-    """
-    import anthropic
-    from anthropic import beta_tool
-
-    captured: dict = {}
-    runnable = [_as_beta(beta_tool, tool) for tool in tools_for(step, ctx)]
-    runnable.append(_report_beta(beta_tool, step, captured))
-    kwargs = {
-        "max_tokens": min(budget.tokens or MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
-        "model": model,
-        "tools": runnable,
-        "messages": [{"role": "user", "content": step.prompt or ""}],
-        "thinking": {"type": "adaptive"},
-        "output_config": {"effort": _effort(ctx)},
-        "stream": True,
-    }
-    if budget.tool_calls is not None:
-        kwargs["max_iterations"] = budget.tool_calls
-    runner = client.beta.messages.tool_runner(**kwargs)
-    try:
-        runner.until_done()
-    except anthropic.APIError as exc:
-        if captured:
-            return _from_report(step, captured)
-
-        return StepResult(ok=False, output=str(exc))
-    if not captured:
-        return StepResult(ok=False, output="stopped at the tool-call budget")
-
-    return _from_report(step, captured)
-
-
-# Effort is not a per-migration setting yet, and reading a field that does
-# not exist through getattr only looked like one.
-_EFFORT = "high"
-
-
-def _effort(ctx: StepContext) -> str:
-    del ctx
-
-    return _EFFORT
-
-
-_TOOL_SCHEMAS = {
-    "exec": {
-        "type": "object",
-        "properties": {
-            "side": {"type": "string"},
-            "code": {"type": "string"},
-        },
-        "required": ["side", "code"],
-    },
-    "source": {
-        "type": "object",
-        "properties": {
-            "side": {"type": "string"},
-            "dotted": {"type": "string"},
-        },
-        "required": ["side", "dotted"],
-    },
-    "read_file": {
-        "type": "object",
-        "properties": {"side": {"type": "string"}, "path": {"type": "string"}},
-        "required": ["side", "path"],
-    },
-    "write_file": {
-        "type": "object",
-        "properties": {
-            "side": {"type": "string"},
-            "path": {"type": "string"},
-            "content": {"type": "string"},
-        },
-        "required": ["side", "path", "content"],
-    },
-    "run_test": {
-        "type": "object",
-        "properties": {"side": {"type": "string"}, "test": {"type": "string"}},
-        "required": ["side", "test"],
-    },
-    "list_tests": {
-        "type": "object",
-        "properties": {"side": {"type": "string"}, "module": {"type": "string"}},
-        "required": ["side"],
-    },
-}
-
-
-def _as_beta(beta_tool, tool):
-    """Wrap a bound catalog tool so the SDK can advertise and call it."""
-    schema = _TOOL_SCHEMAS.get(tool.name) or {
-        "type": "object",
-        "properties": {"side": {"type": "string"}},
-        "required": ["side"],
-    }
-
-    def call(**payload: object) -> str:
-        """Run this tool on a side the step declared."""
-        return tool(**payload)
-
-    return beta_tool(
-        call,
-        name=tool.name,
-        description=f"Run {tool.name} on one side this step declared.",
-        input_schema=schema,
-    )
-
-
-def _report_beta(beta_tool, step: Step, captured: dict):
-    schema = report_tool(step).input_schema
-
-    def report(**payload: object) -> str:
-        """End the step. Set a flag only when it is true."""
-        captured.clear()
-        captured.update(payload)
-
-        return "reported"
-
-    return beta_tool(
-        report,
-        name="report",
-        description="End the step with an answer and the flags that are true.",
-        input_schema=schema,
+    return ScriptedProvider(client).run_step(
+        prompt=step.prompt or "",
+        tools=tools_for(step, ctx),
+        report=report_tool(step),
+        model=model,
+        budget=budget,
     )

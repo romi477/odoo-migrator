@@ -593,10 +593,11 @@ def save_notes(module_id: int, notes: str) -> None:
         module.save()
 
 
-def answer_job(*, module_id: int, answer: str, hub: EventHub) -> Job:
-    """Append the human's reply and let the parked runner continue."""
-    from odoo_migrator.runner.native import resume_waiter
+def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Job:
+    """Append the human's reply and let the parked runner continue.
 
+    ``resume`` is the executor's own ``resume(job_id, answer) -> bool``.
+    """
     text = (answer or "").strip()
     if not text:
         raise ContractError("Write an answer.")
@@ -610,15 +611,21 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub) -> Job:
         if job is None:
             raise ContractError("That module is not waiting for an answer.")
         job.answer = text
-        job.status = "running"
         job.save()
-        module = job.module
-        module.status = "running"
-        module.save()
         CheckpointMessage.create(job=job, author="human", text=text)
         job_id = job.job_id
+    # Only the executor knows whether it can carry this job on. The native
+    # runner keeps a parked loop in a thread, and a restart takes it with it;
+    # saying "running" then is a row nobody is running.
+    resumed = bool(resume(job_id, text)) if callable(resume) else False
+    with database.connection_context():
+        job = Job.get(Job.job_id == job_id)
+        job.status = "running" if resumed else "unknown"
+        job.save()
+        module = job.module
+        module.status = job.status
+        module.save()
         _emit(hub, job, module)
-    resume_waiter(job_id, text)
 
     return job
 

@@ -216,6 +216,25 @@ that naturally; `async` over a synchronous client does not.
 A batch stays what it is today — the app's trampoline over the result
 callback, one module at a time.
 
+**The runner is opt-in until the live gate passes.** `ODOO_MIGRATOR_RUNNER=
+native` selects it; without that the app still uses `StubExecutor` and
+migrates nothing. This is a temporary switch, not a setting: it goes away
+when a real module has completed a real migration on this branch, and the
+native runner becomes the only executor.
+
+**Every failure reaches the job.** Loading the cartridge, probing the
+containers, opening the sessions and building the model client all happen
+inside the run, not before it: a container that is not up, a missing key or a
+cartridge that will not load ends as a failed job with a reason, never as a
+thread that dies with nobody told.
+
+**A parked job belongs to the thread that parked it.** `Executor.resume(
+job_id, answer) -> bool` is part of the protocol, and the native runner
+answers False once its process has restarted. The answer is still stored and
+still in the checkpoint thread; the job becomes `unknown` rather than
+`running`, because the module has to be run again — the loop's state was in
+memory and the sessions were closed at the park.
+
 ### Parts of the runner
 
 ```
@@ -695,7 +714,11 @@ What holds the rest:
 - **Target container**: `allow_commit: true` at open, no human grant. It is
   recreated from compose in a minute; Sheller still refuses commit on
   production, which we never touch.
-- **Every command carries a timeout**, and `interrupt` is a tool. One
+- **Every `exec` carries a timeout, and the runner interrupts what outlives
+  it.** The daemon takes no timeout for `exec` — its `ExecBody` is `{code}`
+  and nothing else — so the ceiling is on the HTTP call, and on expiry the
+  command is still running in the session. Interrupting it is not optional:
+  a session left busy answers `session_busy` to everything after it. One
   `search([])` over a million rows is the realistic way a run hangs.
 - **Budgets**: a ceiling on tool calls and on tokens per agent step, from
   migration settings, enforced by the runner.
@@ -850,12 +873,13 @@ Four things make it a provider rather than a harness:
    directly; `usage` carries `input_tokens`, `output_tokens` and the cache
    counters, with cost from `agent.get_usage()`.
 
-**Check before building the MCP server:** `LocalAgentOptions` has a
-`custom_tools` field. If it accepts Python callables, the result of
-`tools_for(step, ctx)` goes straight in and there is no MCP server, no
-subprocess and no transport — which would make Cursor the cheapest of the
-three providers to add. This is not confirmed in the documentation read so
-far, and it decides how much work the provider is.
+**Checked against cursor-sdk 1.0.32:** `LocalAgentOptions.custom_tools`
+maps a name to `CustomTool`, and `CustomTool.execute` is a Python callable
+`(arguments, context) -> result`. The catalog goes straight in. There is no
+MCP server. `tools=[]` keeps the built-in toolset off, which is a different
+value from unset. The SDK has no per-response `max_tokens`; the tool-call
+budget is counted in the wrappers, and the token budget is checked on the
+usage the run returns.
 
 Two caveats to carry: the SDK authenticates with `CURSOR_API_KEY` (user or
 service-account keys; team admin keys are documented as unsupported), and

@@ -4,7 +4,7 @@ import json
 import secrets
 import uuid
 
-from odoo_migrator.sheller.errors import ShellerError, ShellerNotOwner
+from odoo_migrator.sheller.errors import ShellerError, ShellerNotOwner, ShellerTimeout
 
 # databases[0] is a different Odoo major's database — the trap that 410s a
 # real session. db_name is the one this container is configured for.
@@ -67,7 +67,12 @@ class FakeShellerClient:
         self._next_command = 0
         self.closes: list[str] = []
         self.commits: list[str] = []
+        self.interrupts: list[str] = []
         self.exec_error: Exception | None = None
+        # Code that "runs for ever": exec raises ShellerTimeout for it, the
+        # way the real client does when the HTTP call expires, and the
+        # command stays busy in the session until interrupted.
+        self.hangs_on: str | None = None
 
     def health(self) -> dict:
 
@@ -173,11 +178,20 @@ class FakeShellerClient:
 
         return {key: value for key, value in session.items() if key in self._DESCRIBED}
 
-    def exec(self, session_id: str, code: str, *, write_key: str) -> dict:
+    def exec(
+        self, session_id: str, code: str, *, write_key: str, timeout: float | None = None
+    ) -> dict:
         session = self._require(session_id, write_key)
         if self.exec_error is not None:
             raise self.exec_error
         self.execs.append(code)
+        if self.hangs_on is not None and self.hangs_on in code:
+            session["commands"].append(
+                {"kind": "exec", "id": self._next_command + 1, "code": code, "status": "running"}
+            )
+            self._next_command += 1
+
+            raise ShellerTimeout(f"no answer within the timeout for {session_id}")
         self._next_command += 1
         command_id = self._next_command
         session["commands"].append(
@@ -281,6 +295,10 @@ class FakeShellerClient:
 
     def interrupt(self, session_id: str, *, write_key: str) -> dict:
         self._require(session_id, write_key)
+        self.interrupts.append(session_id)
+        for command in self._sessions[session_id]["commands"]:
+            if command.get("status") == "running":
+                command["status"] = "interrupted"
 
         return {"ok": True}
 

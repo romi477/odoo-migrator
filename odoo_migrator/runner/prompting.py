@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from odoo_migrator.rules import assemble_rules
-from odoo_migrator.runner.agent import run_agent
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
@@ -21,8 +20,10 @@ MAX_TOKENS = 400_000
 _DEFAULT_BUDGET = Budget(tool_calls=40, tokens=200_000)
 
 # One module's source can be a megabyte of XML. Past this the prompt stops
-# being context and starts being a bill.
+# being context and starts being a bill. The diff of a first port is the same
+# problem wearing a different hat.
 MAX_SOURCE_CHARS = 120_000
+MAX_DIFF_CHARS = 60_000
 
 
 def build_context(step: Step, ctx: StepContext) -> str:
@@ -70,11 +71,19 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
     prompt = step.prompt
     if rendered:
         prompt = f"{rendered}\n\n{prompt}" if prompt else rendered
-    running = step.model_copy(update={"prompt": prompt})
-    result = run_agent(
-        running,
-        ctx,
-        client=ctx.client,
+    from odoo_migrator.runner.providers import ScriptedProvider, get
+    from odoo_migrator.runner.tools import report_tool, tools_for
+
+    if getattr(ctx.client, "scripted", False):
+        provider = ScriptedProvider(ctx.client)
+    else:
+        named = step.model or ctx.cartridge.model
+        provider = get(named.provider)
+        provider.ensure_ready()
+    result = provider.run_step(
+        prompt=prompt,
+        tools=tools_for(step, ctx),
+        report=report_tool(step),
         model=resolve_model(step, ctx),
         budget=budget_for(step, ctx),
     )
@@ -102,7 +111,7 @@ def _render(item: str, ctx: StepContext) -> str:
         return _prior_answers(ctx)
     if item == "previous_diff":
 
-        return ctx.previous_diff or "(none)"
+        return _clipped(ctx.previous_diff, MAX_DIFF_CHARS) or "(none)"
     if item == "last_failure":
 
         return ctx.last_failure or "(none)"
@@ -133,12 +142,16 @@ def _module_source(ctx: StepContext) -> str:
             continue
         chunks.append(f"### {relative}\n{text}")
     rendered = "\n\n".join(chunks) or "(empty)"
-    if len(rendered) > MAX_SOURCE_CHARS:
-        kept = rendered[:MAX_SOURCE_CHARS]
 
-        return f"{kept}\n\n(truncated at {MAX_SOURCE_CHARS} characters; read the rest with read_file)"
+    return _clipped(rendered, MAX_SOURCE_CHARS)
 
-    return rendered
+
+def _clipped(text: str, limit: int) -> str:
+    if len(text) <= limit:
+
+        return text
+
+    return f"{text[:limit]}\n\n(truncated at {limit} characters; read the rest with read_file)"
 
 
 def _old_root(ctx: StepContext) -> Path | None:

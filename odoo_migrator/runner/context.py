@@ -32,6 +32,9 @@ class StepContext:
     last_failure: str = ""
     # The model client for agent steps. Deterministic steps never touch it.
     client: object = None
+    # Seconds one exec may take before it is interrupted. None uses the
+    # catalog's own ceiling.
+    command_timeout: float | None = None
     # The last run_test payload, so test_result can answer without a second call.
     last_test: dict | None = None
     # Set by the native runner so a tool call lands on the step that made it.
@@ -47,3 +50,8 @@ class StepResult:
     flags: set[str] = field(default_factory=set)
     answer: str = ""
     output: str = ""
+    # What this turn spent, as the provider observed it. The runner does not
+    # read a specific SDK's response object to find these.
+    tokens_in: int = 0
+    tokens_out: int = 0
+    tokens_cached: int = 0

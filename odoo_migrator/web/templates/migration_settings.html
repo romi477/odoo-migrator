@@ -98,8 +98,9 @@
         <label>Model
           <select name="model_override">
             <option value=""{% if not expanded.model_override %} selected{% endif %}>cartridge default</option>
-            <option value="claude-opus-5"{% if expanded.model_override == "claude-opus-5" %} selected{% endif %}>claude-opus-5</option>
-            <option value="claude-sonnet-5"{% if expanded.model_override == "claude-sonnet-5" %} selected{% endif %}>claude-sonnet-5</option>
+            {% for name in model_names %}
+            <option value="{{ name }}"{% if expanded.model_override == name %} selected{% endif %}>{{ name }}</option>
+            {% endfor %}
           </select>
         </label>
         <p class="field-hint">Overrides the cartridge's model for this migration.
@@ -167,8 +168,9 @@
         <label>Model
           <select name="model_override">
             <option value=""{% if not expanded.model_override %} selected{% endif %}>cartridge default</option>
-            <option value="claude-opus-5"{% if expanded.model_override == "claude-opus-5" %} selected{% endif %}>claude-opus-5</option>
-            <option value="claude-sonnet-5"{% if expanded.model_override == "claude-sonnet-5" %} selected{% endif %}>claude-sonnet-5</option>
+            {% for name in model_names %}
+            <option value="{{ name }}"{% if expanded.model_override == name %} selected{% endif %}>{{ name }}</option>
+            {% endfor %}
           </select>
         </label>
         <p class="field-hint">Overrides the cartridge's model for this migration.

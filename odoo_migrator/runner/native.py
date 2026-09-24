@@ -31,13 +31,21 @@ _ANSWERS: dict[str, str] = {}
 _GUARD = threading.Lock()
 
 
-def resume_waiter(job_id: str, answer: str) -> None:
-    """Release a parked runner, if this process is the one that parked it."""
+def resume_waiter(job_id: str, answer: str) -> bool:
+    """Release a parked runner. False when nothing in this process is waiting.
+
+    A parked job's loop lives in a thread, so a restart takes it with them.
+    The caller has to know, or it marks a job running that nobody is running.
+    """
     with _GUARD:
-        _ANSWERS[job_id] = answer
         event = _WAITERS.get(job_id)
-    if event is not None:
-        event.set()
+        if event is None:
+
+            return False
+        _ANSWERS[job_id] = answer
+    event.set()
+
+    return True
 
 
 class NativeRunner:
@@ -63,6 +71,11 @@ class NativeRunner:
         self._threads[job_id] = thread
         thread.start()
 
+    def resume(self, job_id: str, answer: str) -> bool:
+        """True when this process still has the thread that parked the job."""
+
+        return resume_waiter(job_id, answer)
+
     def wait(self, job_id: str, timeout: float = 10) -> None:
         thread = self._threads[job_id]
         thread.join(timeout)
@@ -74,8 +87,7 @@ class NativeRunner:
 
     def _run(self, payload: dict) -> None:
         job_id = payload["job_id"]
-        cartridge = self._cartridge(payload)
-        ctx = self._context(payload, cartridge)
+        ctx = None
         seen_attempt = 0
 
         def resolve_step(kind: str):
@@ -118,22 +130,30 @@ class NativeRunner:
             return wrapped
 
         try:
+            # Building the context is part of the run, not a prelude to it: a
+            # container that is not up, a probe that fails, a cartridge that
+            # will not load and a missing model key all raise here. Outside
+            # this try they killed the thread with nobody told, and the job
+            # sat queued until a restart called it unknown.
+            cartridge = self._cartridge(payload)
+            ctx = self._context(payload, cartridge)
             outcome = run_job(
                 cartridge,
                 ctx,
-                retry_limit=ctx.migration.retry_limit or _RETRY_LIMIT,
+                retry_limit=(ctx.migration.retry_limit or _RETRY_LIMIT),
                 resolve=resolve_step,
             )
-        except Exception as exc:  # noqa: BLE001 - wait() re-raises this on the caller thread.
+        except Exception as exc:  # noqa: BLE001 - the job has to hear about every failure.
             self._errors[job_id] = exc
-            self.hub.publish("job_finished", {"job_id": job_id, "status": "failed"})
+            self._fail(job_id, exc)
 
             return
         finally:
             # A job that ends, fails or is abandoned leaves no odoo-bin behind.
             # A parked one has already closed its own; closing twice is a 404
             # the daemon answers and this swallows.
-            self._close_sessions(ctx)
+            if ctx is not None:
+                self._close_sessions(ctx)
         if outcome != "waiting_for_human":
             self._result(
                 {
@@ -149,6 +169,25 @@ class NativeRunner:
                 }
             )
         self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
+
+    def _fail(self, job_id: str, exc: BaseException) -> None:
+        """Tell the app the job failed, then say so on the stream.
+
+        Publishing the event without the result left the row running while
+        the screen said it had stopped.
+        """
+        with contextlib.suppress(Exception):
+            self._result(
+                {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "attempts": [{"iteration": 1, "verdict": f"{type(exc).__name__}: {exc}"}],
+                }
+            )
+        self.hub.publish(
+            "job_finished",
+            {"job_id": job_id, "status": "failed", "error": str(exc)},
+        )
 
     def _note_diff(self, ctx: StepContext, before: dict) -> None:
         """Record what the step wrote, for the next prompt and the checkpoint."""
@@ -338,6 +377,8 @@ class NativeRunner:
             row.finished_at = datetime.now(UTC)
             row.ok = result.ok
             row.flags = json.dumps(sorted(result.flags))
+            row.tokens_in = result.tokens_in
+            row.tokens_out = result.tokens_out
             row.save()
 
 

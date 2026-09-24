@@ -9,11 +9,16 @@ from the migration row, which is what confines the agent to two of them.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from pathlib import Path
 
-from odoo_migrator.sheller.errors import ShellerError
+from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
+
+# One `search([])` over a large table is the realistic way a step hangs. The
+# daemon cannot cap it, so the client does, and the command is interrupted.
+COMMAND_TIMEOUT = 300.0
 
 TOOL_SIDES = {
     "exec": ("old", "new"),
@@ -35,12 +40,66 @@ class ToolRefused(Exception):
     """The step asked a tool to touch a session or path it did not declare."""
 
 
+# JSON schemas live with the catalog. A provider translates them; it does
+# not own them. Name + schema + callable is what an out-of-process agent
+# can be handed.
+TOOL_SCHEMAS = {
+    "exec": {
+        "type": "object",
+        "properties": {
+            "side": {"type": "string"},
+            "code": {"type": "string"},
+        },
+        "required": ["side", "code"],
+    },
+    "source": {
+        "type": "object",
+        "properties": {
+            "side": {"type": "string"},
+            "dotted": {"type": "string"},
+        },
+        "required": ["side", "dotted"],
+    },
+    "read_file": {
+        "type": "object",
+        "properties": {"side": {"type": "string"}, "path": {"type": "string"}},
+        "required": ["side", "path"],
+    },
+    "write_file": {
+        "type": "object",
+        "properties": {
+            "side": {"type": "string"},
+            "path": {"type": "string"},
+            "content": {"type": "string"},
+        },
+        "required": ["side", "path", "content"],
+    },
+    "run_test": {
+        "type": "object",
+        "properties": {"side": {"type": "string"}, "test": {"type": "string"}},
+        "required": ["side", "test"],
+    },
+    "list_tests": {
+        "type": "object",
+        "properties": {"side": {"type": "string"}, "module": {"type": "string"}},
+        "required": ["side"],
+    },
+}
+_SIDE_ONLY = {
+    "type": "object",
+    "properties": {"side": {"type": "string"}},
+    "required": ["side"],
+}
+
+
 class BoundTool:
     """A catalog tool closed over one step and the sessions it declared."""
 
     def __init__(self, name: str, fn):
         self.name = name
         self._fn = fn
+        self.input_schema = TOOL_SCHEMAS.get(name, _SIDE_ONLY)
+        self.description = f"Run {name} on one side this step declared."
 
     def __call__(self, **kwargs) -> str:
         return self._fn(**kwargs)
@@ -54,6 +113,7 @@ class ReportTool:
     """
 
     name = "report"
+    description = "End the step with an answer and the flags that are true."
 
     def __init__(self, step):
         properties: dict = {"answer": {"type": "string"}}
@@ -151,7 +211,8 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
     write_key = ctx.write_keys.get(side, "")
     sheller = ctx.sheller
     if name == "exec":
-        return sheller.exec(session_id, kwargs.get("code", ""), write_key=write_key)
+
+        return _exec(ctx, session_id, write_key, kwargs.get("code", ""))
     if name == "source":
         return sheller.source(session_id, dotted=kwargs.get("dotted", ""), write_key=write_key)
     if name == "journal":
@@ -187,6 +248,27 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
         return _write_file(ctx, side, kwargs.get("path", ""), kwargs.get("content", ""))
 
     raise ToolRefused(f"unknown tool {name}")
+
+
+def _exec(ctx, session_id: str, write_key: str, code: str):
+    """Run code, and do not let one query hold the step for ever.
+
+    The daemon has no timeout for `exec`, so this one is on the HTTP call.
+    When it expires the command is still running in the session, which is
+    why the next thing to do is interrupt it — otherwise the session stays
+    busy and every later call answers `session_busy`.
+    """
+    limit = getattr(ctx, "command_timeout", None) or COMMAND_TIMEOUT
+    try:
+
+        return ctx.sheller.exec(session_id, code, write_key=write_key, timeout=limit)
+    except ShellerTimeout:
+        with contextlib.suppress(ShellerError):
+            ctx.sheller.interrupt(session_id, write_key=write_key)
+
+        raise ShellerTimeout(
+            f"the command ran longer than {limit:.0f}s and was interrupted"
+        ) from None
 
 
 def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:

@@ -23,6 +23,17 @@ differ, the spec wins.
 
 **Branch:** `native-runner`. Do not merge to `main` until Task 13 passes.
 
+> **Tasks 1–12 are done, and the spec moved while they were being built.**
+> Where this plan and the spec differ, the spec wins — it was updated after
+> the code, the plan was not. Three differences matter to whoever takes Task
+> 13: the step registry is five deterministic kinds plus one generic `agent`
+> step the cartridge configures (not the twelve named steps below); model
+> credentials belong in a `ProviderSetting(provider, key, value)` table
+> rather than the `anthropic_api_key` column Task 6 describes; and the
+> runner is selected with `ODOO_MIGRATOR_RUNNER=native` — without it the app
+> still runs `StubExecutor`. The spec's "Providers" section is newer than
+> this plan in its entirety.
+
 ## Global constraints
 
 Copied from `AGENTS.md` and the spec. Every task's requirements include
