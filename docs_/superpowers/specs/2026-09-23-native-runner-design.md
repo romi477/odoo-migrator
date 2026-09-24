@@ -847,12 +847,54 @@ service-account keys; team admin keys are documented as unsupported), and
 inline MCP servers are not persisted across `Agent.resume()` — irrelevant
 here, because a step never resumes an agent.
 
-**The harnesses that have no SDK** — Aider, OpenCode, Claude Code CLI — keep
-the shape this section used to describe for Cursor: driven headless, writing
-files with their own tools, unable to call `report`, and therefore judged by
-what `lint`, `tests` and `verdict` find afterwards. That is a `harness` step
-kind, not a provider, and nobody has built it. The 2026-09-20 spec's non-goal
-on swapping the whole execution agent still covers them.
+### OpenCode is a provider too, in a third shape
+
+OpenCode v2 is a client/server agent, and it also fits `Provider` — at a
+different price from Cursor. What it offers, read rather than recalled:
+
+- `opencode serve --hostname 127.0.0.1 --port 4096` runs the server in the
+  foreground with a password; there is a REST API (`opencode api GET
+  /api/session`) and clients attach with `--server <url>`;
+- sessions and prompts: `session.create()`, then `session.chat(id, {
+  providerID, modelID, parts, system, tools })`, where `tools` is a per-call
+  map of which tools are on;
+- an event stream as an async iterable, with `ToolPart` carrying
+  `pending | running | completed | error` — so the trace survives here as
+  well;
+- ordered `permissions` rules, last match wins:
+  `{action: "shell" | "edit" | "websearch" | "subagent", resource, effect:
+  "allow" | "ask" | "deny"}`, and the same rules over MCP tools by
+  `<server>_<tool>` pattern;
+- MCP servers, so it takes our catalog, and `report` rides in it exactly as
+  it does for Cursor.
+
+Three differences decide what it costs:
+
+1. **The SDK is TypeScript only** (`@opencode-ai/sdk`). There is no Python
+   client, so this provider is a REST client we write on `httpx2` — the same
+   shape as the Sheller client, which is familiar ground rather than new.
+2. **It needs a second long-lived local process with a port and a password.**
+   On a branch that has just deleted every machine-facing surface, that is a
+   step back even on loopback. The machinery exists: `sheller/resolve.py`
+   already attaches to a running daemon or starts one, and a second daemon
+   fits the same three steps.
+3. **A provider inside a provider.** OpenCode is itself model-agnostic
+   (`providerID` plus `modelID`), so a cartridge saying `provider: opencode`
+   has to carry both in the model name — `name: "anthropic/claude-opus-5"`.
+   This is the one place the cartridge language bends to a provider, and it
+   bends rather than breaks.
+
+Cursor is the cheaper of the two to add: a Python SDK, MCP over stdio with no
+port, and `tools=[]` to switch its own tools off in one parameter. OpenCode
+costs a REST client and a daemon, and buys being open and self-hosted with no
+dependency on someone else's cloud.
+
+**The harnesses that have no programmatic surface of this kind** — Aider,
+Claude Code CLI driven as a terminal command — keep the shape this section
+used to describe for Cursor: driven headless, writing files with their own
+tools, unable to call `report`, and therefore judged by what `lint`, `tests`
+and `verdict` find afterwards. That is a `harness` step kind, not a provider,
+and nobody has built it.
 
 ## The human in the loop
 
@@ -1109,11 +1151,11 @@ then one command rather than archaeology.
    `MAX_TOKENS`), which enforces "narrow, never widen" but puts the numbers
    in code rather than on the migration card, where the spec says they
    belong. Moving them is a schema change and two form fields.
-5. **Whether a `harness` step is wanted** for the agent CLIs that ship no
-   SDK — Aider, OpenCode, Claude Code CLI. They cannot call `report`, so they
-   are judged by what they leave behind, which is a different step kind.
-   Cursor is not among them: it has a Python SDK and is an ordinary provider.
-   Not scheduled either way.
+5. **Whether a `harness` step is wanted** for the agent CLIs with no
+   programmatic surface — Aider, or Claude Code CLI driven as a command. They
+   cannot call `report`, so they are judged by what they leave behind, which
+   is a different step kind. Cursor and OpenCode are not among them: both are
+   ordinary providers, described above. Not scheduled either way.
 6. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.
