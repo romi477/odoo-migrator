@@ -33,6 +33,7 @@ provisioning, every screen but one — is untouched.
 | `StepRun` / `ToolCall` rows | the skeleton of a run — step, session, command id, timings, cost — while Sheller's journal keeps the bodies |
 | checkpoint threads | a human answer is a thread of messages, not a string |
 | Sheller client verbs | `source`, `journal`, `list_tests`, `interrupt` added to the existing client |
+| `runner/providers/` | one model turn behind one protocol, so a second SDK is a file and a registry line — see "Providers" |
 
 ### What leaves
 
@@ -599,11 +600,10 @@ migration's settings, streaming for the long turns. The default model is
 `claude-opus-5`; `claude-sonnet-5` is the cheaper alternative, chosen per
 migration, never silently.
 
-`model.provider` is validated against what this build implements. A second
-provider, when it is wanted, is a second thin client — not a provider
-abstraction written before there is a second provider. Which model a given
-step runs on is settled by the precedence under "Model choice"; the client
-takes it as an argument and knows nothing about cartridges.
+`model.provider` is validated against what this build implements. Which model
+a given step runs on is settled by the precedence under "Model choice"; the
+client takes it as an argument and knows nothing about cartridges. How a
+second and third provider arrive is "Providers", below.
 
 ### Tools
 
@@ -699,6 +699,126 @@ What holds the rest:
   `search([])` over a million rows is the realistic way a run hangs.
 - **Budgets**: a ceiling on tool calls and on tokens per agent step, from
   migration settings, enforced by the runner.
+
+## Providers
+
+A provider is a part of the runner, not the shape of it. The runner owns the
+step; a provider owns **one turn of one model**. Everything about Odoo,
+Sheller, flags, budgets, records and events sits outside a provider and is
+written once.
+
+### The contract
+
+```python
+class Provider(Protocol):
+    name: str                      # "anthropic" | "openai" | ...
+    models: frozenset[str]         # what a cartridge is allowed to name
+
+    def run_step(
+        self,
+        *,
+        prompt: str,               # context and step prompt, already rendered
+        tools: list[BoundTool],    # already bound to the sessions of this step
+        report: ReportTool,        # schema is the declared flags plus an answer
+        model: str,
+        budget: Budget,            # already clamped to the ceiling
+    ) -> StepResult: ...
+```
+
+A provider knows nothing about the cartridge, the context, the migration or
+Sheller. It translates the tools into its SDK's shape, runs its own tool-use
+loop, and returns a `StepResult`. The step ends when the model calls
+`report`; it ends unsuccessfully at the budget.
+
+### What is shared, and stays shared
+
+The tool catalog and its JSON schemas, `report_tool`, the side check that
+refuses before any HTTP, the `ToolCall` records, context rendering, budget
+clamping, the events, and the cartridge loop. A new provider adds none of
+these and may not fork one. Tool schemas belong next to the catalog in
+`runner/tools.py`, not inside a provider: they describe our tools, not
+anyone's SDK.
+
+### A registry, not a branch
+
+```python
+# runner/providers/__init__.py
+REGISTRY: dict[str, Provider] = {}
+
+def register(provider) -> None: ...
+def get(name: str) -> Provider: ...
+def known_models() -> dict[str, frozenset[str]]: ...
+```
+
+`cartridge.py` stops holding model names and asks `known_models()`, so
+adding a provider does not touch the language or its validator. The runner
+calls `get(provider).run_step(...)` and has no per-provider branch at all.
+
+```
+runner/providers/
+├── __init__.py   the registry
+├── base.py       the Protocol and the shared schema translation
+├── anthropic.py  tool_runner, adaptive thinking, effort
+├── openai.py     its own loop
+└── scripted.py   the double
+```
+
+### The double is a provider
+
+`ScriptedProvider` registers like any other and implements the same
+`run_step`. This is the point, not tidiness: while the double is reached by
+a branch inside the runner, the tests drive a loop the live path never runs —
+which is how this project has shipped three non-functional stages already. A
+scripted provider must be able to **fail to converge**, or it proves the code
+compiles rather than that a step terminates.
+
+### Credentials
+
+One key per provider, in a `ProviderCredential(provider, key)` table rather
+than a column per SDK. The settings page renders a row for each registered
+provider, reports whether a key is set, and never renders the value.
+
+### Checklist for a new provider
+
+1. A class with `name`, `models` and `run_step`, registered in
+   `runner/providers/__init__.py`.
+2. Translation of `BoundTool` and `report` into the SDK's shape, and the
+   parse back.
+3. SDK errors caught inside and returned as `StepResult(ok=False)`. Only our
+   own exceptions leave a provider.
+4. Both budgets respected: tool calls across the loop, and the cap on a
+   single response. They are different numbers, and confusing them is a 400.
+5. Tests for four outcomes: converges, does not converge, hits the budget,
+   has a tool refused.
+6. A row in the settings page for its key. No `/components` row — a provider
+   is not a component.
+7. A line in this section saying **how it behaves differently**, not only
+   that it exists.
+
+### Cursor and the other harnesses are a different thing
+
+Anthropic and OpenAI are model APIs: we supply the tools, we run the loop, we
+own every step. Cursor — like Claude Code CLI, Aider or OpenCode — is a
+finished agent harness with its own loop, its own tools and its own way of
+editing files. It will not call our `exec` or `source` because we described
+them.
+
+Two honest options, to be chosen before any code is written:
+
+1. **Serve it our tools over MCP.** A local MCP server over the same catalog
+   makes the harness work with our hands: same tools, same `report`, same
+   `StepResult`, and it really is a `Provider`. The cost is a transport and a
+   process we do not have today.
+2. **Admit it is not a provider but another kind of step.** A `harness` step
+   naming which harness, what it is asked to do, and which working copy. It
+   writes files itself; `lint`, `upgrade` and `tests` judge the result
+   afterwards. There is no tool trace — only the harness's own log, and the
+   Flow screen loses its best panel for that node.
+
+The 2026-09-20 spec put "swapping the whole execution agent (Cursor,
+OpenCode, Claude Code CLI)" in its non-goals for exactly this reason. If
+Cursor is wanted, it is a decision with its own entry here — not a third line
+in `REGISTRY`.
 
 ## The human in the loop
 
@@ -897,10 +1017,12 @@ task that introduces it, the suite passes with no Docker, no Odoo and no
 daemon, and **a double must answer the way the real thing answers**. Three
 stages once looked finished because a stub answered inline.
 
-- **Model double** — replays scripted turns, including a tool-call turn, a
-  turn that returns nothing useful, and a turn that hits the ceiling. It must
-  be able to *fail* to converge; an agent double that always succeeds proves
-  the loop compiles, not that it terminates.
+- **Model double** — a registered provider (`ScriptedProvider`, see
+  "Providers"), not a branch inside the runner: it must drive the same path
+  the live providers drive. It replays scripted turns, including a tool-call
+  turn, a turn that returns nothing useful, and a turn that hits the ceiling.
+  It must be able to *fail* to converge; an agent double that always succeeds
+  proves the loop compiles, not that it terminates.
 - **Sheller fake** — already exists and already answers the way the daemon
   answers (403 `not_owner` on a keyless close was measured against the live
   daemon). It gains `source`, `journal`, `list_tests`, `interrupt`.
@@ -953,15 +1075,18 @@ then one command rather than archaeology.
    `MAX_TOKENS`), which enforces "narrow, never widen" but puts the numbers
    in code rather than on the migration card, where the spec says they
    belong. Moving them is a schema change and two form fields.
-5. **A cartridge editor in the app.** Decided against for now: git is the
+5. **Whether Cursor is wanted at all**, and if so which of the two shapes in
+   "Providers" it takes — our tools over MCP, or a `harness` step that writes
+   files and is judged afterwards. Not decided, and not a small decision.
+6. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.
-6. **The node inspector on `Flow`** — what it holds, and whether it is a
+7. **The node inspector on `Flow`** — what it holds, and whether it is a
    drawer beside the canvas or a card above a trace filtered to that node.
    Deferred until the screen exists and the space it leaves can be measured.
-7. **A `probe` step in two columns**, the same calls facing their two
+8. **A `probe` step in two columns**, the same calls facing their two
    answers, as a reading mode for one node rather than the whole trace.
-8. **A canvas wider than the screen.** Twelve nodes do not fit one row.
+9. **A canvas wider than the screen.** Twelve nodes do not fit one row.
    Wrapping to two rows is preferred over a horizontal scroll inside a page
    that already scrolls, but this is a decision to make against a real
    cartridge, not a sketch.
