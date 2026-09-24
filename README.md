@@ -15,13 +15,15 @@ Browser (Jinja + htmx + Alpine + SSE)
  │
 FastAPI app ── SQLite: queue, batches, notes, findings, assembled rules
  │
+ ├─ runner (stub, or native when ODOO_MIGRATOR_RUNNER=native)
+ │
  └─> Sheller daemon 127.0.0.1:8765 ──> old container / new container
 ```
 
 Per module: understand the old version, rewrite, install the upgrade on the
-new container, test, judge, retry. Until the in-process runner lands, a
-stub executor walks the same stages so the UI and the suite run with
-nothing else up.
+new container, test, judge, retry. The retry loop is the cartridge's
+failure lane. The default executor is a stub, so the UI and the suite run
+with nothing else up. `ODOO_MIGRATOR_RUNNER=native` selects the live runner.
 
 ## Table of Contents
 
@@ -50,8 +52,8 @@ as resolved text.
 Full documentation: [docs/](docs/README.md) — architecture, the UI guide,
 the security model, and an FAQ in
 [English](docs/faq.md) and [Russian](docs/faq-ru.md). The design of record
-that the implementation was built against lives under
-[`docs_/`](docs_/superpowers/specs/2026-09-20-odoo-migrator-design.md).
+for the runner is
+[`docs_/superpowers/specs/2026-09-23-native-runner-design.md`](docs_/superpowers/specs/2026-09-23-native-runner-design.md).
 
 ## Security
 
@@ -79,8 +81,8 @@ The reasoning behind each of these is in [docs/security.md](docs/security.md).
 | Odoo | two live containers — old version and new — each with its own compose project |
 | [odoo-sheller](https://github.com/romi477/odoo-sheller) | a daemon on `127.0.0.1:8765`, or one the app can spawn |
 
-With no live runner the app uses an in-process stub executor, so the UI
-and the suite run without Docker or Odoo.
+Without `ODOO_MIGRATOR_RUNNER=native` the app uses an in-process stub
+executor, so the UI and the suite run without Docker, Odoo, or a model key.
 
 ## Install
 
@@ -127,10 +129,13 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
 1. **Create a migration** on Overview — name, accent, source and target
    versions, old and new project paths. Same-version and downgrade are
    refused here, where they were typed.
-2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`)
-   and, when the app must spawn the daemon, the image tag.
+2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`),
+   the image tag when the app must spawn the daemon, and a provider
+   secret when the native runner should call a model. A blank secret
+   field keeps the saved value.
 3. **This migration** — attach or Up the two compose projects, pin a
-   flow and a model wrapper, smoke-run one module before a batch.
+   flow and optionally override its model, smoke-run one module before
+   a batch.
 4. **Tree** — Resolve the graph from the live old Odoo. Skip, group,
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, observe Sheller without a write key.
@@ -172,18 +177,19 @@ uv run pytest -m "not live"
 There is no Swagger. `docs_url` is off: the pages are a local tool, and
 nothing machine-facing is left.
 
-The pages (Overview, Tree, Pipeline, Sheller, Result, Settings) ask
-nobody for a key.
+The pages (Overview, Tree, Pipeline, Flow, Sheller, Result, Settings)
+ask nobody for a key.
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/` | Overview |
 | `GET` | `/tree` | Module graph |
 | `GET` | `/run` | Pipeline and checkpoint |
+| `GET` | `/flow` | The pinned cartridge, and a job's trace skeleton |
 | `GET` | `/sheller` | Sheller observer |
 | `GET` | `/result` | Migration outcomes dashboard |
 | `GET` | `/settings` | App settings |
-| `GET` | `/settings/migration` | This migration: containers, flow, smoke-run |
+| `GET` | `/settings/migration` | This migration: containers, flow, model, smoke-run |
 | `GET` | `/sse` | One named-event stream per page |
 | `GET` | `/styleguide` | What each migration step is for |
 | `GET` | `/components` | Every CSS component, rendered once |
@@ -197,14 +203,16 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 |---|---|
 | `odoo_migrator/api.py` | FastAPI factory and pages |
 | `odoo_migrator/models.py` | Peewee models. Schema changes: `playhouse.migrate` |
-| `odoo_migrator/jobs.py` | Start a job, apply callbacks, sequential batch |
+| `odoo_migrator/jobs.py` | Start a job, apply a result, resume, sequential batch |
+| `odoo_migrator/runner/` | Cartridge language, loop, tools, providers, native thread |
 | `odoo_migrator/contract.py` | Job payload and result validation |
-| `odoo_migrator/cartridges.py` | Manifest, smoke-run, pin |
-| `odoo_migrator/diffs.py` | Unified diffs from writes noted on the in-flight job |
+| `odoo_migrator/cartridges.py` | Import, pin, smoke-run |
+| `odoo_migrator/diffs.py` | Unified diffs recorded on the in-flight job |
 | `odoo_migrator/rules.py` | Per-version files, assembled stack, promote |
 | `odoo_migrator/web/` | Jinja in `templates/`, assets in `static/` — only `static/` is mounted |
+| `cartridges/stock.yaml` | The stock flow |
 | `rules/` | `16.0.md` … `19.0.md` at the repo root, not inside the package |
-| `prompts/system.md` | System prompt, resolved into the payload |
+| `prompts/system.md` | System prompt, resolved into the agent step |
 | `packaging/` | `serve.sh`. The desktop build lands here later, as in odoo-sheller |
 | `tests/` | Suite; no live Docker required except `@pytest.mark.live` |
 
@@ -220,7 +228,8 @@ custom properties (`--accent`).
 
 | Symptom | Likely cause |
 |---|---|
-| Job stays `waiting_for_human` after an answer | The reply is stored. Nothing resumes the job until the in-process runner does |
+| Job becomes `unknown` after an answer | The thread that was waiting is gone, usually after a restart. The answer stays on the checkpoint thread |
+| Answered, and the row is `running` but nothing continues | The stub reports that it can resume and then has no thread left to run. A real continuation needs `ODOO_MIGRATOR_RUNNER=native` and the same process that parked the job |
 | `A smoke-run must pass before a batch.` | An installed cartridge whose smoke-run is not `passed`. With nothing installed the stub is allowed |
 | `database is locked` | A Peewee connection crossed a thread. Every operation is its own `connection_context()` |
 | `address already in use` on start | Another copy is already serving. uvicorn prints "Application startup complete" before it reports the bind failure, so a failed start reads like a successful one — check `lsof -nP -iTCP:8000 -sTCP:LISTEN` |

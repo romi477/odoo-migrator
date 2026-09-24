@@ -6,19 +6,20 @@ hundreds of custom modules. Output: the same project ported, module by
 module, verified against two live Odoo containers — the old version to
 learn from, the new one to land in.
 
-**Status: in build.** Task 17 of 17 done (checkpoint diffs from File API writes).
-Nothing migrates anything yet. Run `odoo-migrator` (add `--reload` for
+**Status: native runner in the tree, stub by default.** Tasks 1–12 of the
+native-runner plan are done. The live gate — one real module against two
+containers — has not been run, so the process stays on the stub until
+`ODOO_MIGRATOR_RUNNER=native`. Run `odoo-migrator` (add `--reload` for
 development); `uv run pytest`.
 
 | Document | What it holds |
 |---|---|
 | `README.md` | install, quick start, API table, security short version |
-| `packaging/` | shell entry points for the app and the n8n stack; the desktop build goes here later, same shape as odoo-sheller |
-| `docs/` | product docs in the Sheller template: architecture, UI, n8n, security, FAQ (en/ru) |
-| `docs_/superpowers/specs/2026-09-20-odoo-migrator-design.md` | the design of record |
-| `docs_/n8n-workflow-flow.md` | the workflow graph, node by node, and how nodes are built |
-| `docs_/n8n-spike-findings.md` | Task 3b: what a real n8n 2.39.9 run did to the webhook contract |
-| `.cursor/plans/web_mvp_sequential_684f94cd.plan.md` | the implementation plan — 16 review gates, then diffs |
+| `packaging/` | `serve.sh`; the desktop build goes here later, same shape as odoo-sheller |
+| `docs/` | product docs: architecture, UI, security, FAQ (en/ru) |
+| `docs_/superpowers/specs/2026-09-23-native-runner-design.md` | the design of record for the runner |
+| `docs_/superpowers/plans/2026-09-23-native-runner.md` | the implementation plan — 13 tasks; task 13 is the live gate |
+| `docs_/superpowers/specs/2026-09-20-odoo-migrator-design.md` | the earlier product spec; the runner spec wins where they disagree |
 | `docs_/migrator-web-mockup-brief.md` | the UI brief given to design |
 | `docs_/Odoo-Migrator-v1.html` | the returned mockup (bundled; inline styles, no classes — do not copy them) |
 | `docs_/sheller-dind-ru.md` | historical: the spec handed to Sheller for its container mode, now implemented |
@@ -35,48 +36,47 @@ spec" — that list is the record, not a suggestion.
 Browser (Jinja + htmx + Alpine + SSE)
    │
 FastAPI app ── SQLite            the source of truth: queue, batches,
-   │           rules/*.md        statuses, notes, findings, assembled rules
+   │           rules/*.md        statuses, notes, findings, the cartridge
    │
-   ├─ POST webhook ──────────> n8n (containerized, pure executor)
-   │                              │  AI Agent stages + deterministic stages
-   │ <── progress / result ───────┤
-   │ <── File API ────────────────┤
-   │ <── Sheller proxy ───────────┘
+   ├─ runner (stub, or native when ODOO_MIGRATOR_RUNNER=native)
+   │     one job, one thread; a provider runs one model turn
+   │     tools call Sheller and write files under the project roots
    │
    └─> Sheller daemon 127.0.0.1:8765 ──> old container / new container
 ```
 
 Per module: understand the old version, rewrite, install the upgrade on
-the new container, test, judge, retry. The retry loop is a real loop on
-the n8n canvas, not a model looping inside one node.
+the new container, test, judge, retry. The retry loop is the cartridge's
+failure lane, not another turn inside one model call.
 
 ## Decisions that are settled
 
 These were argued out. Do not re-open them mid-task; raise them as their
 own question if you think one is wrong.
 
-- **The app is the source of truth.** n8n stages pass data through and
-  accumulate nothing across jobs. `findings` grows within one job and
-  ships home in the callback.
-- **n8n is a replaceable cartridge**, selected per project, pinned for a
-  run, recorded on every result. The webhook contract is therefore the
-  product's API: versioned, declared by each cartridge, validated before
-  a run.
-- **Prompts and rules travel in the payload as resolved text**, never as
-  file paths and never configured inside an n8n node. Quality here *is*
-  prompt and rules quality, and both belong in git where they can be
-  reviewed.
+- **The app is the source of truth.** A provider runs one turn and keeps
+  nothing. `findings`, the checkpoint thread and the trace skeleton live
+  in SQLite.
+- **The cartridge is a YAML file**, pinned per migration and recorded on
+  every job (`id`, version, sha256 of the raw text). The stock flow is
+  `cartridges/stock.yaml`. A provider is selected by name on the model;
+  it does not own the loop, the tools, or the records.
+- **Prompts and rules travel as resolved text**, rendered into the agent
+  step. Quality here *is* prompt and rules quality, and both belong in
+  git where they can be reviewed.
 - **Rules are one file per version** (`rules/18.0.md`), never per pair —
   pair documents grow as the square of the versions. The app assembles
   the ordered stack for a migration. This is also what makes 16.0 → 19.0
   possible at all.
 - **Sessions belong to the agent, not the app.** A rewrite invalidates
   any session open on the *new* container, so a fresh one opens after it.
-  The old container is read-only for the whole run, so one session opened
-  at the start stays valid — do not apply the stricter rule to both sides.
-- **Peewee, not SQLAlchemy. Alpine, not React. No Celery, no MCP, no
-  LiteLLM in the MVP.** Each has a written reason; the React one has a
-  written trigger for revisiting.
+  The old container is read-only. Both sessions close while the job is
+  parked on a person, and open again when the same thread gets the
+  answer.
+- **Peewee, not SQLAlchemy. Alpine, not React. No Celery, no LiteLLM.**
+  The app does not serve MCP. Cursor's provider calls tools in-process
+  (`custom_tools`, built-in tools off). A shared MCP bridge is in the
+  design and is not built. OpenCode is specified and not built.
 
 ## Conventions
 
@@ -91,10 +91,10 @@ own question if you think one is wrong.
   will strip it** — run `ruff check`, not `ruff format`.
 - Every external boundary ships a test double in the task that introduces
   it. The suite must pass with no Docker, no Odoo and no daemon running.
-  **A double must answer the way the real thing answers.** The executor
-  double answered inline, so a batch that fired every module at once read
-  as sequential; it must go through the app's own callback, and there is a
-  second double that answers later, because n8n always does.
+  **A double must answer the way the real thing answers.** The stub posts
+  progress and a result through the app, the same path a finished job
+  uses. A second double answers later, because a live run does not finish
+  inside the request that started the job.
 - Appearance lives in the stylesheet. Inline `style=` is permitted only
   for custom properties (`--accent`), because some values are per-row
   data. A test enforces this — do not widen it.
@@ -127,11 +127,8 @@ Rules that are not ours to bend:
 
 - **The daemon publishes to `127.0.0.1` only.** That address is the whole
   security boundary around an API that executes arbitrary code as
-  `SUPERUSER_ID` with no authentication.
-- Because of that, **n8n cannot reach it directly** — inside a container
-  `127.0.0.1` is the container, and a connection arriving via the host
-  gateway is not loopback. The app proxies. n8n is configured with
-  exactly one host address.
+  `SUPERUSER_ID` with no authentication. This process is the client.
+  There is no proxy.
 - Never read `admin.key`, never touch `~/.odoo-sheller/`, never call the
   daemon's admin endpoints.
 - A daemon that answers on 8765 may not be ours. Use it; never stop it.
@@ -148,21 +145,15 @@ Inherited, not incidental: this pipeline executes arbitrary code as
 `SUPERUSER_ID` against real databases, and edits source files on the
 host.
 
-- Never publish `8765` beyond loopback. The app binds loopback too, and
-  `--host` widens it only because a container cannot reach loopback —
-  Docker Desktop leaves no narrower address than `0.0.0.0` to bind. The
-  pages are not protected by anything, so widening is per run, never a
-  default.
-- The machine-facing surface — File API and Sheller proxy — requires
-  `X-Odoo-Migrator-Key`, minted into `~/.odoo-migrator/api.key` on first
-  start. Print the path, never the value: this tool gets demonstrated on
-  a projector.
-- The File API is scoped to the configured old and new project roots. A
-  path that escapes them is a 403, not a clamp.
-- The proxy allowlist runs on the *collapsed* path. `%2e%2e` reaches the
-  route undecoded by a prefix check and is then collapsed by the HTTP
-  client on the way out, which turned `/api/sessions/%2e%2e/journals`
-  into an unmasked journal read.
+- Never publish `8765` beyond loopback. The app binds `127.0.0.1` only.
+  There is no flag that widens it. The pages are not protected by
+  anything.
+- `read_file` and `write_file` stay under the configured old and new
+  project roots. A path that escapes them is refused, not clamped.
+- Provider secrets are `ProviderSetting` rows. The settings page reports
+  whether one is set and never renders the value. A blank save keeps the
+  stored value. Do not print a key: this tool gets demonstrated on a
+  projector.
 - Mounting the Docker socket into the Sheller container grants the host's
   whole Engine — every container, root-equivalent. True of a native
   daemon too; worth restating because a container looks like isolation

@@ -21,32 +21,24 @@ as `SUPERUSER_ID` with no authentication. The migrator is a client: it
 attaches to a daemon already on 8765, or spawns one, and never stops a
 daemon that may not be ours.
 
-**n8n never talks to 8765.** Inside a container `127.0.0.1` is the
-container, and a connection arriving via the host gateway is not
-loopback. The app proxies. n8n is configured with exactly one host
-address — `app_base_url` — for File API, progress, result, and Sheller
-calls.
+**Nothing else in this app talks to 8765.** The runner is in this
+process, so it is already on the host. There is no second process to
+proxy for.
 
-**The machine-facing surface requires `X-Odoo-Migrator-Key`.** First
-start mints it into `~/.odoo-migrator/api.key` (owner-readable only). The
-process prints the path, never the value: this tool is demonstrated on a
-projector. n8n reads the same value as `$env.MIGRATOR_API_KEY`. Compose
-must set `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`; n8n's own v20 breaking
-changes flip the default to true, and on the wrong side every header goes
-out empty and the app answers 403.
+**File tools stay inside the two project roots.** `read_file` and
+`write_file` resolve under the old or the new project path. A path that
+would leave that root is refused, not clipped back inside. Clamping
+`a/../b` into `b` is how an escape becomes a successful write.
 
-**The File API is scoped to the two project roots.** A path that would
-leave them is 403, not silently clipped back inside. `..` in the request
-is enough, even when the resolved location would still have been under
-the root — clamping `a/../b` into `b` is how an escape becomes a
-successful write.
+**Provider secrets are stored and never rendered.** A key is a
+`ProviderSetting` row. The settings page reports whether it is set. A
+blank save keeps the stored value. The process does not print it.
 
-**The proxy allowlist runs on the collapsed path.** `%2e%2e` reaches the
-route undecoded by a prefix check and is then collapsed by the HTTP
-client on the way out, which turned `/api/sessions/%2e%2e/journals` into
-an unmasked journal read. Collapse first, allow second, forward the
-collapsed path. Journals are refused. `X-OS-Admin-Key` is stripped and
-never read from disk; `~/.odoo-sheller/` is not ours to touch.
+**Sheller journals stay on the daemon.** The Flow trace is a skeleton
+(tool, side, session id, a short preview). The body is fetched when
+someone opens that row, because journals are unmasked and this tool is
+demonstrated on a projector. `~/.odoo-sheller/` is not ours to touch,
+and `admin.key` is never read.
 
 **Sessions the migrator opens are attributable.** `owner.kind = agent`,
 label migrator-related, `migration_id` on the owner, so concurrent
@@ -60,12 +52,9 @@ whole run; one session opened at the start stays valid.
 
 ## What is deliberately *not* protected
 
-**The pages have no authentication.** Overview, Tree, Pipeline, n8n, Sheller, Result, Settings are
-a local UI. Binding loopback is the boundary. `--host` widens it because
-a container cannot reach loopback — Docker Desktop leaves no narrower
-address than `0.0.0.0` to bind. The warning at startup is load-bearing:
-`0.0.0.0` is every interface, not "the container gateway". Widening is
-per run, never a default.
+**The pages have no authentication.** Overview, Tree, Pipeline, Flow,
+Sheller, Result and Settings are a local UI. The app binds
+`127.0.0.1` only. There is no flag that widens it.
 
 **There is no guard that a compose project "looks like production".**
 The operator pointed the migration at two project paths. Guessing would
@@ -78,34 +67,32 @@ daemon too; worth restating because a container looks like isolation and
 provides none in that direction.
 
 **Sheller journals are unmasked** and land in the host's
-`~/.odoo-sheller`. Review one before sharing it. The proxy will not fetch
-them for n8n.
+`~/.odoo-sheller`. Review one before sharing it.
 
-## The API key is not Sheller's admin key
+## Sheller's admin key is not a provider key
 
-Two keys, two files, two jobs:
-
-| | Migrator `api.key` | Sheller `admin.key` |
+| | Provider setting | Sheller `admin.key` |
 |---|---|---|
-| Where | `~/.odoo-migrator/api.key` | `~/.odoo-sheller/admin.key` |
-| Who presents it | n8n, as `X-Odoo-Migrator-Key` | a human acting on a session they never owned |
-| The migrator | mints it, prints the path | never reads it, never forwards it |
+| Where | `ProviderSetting` in the migrator's SQLite | `~/.odoo-sheller/admin.key` |
+| Who it is for | the model SDK (Anthropic or Cursor) | a human acting on a session they never owned |
+| The migrator | stores it, never renders it | never reads it, never forwards it |
 
-Confusing them is how an n8n node ends up holding a key that closes
-somebody else's Sheller session.
+A provider key cannot close someone else's Sheller session. The admin
+key is the one that can, and this process does not have it.
 
-## Lost callbacks and a refused trigger
+## A job that cannot start
 
-A result the executor never took used to leave the job, the module and
-the batch on `running` forever. Nothing was started, so the rows are
-undone and the screen says so.
+Probe, opening sessions, loading the cartridge and a missing model key
+all happen inside the run. If any of them raises, the job is `failed`
+and the screen hears it. A thread that died before that used to leave
+the row `running` with nobody told.
 
-A callback that arrives after a crash is applied if the job is still
-unknown/reconciled, not dropped. The workflow-side half is HTTP Request
-`retryOnFail` on the callback node.
+An answer for a parked job resumes the thread that is still waiting. If
+that thread is gone — a restart — the answer is kept on the checkpoint
+thread and the job becomes `unknown`, not `running`.
 
 ## What this does not claim
 
-The File API writes whatever the agent sends, inside the two roots. There
-is no second review of the patch before it hits disk. The checkpoint
-diff is how a human sees what landed, after the fact.
+`write_file` writes whatever the model sends, inside the project root.
+There is no second review of the patch before it hits disk. The
+checkpoint diff is how a human sees what landed, after the fact.

@@ -1,16 +1,12 @@
 # Using the web UI
 
-A walkthrough of the screens — Overview, Tree, Pipeline, n8n, Sheller,
-Result, Settings — and
-every control in them. The UI is a local tool for one developer working
-a custom Odoo project through a version jump: speed of the loop (start a
-module, see the stage, review the batch) matters more than
-discoverability, so a few controls reward knowing they're there.
+A walkthrough of the screens — Overview, Tree, Pipeline, Flow, Sheller,
+Result, Settings — and every control in them. The UI is a local tool for
+one developer working a custom Odoo project through a version jump.
 
 The UI is served at `/` and is a plain client of the HTTP/SSE API
-described in the [README](../README.md#api). n8n talks to the keyed
-machine surface; the pages ask nobody for a key. Binding loopback is the
-boundary — see [security.md](security.md).
+described in the [README](../README.md#api). The pages ask nobody for a
+key. Binding loopback is the boundary — see [security.md](security.md).
 
 ## Guiding rules
 
@@ -19,9 +15,9 @@ behave the way they do:
 
 - **The migration is the subject.** Opening one never stops another. The
   switcher only changes what is on screen.
-- **The app is the source of truth.** n8n stages pass data through one
-  job and ship findings home in the callback. Nothing accumulates on the
-  canvas across jobs.
+- **The app is the source of truth.** A provider runs one turn and
+  keeps nothing. Findings, the checkpoint thread and the trace skeleton
+  live in SQLite.
 - **One SSE connection per page**, named events — not one stream per
   row. HTTP/1.1 allows roughly six connections per origin, and a batch
   view has dozens of module rows.
@@ -44,11 +40,14 @@ The bar is two rows, on every page.
   another and the cookie follows; a batch already running on the one you
   left keeps running. A rounded hook under the mark points at that
   migration's screens.
-- **Tree / Pipeline / n8n / Sheller / Result** — the screens of the open
-  migration, on the second row. Each one takes the full width.
-- **Guide** — `/styleguide`: the five menu steps in order, with the
-  controls on each screen (queue-based Pipeline, Tree leave-out rules,
-  Result pagination and corner badges). Not a substitute for this file.
+- **Tree / Pipeline / Flow / Sheller / Result** — the screens of the
+  open migration, on the second row. Each one takes the full width.
+  Flow sits between Pipeline and Sheller.
+- **Guide** — `/styleguide`: Tree, Pipeline, Sheller, Result, in that
+  order, with the controls on each screen (queue-based Pipeline, Tree
+  leave-out rules, Result pagination and corner badges). Flow is its
+  own screen and is not one of those four headings. Not a substitute
+  for this file.
 - **Attention lamp** — `/attention`. Global: whichever migration has a
   module on `failed` or `waiting_for_human` that has not been dismissed.
   Clicking it opens that migration and focuses the node on Tree
@@ -81,7 +80,7 @@ sits centered, with a cyan outline. It asks for:
 | Name | The identity the switcher and the logs use |
 | Accent | A colour per migration so two concurrent ones stay distinguishable |
 | Source / Target | Same-version and downgrade are refused here, where they were typed |
-| Old / New project | The two File API roots. A path that later escapes them is 403 |
+| Old / New project | The two roots `read_file` and `write_file` may touch. A path that escapes them is refused |
 
 There is no "start the pipeline" on this screen. Create, Open, then
 Settings and Tree.
@@ -151,10 +150,10 @@ The lamp's `?focus=` selects and centres that node and opens its card.
 Opening the right migration and then leaving you to find one stalled
 node in a hundred is not opening the module.
 
-## Pipeline, n8n, Sheller, Result
+## Pipeline, Flow, Sheller, Result
 
-Four run screens after Tree, not four columns. Pipeline also holds the
-checkpoint once a batch has finished. Result is the scoreboard.
+Pipeline also holds the checkpoint once a batch has finished. Result is
+the scoreboard. Flow draws the pinned cartridge.
 
 **Pipeline** (`/run`) has **Selection** and **Queue**. In Selection, pick
 a **Step** (same waves as Tree), **Add to queue**, or **Add all steps to
@@ -162,16 +161,19 @@ queue** — only modules still in the plan and not yet passed; excluded
 modules and finished waves are skipped. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
 the current module first). The active module pulses in the queue; passed
-modules drop off the list and show on **Result**. The live panel below is
-module, status, stage, attempt.
-Empty reads "No module is running." SSE fills it. When the batch reaches
+modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
+cartridge's steps, with the current one marked. A parked question sits
+under the ribbon as a thread. Empty reads "No module is running." SSE
+fills the stage. When the batch reaches
 checkpoint a banner appears: *This batch has finished. Reload to review
 it.* The screen does not swap itself for the review while you are
 looking at a live stage.
 
-**n8n** (`/n8n`) is a stub, on purpose. The canvas is not embedded. A
-settings string becomes `target=_blank`; an empty iframe `src` is not an
-empty frame — the browser would load this page inside itself.
+**Flow** (`/flow`) draws the pinned cartridge: the main pipeline in one
+column, the failure lane in the other, retry edges back to `resume_at`.
+With a job, the trace under the canvas is the skeleton only — tool,
+side, session, a short preview. The journal body loads when that row is
+opened, not with the page.
 
 **Sheller** (`/sheller`) is only an observer iframe of Sheller's `/web`,
 edge to edge under the nav. The frame does not hold a write key. Do not
@@ -208,9 +210,8 @@ review.
 
 Each job lists attempts (iteration, verdict, diagnosis, unified diff,
 test output), findings, and assumptions taken under `batch_defer`. A
-module that passed first time still has an attempt: the stock canvas
-logs one, and the app fills an empty `diff` from File API writes on the
-new side.
+module that passed first time still has an attempt: the runner records
+the unified diff of each step that was allowed to write files.
 
 ## Settings
 
@@ -222,11 +223,9 @@ Shared by every migration.
 
 | Field | What it is |
 |---|---|
-| n8n base URL | Where this process publishes and triggers. Not hardcoded: 5678 is often already an Odoo longpolling port. |
-| n8n API key | Masked when stored. Focus to replace; save without editing keeps it. **Clear** is the bin beside the field. |
-| App base URL | The only host n8n is given. File API, Sheller proxy, progress and result. **Not** host loopback — a payload with `127.0.0.1` is refused at trigger. On Docker Desktop `host.docker.internal` reaches the app; on Linux compose adds `extra_hosts`. |
-| Sheller base URL | This process's client and the observer iframe. **Never sent to n8n.** |
+| Sheller base URL | This process's client and the observer iframe. |
 | Sheller image tag | Docker tag when the app must spawn Sheller because nothing answers on 8765. |
+| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor). Leave blank to keep the saved value. The value is never shown again. |
 
 ### This migration
 
@@ -245,27 +244,24 @@ every label over two lines.
 
 | Field | What it is |
 |---|---|
-| Strictness | Travels to the flow as `strictness_level`. **The stock flow ignores it**: `enhanced` runs what `basic` runs until a flow honours it. `Module.strictness` exists for a per-module override and no screen sets it yet. |
-| Retry limit | Canvas loop gate, not `Max Iterations` on an agent node. |
-| Ask-human mode | `sync` parks on a Wait node until you answer on Tree. `batch_defer` records an assumption and continues; you read it at checkpoint. |
-| Flow | `id@version` (`cartridge_id` in the payload). The pin is recorded on every job. |
-| Model wrapper | Which production webhook path this batch fires: stock `migrate-module`, or a thin OpenAI / Claude parent that Execute-Workflows the same loop. |
+| Strictness | Stored on the migration. The stock flow does not branch on it yet: `enhanced` runs what `basic` runs. |
+| Retry limit | How many laps the failure lane may take. Not a cap inside one model call. |
+| Ask-human mode | `sync` parks the job until you answer. `batch_defer` records an assumption and continues; you read it at checkpoint. |
+| Flow | The pinned cartridge, `id@version`. Recorded on every job. Import replaces the pin. |
+| Model | Overrides the cartridge's model for this migration. A step that names its own model still wins. |
 
 **Smoke-run** starts the first unstruck module by name through the pinned
 flow. The button says the run started; the verdict is whatever the
-job ends as on the callback. Reading `running` a millisecond after the
-trigger used to record `failed` every time against live n8n and block
-every batch. A failed smoke-run blocks Batch. With nothing installed the
-app is on its own stub and a batch is allowed; once a flow exists,
-an unknown pin is refused.
+job ends as. A failed smoke-run blocks Batch. With nothing installed
+the app is on its stub and a batch is allowed; once a flow exists, an
+unknown pin is refused.
 
 ## Guide (in-app)
 
-**Guide** in the chrome opens `/styleguide`: the five menu steps (Tree,
-Pipeline, n8n, Sheller, Result) in order, with the controls that exist
-today — queue-based Pipeline, graph leave-out rules, Result wave
-pagination and corner badges. This file is the long-form reference;
-the in-app page is the short walkthrough.
+**Guide** in the chrome opens `/styleguide`: Tree, Pipeline, Sheller,
+Result, in that order, with the controls that exist today. Flow is
+described after that list. This file is the long-form reference; the
+in-app page is the short walkthrough.
 
 `/components` is how CSS gets reviewed: badges, row cards, pipeline,
 checkpoint, forms, the lamp, the switcher. Add a row in the same change
