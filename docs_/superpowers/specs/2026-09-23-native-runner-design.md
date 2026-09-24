@@ -711,8 +711,17 @@ written once.
 
 ```python
 class Provider(Protocol):
-    name: str                      # "anthropic" | "openai" | ...
-    models: frozenset[str]         # what a cartridge is allowed to name
+    name: str                      # "anthropic" | "openai" | "cursor" | ...
+    models: frozenset[str]         # what the settings page lists; may be empty
+
+    def accepts_model(self, name: str) -> bool:
+        """Whether a cartridge may name this model. Not a set lookup:
+        OpenCode names a model `providerID/modelID`, and Cursor has
+        `auto-smart` with parameters."""
+
+    def ensure_ready(self) -> None:
+        """Attach to, or start, whatever this provider needs. An SDK does
+        nothing here; a provider that is a daemon resolves it."""
 
     def run_step(
         self,
@@ -724,6 +733,10 @@ class Provider(Protocol):
         budget: Budget,            # already clamped to the ceiling
     ) -> StepResult: ...
 ```
+
+`StepResult` carries the usage it observed — input, output and cached tokens
+— rather than the runner reading them off one SDK's response object. Each
+provider reports them from wherever its own surface puts them.
 
 A provider knows nothing about the cartridge, the context, the migration or
 Sheller. It translates the tools into its SDK's shape, runs its own tool-use
@@ -774,9 +787,11 @@ compiles rather than that a step terminates.
 
 ### Credentials
 
-One key per provider, in a `ProviderCredential(provider, key)` table rather
-than a column per SDK. The settings page renders a row for each registered
-provider, reports whether a key is set, and never renders the value.
+A `ProviderSetting(provider, key, value)` table — not one API-key column per
+SDK, and not one key per provider either: an SDK wants an API key, while a
+provider that is a daemon wants a base URL and a password. The settings page
+renders the fields each registered provider declares, reports whether a
+secret is set, and never renders its value.
 
 ### Checklist for a new provider
 
@@ -795,7 +810,7 @@ provider, reports whether a key is set, and never renders the value.
 7. A line in this section saying **how it behaves differently**, not only
    that it exists.
 
-### Cursor is a provider; the CLI-only harnesses are not
+### Cursor is a provider
 
 Cursor ships a Python SDK (`pip install cursor-sdk`, Python 3.10+), and with
 it Cursor fits the `Provider` protocol above rather than needing a step kind
@@ -847,7 +862,12 @@ service-account keys; team admin keys are documented as unsupported), and
 inline MCP servers are not persisted across `Agent.resume()` — irrelevant
 here, because a step never resumes an agent.
 
-### OpenCode is a provider too, in a third shape
+### OpenCode is a provider too, in a third shape — backlog
+
+**Status: backlog.** Not built, not scheduled. What is decided is that the
+seam must not make it impossible; the subsection after this one says what
+that costs today, which is close to nothing.
+
 
 OpenCode v2 is a client/server agent, and it also fits `Provider` — at a
 different price from Cursor. What it offers, read rather than recalled:
@@ -906,12 +926,39 @@ port, and `tools=[]` to switch its own tools off in one parameter. OpenCode
 costs a REST client and a daemon, and buys being open and self-hosted with no
 dependency on someone else's cloud.
 
-**The harnesses that have no programmatic surface of this kind** — Aider,
-Claude Code CLI driven as a terminal command — keep the shape this section
-used to describe for Cursor: driven headless, writing files with their own
-tools, unable to call `report`, and therefore judged by what `lint`, `tests`
-and `verdict` find afterwards. That is a `harness` step kind, not a provider,
-and nobody has built it.
+### Harnesses with no programmatic surface are still not providers
+
+Aider, or Claude Code CLI driven as a terminal command, keep the shape this
+section once described for Cursor: driven headless, writing files with their
+own tools, unable to call `report`, and therefore judged only by what `lint`,
+`tests` and `verdict` find afterwards. That is a `harness` step kind, not a
+provider, and nobody has built it.
+
+### What the seam must allow, so the backlog stays open
+
+Four decisions belong to the first provider, not the second, because each is
+cheap now and a rewrite later. None of them requires building OpenCode.
+
+1. **A provider may live outside this process.** `run_step` receives bound
+   tools and may either call them (an SDK in-process) or expose them (an
+   agent that reaches them over MCP). So the catalog has to be describable as
+   `name + schema + callable`, which is why the tool schemas belong in
+   `runner/tools.py` beside the catalog rather than inside the Anthropic
+   provider.
+2. **A provider may have a lifecycle.** `ensure_ready()` is a no-op for an
+   SDK and is where a daemon-backed provider attaches or starts one. Writing
+   the registry as a dict of plain functions forecloses this.
+3. **Model names are validated by the provider**, through `accepts_model`,
+   not by a set in the cartridge loader. OpenCode's names carry a
+   `providerID/modelID` pair; Cursor has `auto-smart` with parameters. A flat
+   `frozenset` per provider would refuse both.
+4. **Settings are per provider and not always a key.** `ProviderSetting(
+   provider, key, value)` holds an API key for one and a base URL plus a
+   password for another.
+
+An MCP bridge over the bound catalog is a shared component when the first
+provider that needs one arrives — Cursor or OpenCode, whichever comes first.
+It is not written for a specific provider, and it is not written yet.
 
 ## The human in the loop
 
@@ -1168,20 +1215,22 @@ then one command rather than archaeology.
    `MAX_TOKENS`), which enforces "narrow, never widen" but puts the numbers
    in code rather than on the migration card, where the spec says they
    belong. Moving them is a schema change and two form fields.
-5. **Whether a `harness` step is wanted** for the agent CLIs with no
+5. **OpenCode as a provider — backlog.** Feasible and described above; the
+   seam is required to keep it possible, and nothing more is scheduled.
+6. **Whether a `harness` step is wanted** for the agent CLIs with no
    programmatic surface — Aider, or Claude Code CLI driven as a command. They
    cannot call `report`, so they are judged by what they leave behind, which
    is a different step kind. Cursor and OpenCode are not among them: both are
    ordinary providers, described above. Not scheduled either way.
-6. **A cartridge editor in the app.** Decided against for now: git is the
+7. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.
-7. **The node inspector on `Flow`** — what it holds, and whether it is a
+8. **The node inspector on `Flow`** — what it holds, and whether it is a
    drawer beside the canvas or a card above a trace filtered to that node.
    Deferred until the screen exists and the space it leaves can be measured.
-8. **A `probe` step in two columns**, the same calls facing their two
+9. **A `probe` step in two columns**, the same calls facing their two
    answers, as a reading mode for one node rather than the whole trace.
-9. **A canvas wider than the screen.** Twelve nodes do not fit one row.
+10. **A canvas wider than the screen.** Twelve nodes do not fit one row.
    Wrapping to two rows is preferred over a horizontal scroll inside a page
    that already scrolls, but this is a decision to make against a real
    cartridge, not a sketch.
