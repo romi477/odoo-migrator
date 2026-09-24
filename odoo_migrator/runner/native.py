@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 from datetime import UTC, datetime
+from pathlib import Path
 
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
@@ -15,9 +17,15 @@ from odoo_migrator.runner.cartridge import load_cartridge, load_cartridge_file
 from odoo_migrator.runner.context import StepContext
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.registry import resolve
+from odoo_migrator.runner.snapshot import diff as diff_snapshots
+from odoo_migrator.runner.snapshot import snapshot
 
 # job_id -> event the human's answer releases. The thread that parked is
 # the only one that waits; answer_job sets the event from the request thread.
+# What the migration card says when it says nothing. Same default as the
+# column, so a blank card does not quietly run a different number of laps.
+_RETRY_LIMIT = 5
+
 _WAITERS: dict[str, threading.Event] = {}
 _ANSWERS: dict[str, str] = {}
 _GUARD = threading.Lock()
@@ -88,10 +96,12 @@ class NativeRunner:
                     "step_started",
                     {"job_id": job_id, "step": label, "kind": step.kind, "attempt": current.attempt},
                 )
-                self._progress(
-                    {"job_id": job_id, "stage": _stage(label), "attempt": current.attempt}
-                )
+                self._progress({"job_id": job_id, "stage": label, "attempt": current.attempt})
+                writes = "write_file" in (step.tools or ())
+                before = snapshot(_module_root(current)) if writes else {}
                 result = runner(step, current)
+                if writes:
+                    self._note_diff(current, before)
                 self._close_step(step_run, result)
                 self.hub.publish(
                     "step_finished",
@@ -107,24 +117,23 @@ class NativeRunner:
 
             return wrapped
 
-        from odoo_migrator.runner import loop as loop_mod
-
-        original = loop_mod.resolve
-        loop_mod.resolve = resolve_step
         try:
-            try:
-                outcome = run_job(
-                    cartridge,
-                    ctx,
-                    retry_limit=ctx.migration.retry_limit or 3,
-                )
-            except Exception as exc:  # noqa: BLE001 - wait() re-raises this on the caller thread.
-                self._errors[job_id] = exc
-                self.hub.publish("job_finished", {"job_id": job_id, "status": "failed"})
+            outcome = run_job(
+                cartridge,
+                ctx,
+                retry_limit=ctx.migration.retry_limit or _RETRY_LIMIT,
+                resolve=resolve_step,
+            )
+        except Exception as exc:  # noqa: BLE001 - wait() re-raises this on the caller thread.
+            self._errors[job_id] = exc
+            self.hub.publish("job_finished", {"job_id": job_id, "status": "failed"})
 
-                return
+            return
         finally:
-            loop_mod.resolve = original
+            # A job that ends, fails or is abandoned leaves no odoo-bin behind.
+            # A parked one has already closed its own; closing twice is a 404
+            # the daemon answers and this swallows.
+            self._close_sessions(ctx)
         if outcome != "waiting_for_human":
             self._result(
                 {
@@ -141,6 +150,46 @@ class NativeRunner:
             )
         self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
 
+    def _note_diff(self, ctx: StepContext, before: dict) -> None:
+        """Record what the step wrote, for the next prompt and the checkpoint."""
+        hunk = diff_snapshots(before, snapshot(_module_root(ctx)))
+        if not hunk:
+
+            return
+        ctx.previous_diff = hunk
+        with database.connection_context():
+            job = Job.get(Job.job_id == ctx.job_id)
+            blob = json.loads(job.file_diffs or "{}")
+            key = str(ctx.attempt)
+            blob[key] = (blob.get(key) or "") + hunk
+            job.file_diffs = json.dumps(blob)
+            job.save()
+
+    def _close_sessions(self, ctx: StepContext) -> None:
+        for side, session_id in list(ctx.sessions.items()):
+            if not session_id:
+                continue
+            with contextlib.suppress(Exception):
+                # A session already gone is not a failure: the daemon answers
+                # 404 for one whose process died, and closing twice is normal
+                # on the parked path.
+                self.sheller.close(session_id, write_key=ctx.write_keys.get(side, ""))
+            ctx.sessions[side] = ""
+
+    def _open_sessions(self, ctx: StepContext) -> None:
+        for side, target in ctx.session_targets.items():
+            if ctx.sessions.get(side):
+                continue
+            opened = self.sheller.open_session(
+                container=target["container"],
+                database=target["database"],
+                odoo_bin=target["odoo_bin"],
+                owner=target["owner"],
+                allow_commit=side == "new",
+            )
+            ctx.sessions[side] = opened["id"]
+            ctx.write_keys[side] = opened["write_key"]
+
     def _cartridge(self, payload: dict):
         text = payload.get("cartridge_text")
         if text:
@@ -149,12 +198,29 @@ class NativeRunner:
 
         return load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
 
+    def _model_client(self, cartridge):
+        """Resolve the client, but only for a cartridge that has agent steps.
+
+        ``client`` may be a factory: building it reads the key from settings
+        and refuses when there is none, and a cartridge of deterministic steps
+        should not be stopped by a missing key it never needed.
+        """
+        lanes = list(cartridge.pipeline) + list(cartridge.on_failure.pipeline)
+        if not any(step.kind == "agent" for step in lanes):
+
+            return None
+        if callable(self.client):
+
+            return self.client()
+
+        return self.client
+
     def _context(self, payload: dict, cartridge) -> StepContext:
         with database.connection_context():
             job = Job.get(Job.job_id == payload["job_id"])
             module = Module.get_by_id(job.module_id)
             migration = Migration.get_by_id(module.migration_id)
-        sessions, keys = self._sessions(migration)
+        targets = self._targets(migration)
 
         def record(tool, side, session_id, command_id, duration_ms, ok, preview):
             with database.connection_context():
@@ -180,12 +246,20 @@ class NativeRunner:
             )
 
         def wait_for_human(question: str) -> str:
+            """Park, and stop holding two Odoo processes while a person thinks.
+
+            A checkpoint can sit for a day. The sessions close here and open
+            again on the answer — the deliberate exception to one session for
+            the whole run, which holds for a job that is running, not one that
+            is waiting on a person.
+            """
             event = threading.Event()
             with _GUARD:
                 _WAITERS[payload["job_id"]] = event
             with database.connection_context():
                 parked = Job.get(Job.job_id == payload["job_id"])
                 CheckpointMessage.create(job=parked, author="agent", text=question)
+            self._close_sessions(ctx)
             self._result(
                 {
                     "job_id": payload["job_id"],
@@ -196,8 +270,10 @@ class NativeRunner:
             event.wait()
             with _GUARD:
                 _WAITERS.pop(payload["job_id"], None)
+                answer = _ANSWERS.pop(payload["job_id"], "")
+            self._open_sessions(ctx)
 
-                return _ANSWERS.pop(payload["job_id"], "")
+            return answer
 
         ctx = StepContext(
             job_id=payload["job_id"],
@@ -206,37 +282,43 @@ class NativeRunner:
             module=module,
             cartridge=cartridge,
             sheller=self.sheller,
-            sessions=sessions,
-            write_keys=keys,
+            sessions={},
+            write_keys={},
+            session_targets=targets,
             emit=lambda event: self.hub.publish(event.get("kind", "event"), event),
-            client=self.client,
+            client=self._model_client(cartridge),
             record_tool=record,
             wait_for_human=wait_for_human,
         )
+        self._open_sessions(ctx)
 
         return ctx
 
-    def _sessions(self, migration) -> tuple[dict, dict]:
-        owner = {"kind": "agent", "migration_id": migration.id}
-        old = self.sheller.open_session(
-            container=migration.old_container or "odoo-old",
-            database="acme",
-            odoo_bin="/opt/odoo/odoo-bin",
-            owner=owner,
-            allow_commit=False,
-        )
-        new = self.sheller.open_session(
-            container=migration.new_container or "odoo-new",
-            database="acme",
-            odoo_bin="/opt/odoo/odoo-bin",
-            owner=owner,
-            allow_commit=True,
-        )
+    def _targets(self, migration) -> dict[str, dict]:
+        """Where each side runs, as ``open_session`` wants it.
 
-        return (
-            {"old": old["id"], "new": new["id"]},
-            {"old": old["write_key"], "new": new["write_key"]},
-        )
+        ``odoo_bin`` and the database name come from the daemon's probe, which
+        runs inside the container with its own Python. They used to be two
+        constants here, which is fine until a project is not the one they were
+        typed for.
+        """
+        owner = {"kind": "agent", "migration_id": migration.id}
+        targets = {}
+        for side, container in (
+            ("old", migration.old_container),
+            ("new", migration.new_container),
+        ):
+            if not container:
+                raise RuntimeError(f"the {side} container of this migration is not up")
+            probed = self.sheller.probe(container)
+            targets[side] = {
+                "container": container,
+                "database": probed.get("db_name") or "",
+                "odoo_bin": probed.get("odoo_bin") or "",
+                "owner": dict(owner),
+            }
+
+        return targets
 
     def _open_step(self, ctx: StepContext, step) -> int:
         with database.connection_context():
@@ -259,11 +341,14 @@ class NativeRunner:
             row.save()
 
 
-def _stage(label: str) -> str:
-    from odoo_migrator.contract import STAGES
+def _module_root(ctx: StepContext) -> Path | None:
+    """Where this module lives inside the target project."""
+    if ctx.module.new_path:
 
-    if label in STAGES:
+        return Path(ctx.module.new_path)
+    project = ctx.migration.new_project_path
+    if not project:
 
-        return label
+        return None
 
-    return "understand"
+    return Path(project) / ctx.module.technical_name

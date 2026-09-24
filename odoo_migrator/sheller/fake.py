@@ -53,7 +53,6 @@ class FakeShellerClient:
         self._container = container
         self._mcp = mcp
         self._sessions: dict[str, dict] = {}
-        self._journals: dict[str, dict] = {}
         self._catalogues: dict[str, list] = {}
         # The journal file outlives the session. close drops the live row and
         # leaves this, which is what history and the export still read.
@@ -120,6 +119,10 @@ class FakeShellerClient:
             "state": "ready",
             "container": container,
             "database": database,
+            "kind": "docker",
+            "host": None,
+            "stage": None,
+            "pending_commands": 0,
             "odoo_bin": odoo_bin,
             "owner": dict(owner or {}),
             "allow_commit": bool(allow_commit),
@@ -145,12 +148,30 @@ class FakeShellerClient:
 
         return [self.get_session(session_id) for session_id in self._sessions]
 
+    # What the daemon's `Session.describe()` actually answers. `odoo_bin` is
+    # NOT in it: the daemon takes it when a session opens and never gives it
+    # back. The fake used to return it anyway, and `reopen` was written
+    # against the fake — it would have raised KeyError on the first real
+    # container.
+    _DESCRIBED = (
+        "id",
+        "state",
+        "container",
+        "database",
+        "kind",
+        "host",
+        "stage",
+        "owner",
+        "allow_commit",
+        "pending_commands",
+    )
+
     def get_session(self, session_id: str) -> dict:
         session = self._sessions.get(session_id)
         if session is None:
             raise ShellerError("unknown session", status=404)
 
-        return {key: value for key, value in session.items() if key != "write_key"}
+        return {key: value for key, value in session.items() if key in self._DESCRIBED}
 
     def exec(self, session_id: str, code: str, *, write_key: str) -> dict:
         session = self._require(session_id, write_key)

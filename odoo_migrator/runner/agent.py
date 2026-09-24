@@ -11,6 +11,35 @@ from odoo_migrator.runner.cartridge import Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.runner.tools import ToolRefused, report_tool, tools_for
 
+# The cap on one response, which is not the budget for the step. The budget
+# is what the whole turn loop may spend; `max_tokens` is how long a single
+# answer may be, and the models top out at 128K. Passing a 200K run budget
+# here is a 400 on the first call.
+MAX_OUTPUT_TOKENS = 64_000
+
+
+class NoModelClient(RuntimeError):
+    """An agent step ran with no model client behind it."""
+
+
+def default_client():
+    """The Anthropic client, built from the key in settings.
+
+    One place, so the second provider replaces a function rather than a
+    branch scattered through the runner.
+    """
+    from odoo_migrator.settings import anthropic_api_key
+
+    key = anthropic_api_key()
+    if not key:
+        raise NoModelClient(
+            "no Anthropic API key is set — the agent steps of a cartridge "
+            "cannot run. Set it on the settings page."
+        )
+    import anthropic
+
+    return anthropic.Anthropic(api_key=key)
+
 
 def run_agent(
     step: Step,
@@ -20,6 +49,11 @@ def run_agent(
     model: str,
     budget: Budget,
 ) -> StepResult:
+    if client is None:
+        raise NoModelClient(
+            f"step {step.id or step.kind!r} is an agent step and there is no "
+            "model client"
+        )
     if getattr(client, "scripted", False):
         return _scripted(step, ctx, client, budget)
 
@@ -68,7 +102,7 @@ def _anthropic(step: Step, ctx: StepContext, client, model: str, budget: Budget)
     runnable = [_as_beta(beta_tool, tool) for tool in tools_for(step, ctx)]
     runnable.append(_report_beta(beta_tool, step, captured))
     kwargs = {
-        "max_tokens": budget.tokens or 8192,
+        "max_tokens": min(budget.tokens or MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
         "model": model,
         "tools": runnable,
         "messages": [{"role": "user", "content": step.prompt or ""}],
@@ -92,10 +126,15 @@ def _anthropic(step: Step, ctx: StepContext, client, model: str, budget: Budget)
     return _from_report(step, captured)
 
 
-def _effort(ctx: StepContext) -> str:
-    raw = getattr(ctx.migration, "model_effort", None)
+# Effort is not a per-migration setting yet, and reading a field that does
+# not exist through getattr only looked like one.
+_EFFORT = "high"
 
-    return raw or "high"
+
+def _effort(ctx: StepContext) -> str:
+    del ctx
+
+    return _EFFORT
 
 
 _TOOL_SCHEMAS = {

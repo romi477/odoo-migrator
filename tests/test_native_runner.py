@@ -42,6 +42,11 @@ def _module(tmp_path):
     )
     with database.connection_context():
         migration = Migration.get_by_id(created["id"])
+        # The runner probes both containers for the database and odoo_bin, so
+        # a migration whose containers are not up is a loud refusal.
+        migration.old_container = "odoo-old"
+        migration.new_container = "odoo-new"
+        migration.save()
         module = Module.create(
             migration=migration,
             technical_name="sale_custom",
@@ -126,3 +131,35 @@ def test_the_thread_never_shares_a_connection(native_job):
     run_to_completion(native_job)
 
     assert not database.is_closed() is False
+
+
+def test_the_runner_asks_the_daemon_where_each_side_runs(client, native_job, fake_sheller):
+    """The database and odoo_bin used to be two constants typed into the runner."""
+    del client
+    run_to_completion(native_job)
+
+    assert [opened["container"] for opened in fake_sheller.opens][:2] == [
+        "odoo-old",
+        "odoo-new",
+    ]
+    assert {opened["database"] for opened in fake_sheller.opens} == {"acme_17"}
+    assert {opened["odoo_bin"] for opened in fake_sheller.opens} == {"/opt/odoo/odoo-bin"}
+
+
+def test_the_source_side_never_gets_commit(client, native_job, fake_sheller):
+    del client
+    run_to_completion(native_job)
+
+    by_container = {opened["container"]: opened for opened in fake_sheller.opens}
+    assert by_container["odoo-old"]["allow_commit"] is False
+    assert by_container["odoo-new"]["allow_commit"] is True
+
+
+def test_a_finished_job_leaves_no_session_behind(client, native_job, fake_sheller):
+    """Two odoo-bin processes per job, held forever, is how a machine dies."""
+    del client
+    run_to_completion(native_job)
+
+    opened = {row["id"] for row in fake_sheller.opens}
+    assert opened
+    assert opened <= set(fake_sheller.closes)

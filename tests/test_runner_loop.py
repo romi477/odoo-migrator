@@ -81,8 +81,19 @@ on_failure:
 
 def loop_ctx(**script):
 
+    # Carries the fields the loop and the deterministic steps read. A
+    # namespace missing one reads as a passing test right up until the real
+    # context grows the attribute.
     return SimpleNamespace(
-        attempt=1, job_id="job-1", script=script, emit=lambda _event: None
+        attempt=1,
+        job_id="job-1",
+        script=script,
+        emit=lambda _event: None,
+        prior_answers={},
+        last_answer="",
+        previous_diff="",
+        last_failure="",
+        wait_for_human=None,
     )
 
 
@@ -111,14 +122,7 @@ def run_recorded(text: str, ctx, *, retry_limit: int = 3):
 
         return runner
 
-    from odoo_migrator.runner import loop as loop_mod
-
-    loop_original = loop_mod.resolve
-    loop_mod.resolve = resolve
-    try:
-        outcome = run_job(cartridge, ctx, retry_limit=retry_limit)
-    finally:
-        loop_mod.resolve = loop_original
+    outcome = run_job(cartridge, ctx, retry_limit=retry_limit, resolve=resolve)
 
     return outcome, ran
 

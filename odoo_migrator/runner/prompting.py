@@ -13,8 +13,16 @@ from odoo_migrator.runner.agent import run_agent
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
-# Used when neither the step nor the migration card names a tighter budget.
+# The ceiling a cartridge cannot raise. "A cartridge may narrow, never widen"
+# is the one rule that keeps an uploaded file from granting itself something,
+# and a budget is the cheapest thing in that file to inflate.
+MAX_TOOL_CALLS = 60
+MAX_TOKENS = 400_000
 _DEFAULT_BUDGET = Budget(tool_calls=40, tokens=200_000)
+
+# One module's source can be a megabyte of XML. Past this the prompt stops
+# being context and starts being a bill.
+MAX_SOURCE_CHARS = 120_000
 
 
 def build_context(step: Step, ctx: StepContext) -> str:
@@ -43,10 +51,17 @@ def resolve_model(step: Step, ctx: StepContext) -> str:
 
 
 def budget_for(step: Step, ctx: StepContext) -> Budget:
-    """The step's budget when it names one, otherwise the default ceiling."""
-    del ctx
+    """The step's budget, clamped to the ceiling. Narrowing only.
 
-    return step.budget or _DEFAULT_BUDGET
+    A cartridge that asks for a hundred thousand tool calls gets the ceiling,
+    not the number it typed.
+    """
+    del ctx
+    asked = step.budget or _DEFAULT_BUDGET
+    calls = asked.tool_calls if asked.tool_calls is not None else MAX_TOOL_CALLS
+    tokens = asked.tokens if asked.tokens is not None else MAX_TOKENS
+
+    return Budget(tool_calls=min(calls, MAX_TOOL_CALLS), tokens=min(tokens, MAX_TOKENS))
 
 
 def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
@@ -65,6 +80,10 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
     )
     if step.id and result.answer:
         ctx.prior_answers[step.id] = result.answer
+    if result.answer:
+        # What `ask_human` asks with. Without it a checkpoint showed a
+        # constant string while the diagnosis sat in prior_answers unread.
+        ctx.last_answer = result.answer
     if not result.ok:
         ctx.last_failure = result.output or ""
 
@@ -113,8 +132,13 @@ def _module_source(ctx: StepContext) -> str:
         except UnicodeDecodeError:
             continue
         chunks.append(f"### {relative}\n{text}")
+    rendered = "\n\n".join(chunks) or "(empty)"
+    if len(rendered) > MAX_SOURCE_CHARS:
+        kept = rendered[:MAX_SOURCE_CHARS]
 
-    return "\n\n".join(chunks) or "(empty)"
+        return f"{kept}\n\n(truncated at {MAX_SOURCE_CHARS} characters; read the rest with read_file)"
+
+    return rendered
 
 
 def _old_root(ctx: StepContext) -> Path | None:

@@ -184,12 +184,10 @@ def run_recorded_file(path: str, ctx):
     ran: list[str] = []
     cartridge = load_cartridge_file(Path(path))
     ctx.cartridge = cartridge
-    from odoo_migrator.runner import loop as loop_mod
-
-    original = loop_mod.resolve
+    from odoo_migrator.runner.registry import resolve as registry_resolve
 
     def resolve(kind: str):
-        runner = original(kind)
+        runner = registry_resolve(kind)
 
         def wrapped(step, current):
             ran.append(step.id or step.kind)
@@ -198,11 +196,7 @@ def run_recorded_file(path: str, ctx):
 
         return wrapped
 
-    loop_mod.resolve = resolve
-    try:
-        outcome = run_job(cartridge, ctx, retry_limit=3)
-    finally:
-        loop_mod.resolve = original
+    outcome = run_job(cartridge, ctx, retry_limit=3, resolve=resolve)
 
     return outcome, ran
 

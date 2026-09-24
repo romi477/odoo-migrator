@@ -666,6 +666,15 @@ The recipe is stored on the `Attempt`. For a module that shipped no tests, it
 is the first executable description of that module anyone has written, and it
 is the obvious seed for a real test later.
 
+### What the agent writes, and how the next step sees it
+
+A step that can call `write_file` is snapshotted before it runs and again
+after, and the unified diff of the two is what `previous_diff` renders and
+what the checkpoint shows. Nothing else knows a file changed: the agent
+writes through a tool, not through a route the app can observe. This is the
+mechanism the `patch` / `rewrite` distinction rests on, so it is part of the
+runner rather than a convenience.
+
 ### Containment
 
 The agent is confined to two containers by the shape of its tools, not by a
@@ -832,6 +841,11 @@ So the app stores the skeleton and Sheller keeps the bodies:
 | which tool was called, on which side, in which session, with what command id, how long it took, and a one-line preview | the app |
 | the command's full text, `stdout`, `stderr`, Odoo's log | Sheller's journal, fetched on demand |
 
+A job's step labels are its cartridge's step ids, not a fixed vocabulary.
+Progress refuses a label that cannot be one — empty, overlong, multi-line —
+and nothing else: a project's own `check_reports` step has to be able to
+report that it is running.
+
 **Recording the session is the point.** A step is not one session: an agent
 that changes the module's code calls `reopen` and the target session is a new
 one, with a new id. The app therefore records the session id per tool call,
@@ -934,8 +948,11 @@ then one command rather than archaeology.
 3. **Assisted answers** are specified above but not scheduled. The first pass
    builds the checkpoint thread that makes them additive later.
 4. **How much a cartridge should be allowed to cost.** Agent steps are now
-   cheap to add and expensive to run, so the ceilings on the migration card
-   stop being a formality. What the defaults are is not decided.
+   cheap to add and expensive to run, so the ceilings stop being a formality.
+   They are currently constants in `runner/prompting.py` (`MAX_TOOL_CALLS`,
+   `MAX_TOKENS`), which enforces "narrow, never widen" but puts the numbers
+   in code rather than on the migration card, where the spec says they
+   belong. Moving them is a schema change and two form fields.
 5. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.

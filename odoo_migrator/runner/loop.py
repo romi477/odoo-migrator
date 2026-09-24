@@ -4,12 +4,25 @@ from __future__ import annotations
 
 from odoo_migrator.runner.cartridge import Cartridge
 from odoo_migrator.runner.context import StepContext
-from odoo_migrator.runner.registry import resolve
+from odoo_migrator.runner.registry import resolve as _default_resolve
 
 _PARKED = "waiting_for_human"
 
 
-def run_job(cartridge: Cartridge, ctx: StepContext, *, retry_limit: int) -> str:
+def run_job(
+    cartridge: Cartridge,
+    ctx: StepContext,
+    *,
+    retry_limit: int,
+    resolve=_default_resolve,
+) -> str:
+    """``resolve`` is a parameter because the runner wraps every step.
+
+    It used to be swapped on this module at runtime and restored in a
+    ``finally``. Two jobs in flight — the queue and a Migrate on the tree can
+    overlap — would instrument each other, and whichever finished first put
+    the bare resolver back under the other one.
+    """
     pipeline = list(cartridge.pipeline)
     names = [step.id or step.kind for step in pipeline]
     index = 0

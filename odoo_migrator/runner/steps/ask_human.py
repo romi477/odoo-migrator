@@ -11,7 +11,14 @@ from odoo_migrator.runner.context import StepContext, StepResult
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
-    question = (step.prompt or "").strip() or "A checkpoint is open."
+    """Ask with what the last agent step said.
+
+    `ask_human` is deterministic, so validation refuses a prompt on it and
+    the cartridge has nothing to write here. The question the human needs is
+    the diagnosis that raised `needs_human`, which is the answer of the step
+    that ran just before this one.
+    """
+    question = (ctx.last_answer or "").strip() or "A checkpoint is open."
     ctx.emit(
         {
             "kind": "ask_human",

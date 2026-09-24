@@ -88,19 +88,23 @@ def _bind(name: str, step, ctx):
             raise ToolRefused(f"{name} requires side")
         _require_side(step, name, side)
         started = time.perf_counter()
+        # The session this command runs against, read before dispatch:
+        # `reopen` replaces it, and a trace line recorded with the new id
+        # would look for its body in a journal that never saw the command.
+        ran_in = ctx.sessions.get(side, "")
         try:
             value = _dispatch(name, ctx, side, kwargs)
         except ToolRefused:
             raise
         except (ShellerError, OSError) as exc:
-            _record(ctx, name, side, "", _elapsed(started), False, str(exc))
+            _record(ctx, name, side, ran_in, "", _elapsed(started), False, str(exc))
 
             return f"error: {exc}"
         command_id = ""
         if isinstance(value, dict) and value.get("id") is not None:
             command_id = str(value["id"])
         text = _text(value)
-        _record(ctx, name, side, command_id, _elapsed(started), True, text)
+        _record(ctx, name, side, ran_in, command_id, _elapsed(started), True, text)
 
         return text
 
@@ -112,12 +116,20 @@ def _elapsed(started: float) -> int:
     return max(0, int((time.perf_counter() - started) * 1000))
 
 
-def _record(ctx, name: str, side: str, command_id: str, duration_ms: int, ok: bool, preview: str):
+def _record(
+    ctx,
+    name: str,
+    side: str,
+    session_id: str,
+    command_id: str,
+    duration_ms: int,
+    ok: bool,
+    preview: str,
+):
     recorder = getattr(ctx, "record_tool", None)
     if not callable(recorder):
 
         return
-    session_id = ctx.sessions.get(side, "")
     recorder(
         name,
         side,
@@ -178,13 +190,21 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
 
 
 def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:
-    described = ctx.sheller.get_session(session_id)
+    """Close this side's session and open a fresh one on the same target.
+
+    The target comes from `ctx.session_targets`, not from the daemon: its
+    `describe()` answers container, database and owner but never `odoo_bin`,
+    and `open_session` refuses without it.
+    """
+    target = ctx.session_targets.get(side)
+    if not target:
+        raise ToolRefused(f"no target recorded for side {side!r}")
     ctx.sheller.close(session_id, write_key=write_key)
     opened = ctx.sheller.open_session(
-        container=described["container"],
-        database=described["database"],
-        odoo_bin=described["odoo_bin"],
-        owner=described.get("owner") or {"kind": "agent"},
+        container=target["container"],
+        database=target["database"],
+        odoo_bin=target["odoo_bin"],
+        owner=target.get("owner") or {"kind": "agent"},
         allow_commit=side == "new",
     )
     ctx.sessions[side] = opened["id"]

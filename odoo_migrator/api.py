@@ -131,9 +131,19 @@ def app_version() -> str:
 def _choose_executor(*, sheller, hub, progress, result):
     """Stub by default. ``ODOO_MIGRATOR_RUNNER=native`` runs the in-process loop."""
     if os.environ.get("ODOO_MIGRATOR_RUNNER") == "native":
+        from odoo_migrator.runner.agent import default_client
         from odoo_migrator.runner.native import NativeRunner
 
-        return NativeRunner(sheller=sheller, hub=hub, progress=progress, result=result)
+        return NativeRunner(
+            sheller=sheller,
+            hub=hub,
+            progress=progress,
+            result=result,
+            # Built lazily: starting the app without a key is fine, running a
+            # cartridge that has agent steps is not, and the difference has to
+            # be a message rather than an AttributeError on None.
+            client=default_client,
+        )
 
     return StubExecutor(progress=progress, result=result)
 

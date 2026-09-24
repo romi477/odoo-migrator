@@ -14,24 +14,25 @@ from odoo_migrator.rules import assemble_rules, load_system_prompt
 
 CONTRACT_VERSION = "1"
 DEFAULT_CARTRIDGE = {"id": "stock", "version": "1.0.0"}
-STAGES = (
+# The stages the stub executor walks. This is no longer the vocabulary: a
+# cartridge names its own steps, and the whole point of the generic agent
+# step is that a project can add one this build has never heard of.
+KNOWN_STAGES = (
     "understand",
-    "rewrite",
-    "upgrade",
-    "tests",
-    "smoke",
-    "verdict",
-    "diagnose",
-    "reprobe",
-    "waiting_for_human",
-    "cleanup",
     "port",
     "lint",
+    "upgrade",
+    "tests",
     "probe",
     "write_test",
+    "verdict",
+    "diagnose",
     "patch",
     "rewrite",
+    "reprobe",
     "ask_human",
+    "waiting_for_human",
+    "cleanup",
 )
 # What a cartridge is allowed to end a job with. The app's own statuses —
 # queued, running, unknown — are not in here: a cartridge does not get to
@@ -82,14 +83,20 @@ class ProgressPayload(BaseModel):
 
     @field_validator("stage")
     @classmethod
-    def known_stage(cls, value: str) -> str:
-        # STAGES was declared and then never used, so a cartridge could
-        # report any string and the app stored it. A stage nobody recognises
-        # is a cartridge bug, and it should be loud where it happens.
-        if value not in STAGES:
-            raise ValueError(f"unknown stage: {value!r}; expected one of {', '.join(STAGES)}")
+    def usable_stage(cls, value: str) -> str:
+        """A step id, not a member of a fixed list.
 
-        return value
+        A closed list was right when the executor lived in a container and
+        could say anything. Now the cartridge declares its steps and the
+        loader has already refused the ones this build cannot run — and a
+        project's own `check_reports` step is a feature, not a bad stage.
+        What is still refused is a stage that cannot be a label at all.
+        """
+        stage = value.strip()
+        if not stage or len(stage) > 64 or "\n" in stage:
+            raise ValueError(f"unusable stage: {value!r}")
+
+        return stage
 
     @model_validator(mode="after")
     def unify_resume(self):

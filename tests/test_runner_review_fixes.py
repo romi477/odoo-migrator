@@ -1,0 +1,257 @@
+"""What the first review of the runner found. One test per finding.
+
+These are here rather than spread across the suites they belong to because
+they are a set: every one of them passed its own task's tests while being
+wrong, and most of them were wrong in the same way — a double that answered
+more helpfully than the daemon, or an invariant nobody asserted.
+"""
+
+from types import SimpleNamespace
+
+import pytest
+
+from odoo_migrator.db import database
+from odoo_migrator.models import Migration, Module
+from odoo_migrator.runner.agent import MAX_OUTPUT_TOKENS, NoModelClient, run_agent
+from odoo_migrator.runner.cartridge import Budget, Step, load_cartridge
+from odoo_migrator.runner.context import StepContext
+from odoo_migrator.runner.prompting import MAX_TOOL_CALLS, budget_for
+from odoo_migrator.runner.snapshot import diff, snapshot
+from odoo_migrator.runner.steps import ask_human
+from odoo_migrator.runner.tools import ToolRefused, tools_for
+from odoo_migrator.sheller.fake import FakeShellerClient
+
+
+def _ctx(tmp_path, sheller, **extra) -> StepContext:
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    (new / "sale_custom").mkdir(parents=True)
+    old.mkdir(exist_ok=True)
+    with database.connection_context():
+        migration = Migration.create(
+            name="Acme",
+            accent_color="oklch(0.70 0.15 305)",
+            source_version="17.0",
+            target_version="18.0",
+            old_project_path=str(old),
+            new_project_path=str(new),
+            old_container="odoo-old",
+            new_container="odoo-new",
+        )
+        module = Module.create(
+            migration=migration,
+            technical_name="sale_custom",
+            new_path=str(new / "sale_custom"),
+        )
+    opened = sheller.open_session(
+        container="odoo-new",
+        database="acme_17",
+        odoo_bin="/opt/odoo/odoo-bin",
+        owner={"kind": "agent"},
+        allow_commit=True,
+    )
+    fields = {
+        "job_id": "job-1",
+        "attempt": 1,
+        "migration": migration,
+        "module": module,
+        "cartridge": None,
+        "sheller": sheller,
+        "sessions": {"new": opened["id"]},
+        "write_keys": {"new": opened["write_key"]},
+        "session_targets": {
+            "new": {
+                "container": "odoo-new",
+                "database": "acme_17",
+                "odoo_bin": "/opt/odoo/odoo-bin",
+                "owner": {"kind": "agent"},
+            }
+        },
+        "emit": lambda _event: None,
+    }
+    fields.update(extra)
+
+    return StepContext(**fields)
+
+
+def test_the_fake_describes_a_session_the_way_the_daemon_does():
+    """The daemon's `describe()` has no `odoo_bin`. The fake invented one.
+
+    `reopen` was written against the fake and read `described["odoo_bin"]`,
+    which is a KeyError on the first real container.
+    """
+    sheller = FakeShellerClient()
+    opened = sheller.open_session(
+        container="odoo-new",
+        database="acme_17",
+        odoo_bin="/opt/odoo/odoo-bin",
+        owner={"kind": "agent"},
+        allow_commit=True,
+    )
+
+    described = sheller.get_session(opened["id"])
+
+    assert "odoo_bin" not in described
+    assert "write_key" not in described
+    assert described["container"] == "odoo-new"
+
+
+def test_reopen_uses_the_target_the_runner_remembered(app, tmp_path):
+    sheller = FakeShellerClient()
+    ctx = _ctx(tmp_path, sheller)
+    first = ctx.sessions["new"]
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["reopen"], prompt="x")
+    reopen = next(tool for tool in tools_for(step, ctx) if tool.name == "reopen")
+
+    reopen(side="new")
+
+    assert ctx.sessions["new"] != first
+    assert first in sheller.closes
+
+
+def test_a_tool_call_records_the_session_it_actually_ran_in(app, tmp_path):
+    """A reopen inside a step must not relabel the call that did it."""
+    sheller = FakeShellerClient()
+    seen = []
+    ctx = _ctx(
+        tmp_path,
+        sheller,
+        record_tool=lambda *row: seen.append(row),
+    )
+    before = ctx.sessions["new"]
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["reopen"], prompt="x")
+    reopen = next(tool for tool in tools_for(step, ctx) if tool.name == "reopen")
+
+    reopen(side="new")
+
+    assert seen[0][2] == before
+
+
+def test_a_budget_larger_than_the_ceiling_is_clamped():
+    """"A cartridge may narrow, never widen" was not enforced anywhere."""
+    step = Step(
+        kind="agent",
+        id="greedy",
+        sessions=["new"],
+        tools=["exec"],
+        prompt="x",
+        budget=Budget(tool_calls=100_000, tokens=10_000_000),
+    )
+
+    clamped = budget_for(step, None)
+
+    assert clamped.tool_calls == MAX_TOOL_CALLS
+    assert clamped.tokens <= 400_000
+
+
+def test_a_smaller_budget_is_honoured():
+    step = Step(
+        kind="agent",
+        id="modest",
+        sessions=["new"],
+        tools=["exec"],
+        prompt="x",
+        budget=Budget(tool_calls=3),
+    )
+
+    assert budget_for(step, None).tool_calls == 3
+
+
+def test_the_output_cap_is_not_the_run_budget():
+    """200_000 as `max_tokens` is a 400: the models cap one answer at 128K."""
+    assert MAX_OUTPUT_TOKENS <= 128_000
+
+
+def test_an_agent_step_without_a_client_says_so(app, tmp_path):
+    sheller = FakeShellerClient()
+    ctx = _ctx(tmp_path, sheller)
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["exec"], prompt="x")
+
+    with pytest.raises(NoModelClient):
+        run_agent(step, ctx, client=None, model="claude-opus-5", budget=Budget())
+
+
+def test_ask_human_asks_with_the_last_agent_answer(app, tmp_path):
+    sheller = FakeShellerClient()
+    ctx = _ctx(tmp_path, sheller, last_answer="the override is gone in 18.0 — keep it?")
+
+    result = ask_human.run(Step(kind="ask_human"), ctx)
+
+    assert "keep it?" in result.output
+    assert result.output != "A checkpoint is open."
+
+
+def test_a_write_is_visible_as_a_diff(tmp_path):
+    root = tmp_path / "sale_custom"
+    root.mkdir()
+    (root / "models.py").write_text("x = 1\n", encoding="utf-8")
+    before = snapshot(root)
+    (root / "models.py").write_text("x = 2\n", encoding="utf-8")
+
+    hunk = diff(before, snapshot(root))
+
+    assert "-x = 1" in hunk
+    assert "+x = 2" in hunk
+
+
+def test_the_loop_takes_its_resolver_as_an_argument():
+    """It used to be swapped on the module, which two jobs would fight over."""
+    from odoo_migrator.runner.loop import run_job
+
+    text = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: verdict
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: verdict
+"""
+    ran = []
+
+    def resolve(kind):
+        def runner(step, ctx):
+            from odoo_migrator.runner.context import StepResult
+
+            ran.append(kind)
+
+            return StepResult(ok=True)
+
+        return runner
+
+    ctx = SimpleNamespace(attempt=1, prior_answers={}, last_answer="", last_failure="")
+    outcome = run_job(load_cartridge(text), ctx, retry_limit=1, resolve=resolve)
+
+    assert outcome == "passed"
+    assert ran == ["verdict"]
+
+
+def test_a_tool_still_refuses_a_side_the_step_did_not_declare(app, tmp_path):
+    sheller = FakeShellerClient()
+    ctx = _ctx(tmp_path, sheller)
+    step = Step(kind="agent", id="probe", sessions=["new"], tools=["exec"], prompt="x")
+    exec_tool = next(tool for tool in tools_for(step, ctx) if tool.name == "exec")
+
+    with pytest.raises(ToolRefused):
+        exec_tool(side="old", code="1 + 1")
+
+
+def test_a_step_this_build_never_heard_of_can_report_progress():
+    """The generic agent step is pointless if progress refuses its name."""
+    from odoo_migrator.contract import ProgressPayload
+
+    payload = ProgressPayload.model_validate(
+        {"job_id": "job-1", "stage": "check_reports", "attempt": 1}
+    )
+
+    assert payload.stage == "check_reports"
+
+
+def test_progress_still_refuses_something_that_is_not_a_label():
+    from odoo_migrator.contract import ProgressPayload
+
+    with pytest.raises(ValueError, match="unusable stage"):
+        ProgressPayload.model_validate({"job_id": "job-1", "stage": "  ", "attempt": 1})
