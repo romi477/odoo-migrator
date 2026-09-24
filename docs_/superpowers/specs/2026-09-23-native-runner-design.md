@@ -800,25 +800,51 @@ provider, reports whether a key is set, and never renders the value.
 Anthropic and OpenAI are model APIs: we supply the tools, we run the loop, we
 own every step. Cursor — like Claude Code CLI, Aider or OpenCode — is a
 finished agent harness with its own loop, its own tools and its own way of
-editing files. It will not call our `exec` or `source` because we described
-them.
+editing files.
 
-Two honest options, to be chosen before any code is written:
+Connecting one is possible and not expensive. Checked against Cursor's CLI
+documentation rather than assumed, it offers everything the integration
+needs:
 
-1. **Serve it our tools over MCP.** A local MCP server over the same catalog
-   makes the harness work with our hands: same tools, same `report`, same
-   `StepResult`, and it really is a `Provider`. The cost is a transport and a
-   process we do not have today.
-2. **Admit it is not a provider but another kind of step.** A `harness` step
-   naming which harness, what it is asked to do, and which working copy. It
-   writes files itself; `lint`, `upgrade` and `tests` judge the result
-   afterwards. There is no tool trace — only the harness's own log, and the
-   Flow screen loses its best panel for that node.
+- headless runs — `agent -p "..." --model ... --output-format stream-json
+  --stream-partial-output`;
+- a machine-readable event stream: `system/init`, assistant deltas,
+  `tool_call` with `started` and `completed`, and a final `result` with
+  `duration_ms`. **The trace survives**: those events map onto our `ToolCall`
+  rows and the Flow screen paints them like any other step;
+- MCP servers (`agent mcp list`, `agent mcp list-tools`, `--approve-mcps`),
+  so it can be given our own catalog;
+- a permissions file with `allow` / `deny` over `Read(...)`, `Write(...)` and
+  `Shell(...)`.
+
+What it costs, and this is the part to accept deliberately: a harness brings
+its own read, write and shell tools, and in non-interactive mode it has full
+write access. Our containment — an agent confined to two containers by the
+shape of its tools, with `ToolRefused` raised before any HTTP — does not
+apply to it. What confines a harness is its own permissions file: someone
+else's lock on our door.
+
+The shape that follows:
+
+1. A local MCP server over the same catalog `tools_for` already builds, so
+   the harness works with our sessions and our sides.
+2. `permissions.deny` everything outside the target project root, so its own
+   write tools cannot leave it.
+3. Parse `stream-json`: `tool_call` events become `ToolCall` rows, `result`
+   ends the step.
+4. It cannot call `report`. A harness step therefore raises no flags, and its
+   outcome is read from the `result` plus what `lint` and `tests` say
+   afterwards.
+
+Point 4 is the real difference, and it is why this is a `harness` step kind
+rather than a third entry in `REGISTRY`: **an agent step ends when the model
+declares a result; a harness step ends when the harness stops, and we judge
+it by what it left behind.**
 
 The 2026-09-20 spec put "swapping the whole execution agent (Cursor,
-OpenCode, Claude Code CLI)" in its non-goals for exactly this reason. If
-Cursor is wanted, it is a decision with its own entry here — not a third line
-in `REGISTRY`.
+OpenCode, Claude Code CLI)" in its non-goals. That still holds for this
+round — it is a step kind nobody has built — but the reason is scope, not
+feasibility.
 
 ## The human in the loop
 
@@ -1075,9 +1101,11 @@ then one command rather than archaeology.
    `MAX_TOKENS`), which enforces "narrow, never widen" but puts the numbers
    in code rather than on the migration card, where the spec says they
    belong. Moving them is a schema change and two form fields.
-5. **Whether Cursor is wanted at all**, and if so which of the two shapes in
-   "Providers" it takes — our tools over MCP, or a `harness` step that writes
-   files and is judged afterwards. Not decided, and not a small decision.
+5. **Whether a `harness` step is wanted** — Cursor or another finished agent
+   CLI, driven headless, given our catalog over MCP and judged by what it
+   leaves behind. Feasible, described under "Providers", and not scheduled.
+   The open part is the containment: a harness is held by its own permissions
+   file rather than by the shape of the tools we hand it.
 6. **A cartridge editor in the app.** Decided against for now: git is the
    source, the UI imports. Revisit if clients start editing cartridges more
    often than they start migrations.
