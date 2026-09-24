@@ -853,13 +853,25 @@ OpenCode v2 is a client/server agent, and it also fits `Provider` — at a
 different price from Cursor. What it offers, read rather than recalled:
 
 - `opencode serve --hostname 127.0.0.1 --port 4096` runs the server in the
-  foreground with a password; there is a REST API (`opencode api GET
-  /api/session`) and clients attach with `--server <url>`;
-- sessions and prompts: `session.create()`, then `session.chat(id, {
-  providerID, modelID, parts, system, tools })`, where `tools` is a per-call
-  map of which tools are on;
-- an event stream as an async iterable, with `ToolPart` carrying
-  `pending | running | completed | error` — so the trace survives here as
+  foreground with a password, and clients attach with `--server <url>`;
+- the HTTP API, by its own documentation:
+
+  ```
+  POST /api/session                         create a session
+  POST /api/session/{sessionID}/prompt      admit one input, schedule the agent loop
+  GET  /api/event                           the event stream
+  GET  /api/experimental/session/{id}/log   ?follow=true for a live log
+  POST /api/session/{sessionID}/interrupt   stop the running execution
+  GET  /api/model                           the models this server serves
+  ```
+
+- **an OpenAPI document at `/v2/openapi.json`**, which is what makes the
+  missing Python SDK a small problem: the client is written against a schema
+  rather than against a guess;
+- `interrupt` as a first-class endpoint — the same verb Sheller has, and the
+  same reason: a long command has to be stoppable;
+- an event stream whose tool parts carry
+  `pending | running | completed | error`, so the trace survives here as
   well;
 - ordered `permissions` rules, last match wins:
   `{action: "shell" | "edit" | "websearch" | "subagent", resource, effect:
@@ -871,8 +883,13 @@ different price from Cursor. What it offers, read rather than recalled:
 Three differences decide what it costs:
 
 1. **The SDK is TypeScript only** (`@opencode-ai/sdk`). There is no Python
-   client, so this provider is a REST client we write on `httpx2` — the same
-   shape as the Sheller client, which is familiar ground rather than new.
+   client, so this provider is a REST client we write on `httpx2`, generated
+   from or checked against `/v2/openapi.json` — the same shape as the Sheller
+   client, which is familiar ground rather than new. Note that the TypeScript
+   SDK's published examples (`session.chat(...)` with `providerID`, `modelID`
+   and a per-call `tools` map) are the older surface; v2's input is
+   `POST /api/session/{id}/prompt`. Code against the OpenAPI document, not
+   against either of those recollections.
 2. **It needs a second long-lived local process with a port and a password.**
    On a branch that has just deleted every machine-facing surface, that is a
    step back even on loopback. The machinery exists: `sheller/resolve.py`
