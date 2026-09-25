@@ -174,6 +174,18 @@ def test_an_answer_resumes_a_parked_job(client, parked_job):
     assert reloaded(job).status == "passed"
 
 
+def test_the_live_app_hands_the_runner_a_sheller_client(tmp_path, monkeypatch):
+    """create_app() is how the process starts: no client is injected."""
+    from odoo_migrator.api import create_app
+    from odoo_migrator.sheller import HttpShellerClient
+
+    monkeypatch.setenv("ODOO_MIGRATOR_RUNNER", "native")
+    app = create_app(tmp_path / "native.sqlite")
+
+    assert isinstance(app.state.executor, NativeRunner)
+    assert isinstance(app.state.executor.sheller, HttpShellerClient)
+
+
 def test_an_answer_to_a_job_whose_runner_is_gone_does_not_pretend(client, abandoned_job):
     """The loop lived in a thread, and a restart took it. Saying "running"
     would be a row nobody is running."""
@@ -195,6 +207,29 @@ def test_the_thread_never_shares_a_connection(native_job):
     run_to_completion(native_job)
 
     assert not database.is_closed() is False
+
+
+def test_a_missing_target_database_is_refused_before_a_session(app, tmp_path):
+    job = _module(tmp_path)
+
+    class Probe:
+        def probe(self, container):
+            return {
+                "db_name": "mig_test_18",
+                "odoo_bin": "/opt/odoo/odoo-bin",
+                "databases": ["some_other_db"],
+            }
+
+        def open_session(self, **kwargs):
+            raise AssertionError(kwargs)
+
+    runner = NativeRunner(sheller=Probe(), hub=app.state.hub)
+    with database.connection_context():
+        module = Module.get_by_id(job.module_id)
+        migration = Migration.get_by_id(module.migration_id)
+
+    with pytest.raises(RuntimeError, match="mig_test_18"):
+        runner._targets(migration)
 
 
 def test_the_runner_asks_the_daemon_where_each_side_runs(client, native_job, fake_sheller):

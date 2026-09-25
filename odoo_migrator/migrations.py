@@ -28,6 +28,7 @@ def _row(migration: Migration) -> dict:
         "cartridge_id": migration.cartridge_id or "stock",
         "cartridge_version": migration.cartridge_version or "1.0.0",
         "model_webhook_path": migration.model_webhook_path or "migrate-module",
+        "provider_override": migration.provider_override or "",
         "model_override": migration.model_override or "",
     }
 
@@ -50,6 +51,7 @@ def _progress(counts: dict | None) -> dict:
         "passed": passed,
         "failed": failed,
         "waiting": waiting,
+        "reopenable": counts.get("reopenable", 0),
         "pct_done": pct(passed),
         "pct_bad": pct(failed),
         "has_modules": total > 0,
@@ -160,7 +162,13 @@ def migration_results(migration_id: str) -> dict:
 
     listed = list_modules(migration_id)
     active = [row for row in listed if not row["struck_out"]]
-    counts = {"total": len(active), "passed": 0, "failed": 0, "waiting": 0}
+    counts = {
+        "total": len(active),
+        "passed": 0,
+        "failed": 0,
+        "waiting": 0,
+        "reopenable": 0,
+    }
     for row in active:
         if row["status"] == "passed":
             counts["passed"] += 1
@@ -168,6 +176,8 @@ def migration_results(migration_id: str) -> dict:
             counts["failed"] += 1
         elif row["status"] == "waiting_for_human":
             counts["waiting"] += 1
+        if row["status"] in ("passed", "failed", "unknown"):
+            counts["reopenable"] += 1
     by_step: dict[int, list[dict]] = {}
     for row in listed:
         enriched = _result_module(row)
@@ -276,6 +286,7 @@ def save_migration_settings(
     cartridge_id: str | None = None,
     cartridge_version: str | None = None,
     model_webhook_path: str | None = None,
+    provider_override: str | None = None,
     model_override: str | None = None,
 ) -> dict | None:
     if strictness_default not in ("basic", "enhanced"):
@@ -303,13 +314,21 @@ def save_migration_settings(
             row.cartridge_version = cartridge_version.strip() or None
         if model_webhook_path is not None:
             row.model_webhook_path = model_webhook_path.strip()
-        if model_override is not None:
-            name = model_override.strip()
-            from odoo_migrator.runner.providers import model_allowed
+        if provider_override is not None or model_override is not None:
+            provider = (provider_override or "").strip()
+            name = (model_override if model_override is not None else row.model_override).strip()
+            if provider or name:
+                from odoo_migrator.runner.providers import get
 
-            if name and not model_allowed(name):
+                try:
+                    chosen = get(provider)
+                except KeyError:
 
-                return None
+                    return None
+                if not name or not chosen.accepts_model(name):
+
+                    return None
+            row.provider_override = provider
             row.model_override = name
         row.save()
 

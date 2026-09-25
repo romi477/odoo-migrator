@@ -51,10 +51,16 @@ def install_from_text(text: str) -> CartridgeInstall:
 
 def pinned_for(migration) -> Cartridge:
     """The cartridge this migration pinned, or the stock file."""
+    if isinstance(migration, dict):
+        cartridge_id = migration.get("cartridge_id") or "stock"
+        cartridge_version = migration.get("cartridge_version") or "1.0.0"
+    else:
+        cartridge_id = migration.cartridge_id or "stock"
+        cartridge_version = migration.cartridge_version or "1.0.0"
     with database.connection_context():
         row = CartridgeInstall.get_or_none(
-            (CartridgeInstall.cartridge_id == (migration.cartridge_id or "stock"))
-            & (CartridgeInstall.version == (migration.cartridge_version or "1.0.0"))
+            (CartridgeInstall.cartridge_id == cartridge_id)
+            & (CartridgeInstall.version == cartridge_version)
         )
         body = row.body if row is not None else ""
     if body:

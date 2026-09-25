@@ -353,7 +353,7 @@ pre,
   pointer-events: none;
 }
 
-/* Pipeline and Sheller are the run tools; Result follows them. */
+/* The bridge points into Result, which closes the row. */
 .step-bridge {
   display: inline-flex;
   align-items: center;
@@ -376,6 +376,17 @@ pre,
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
   border-left: var(--bridge-head, 5px) solid var(--accent, var(--muted));
+}
+
+/* Quiet marks between Tree, Pipeline, Flow and Sheller. The arrows stay
+   accented; these only keep the row reading as one line. */
+.step-dot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--muted-low);
 }
 
 .result-board {
@@ -646,6 +657,23 @@ pre,
   line-height: 1.35;
 }
 
+.result-reopen {
+  margin: 8px 0 0;
+}
+
+.result-reopen-all {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.result-reopen-all .field-hint {
+  margin: 0;
+  flex: 1 1 16rem;
+}
+
 .result-flag {
   display: inline-flex;
   align-items: center;
@@ -668,10 +696,16 @@ pre,
   color: var(--cyan);
 }
 
-.guide-steps {
+.guide-steps,
+.guide-flow {
   margin: 4px 0 0;
   padding-left: 1.5rem;
   max-width: 42rem;
+}
+
+.guide-flow {
+  padding-left: 0;
+  margin-top: 8px;
 }
 
 .guide-steps > li {
@@ -679,23 +713,39 @@ pre,
   padding-left: 0.35rem;
 }
 
-.guide-steps > li > h2 {
+.guide-steps > li > h2,
+.guide-flow > h2 {
   margin: 0 0 4px;
   font-size: 15px;
   font-weight: 650;
   color: var(--text);
 }
 
-.guide-steps p {
+.guide-flow > h3 {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.guide-steps p,
+.guide-flow p {
   margin: 0;
 }
 
-.guide-steps ul {
+.guide-flow p + p,
+.guide-flow h3 + p {
+  margin-top: 8px;
+}
+
+.guide-steps ul,
+.guide-flow ul {
   margin: 8px 0 0;
   padding-left: 1.15rem;
 }
 
-.guide-steps ul li {
+.guide-steps ul li,
+.guide-flow ul li {
   margin: 3px 0;
 }
 
@@ -1093,12 +1143,28 @@ a.brand:hover .wordmark {
   min-width: 0;
 }
 
-
 .stack-form input {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
   background: var(--panel-raised);
+}
+
+.secret-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.secret-field input {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+}
+
+.secret-field .icon-danger {
+  flex: none;
 }
 
 .field-hint {
@@ -2532,11 +2598,103 @@ pre.test-output {
   color: var(--text);
 }
 
+.flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flow-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.flow-swatch.agent {
+  background: #c4552a;
+  border-color: #c4552a;
+}
+
+.flow-swatch.function {
+  background: #e4d7cc;
+}
+
+.flow-swatch.gated {
+  background: transparent;
+  border: 2px dashed var(--muted);
+}
+
+.flow-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.flow-board.is-inspecting {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
 .flow-canvas {
+  position: relative;
   height: 70vh;
   border: 1px solid var(--chrome-edge);
   border-radius: 8px;
   background: var(--panel);
+}
+
+.flow-inspect {
+  max-height: 70vh;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.flow-inspect-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flow-inspect-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.flow-inspect h3 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.flow-inspect p {
+  margin: 0;
+}
+
+.flow-inspect-tools {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.flow-inspect-prompt {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .flow-node {

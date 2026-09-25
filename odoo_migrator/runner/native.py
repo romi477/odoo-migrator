@@ -350,9 +350,23 @@ class NativeRunner:
             if not container:
                 raise RuntimeError(f"the {side} container of this migration is not up")
             probed = self.sheller.probe(container)
+            database_name = probed.get("db_name") or ""
+            known = probed.get("databases") or []
+            # The configured name is not a database that exists. Opening a
+            # shell on it starts a process that dies at once, and the only
+            # thing the job used to record was session_dead.
+            if not database_name:
+                raise RuntimeError(
+                    f"the {side} container {container} has no database configured"
+                )
+            if known and database_name not in known:
+                raise RuntimeError(
+                    f"database {database_name!r} does not exist on the {side} "
+                    f"container {container}"
+                )
             targets[side] = {
                 "container": container,
-                "database": probed.get("db_name") or "",
+                "database": database_name,
                 "odoo_bin": probed.get("odoo_bin") or "",
                 "owner": dict(owner),
             }

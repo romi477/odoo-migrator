@@ -40,17 +40,27 @@
       <form method="post" action="/run/queue/add" class="pipeline-start"
             x-data='{
               steps: {{ pipeline_steps | tojson }},
-              pick: {{ pipeline_steps[0].step }},
+              pick: {{ (pipeline_steps | selectattr("pending") | list | first).step if (pipeline_steps | selectattr("pending") | list) else pipeline_steps[0].step }},
               moduleLine() {
                 const row = this.steps.find((s) => s.step === this.pick);
-                return row ? row.modules.join(", ") : "";
+                if (!row) {
+                  return "";
+                }
+                const passed = row.passed || [];
+                return row.modules.map(function (name) {
+                  return passed.indexOf(name) === -1 ? name : name + " · passed";
+                }).join(", ");
+              },
+              canAdd() {
+                const row = this.steps.find((s) => s.step === this.pick);
+                return !!(row && row.pending);
               }
             }'>
         <label class="pipeline-step-picker">
           <select name="step" required x-model.number="pick"
                   aria-label="Migration step to queue">
             {% for row in pipeline_steps %}
-            <option value="{{ row.step }}">Step {{ row.step }} · {{ row.count }} module{% if row.count != 1 %}s{% endif %}</option>
+            <option value="{{ row.step }}">Step {{ row.step }} · {% if row.pending %}{{ row.pending }} module{% if row.pending != 1 %}s{% endif %}{% else %}passed{% endif %}</option>
             {% endfor %}
           </select>
         </label>
@@ -59,7 +69,8 @@
         <div class="pipeline-start-actions">
           <button type="submit"
                   title="Add this step to the pipeline queue"
-                  aria-label="Add the selected step to the queue">Add to queue</button>
+                  aria-label="Add the selected step to the queue"
+                  :disabled="!canAdd()">Add to queue</button>
           <button type="submit" class="primary"
                   formaction="/run/queue/add-all" formmethod="post"
                   title="Add every dependency step to the pipeline queue"
@@ -118,13 +129,18 @@
         <div class="pipeline-queue-controls">
           <form method="post" action="/run/queue/run">
             <button type="submit" class="primary"
-                    {% if pipeline_queue.run_state == 'running' %}disabled{% endif %}
+                    {% if pipeline_queue.run_state == 'running' or not pipeline_queue.modules %}disabled{% endif %}
                     aria-label="Run the pipeline queue">Run</button>
           </form>
           <form method="post" action="/run/queue/stop">
             <button type="submit"
                     {% if pipeline_queue.run_state != 'running' %}disabled{% endif %}
                     aria-label="Stop the pipeline queue after the current module">Stop</button>
+          </form>
+          <form method="post" action="/run/queue/clear">
+            <button type="submit"
+                    {% if not pipeline_queue.idle or not pipeline_queue.steps %}disabled{% endif %}
+                    aria-label="Clear the pipeline queue">Clear</button>
           </form>
         </div>
       </header>
@@ -228,6 +244,9 @@
       <header class="name-line">
         <span class="name mono">{{ job.module }}</span>
         <span class="badge {{ job.status }}">{{ job.status }}</span>
+        {% if job.provider and job.model %}
+        <span class="mono">{{ job.provider }} · {{ job.model }}</span>
+        {% endif %}
         {% if job.reviewed %}
         <span class="badge">dismissed</span>
         {% endif %}

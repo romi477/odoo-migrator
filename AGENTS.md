@@ -15,7 +15,7 @@ development); `uv run pytest`.
 | Document | What it holds |
 |---|---|
 | `README.md` | install, quick start, API table, security short version |
-| `packaging/` | `serve.sh`; the desktop build goes here later, same shape as odoo-sheller |
+| `packaging/` | `setup.sh` creates the virtualenv; `serve.sh` starts the app. The desktop build goes here later, same shape as odoo-sheller |
 | `docs/` | product docs: architecture, UI, security, FAQ (en/ru) |
 | `docs_/superpowers/specs/2026-09-23-native-runner-design.md` | the design of record for the runner |
 | `docs_/superpowers/plans/2026-09-23-native-runner.md` | the implementation plan — 13 tasks; task 13 is the live gate |

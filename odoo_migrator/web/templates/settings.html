@@ -28,12 +28,27 @@
       {% for field in settings.provider_fields %}
       <li>
         <label>{{ field.label }}
-          <input class="mono" {% if field.secret %}type="password"{% endif %}
-                 name="{{ field.input_name }}" value="" autocomplete="off"
-                 placeholder="{% if field.set %}saved{% endif %}">
+          <span class="secret-field">
+            <input class="mono"
+                   type="{% if field.secret and not field.set %}password{% else %}text{% endif %}"
+                   name="{{ field.input_name }}" autocomplete="off"
+                   {% if field.set %}data-mask="{{ field.mask }}"{% endif %}
+                   value="{% if field.set %}{{ field.mask }}{% endif %}"
+                   onfocus="if (this.dataset.mask && this.value === this.dataset.mask) { this.type = 'password'; this.select(); }"
+                   onblur="if (this.dataset.mask && (this.value === '' || this.value === this.dataset.mask)) { this.type = 'text'; this.value = this.dataset.mask; }">
+            <button type="submit" class="icon-danger" name="clear_provider"
+                    value="{{ field.provider }}__{{ field.key }}"
+                    title="Remove {{ field.label }}"
+                    aria-label="Remove {{ field.label }}">
+              <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1zM6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"
+                      fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </span>
         </label>
-        <p class="field-hint">Leave blank to keep the saved value. A secret
-        is never shown again.</p>
+        <p class="field-hint">Dots mean a key is saved. The bin removes it.
+        A secret is never shown again.</p>
       </li>
       {% endfor %}
     </ol>

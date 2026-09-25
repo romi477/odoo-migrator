@@ -1,6 +1,27 @@
 {# One migration's own settings, inside its row on Overview. They act on
    this migration's id, not on whichever one the switcher is showing: a
    card's settings belong to the card. #}
+<script>
+  function filterModels(select) {
+    var model = select.form.querySelector("[name=model_override]");
+    var provider = select.value;
+    var first = null;
+    Array.prototype.forEach.call(model.options, function (option) {
+      var show = option.getAttribute("data-provider") === provider;
+      option.hidden = !show;
+      option.disabled = !show;
+      if (show && first === null) {
+        first = option;
+      }
+    });
+    var chosen = model.selectedOptions[0];
+    if (!chosen || chosen.disabled) {
+      if (first) {
+        model.value = first.value;
+      }
+    }
+  }
+</script>
 <div class="card-settings">
   {% if provision %}
   {# The flow, in one line: get the source container up, then read its module
@@ -95,16 +116,27 @@
         id and version. The pin is recorded on every job.</p>
       </li>
       <li>
-        <label>Model
-          <select name="model_override">
-            <option value=""{% if not expanded.model_override %} selected{% endif %}>cartridge default</option>
-            {% for name in model_names %}
-            <option value="{{ name }}"{% if expanded.model_override == name %} selected{% endif %}>{{ name }}</option>
+        {% set chosen_provider = expanded.provider_override or flow_default.provider or "anthropic" %}
+        <label>Provider
+          <select name="provider_override" onchange="filterModels(this)">
+            {% for item in providers %}
+            <option value="{{ item.name }}"{% if chosen_provider == item.name %} selected{% endif %}>{{ item.name }}</option>
             {% endfor %}
           </select>
         </label>
-        <p class="field-hint">Overrides the cartridge's model for this migration.
-        A step that names its own model still wins.</p>
+        <p class="field-hint">The flow names a default. A pair saved here
+        replaces it, and the job records this pair.</p>
+        <label>Model
+          <select name="model_override">
+            {% for item in providers %}
+            {% for name in item.models %}
+            <option value="{{ name }}" data-provider="{{ item.name }}"{% if item.name != chosen_provider %} hidden disabled{% endif %}{% if item.name == chosen_provider and ((expanded.model_override or flow_default.model) == name or (not expanded.model_override and not flow_default.model and name == item.models[0])) %} selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+            {% endfor %}
+          </select>
+        </label>
+        <p class="field-hint">Models of the provider above. A step that names
+        its own model still wins.</p>
       </li>
     </ol>
     <button type="submit" class="primary">Save</button>
@@ -165,16 +197,27 @@
         id and version. The pin is recorded on every job.</p>
       </li>
       <li>
-        <label>Model
-          <select name="model_override">
-            <option value=""{% if not expanded.model_override %} selected{% endif %}>cartridge default</option>
-            {% for name in model_names %}
-            <option value="{{ name }}"{% if expanded.model_override == name %} selected{% endif %}>{{ name }}</option>
+        {% set chosen_provider = expanded.provider_override or flow_default.provider or "anthropic" %}
+        <label>Provider
+          <select name="provider_override" onchange="filterModels(this)">
+            {% for item in providers %}
+            <option value="{{ item.name }}"{% if chosen_provider == item.name %} selected{% endif %}>{{ item.name }}</option>
             {% endfor %}
           </select>
         </label>
-        <p class="field-hint">Overrides the cartridge's model for this migration.
-        A step that names its own model still wins.</p>
+        <p class="field-hint">The flow names a default. A pair saved here
+        replaces it, and the job records this pair.</p>
+        <label>Model
+          <select name="model_override">
+            {% for item in providers %}
+            {% for name in item.models %}
+            <option value="{{ name }}" data-provider="{{ item.name }}"{% if item.name != chosen_provider %} hidden disabled{% endif %}{% if item.name == chosen_provider and ((expanded.model_override or flow_default.model) == name or (not expanded.model_override and not flow_default.model and name == item.models[0])) %} selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+            {% endfor %}
+          </select>
+        </label>
+        <p class="field-hint">Models of the provider above. A step that names
+        its own model still wins.</p>
       </li>
     </ol>
     <button type="submit" class="primary">Save</button>

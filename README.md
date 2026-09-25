@@ -86,7 +86,14 @@ executor, so the UI and the suite run without Docker, Odoo, or a model key.
 
 ## Install
 
-Clone the repository, then sync the environment from the lockfile.
+Clone the repository, then create the environment:
+
+```bash
+packaging/setup.sh
+```
+
+That runs `uv sync` when `uv` is on `PATH`, and otherwise `python3 -m venv`
+plus `pip install -e ".[dev]"`. It does not start Docker or the app.
 
 ### With uv (preferred)
 
@@ -116,7 +123,17 @@ Start the app from the project root:
 uv run odoo-migrator
 ```
 
-Or `packaging/serve.sh`, which is the same thing. `PORT=` moves the port.
+Or `packaging/serve.sh`, which is the same thing, after `packaging/setup.sh`.
+`PORT=` moves the port. The live runner is read once at startup from
+`~/.odoo-migrator/.env`:
+
+```bash
+ODOO_MIGRATOR_RUNNER=native
+```
+
+A variable already set in the shell wins over that file. There is no
+settings field for it. The process prints `runner: native` or
+`runner: stub` next to the URL. Restart after editing the file.
 Extra arguments are passed through (`--reload` for development).
 
 Without uv: `.venv/bin/odoo-migrator`, or `python -m odoo_migrator`. Flags:
@@ -131,8 +148,8 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    refused here, where they were typed.
 2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`),
    the image tag when the app must spawn the daemon, and a provider
-   secret when the native runner should call a model. A blank secret
-   field keeps the saved value.
+   secret when the native runner should call a model. A saved key shows
+   as dots. The bin at the end of the field removes it.
 3. **This migration** — attach or Up the two compose projects, pin a
    flow and optionally override its model, smoke-run one module before
    a batch.
@@ -213,7 +230,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `cartridges/stock.yaml` | The stock flow |
 | `rules/` | `16.0.md` … `19.0.md` at the repo root, not inside the package |
 | `prompts/system.md` | System prompt, resolved into the agent step |
-| `packaging/` | `serve.sh`. The desktop build lands here later, as in odoo-sheller |
+| `packaging/` | `setup.sh` creates the virtualenv; `serve.sh` starts the app. The desktop build lands here later, as in odoo-sheller |
 | `tests/` | Suite; no live Docker required except `@pytest.mark.live` |
 
 Code, comments, docs and commits are in English. Discussion happens in

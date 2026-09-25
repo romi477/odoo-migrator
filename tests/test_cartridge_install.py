@@ -8,7 +8,7 @@ from odoo_migrator.cartridges import install_from_text
 from odoo_migrator.db import database
 from odoo_migrator.jobs import start_job
 from odoo_migrator.migrations import create_migration
-from odoo_migrator.models import CartridgeInstall, Module
+from odoo_migrator.models import CartridgeInstall, Migration, Module
 
 STOCK_TEXT = (Path("cartridges/stock.yaml")).read_text(encoding="utf-8")
 
@@ -47,6 +47,29 @@ def test_a_run_records_the_cartridge_it_used(client, migration):
     assert job.cartridge_id == "stock"
     assert job.cartridge_version == "1.0.0"
     assert job.cartridge_sha256 == install.sha256
+    # The card has not chosen, so the job records the flow's default.
+    assert job.provider == "anthropic"
+    assert job.model_name == "claude-opus-5"
+
+
+def test_a_run_records_the_pair_the_card_saved(client, migration):
+    install_from_text(STOCK_TEXT)
+    with database.connection_context():
+        row = Migration.get_by_id(migration["id"])
+        row.provider_override = "cursor"
+        row.model_override = "composer-2.5"
+        row.save()
+        module = Module.create(migration=migration["id"], technical_name="sale_custom")
+        module_id = module.id
+    job = start_job(
+        migration_id=migration["id"],
+        module_id=module_id,
+        executor=client.app.state.executor,
+        hub=client.app.state.hub,
+    )
+
+    assert job.provider == "cursor"
+    assert job.model_name == "composer-2.5"
 
 
 def test_an_invalid_upload_is_refused_before_it_is_stored(client, migration):

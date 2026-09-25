@@ -8,11 +8,39 @@
 <section class="screen">
   <header class="screen-head">
     <div>
-      <h1>Flow</h1>
-      <p>The pinned cartridge. <span class="mono">{{ flow_name }}</span> {{ flow_version }}</p>
+      <h1>Flow / <span class="mono">{{ flow_name }}</span></h1>
+      <p><span class="mono">{{ flow_version }}</span>. Select a block to read what it does.</p>
     </div>
   </header>
+  <ul class="flow-legend">
+    <li><span class="flow-swatch agent" aria-hidden="true"></span> Agent. A model turn.</li>
+    <li><span class="flow-swatch function" aria-hidden="true"></span> Function. The app runs it. No model.</li>
+    <li><span class="flow-swatch gated" aria-hidden="true"></span> Dashed border. Runs only if that flag was raised.</li>
+  </ul>
+  <div class="flow-board">
   <div id="flow-canvas" class="flow-canvas" data-migration="{{ flow_migration_id }}" data-job="{{ flow_job_id }}"></div>
+  <aside class="flow-inspect" id="flow-inspect" hidden aria-live="polite">
+    <div class="flow-inspect-head">
+      <h2 class="mono" id="flow-inspect-title"></h2>
+      <button type="button" id="flow-inspect-close" aria-label="Close the step">Close</button>
+    </div>
+    <div class="flow-inspect-body" id="flow-inspect-body">
+      <p id="flow-inspect-actor"></p>
+      <p id="flow-inspect-when" hidden></p>
+      <p id="flow-inspect-summary"></p>
+      <h3>Sessions</h3>
+      <p class="mono" id="flow-inspect-sessions"></p>
+      <h3>Tools</h3>
+      <ul class="flow-inspect-tools" id="flow-inspect-tools"></ul>
+      <h3>Sees</h3>
+      <p class="mono" id="flow-inspect-context"></p>
+      <h3>Can raise</h3>
+      <p class="mono" id="flow-inspect-raises"></p>
+      <h3>Prompt</h3>
+      <pre class="flow-inspect-prompt" id="flow-inspect-prompt"></pre>
+    </div>
+  </aside>
+  </div>
   <ol id="flow-trace" class="flow-trace" data-job="{{ flow_job_id }}"></ol>
   <pre id="flow-body" class="flow-body" hidden></pre>
   {% if flow_embedded %}

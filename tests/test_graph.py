@@ -392,10 +392,34 @@ def test_list_pipeline_steps_matches_tree_waves(tmp_path):
     steps = list_pipeline_steps(created["id"])
 
     assert steps == [
-        {"step": 1, "count": 1, "modules": ["mig_test_base"]},
-        {"step": 2, "count": 1, "modules": ["mig_test_partner"]},
-        {"step": 3, "count": 1, "modules": ["mig_test_sale"]},
-        {"step": 4, "count": 1, "modules": ["mig_test_ui"]},
+        {
+            "step": 1,
+            "count": 1,
+            "pending": 1,
+            "modules": ["mig_test_base"],
+            "passed": [],
+        },
+        {
+            "step": 2,
+            "count": 1,
+            "pending": 1,
+            "modules": ["mig_test_partner"],
+            "passed": [],
+        },
+        {
+            "step": 3,
+            "count": 1,
+            "pending": 1,
+            "modules": ["mig_test_sale"],
+            "passed": [],
+        },
+        {
+            "step": 4,
+            "count": 1,
+            "pending": 1,
+            "modules": ["mig_test_ui"],
+            "passed": [],
+        },
     ]
     assert [row["technical_name"] for row in modules_in_step_order(created["id"], 2)] == [
         "mig_test_partner"

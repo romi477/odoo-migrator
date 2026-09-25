@@ -132,6 +132,14 @@ function fillResultCornerGlyph(glyph, kind) {
       } else {
         row.classList.remove("failed");
       }
+      const reopen = row.querySelector("[data-result-reopen]");
+      if (reopen) {
+        const finished =
+          data.status === "passed" ||
+          data.status === "failed" ||
+          data.status === "unknown";
+        reopen.hidden = !finished;
+      }
     } else if (data.status === "failed") {
       row.classList.add("failed");
     } else {

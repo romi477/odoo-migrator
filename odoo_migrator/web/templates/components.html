@@ -43,6 +43,11 @@
   </ol>
 
   <h2>Flow canvas</h2>
+  <ul class="flow-legend">
+    <li><span class="flow-swatch agent" aria-hidden="true"></span> Agent. A model turn.</li>
+    <li><span class="flow-swatch function" aria-hidden="true"></span> Function. The app runs it. No model.</li>
+    <li><span class="flow-swatch gated" aria-hidden="true"></span> Dashed border. Runs only if that flag was raised.</li>
+  </ul>
   <div class="row">
     <span class="flow-node">understand</span>
     <span class="flow-edge">next</span>
@@ -50,6 +55,17 @@
     <span class="flow-edge retry">retry</span>
     <span class="flow-node">lint</span>
   </div>
+  <aside class="flow-inspect">
+    <h2 class="mono">understand</h2>
+    <p>Agent. A model runs this turn.</p>
+    <h3>Tools</h3>
+    <ul class="flow-inspect-tools">
+      <li class="mono">exec</li>
+      <li class="mono">read_file</li>
+    </ul>
+    <h3>Prompt</h3>
+    <pre class="flow-inspect-prompt">You are reading a module on the old Odoo version.</pre>
+  </aside>
 
   <h2>Flow</h2>
   <div class="card stack-form">
@@ -173,7 +189,11 @@
     <span class="step-hook" aria-hidden="true"></span>
     <span class="step-hook-head" aria-hidden="true"></span>
     <span>Tree</span>
+    <span class="step-dot" aria-hidden="true"></span>
     <span>Pipeline</span>
+    <span class="step-dot" aria-hidden="true"></span>
+    <span>Flow</span>
+    <span class="step-dot" aria-hidden="true"></span>
     <span>Sheller</span>
     <span class="step-bridge" aria-hidden="true">
       <span class="step-bridge-line"></span>
@@ -357,6 +377,7 @@
         <div class="pipeline-queue-controls">
           <button type="button" class="primary">Run</button>
           <button type="button">Stop</button>
+          <button type="button">Clear</button>
         </div>
       </header>
       <div class="pipeline-queue-body">
@@ -436,6 +457,9 @@
             <div class="result-card-main">
               <span class="name mono">sale_custom</span>
               <p class="result-subtitle mono">product</p>
+              <form class="result-reopen">
+                <button type="button" aria-label="Reopen sale_custom">Reopen</button>
+              </form>
             </div>
           </li>
         </ul>
@@ -504,6 +528,24 @@
         <a class="button-link" href="#">Cancel</a>
       </div>
     </form>
+  </section>
+
+  <section class="guide-row">
+    <h2>Saved secret</h2>
+    <p>A stored provider key is dots in the field, never the key. The bin
+    at the end of the field removes it.</p>
+    <label>Cursor API key
+      <span class="secret-field">
+        <input class="mono" type="text" value="••••••••" autocomplete="off">
+        <button type="button" class="icon-danger" title="Remove Cursor API key"
+                aria-label="Remove Cursor API key">
+          <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 7h16M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1zM6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"
+                  fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </span>
+    </label>
   </section>
 
   <section class="guide-row">

@@ -31,6 +31,8 @@
       "|" +
       data.run_state +
       "|" +
+      (data.idle ? "idle" : "busy") +
+      "|" +
       (data.steps ? data.steps.length : 0) +
       "|" +
       data.modules.map(function (mod) {
@@ -137,11 +139,16 @@
     }
     const runBtn = panel.querySelector('form[action="/run/queue/run"] button');
     const stopBtn = panel.querySelector('form[action="/run/queue/stop"] button');
+    const clearBtn = panel.querySelector('form[action="/run/queue/clear"] button');
     if (runBtn) {
-      runBtn.disabled = data.run_state === "running";
+      runBtn.disabled = data.run_state === "running" || !data.modules.length;
     }
     if (stopBtn) {
       stopBtn.disabled = data.run_state !== "running";
+    }
+    if (clearBtn) {
+      const pending = (data.steps && data.steps.length) || data.modules.length;
+      clearBtn.disabled = !data.idle || !pending;
     }
     const meta = panel.querySelector("[data-pipeline-queue-meta]");
     if (meta) {

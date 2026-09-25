@@ -53,6 +53,8 @@ from odoo_migrator.jobs import (
     live_run,
     promote_finding,
     reconcile_jobs,
+    reopen_finished,
+    reopen_module,
     running_migration_count,
     save_notes,
     start_batch,
@@ -73,6 +75,7 @@ from odoo_migrator.paths import rules_dir as default_rules_dir
 from odoo_migrator.paths import static_dir, templates_dir
 from odoo_migrator.pipeline_queue import add_all_steps as queue_add_all_steps
 from odoo_migrator.pipeline_queue import add_step as queue_add_step
+from odoo_migrator.pipeline_queue import clear as queue_clear
 from odoo_migrator.pipeline_queue import queue_snapshot
 from odoo_migrator.pipeline_queue import start as queue_start
 from odoo_migrator.pipeline_queue import stop as queue_stop
@@ -117,12 +120,18 @@ class NoCacheStaticFiles(StaticFiles):
         return response
 
 
-def _model_names() -> list[str]:
+def _providers() -> list[dict]:
+    """Selectable providers and the models each one lists. The scripted
+    double has none, so it does not appear on the card."""
     from odoo_migrator.runner.providers import known_models
 
-    names = {name for listed in known_models().values() for name in listed}
+    rows = []
+    for name, models in sorted(known_models().items()):
+        if not models:
+            continue
+        rows.append({"name": name, "models": sorted(models)})
 
-    return sorted(names)
+    return rows
 
 
 def app_version() -> str:
@@ -140,6 +149,12 @@ def _choose_executor(*, sheller, hub, progress, result):
     """Stub by default. ``ODOO_MIGRATOR_RUNNER=native`` runs the in-process loop."""
     if os.environ.get("ODOO_MIGRATOR_RUNNER") == "native":
         from odoo_migrator.runner.native import NativeRunner
+
+        # The pages build a client per request. The runner is chosen once,
+        # at startup, and used to be handed None — the first probe then
+        # died with AttributeError before a session existed.
+        if sheller is None:
+            sheller = HttpShellerClient(get_app_settings()["sheller_base_url"])
 
         return NativeRunner(
             sheller=sheller,
@@ -229,7 +244,7 @@ def create_app(
             # while a module waited for an answer showed a calm nav bar.
             "running_count": running_migration_count(),
             "lamp": lamp_state(),
-            "model_names": _model_names(),
+            "providers": _providers(),
         }
 
     def _page(request: Request, template: str, active: str, extra: dict | None = None):
@@ -722,8 +737,7 @@ def create_app(
 
         return _run_page(request, screen="sheller")
 
-    @app.get("/result")
-    def result_page(request: Request):
+    def _result_page(request: Request, error: str | None = None):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         board = migration_results(current["id"]) if current else None
         thread = checkpoint_thread(current["id"]) if current else []
@@ -732,8 +746,37 @@ def create_app(
             request,
             "result.html",
             "result",
-            {"board": board, "thread": thread},
+            {"board": board, "thread": thread, "error": error},
         )
+
+    @app.get("/result")
+    def result_page(request: Request):
+
+        return _result_page(request)
+
+    @app.post("/result/reopen")
+    def result_reopen(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/result", status_code=303)
+        reopen_finished(current["id"], request.app.state.hub)
+
+        return RedirectResponse("/result", status_code=303)
+
+    @app.post("/result/modules/{module_id}/reopen")
+    def result_reopen_one(request: Request, module_id: int):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/result", status_code=303)
+        try:
+            reopen_module(module_id, current["id"], request.app.state.hub)
+        except ContractError as refused:
+
+            return _result_page(request, error=str(refused))
+
+        return RedirectResponse("/result", status_code=303)
 
     def _browsable(value: str, suffix: str = "") -> str:
         """A settings string is about to become an href and an iframe src.
@@ -781,7 +824,7 @@ def create_app(
                 )
             except RulesError:
                 versions = []
-            pipeline_steps = list_pipeline_steps(current["id"], pending_only=True)
+            pipeline_steps = list_pipeline_steps(current["id"])
         pipeline_queue = queue_snapshot(current["id"]) if current else None
 
         return _page(
@@ -819,7 +862,29 @@ def create_app(
 
             return _run_page(request, error="Pick a step to queue.")
         try:
-            queue_add_step(current["id"], int(step))
+            chosen = int(step)
+        except ValueError:
+            if wants_json:
+
+                return JSONResponse({"error": "Pick a step to queue."}, status_code=400)
+
+            return _run_page(request, error="Pick a step to queue.")
+        waves = {row["step"]: row for row in list_pipeline_steps(current["id"])}
+        wave = waves.get(chosen)
+        if wave is None:
+            refused = "That step has no modules left in the plan."
+        elif not wave["pending"]:
+            refused = f"Step {chosen} is already passed."
+        else:
+            refused = ""
+        if refused:
+            if wants_json:
+
+                return JSONResponse({"error": refused}, status_code=400)
+
+            return _run_page(request, error=refused)
+        try:
+            queue_add_step(current["id"], chosen)
         except ValueError as refused:
             if wants_json:
 
@@ -884,6 +949,21 @@ def create_app(
 
             return RedirectResponse("/run", status_code=303)
         queue_stop(current["id"], request.app.state.hub)
+
+        return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/clear")
+    def run_queue_clear(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        if not queue_clear(current["id"], request.app.state.hub):
+
+            return _run_page(
+                request,
+                error="The queue is still working. Stop it and wait for the current module.",
+            )
 
         return RedirectResponse("/run", status_code=303)
 
@@ -953,10 +1033,12 @@ def create_app(
             for key in form
             if key.startswith("provider_")
         }
+        cleared = form.get("clear_provider")
         save_app_settings(
             sheller_base_url=str(form.get("sheller_base_url") or ""),
             sheller_image_tag=str(form.get("sheller_image_tag") or ""),
             provider_values=values,
+            cleared={str(cleared)} if cleared else set(),
         )
 
         return RedirectResponse("/settings", status_code=303)
@@ -1001,6 +1083,24 @@ def create_app(
                 "resources": None,
             }, detail
 
+    def _flow_default(migration: dict | None) -> dict:
+        """The cartridge's model, shown until the card saves its own pair."""
+        if migration is None:
+
+            return {"provider": "", "model": ""}
+        from odoo_migrator.cartridges import pinned_for
+        from odoo_migrator.runner.cartridge import CartridgeError
+
+        try:
+            named = pinned_for(migration).model
+        except CartridgeError:
+            named = None
+        if named is None:
+
+            return {"provider": "", "model": ""}
+
+        return {"provider": named.provider, "model": named.name}
+
     def _overview(
         request: Request,
         *,
@@ -1029,6 +1129,7 @@ def create_app(
             "overview",
             {
                 "expanded": migration,
+                "flow_default": _flow_default(migration),
                 "provision": provision,
                 "cartridges": list_installs() if migration else [],
                 # The form is asked for, not permanently open. It stays open
@@ -1051,6 +1152,7 @@ def create_app(
         cartridge_id: str | None = Form(None),
         cartridge_version: str | None = Form(None),
         model_webhook_path: str | None = Form(None),
+        provider_override: str | None = Form(None),
         model_override: str | None = Form(None),
     ):
         """Every rejection says so. Silently discarding what someone typed
@@ -1082,6 +1184,7 @@ def create_app(
             cartridge_id=cartridge_id,
             cartridge_version=cartridge_version,
             model_webhook_path=model_webhook_path,
+            provider_override=provider_override,
             model_override=model_override,
         ) is None:
 

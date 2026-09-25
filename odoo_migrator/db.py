@@ -12,6 +12,12 @@ def default_db_path() -> Path:
     return Path.home() / ".odoo-migrator" / "migrator.sqlite"
 
 
+def default_env_path() -> Path:
+    """Process flags for this machine. Not the database, and not a secret store."""
+
+    return default_db_path().parent / ".env"
+
+
 def init_db(path: Path | str | None = None) -> Path:
     db_path = Path(path) if path is not None else default_db_path()
     if str(db_path) != ":memory:":
@@ -72,5 +78,24 @@ def _ensure_columns() -> None:
             if field.column_name in existing:
                 continue
             operations.append(migrator.add_column(table, field.column_name, field))
-    if operations:
-        migrate(*operations)
+    # Rebuilding a table (how SQLite adds some columns) drops it. With
+    # foreign_keys on, that drop fails: module and batch rows point at
+    # migration. The leftover is a ``migration__tmp__`` table and this error.
+    database.execute_sql("PRAGMA foreign_keys = OFF")
+    try:
+        if operations:
+            migrate(*operations)
+        _drop_rebuild_leftovers(tables)
+    finally:
+        database.execute_sql("PRAGMA foreign_keys = ON")
+
+
+def _drop_rebuild_leftovers(tables: set[str]) -> None:
+    """A failed ALTER leaves ``<table>__tmp__`` beside the real table."""
+    rows = database.execute_sql(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%__tmp__'"
+    ).fetchall()
+    for (name,) in rows:
+        original = name[: -len("__tmp__")]
+        if original in tables:
+            database.execute_sql(f'DROP TABLE IF EXISTS "{name}"')

@@ -81,6 +81,13 @@ def test_steps_hook_follows_the_open_migration(client):
 
     assert "step-hook" in html
     assert "step-bridge" in html
+    steps = html.split('class="nav-tabs nav-steps"', 1)[1].split("</div>", 1)[0]
+    assert steps.count("step-dot") == 3
+    order = re.findall(
+        r'data-screen="(tree|flow|sheller|pipeline|result)"',
+        steps,
+    )
+    assert order == ["tree", "pipeline", "flow", "sheller", "result"]
     assert "step-hook-end" not in html
     assert "switcher-versions" in html
     anchor = re.search(r'<a[^>]*data-screen="tree"[^>]*>', html)
@@ -138,6 +145,26 @@ def test_guide_lists_the_menu_steps_in_order(client):
     ]
     assert "Status badges" not in html
     assert "Create migration" not in html
+    # Flow is described after the four steps, block by block. It is not a
+    # fifth item in the numbered list.
+    flow = html.split('class="guide-flow"', 1)[1]
+    assert "<h2>Flow</h2>" in flow
+    for block in (
+        "understand",
+        "port",
+        "lint",
+        "upgrade",
+        "tests",
+        "probe",
+        "write_test",
+        "verdict",
+        "diagnose",
+        "ask_human",
+        "reprobe",
+        "patch",
+        "rewrite",
+    ):
+        assert f"<strong>{block}</strong>" in flow
 
 
 def test_components_page_renders_the_catalog(client):

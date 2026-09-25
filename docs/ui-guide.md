@@ -42,7 +42,7 @@ The bar is two rows, on every page.
   migration's screens.
 - **Tree / Pipeline / Flow / Sheller / Result** — the screens of the
   open migration, on the second row. Each one takes the full width.
-  Flow sits between Pipeline and Sheller.
+  Pipeline sits after Tree and before Flow. Sheller follows Flow, then Result.
 - **Guide** — `/styleguide`: Tree, Pipeline, Sheller, Result, in that
   order, with the controls on each screen (queue-based Pipeline, Tree
   leave-out rules, Result pagination and corner badges). Flow is its
@@ -157,10 +157,13 @@ the scoreboard. Flow draws the pinned cartridge.
 
 **Pipeline** (`/run`) has **Selection** and **Queue**. In Selection, pick
 a **Step** (same waves as Tree), **Add to queue**, or **Add all steps to
-queue** — only modules still in the plan and not yet passed; excluded
-modules and finished waves are skipped. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
+queue**. Every wave still in the plan is listed, including one whose
+modules have already passed: that option reads **passed**, names the
+modules, and cannot be queued. Excluded modules stay out. **Add all**
+skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
-the current module first). The active module pulses in the queue; passed
+the current module first). **Clear** empties the list when the pipe is
+stopped and no module is still running. The active module pulses in the queue; passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
 cartridge's steps, with the current one marked. A parked question sits
 under the ribbon as a thread. Empty reads "No module is running." SSE
@@ -169,11 +172,23 @@ checkpoint a banner appears: *This batch has finished. Reload to review
 it.* The screen does not swap itself for the review while you are
 looking at a live stage.
 
-**Flow** (`/flow`) draws the pinned cartridge: the main pipeline in one
-column, the failure lane in the other, retry edges back to `resume_at`.
-With a job, the trace under the canvas is the skeleton only — tool,
-side, session, a short preview. The journal body loads when that row is
-opened, not with the page.
+**Flow** (`/flow`) draws the pinned cartridge. The picture is computed
+from the file each time the page is opened; nothing about it is stored.
+Stock is two frames. **Pipeline** is the lap: `understand` (old session,
+behaviour and a fixture recipe), `port` (writes the new project, both
+sessions), `lint` (Python, XML, manifest — no container), `upgrade`
+(install or upgrade on the new container, then commit), `tests` (the
+module's own classes; no classes raises `no_tests` and is not a failure),
+`probe` and `write_test` only when `no_tests`, then `verdict`.
+**On failure** is entered when any pipeline step fails. `diagnose` raises
+`needs_human`, `reexamine_old`, `small_fix`, or `start_over`, and only the
+block for that flag runs: `ask_human` parks the job, `reprobe` returns to
+the old version, `patch` edits the previous diff, `rewrite` starts the
+port again without the previous attempt. The lane then resumes once, at
+`lint`. Orange blocks are a model turn; quiet blocks are the app; a dashed
+border is a flag; the cut rectangle is `ask_human`. With a job, the trace
+under the canvas is the skeleton only — tool, side, session, a short
+preview. The journal body loads when that row is opened, not with the page.
 
 **Sheller** (`/sheller`) is only an observer iframe of Sheller's `/web`,
 edge to edge under the nav. The frame does not hold a write key. Do not
@@ -192,8 +207,11 @@ the **step** colour; a filled circle in the top-right corner marks
 modules keep a small inline badge instead. Subtitle is `depends` or
 *excluded — skipped on Tree*. Skipped modules stay in their wave, name
 struck through. SSE
-updates badges while this screen is open. With no graph yet, the page
-points you at Tree → Resolve.
+updates badges while this screen is open. **Reopen** on a finished card,
+or **Reopen finished** above the columns, puts `passed`, `failed`, and
+`unknown` modules back to `queued` so Selection can queue them again.
+The old jobs stay. Files in the new project are not touched. With no
+graph yet, the page points you at Tree → Resolve.
 
 ### Checkpoint
 
@@ -225,7 +243,7 @@ Shared by every migration.
 |---|---|
 | Sheller base URL | This process's client and the observer iframe. |
 | Sheller image tag | Docker tag when the app must spawn Sheller because nothing answers on 8765. |
-| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor). Leave blank to keep the saved value. The value is never shown again. |
+| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor). A saved key shows as dots, never as the key. The bin at the end of the field removes it. |
 
 ### This migration
 
@@ -248,7 +266,7 @@ every label over two lines.
 | Retry limit | How many laps the failure lane may take. Not a cap inside one model call. |
 | Ask-human mode | `sync` parks the job until you answer. `batch_defer` records an assumption and continues; you read it at checkpoint. |
 | Flow | The pinned cartridge, `id@version`. Recorded on every job. Import replaces the pin. |
-| Model | Overrides the cartridge's model for this migration. A step that names its own model still wins. |
+| Provider / Model | The flow file names a default. The card shows it and can replace it; the model list is the models of the selected provider. The job records the pair that was on the card. A step that names its own model still wins. |
 
 **Smoke-run** starts the first unstruck module by name through the pinned
 flow. The button says the run started; the verdict is whatever the
@@ -259,9 +277,9 @@ unknown pin is refused.
 ## Guide (in-app)
 
 **Guide** in the chrome opens `/styleguide`: Tree, Pipeline, Sheller,
-Result, in that order, with the controls that exist today. Flow is
-described after that list. This file is the long-form reference; the
-in-app page is the short walkthrough.
+Result, in that order, with the controls that exist today. Flow follows
+that list and names each stock block. This file is the long-form
+reference.
 
 `/components` is how CSS gets reviewed: badges, row cards, pipeline,
 checkpoint, forms, the lamp, the switcher. Add a row in the same change

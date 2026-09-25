@@ -85,7 +85,8 @@ class Migration(BaseModel):
     cartridge_version = CharField(null=True)
     model_webhook_path = TextField(default="")
     strictness_default = CharField(default="basic")
-    # Empty means the cartridge's model. A name here is the card's override.
+    # Empty means the cartridge's model. A pair here is what this migration runs.
+    provider_override = CharField(default="")
     model_override = CharField(default="")
     retry_limit = IntegerField(default=5)
     ask_human_mode = CharField(default="sync")
@@ -170,6 +171,11 @@ class Job(BaseModel):
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)
     cartridge_sha256 = CharField(default="")
+    # The pair the card was showing when this job started: the flow's default,
+    # unless the migration settings replaced it. A later edit of the card does
+    # not rewrite a job that already ran.
+    provider = CharField(default="")
+    model_name = CharField(default="")
     # Unified diffs of File API writes on the new side, keyed by attempt.
     # The cartridge callback's attempt.diff is often empty; this is what
     # the checkpoint actually has to show.

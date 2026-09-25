@@ -189,27 +189,38 @@ def list_modules(migration_id: str) -> list[dict]:
 def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> list[dict]:
     """Dependency steps still in the plan — same waves as Tree.
 
-    With ``pending_only``, skip excluded modules and those already passed, and
-    omit waves that have no remaining work.
+    Struck modules are out. A wave whose modules have already passed stays
+    in the list (``pending`` is 0) so Selection can show it. With
+    ``pending_only``, those finished waves are omitted and ``modules`` is
+    only the work still left.
     """
     listed = list_modules(migration_id)
-    by_step: dict[int, list[str]] = {}
+    by_step: dict[int, list[dict]] = {}
     for row in listed:
         if row["struck_out"]:
             continue
-        if pending_only and row["status"] == "passed":
-            continue
         wave = row.get("step") or 1
-        by_step.setdefault(wave, []).append(row["technical_name"])
-    return [
-        {
-            "step": wave,
-            "count": len(names),
-            "modules": sorted(names),
-        }
-        for wave in sorted(by_step)
-        for names in [by_step[wave]]
-    ]
+        by_step.setdefault(wave, []).append(row)
+    steps = []
+    for wave in sorted(by_step):
+        rows = by_step[wave]
+        pending = [row for row in rows if row["status"] != "passed"]
+        if pending_only and not pending:
+            continue
+        shown = pending if pending_only else rows
+        steps.append(
+            {
+                "step": wave,
+                "count": len(shown),
+                "pending": len(pending),
+                "modules": sorted(row["technical_name"] for row in shown),
+                "passed": sorted(
+                    row["technical_name"] for row in rows if row["status"] == "passed"
+                ),
+            }
+        )
+
+    return steps
 
 
 def modules_in_step_order(migration_id: str, step: int) -> list[dict]:

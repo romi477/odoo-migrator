@@ -98,6 +98,78 @@ def test_result_paginates_waves_four_per_page(client):
     assert "wave_9" in page
 
 
+def test_reopen_puts_a_finished_module_back_to_queued(client):
+    from odoo_migrator.models import Batch, Job, Migration
+
+    migration_id = _open(client)
+    with database.connection_context():
+        module = Module.create(
+            migration=migration_id,
+            technical_name="sale_custom",
+            status="passed",
+            has_assumptions=True,
+        )
+        module_id = module.id
+        batch = Batch.create(migration=Migration.get_by_id(migration_id), status="idle")
+        Job.create(batch=batch, module=module, status="passed", job_id="job-kept")
+
+    page = client.get("/result").text
+
+    assert "Reopen finished" in page
+    assert 'aria-label="Reopen sale_custom"' in page
+
+    done = client.post(f"/result/modules/{module_id}/reopen", follow_redirects=True)
+
+    assert "Reopen finished" not in done.text
+    assert 'aria-label="Reopen sale_custom"' not in done.text
+    with database.connection_context():
+        row = Module.get_by_id(module_id)
+        assert row.status == "queued"
+        assert row.has_assumptions is False
+        assert Job.get(Job.job_id == "job-kept").status == "passed"
+
+
+def test_reopen_finished_clears_every_recorded_outcome(client):
+    migration_id = _open(client)
+    with database.connection_context():
+        Module.create(migration=migration_id, technical_name="sale_custom", status="passed")
+        Module.create(migration=migration_id, technical_name="stock_custom", status="failed")
+        kept = Module.create(
+            migration=migration_id,
+            technical_name="purchase_skip",
+            status="passed",
+            struck_out=True,
+        )
+        kept_id = kept.id
+
+    page = client.post("/result/reopen", follow_redirects=True)
+
+    assert page.status_code == 200
+    assert "Reopen finished" not in page.text
+    with database.connection_context():
+        by_name = {row.technical_name: row.status for row in Module.select()}
+        assert by_name["sale_custom"] == "queued"
+        assert by_name["stock_custom"] == "queued"
+        assert Module.get_by_id(kept_id).status == "passed"
+
+
+def test_reopen_refuses_a_module_that_is_not_finished(client):
+    migration_id = _open(client)
+    with database.connection_context():
+        module = Module.create(
+            migration=migration_id,
+            technical_name="sale_custom",
+            status="queued",
+        )
+        module_id = module.id
+
+    page = client.post(f"/result/modules/{module_id}/reopen", follow_redirects=True)
+
+    assert "Only a finished module can be reopened." in page.text
+    with database.connection_context():
+        assert Module.get_by_id(module_id).status == "queued"
+
+
 def test_result_without_modules_explains_resolve(client):
     _open(client)
 

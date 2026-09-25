@@ -12,9 +12,11 @@ from odoo_migrator.sheller import (
     HttpShellerClient,
     ShellerError,
     ShellerNotOwner,
+    ShellerSessionDead,
     ShellerUnreachable,
     mcp_for_ui,
 )
+from odoo_migrator.sheller.client import SESSION_OPEN_TIMEOUT
 
 
 def _stub_app(fake: FakeShellerClient):
@@ -240,6 +242,51 @@ def _open(sheller, **kwargs):
     defaults.update(kwargs)
 
     return sheller.open_session(**defaults)
+
+
+class _Response:
+    def __init__(self, status: int, payload):
+        self.status_code = status
+        self.content = b"1"
+        self._payload = payload
+
+    def json(self):
+
+        return self._payload
+
+
+class _RecordingHttp:
+    def __init__(self, response: _Response):
+        self.response = response
+        self.calls: list[tuple] = []
+
+    def request(self, method, path, **kwargs):
+        self.calls.append((method, path, kwargs))
+
+        return self.response
+
+
+def test_open_session_outlasts_a_slow_registry_load():
+    """The daemon waits 90s for hello. The HTTP call has to stay past that."""
+    http = _RecordingHttp(_Response(200, {"id": "s1", "write_key": "k"}))
+    client = HttpShellerClient("http://127.0.0.1:8765", http=http)
+
+    client.open_session(container="odoo-old", database="acme", odoo_bin="/opt/odoo/odoo-bin")
+
+    assert http.calls[0][2]["timeout"] == SESSION_OPEN_TIMEOUT
+    assert SESSION_OPEN_TIMEOUT > 90
+
+
+def test_a_dead_session_reports_the_daemons_reason():
+    http = _RecordingHttp(_Response(410, "session did not start: loading registry"))
+    client = HttpShellerClient("http://127.0.0.1:8765", http=http)
+
+    with pytest.raises(ShellerSessionDead) as dead:
+        client.open_session(
+            container="odoo-old", database="acme", odoo_bin="/opt/odoo/odoo-bin"
+        )
+
+    assert "loading registry" in str(dead.value)
 
 
 def test_health_shape(sheller):

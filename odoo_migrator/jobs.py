@@ -40,6 +40,9 @@ NON_TERMINAL = ("queued", "running")
 # No further callback is expected after these. A progress that arrives
 # anyway is a retry or an out-of-order delivery, not news.
 FINISHED = ("passed", "failed")
+# A recorded outcome the human can put back to queued. A parked question
+# is not one of these: that thread is still open.
+REOPENABLE = ("passed", "failed", "unknown")
 # A module with a job in one of these already has an executor working on
 # its files.
 IN_FLIGHT = ("queued", "running", "waiting_for_human")
@@ -217,6 +220,7 @@ def start_job(
         ).strip("/")
         payload["webhook_path"] = webhook_path
         pinned = _pinned_identity(migration, cartridge)
+        provider, model_name = recorded_pair(migration)
         job = Job.create(
             job_id=job_id,
             batch=batch,
@@ -226,6 +230,8 @@ def start_job(
             cartridge_id=pinned[0],
             cartridge_version=pinned[1],
             cartridge_sha256=pinned[2],
+            provider=provider,
+            model_name=model_name,
         )
         was = module.status
         module.status = "queued"
@@ -273,6 +279,38 @@ def _pinned_identity(migration, cartridge) -> tuple[str, str, str]:
         return (wanted_id, wanted_version, "")
 
     return (row.cartridge_id, row.version, row.sha256 or "")
+
+
+def recorded_pair(migration) -> tuple[str, str]:
+    """The card's provider and model, or the flow's default.
+
+    An empty card means the cartridge's ``model`` block, which is what the
+    settings form shows until someone saves a different pair. The job stores
+    this pair, so the review names what ran, not a default the card replaced.
+    """
+    from odoo_migrator.cartridges import pinned_for
+    from odoo_migrator.runner.cartridge import CartridgeError
+
+    provider = (migration.provider_override or "").strip()
+    name = (migration.model_override or "").strip()
+    if provider and name:
+
+        return provider, name
+    try:
+        named = pinned_for(migration).model
+    except CartridgeError:
+        named = None
+    if named is None:
+
+        return provider, name
+    if name:
+
+        return named.provider, name
+    if provider:
+
+        return provider, named.name
+
+    return named.provider, named.name
 
 
 def _undo_start(
@@ -584,6 +622,78 @@ def apply_result(body, hub: EventHub) -> str | None:
     return payload.job_id
 
 
+def _publish_module(hub: EventHub | None, module: Module) -> None:
+    if hub is None:
+
+        return
+    hub.publish(
+        "module",
+        {
+            "id": module.id,
+            "status": module.status,
+            "stage": "",
+            "attempt": 0,
+            "migration_id": str(module.migration_id),
+            "question": "",
+            "has_assumptions": bool(module.has_assumptions),
+            "technical_name": module.technical_name,
+            "current_session_id": "",
+        },
+    )
+
+
+def reopen_module(module_id: int, migration_id: str, hub: EventHub | None = None) -> Module:
+    """Put one finished module back to queued.
+
+    The jobs that produced the outcome stay. This does not touch files in
+    the new project: a stub pass never wrote any, and a real rewrite is
+    not something this button can undo.
+    """
+    with database.connection_context():
+        module = Module.get_or_none(Module.id == module_id)
+        if module is None or str(module.migration_id) != migration_id:
+            raise ContractError("unknown module")
+        if module.struck_out:
+            raise ContractError("An excluded module stays out of the plan.")
+        if module.status not in REOPENABLE:
+            raise ContractError("Only a finished module can be reopened.")
+        busy = (
+            Job.select()
+            .where((Job.module == module) & (Job.status.in_(IN_FLIGHT)))
+            .exists()
+        )
+        if busy:
+            raise ContractError("That module is still running.")
+        module.status = "queued"
+        module.has_assumptions = False
+        module.save()
+    _publish_module(hub, module)
+
+    return module
+
+
+def reopen_finished(migration_id: str, hub: EventHub | None = None) -> int:
+    """Reopen every finished module still in the plan. Returns how many."""
+    with database.connection_context():
+        rows = list(
+            Module.select().where(
+                (Module.migration == migration_id)
+                & (Module.struck_out == False)
+                & (Module.status.in_(REOPENABLE))
+            )
+        )
+        ids = [row.id for row in rows]
+    opened = 0
+    for module_id in ids:
+        try:
+            reopen_module(module_id, migration_id, hub)
+        except ContractError:
+            continue
+        opened += 1
+
+    return opened
+
+
 def save_notes(module_id: int, notes: str) -> None:
     with database.connection_context():
         module = Module.get_or_none(Module.id == module_id)
@@ -714,6 +824,8 @@ def latest_checkpoint(migration_id: str) -> dict | None:
                     "question": job.question,
                     "answer": job.answer,
                     "rules_hash": job.rules_hash,
+                    "provider": job.provider or "",
+                    "model": job.model_name or "",
                     "stalled": stalled,
                     "attempts": [
                         {

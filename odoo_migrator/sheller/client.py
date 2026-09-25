@@ -14,6 +14,12 @@ from odoo_migrator.sheller.errors import (
 )
 
 SESSION_KEY_HEADER = "X-OS-Session-Key"
+# The daemon blocks POST /api/sessions until the shell says hello, and it
+# waits 90s for that frame. A shorter HTTP timeout cancels the open while
+# the session is still starting: the UI has already shown it, then the
+# process is killed. Stay past that wait so a slow registry load can finish
+# and a real death still comes back as the daemon's own reason.
+SESSION_OPEN_TIMEOUT = 120.0
 
 
 def mcp_for_ui(health: dict) -> dict | None:
@@ -148,6 +154,7 @@ class HttpShellerClient:
             "POST",
             "/api/sessions",
             json={key: value for key, value in payload.items() if value is not None},
+            timeout=SESSION_OPEN_TIMEOUT,
         )
 
     def list_sessions(self) -> list:
@@ -288,6 +295,29 @@ class HttpShellerClient:
         return response.json()
 
 
+def _session_dead_message(detail) -> str:
+    """The daemon's reason, not the bare status name.
+
+    An open that dies puts the cause in the body: a string from the start
+    (``session did not start`` plus the shell's stderr) or ``session_gone``
+    with ``reason`` once the session had an id. The checkpoint shows this
+    string and nothing else.
+    """
+    if isinstance(detail, dict):
+        error = str(detail.get("error") or "session_dead")
+        reason = str(detail.get("reason") or detail.get("message") or "").strip()
+        if reason and reason not in error:
+
+            return f"{error}: {reason}"
+
+        return error
+    if isinstance(detail, str) and detail.strip():
+
+        return detail.strip()
+
+    return "session_dead"
+
+
 def _raise_http(response: httpx2.Response) -> None:
     try:
         detail = response.json()
@@ -296,7 +326,9 @@ def _raise_http(response: httpx2.Response) -> None:
     if response.status_code == 403:
         raise ShellerNotOwner("not_owner", status=403, detail=detail)
     if response.status_code == 410:
-        raise ShellerSessionDead("session_dead", status=410, detail=detail)
+        raise ShellerSessionDead(
+            _session_dead_message(detail), status=410, detail=detail
+        )
     raise ShellerError(
         f"Sheller HTTP {response.status_code}: {detail}",
         status=response.status_code,

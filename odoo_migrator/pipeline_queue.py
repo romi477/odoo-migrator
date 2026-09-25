@@ -145,8 +145,11 @@ def queue_snapshot(migration_id: str) -> dict:
             }
         )
 
+    state = run_state(migration_id)
+
     return {
-        "run_state": run_state(migration_id),
+        "run_state": state,
+        "idle": state != "running" and live is None,
         "steps": [{"step": item.step} for item in items],
         "modules": modules,
     }
@@ -156,20 +159,30 @@ def publish_queue(hub: EventHub, migration_id: str) -> None:
     hub.publish("queue", {"migration_id": migration_id, **queue_snapshot(migration_id)})
 
 
-def _batch_blocking(migration_id: str) -> bool:
+def _batch_block_reason(migration_id: str) -> str | None:
+    """Why the next step cannot start, or None when the pipe is free."""
     with database.connection_context():
-        running = (
+        if (
             Batch.select()
             .where((Batch.migration == migration_id) & (Batch.status == "running"))
             .exists()
-        )
-        checkpoint = (
+        ):
+
+            return "A batch is already running on this migration."
+        if (
             Batch.select()
             .where((Batch.migration == migration_id) & (Batch.status == "checkpoint"))
             .exists()
-        )
+        ):
 
-    return running or checkpoint
+            return "Review the last batch before starting another."
+
+    return None
+
+
+def _batch_blocking(migration_id: str) -> bool:
+
+    return _batch_block_reason(migration_id) is not None
 
 
 def _next_pending_step(migration_id: str) -> int | None:
@@ -183,20 +196,26 @@ def _next_pending_step(migration_id: str) -> int | None:
 
 
 def kick(migration_id: str, executor, hub: EventHub) -> None:
-    """Start the next queued step when the pipeline is running."""
+    """Start the next queued step when the pipeline is running.
+
+    A block or an empty queue raises ``ContractError``. The auto-continue
+    path catches that and stops; Run shows the same sentence on the page.
+    """
     if run_state(migration_id) != "running":
 
         return
     remove_finished_steps(migration_id)
-    if _batch_blocking(migration_id):
-
-        return
+    reason = _batch_block_reason(migration_id)
+    if reason == "Review the last batch before starting another.":
+        set_run_state(migration_id, "stopped")
+        publish_queue(hub, migration_id)
+    if reason is not None:
+        raise ContractError(reason)
     step = _next_pending_step(migration_id)
     if step is None:
         set_run_state(migration_id, "stopped")
         publish_queue(hub, migration_id)
-
-        return
+        raise ContractError("Nothing is queued.")
     start_batch(
         migration_id=migration_id,
         step=step,
@@ -208,13 +227,36 @@ def kick(migration_id: str, executor, hub: EventHub) -> None:
 
 def start(migration_id: str, executor, hub: EventHub) -> None:
     set_run_state(migration_id, "running")
-    kick(migration_id, executor, hub)
+    try:
+        kick(migration_id, executor, hub)
+    except ContractError:
+        if run_state(migration_id) == "running" and not _batch_blocking(migration_id):
+            set_run_state(migration_id, "stopped")
+            publish_queue(hub, migration_id)
+        raise
     publish_queue(hub, migration_id)
 
 
 def stop(migration_id: str, hub: EventHub) -> None:
     set_run_state(migration_id, "stopped")
     publish_queue(hub, migration_id)
+
+
+def clear(migration_id: str, hub: EventHub) -> bool:
+    """Drop every queued step when nothing is in flight.
+
+    A running pipe, or a module still finishing after Stop, keeps the list.
+    """
+    if run_state(migration_id) == "running" or live_run(migration_id) is not None:
+
+        return False
+    with database.connection_context():
+        PipelineQueueItem.delete().where(
+            PipelineQueueItem.migration == migration_id
+        ).execute()
+    publish_queue(hub, migration_id)
+
+    return True
 
 
 def should_advance_modules(migration_id: str) -> bool:

@@ -23,6 +23,10 @@
   </ol>
   {% endif %}
 
+  {% if error %}
+  <p class="form-error">{{ error }}</p>
+  {% endif %}
+
   {% if board and board.progress.has_modules %}
   <div class="result-board"
        {% if current %}data-result data-migration-id="{{ current.id }}"{% endif %}>
@@ -40,6 +44,12 @@
         <span class="counter failed"><span class="dot"></span>{{ board.progress.failed }} failed</span>
         {% endif %}
       </div>
+      {% if board.progress.reopenable %}
+      <form method="post" action="/result/reopen" class="result-reopen-all">
+        <button type="submit" aria-label="Reopen every finished module">Reopen finished</button>
+        <p class="field-hint">Puts passed, failed, and unknown modules back to queued. The old jobs stay on record. Files in the new project are left as they are.</p>
+      </form>
+      {% endif %}
     </article>
 
     <div class="result-columns-panel"
@@ -100,6 +110,11 @@
               <span class="badge queued">queued</span>
               {% endif %}
               <p class="result-subtitle mono">{{ module.subtitle }}</p>
+              {% if not module.struck_out and module.display_status in ['passed', 'failed', 'unknown'] %}
+              <form method="post" action="/result/modules/{{ module.id }}/reopen" class="result-reopen" data-result-reopen>
+                <button type="submit" aria-label="Reopen {{ module.technical_name }}">Reopen</button>
+              </form>
+              {% endif %}
             </div>
           </li>
           {% endfor %}

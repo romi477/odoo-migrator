@@ -48,6 +48,7 @@ def test_queue_run_page_has_selection_and_queue(client):
     assert "FIFO · First in, first out" in page.text
     assert ">Add to queue<" in page.text
     assert ">Add all steps to queue<" in page.text
+    assert 'aria-label="Clear the pipeline queue"' in page.text
     assert 'aria-label="Run the pipeline queue"' in page.text
 
 
@@ -95,6 +96,35 @@ def test_add_all_steps_dedupes(client):
     assert count == len(waves)
 
 
+def test_a_passed_wave_stays_visible_and_is_not_queued(client):
+    row, _sale = _prepared(client)
+    from odoo_migrator.graph import list_modules, list_pipeline_steps
+    from odoo_migrator.models import Module
+
+    listed = list_modules(row.id)
+    roots = [module for module in listed if module["step"] == 1 and not module["struck_out"]]
+    with database.connection_context():
+        Module.update(status="passed").where(
+            Module.id.in_([module["id"] for module in roots])
+        ).execute()
+
+    page = client.get("/run")
+    waves = list_pipeline_steps(row.id)
+    root = next(wave for wave in waves if wave["step"] == 1)
+
+    assert "Step 1 · passed" in page.text
+    assert root["modules"]
+    assert "Step 2" in page.text
+    assert root["pending"] == 0
+    refused = client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+    assert "Step 1 is already passed." in refused.text
+    with database.connection_context():
+        assert (
+            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
+            == 0
+        )
+
+
 def test_add_all_steps_skips_passed_modules(client):
     row, _sale = _prepared(client)
     from odoo_migrator.graph import list_modules, list_pipeline_steps
@@ -118,6 +148,38 @@ def test_add_all_steps_skips_passed_modules(client):
     assert "sale_custom" not in pending_names
 
 
+def test_clear_drops_the_queue_when_nothing_is_running(client):
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+
+    page = client.post("/run/queue/clear", follow_redirects=True)
+
+    assert page.status_code == 200
+    assert "still working" not in page.text
+    with database.connection_context():
+        assert (
+            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
+            == 0
+        )
+
+
+def test_clear_refuses_while_the_pipe_is_running(client):
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+    from odoo_migrator.pipeline_queue import set_run_state
+
+    set_run_state(row.id, "running")
+
+    page = client.post("/run/queue/clear", follow_redirects=True)
+
+    assert "still working" in page.text
+    with database.connection_context():
+        assert (
+            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
+            == 1
+        )
+
+
 def test_queue_run_sets_running(client):
     row, _sale = _prepared(client)
     client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
@@ -129,3 +191,15 @@ def test_queue_run_sets_running(client):
 
     assert page.status_code == 200
     assert run_state(row.id) == "running"
+
+
+def test_queue_run_on_an_empty_queue_says_so(client):
+    row, _sale = _prepared(client)
+
+    page = client.post("/run/queue/run", follow_redirects=True)
+
+    assert page.status_code == 200
+    assert "Nothing is queued." in page.text
+    assert run_state(row.id) == "stopped"
+    form = page.text[page.text.index('action="/run/queue/run"') :]
+    assert "disabled" in form[: form.index("</form>")]

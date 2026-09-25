@@ -40,15 +40,31 @@ def build_context(step: Step, ctx: StepContext) -> str:
 
 def resolve_model(step: Step, ctx: StepContext) -> str:
     """Step model, else the migration card, else the cartridge's model."""
+
+    return _chosen(step, ctx)[1]
+
+
+def resolve_provider(step: Step, ctx: StepContext) -> str:
+    """Step provider, else the migration card, else the cartridge's provider."""
+
+    return _chosen(step, ctx)[0]
+
+
+def _chosen(step: Step, ctx: StepContext) -> tuple[str, str]:
     if step.model is not None:
 
-        return step.model.name
-    override = (getattr(ctx.migration, "model_override", None) or "").strip()
-    if override:
+        return step.model.provider, step.model.name
+    provider = (getattr(ctx.migration, "provider_override", None) or "").strip()
+    model = (getattr(ctx.migration, "model_override", None) or "").strip()
+    if provider and model:
 
-        return override
+        return provider, model
+    named = ctx.cartridge.model
+    if model:
 
-    return ctx.cartridge.model.name
+        return named.provider, model
+
+    return named.provider, named.name
 
 
 def budget_for(step: Step, ctx: StepContext) -> Budget:
@@ -77,8 +93,7 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
     if getattr(ctx.client, "scripted", False):
         provider = ScriptedProvider(ctx.client)
     else:
-        named = step.model or ctx.cartridge.model
-        provider = get(named.provider)
+        provider = get(resolve_provider(step, ctx))
         provider.ensure_ready()
     result = provider.run_step(
         prompt=prompt,

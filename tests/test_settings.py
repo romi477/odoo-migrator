@@ -69,6 +69,69 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
     assert 'aria-expanded="true"' in expanded
 
 
+def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
+    from odoo_migrator.settings import SECRET_MASK, provider_setting
+
+    page = client.get("/settings").text
+
+    assert re.search(
+        r'name="provider_cursor_api_key"[^>]*value=""', page
+    )
+    assert 'aria-label="Remove Cursor API key"' in page
+    assert 'aria-label="Remove Anthropic API key"' in page
+    saved = client.post(
+        "/settings",
+        data={
+            "sheller_base_url": "http://127.0.0.1:8765",
+            "sheller_image_tag": "latest",
+            "provider_cursor_api_key": "cursor-secret",
+            "provider_anthropic_api_key": "anthropic-secret",
+        },
+        follow_redirects=True,
+    )
+
+    assert f'value="{SECRET_MASK}"' in saved.text
+    assert saved.text.count(f'value="{SECRET_MASK}"') == 2
+    assert "cursor-secret" not in saved.text
+    assert "anthropic-secret" not in saved.text
+    assert 'aria-label="Remove Cursor API key"' in saved.text
+    assert 'aria-label="Remove Anthropic API key"' in saved.text
+    assert provider_setting("cursor", "api_key") == "cursor-secret"
+    kept = client.post(
+        "/settings",
+        data={
+            "sheller_base_url": "http://127.0.0.1:8765",
+            "sheller_image_tag": "latest",
+            "provider_cursor_api_key": SECRET_MASK,
+            "provider_anthropic_api_key": SECRET_MASK,
+        },
+        follow_redirects=True,
+    )
+
+    assert provider_setting("cursor", "api_key") == "cursor-secret"
+    assert provider_setting("anthropic", "api_key") == "anthropic-secret"
+    cleared = client.post(
+        "/settings",
+        data={
+            "sheller_base_url": "http://127.0.0.1:8765",
+            "sheller_image_tag": "latest",
+            "provider_cursor_api_key": SECRET_MASK,
+            "provider_anthropic_api_key": SECRET_MASK,
+            "clear_provider": "cursor__api_key",
+        },
+        follow_redirects=True,
+    )
+
+    assert provider_setting("cursor", "api_key") == ""
+    assert provider_setting("anthropic", "api_key") == "anthropic-secret"
+    assert re.search(
+        r'name="provider_cursor_api_key"[^>]*value=""', cleared.text
+    )
+    assert 'aria-label="Remove Cursor API key"' in cleared.text
+    assert 'aria-label="Remove Anthropic API key"' in cleared.text
+    assert kept.status_code == 200
+
+
 def test_sheller_base_url_saves_and_stays_off_other_pages(client):
     saved = client.post(
         "/settings",
@@ -112,6 +175,53 @@ def test_migration_settings_save_on_the_open_migration(client):
         assert row.strictness_default == "enhanced"
         assert row.retry_limit == 8
         assert row.ask_human_mode == "batch_defer"
+
+
+def test_the_card_picks_a_provider_and_only_its_models(client):
+    _create(client, "Acme")
+    with database.connection_context():
+        row = Migration.get(Migration.name == "Acme")
+    page = client.get(f"/?settings={row.id}").text
+
+    assert 'name="provider_override"' in page
+    assert 'value="anthropic" selected' in page
+    assert 'value="claude-opus-5" data-provider="anthropic" selected' in page
+    assert "composer-2.5" in page
+    saved = client.post(
+        f"/migrations/{row.id}/settings",
+        data={
+            "strictness_default": "basic",
+            "retry_limit": "5",
+            "ask_human_mode": "sync",
+            "provider_override": "cursor",
+            "model_override": "composer-2.5",
+        },
+        follow_redirects=True,
+    )
+
+    assert saved.status_code == 200
+    assert 'value="cursor" selected' in saved.text
+    assert 'value="composer-2.5" data-provider="cursor" selected' in saved.text
+    with database.connection_context():
+        row = Migration.get_by_id(row.id)
+        assert row.provider_override == "cursor"
+        assert row.model_override == "composer-2.5"
+    refused = client.post(
+        f"/migrations/{row.id}/settings",
+        data={
+            "strictness_default": "basic",
+            "retry_limit": "5",
+            "ask_human_mode": "sync",
+            "provider_override": "cursor",
+            "model_override": "claude-opus-5",
+        },
+        follow_redirects=True,
+    )
+
+    assert "Nothing saved." in refused.text
+    with database.connection_context():
+        row = Migration.get_by_id(row.id)
+        assert row.model_override == "composer-2.5"
 
 
 def test_archive_button_names_the_migration_accessibly(client):
