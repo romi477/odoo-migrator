@@ -243,7 +243,7 @@ odoo_migrator/runner/
 ├── registry.py    step name → implementation, tools per step
 ├── loop.py        execute step, read outcome, pick the next one
 ├── steps/         one module per deterministic step
-├── agent.py       Anthropic client, tool-use loop, budgets
+├── providers/     one module per provider, plus the registry
 └── tools.py       the Sheller and filesystem verbs given to agents
 ```
 
@@ -253,12 +253,49 @@ odoo_migrator/runner/
 2. **Loop** — run a step, read its outcome, pick the next edge: the main
    pipeline in order; on failure the `on_failure` pipeline; then `retry`
    returns to `resume_at` until the migration's `retry_limit` is spent.
+
+   `resume_at` says how far **back** to rewind, never how far forward to
+   skip. A cartridge names a step late enough to avoid repeating expensive
+   work, which assumes the failure happened at or after it; a failure
+   before it means that work was never done. The loop resumes at the
+   earlier of `resume_at` and the step that failed. The stock flow resumes
+   at `lint`, so an `understand` that failed used to retry a lint of a
+   module `port` had not written, five identical laps in a row.
+
+   A lap that ends in the state the last one failed in is not run again.
+   The failure lane exists to change something — raise a flag that gates a
+   fix, or write files — and when the step that failed, its output and the
+   diff so far are all unchanged, the next attempt is the same attempt.
 3. **Step registry** — a closed map from name to implementation. Deterministic
    steps are plain code. Agent steps call the model with a tool set defined
    here, in code, never by the cartridge.
 4. **Events** — step entered, step left, tool called, tool returned, token
    spend, all into the existing `EventHub`. The page subscribes; nothing
    polls.
+
+### Where the module is, and which database
+
+Two facts about a migration that cannot be guessed, and were.
+
+**The source directory.** One function answers it, for the prompt, for
+lint and for the snapshot that produces the diff. Each of those used to
+answer `<project root>/<technical name>`, which is right only when the
+project root is itself the addons directory; a repository that keeps its
+addons in `project/` or `addons/` resolved to nothing. `Module.addons_root`
+cannot settle it, because the graph scan reads it inside the container and
+it is a container path. The host root is searched instead, and a directory
+counts only when it holds a manifest. Where the port is *written* is a
+decision rather than a discovery — nothing is there on a first port — so
+it mirrors where the old module sits relative to its own root. Both paths
+are stored on the module at scan time, and the module's directory on each
+side goes into the system prompt, because `write_file` refuses an absolute
+path.
+
+**The database.** The migration card names one per side; blank means the
+one that container's own `odoo.conf` names. The probe cannot be the only
+answer: a config without `db_name` is ordinary, and one Postgres commonly
+holds dozens of databases. A name that is not on the container is refused
+when the run starts, and the refusal lists what the container does have.
 
 ## The cartridge
 
@@ -749,6 +786,7 @@ class Provider(Protocol):
     def run_step(
         self,
         *,
+        system: str,               # the standing instruction, same every step
         prompt: str,               # context and step prompt, already rendered
         tools: list[BoundTool],    # already bound to the sessions of this step
         report: ReportTool,        # schema is the declared flags plus an answer
@@ -756,6 +794,18 @@ class Provider(Protocol):
         budget: Budget,            # already clamped to the ceiling
     ) -> StepResult: ...
 ```
+
+`system` is `prompts/system.md` plus the module, the two versions, the
+module's directory on each side, and the step's id. It is not optional and
+a provider may not drop it: it is where the agent is told that a tool is
+the only way to see anything and that the step ends by calling `report`.
+A provider whose SDK has no system field — Cursor's `AgentOptions` has
+none — leads its first message with it. The first live run had no system
+prompt at all: the model answered in prose, called no tool, and every
+agent step came back with nothing reported.
+
+A provider also enforces `budget.tokens`, because only it can see what a
+turn spent. The count is every turn of the tool loop, not the last one.
 
 `StepResult` carries the usage it observed — input, output and cached tokens
 — rather than the runner reading them off one SDK's response object. Each
@@ -1197,6 +1247,12 @@ stages once looked finished because a stub answered inline.
   it says; a `when` flag that is never raised skips its step; a job that
   parks for a human resumes on an answer; a budget ceiling ends a step
   without ending the run.
+- **One test that runs the product** — the stock cartridge, through
+  `NativeRunner`, on a project shaped like a real one, with a step that
+  fails before `port`. Every piece above had its own test while the product
+  could not migrate anything: the suite was green and `port` had never
+  executed on a live job once. A test per part does not add up to a test of
+  the whole, and this is the one that fails when it stops working.
 
 Roughly a hundred of the current 297 tests describe the n8n contract, the
 webhooks, the proxy and the File API. They go with it. That rewrite, not the
