@@ -50,6 +50,7 @@ def run_job(
                     ctx.prior_answers[step.id] = result.answer
                 continue
             ctx.last_failure = result.output or ""
+            failed_at = index - 1
             for lane in cartridge.on_failure.pipeline:
                 if lane.when and lane.when not in flags:
                     continue
@@ -58,7 +59,13 @@ def run_job(
                 if _PARKED in handled.flags:
 
                     return _PARKED
-            index = names.index(cartridge.on_failure.retry.resume_at)
+            # Never past the step that failed. `resume_at` says how far back
+            # to rewind, and a cartridge picks a step late enough to skip the
+            # expensive work — but a failure *before* that step means the
+            # work was never done. The stock flow resumes at `lint`, so an
+            # `understand` that failed used to retry a lint of a module
+            # `port` had not written yet, five identical laps in a row.
+            index = min(names.index(cartridge.on_failure.retry.resume_at), failed_at)
             finished = False
             break
         if finished:

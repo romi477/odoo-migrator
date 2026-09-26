@@ -154,3 +154,86 @@ def test_a_parked_job_stops_the_loop_without_spending_an_attempt():
 
     assert outcome == "waiting_for_human"
     assert ran.count("diagnose") == 1
+
+
+STOCK_SHAPE = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: understand
+    sessions: [old]
+    tools: [exec]
+    prompt: read
+  - step: agent
+    id: port
+    sessions: [new]
+    tools: [write_file]
+    prompt: port
+  - step: lint
+  - step: upgrade
+  - step: verdict
+on_failure:
+  pipeline:
+    - step: agent
+      id: diagnose
+      sessions: [new]
+      tools: [exec]
+      prompt: why
+  retry:
+    resume_at: lint
+"""
+
+
+def run_with(text: str, ctx, fails, *, retry_limit: int = 3):
+    """`fails` is a set of labels that fail the first time they run."""
+    ran: list[str] = []
+    seen: set[str] = set()
+    cartridge = load_cartridge(text)
+
+    def resolve(kind: str):
+        def runner(step, current):
+            del current
+            label = step.id or step.kind
+            ran.append(label)
+            if label in fails and label not in seen:
+                seen.add(label)
+
+                return StepResult(ok=False, output=f"{label} failed")
+
+            return StepResult(ok=True)
+
+        return runner
+
+    outcome = run_job(cartridge, ctx, retry_limit=retry_limit, resolve=resolve)
+
+    return outcome, ran
+
+
+def test_a_failure_before_resume_at_does_not_skip_the_step_that_does_the_work():
+    """`port` writes the module. Resuming at `lint` after `understand` failed
+    used to lint a directory `port` had never written."""
+    outcome, ran = run_with(STOCK_SHAPE, loop_ctx(), fails={"understand"})
+
+    assert ran[:2] == ["understand", "diagnose"]
+    assert ran[2:] == ["understand", "port", "lint", "upgrade", "verdict"]
+    assert outcome == "passed"
+
+
+def test_a_failure_after_resume_at_still_rewinds_to_it():
+    outcome, ran = run_with(STOCK_SHAPE, loop_ctx(), fails={"upgrade"})
+
+    assert ran[:4] == ["understand", "port", "lint", "upgrade"]
+    assert ran[4] == "diagnose"
+    assert ran[5] == "lint"
+    assert "port" not in ran[5:]
+    assert outcome == "passed"
+
+
+def test_a_failure_on_resume_at_itself_retries_that_step():
+    outcome, ran = run_with(STOCK_SHAPE, loop_ctx(), fails={"lint"})
+
+    assert ran[ran.index("diagnose") + 1] == "lint"
+    assert outcome == "passed"
