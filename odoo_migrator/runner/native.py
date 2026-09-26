@@ -398,6 +398,7 @@ class NativeRunner:
             row.flags = json.dumps(sorted(result.flags))
             row.tokens_in = result.tokens_in
             row.tokens_out = result.tokens_out
+            row.tokens_cached = result.tokens_cached
             row.save()
 
 

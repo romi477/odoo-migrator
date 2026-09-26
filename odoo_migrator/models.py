@@ -218,6 +218,9 @@ class StepRun(BaseModel):
     flags = TextField(default="")
     tokens_in = IntegerField(default=0)
     tokens_out = IntegerField(default=0)
+    # Cache reads are most of a long step's input and are billed differently.
+    # The providers report it; nothing used to store it.
+    tokens_cached = IntegerField(default=0)
     cost_cents = IntegerField(default=0)
 
 

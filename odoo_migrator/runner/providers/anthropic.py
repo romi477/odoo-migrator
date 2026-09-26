@@ -64,26 +64,36 @@ class AnthropicProvider:
             kwargs["max_iterations"] = budget.tool_calls
         client = anthropic.Anthropic(api_key=_key())
         runner = client.beta.messages.tool_runner(**kwargs)
+        overspent = False
         try:
-            final = runner.until_done()
+            # Every turn, not the last one. `until_done()` hands back the
+            # final message, and reading usage off that dropped everything
+            # the tool loop spent getting there — which on a long step is
+            # nearly all of it. The token budget has nowhere else to be
+            # enforced either: the SDK caps iterations, not tokens.
+            for turn in runner:
+                _add_usage(turn.get_final_message(), usage)
+                if budget.tokens is not None and _spent(usage) > budget.tokens:
+                    overspent = True
+                    break
         except anthropic.APIError as exc:
             if captured:
 
                 return _from_report(report, captured, usage)
 
-            return StepResult(ok=False, output=str(exc))
-        _note_usage(final, usage)
-        if not captured:
+            return StepResult(ok=False, output=str(exc), **_counts(usage))
+        if captured:
 
-            return StepResult(
-                ok=False,
-                output="stopped at the tool-call budget",
-                tokens_in=usage["in"],
-                tokens_out=usage["out"],
-                tokens_cached=usage["cached"],
-            )
+            return _from_report(report, captured, usage)
+        if overspent:
 
-        return _from_report(report, captured, usage)
+            return StepResult(ok=False, output="stopped at the token budget", **_counts(usage))
+
+        return StepResult(
+            ok=False,
+            output="the step ended without a report",
+            **_counts(usage),
+        )
 
 
 def _key() -> str:
@@ -128,14 +138,28 @@ def _report_beta(beta_tool, report: ReportTool, captured: dict):
     )
 
 
-def _note_usage(message, usage: dict) -> None:
+def _add_usage(message, usage: dict) -> None:
     counted = getattr(message, "usage", None)
     if counted is None:
 
         return
-    usage["in"] = int(getattr(counted, "input_tokens", 0) or 0)
-    usage["out"] = int(getattr(counted, "output_tokens", 0) or 0)
-    usage["cached"] = int(getattr(counted, "cache_read_input_tokens", 0) or 0)
+    usage["in"] += int(getattr(counted, "input_tokens", 0) or 0)
+    usage["out"] += int(getattr(counted, "output_tokens", 0) or 0)
+    usage["cached"] += int(getattr(counted, "cache_read_input_tokens", 0) or 0)
+
+
+def _spent(usage: dict) -> int:
+
+    return usage["in"] + usage["out"]
+
+
+def _counts(usage: dict) -> dict:
+
+    return {
+        "tokens_in": usage["in"],
+        "tokens_out": usage["out"],
+        "tokens_cached": usage["cached"],
+    }
 
 
 def _from_report(report: ReportTool, payload: dict, usage: dict) -> StepResult:
@@ -149,7 +173,5 @@ def _from_report(report: ReportTool, payload: dict, usage: dict) -> StepResult:
         ok=True,
         flags=flags,
         answer=str(payload.get("answer") or ""),
-        tokens_in=usage["in"],
-        tokens_out=usage["out"],
-        tokens_cached=usage["cached"],
+        **_counts(usage),
     )

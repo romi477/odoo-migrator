@@ -95,16 +95,11 @@ def test_an_agent_step_hands_the_system_prompt_to_its_provider(monkeypatch):
 def test_anthropic_sends_it_as_the_system_parameter(monkeypatch):
     kwargs_seen = {}
 
-    class _Runner:
-        def until_done(self):
-
-            return SimpleNamespace(usage=None)
-
     class _Messages:
         def tool_runner(self, **kwargs):
             kwargs_seen.update(kwargs)
 
-            return _Runner()
+            return iter(())
 
     class _Client:
         def __init__(self, api_key=None):
