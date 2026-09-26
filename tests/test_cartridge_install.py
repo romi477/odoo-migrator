@@ -83,3 +83,81 @@ def test_an_invalid_upload_is_refused_before_it_is_stored(client, migration):
     assert "step" in page.text
     with database.connection_context():
         assert CartridgeInstall.select().count() == 0
+
+
+def _migration_with(tmp_path, cartridge_id: str, version: str):
+    from odoo_migrator.db import database
+    from odoo_migrator.migrations import create_migration
+    from odoo_migrator.models import Migration
+
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    old.mkdir(exist_ok=True)
+    new.mkdir(exist_ok=True)
+    created = create_migration(
+        name="Acme",
+        accent="violet",
+        source_version="17.0",
+        target_version="18.0",
+        old_project_path=str(old),
+        new_project_path=str(new),
+    )
+    with database.connection_context():
+        row = Migration.get_by_id(created["id"])
+        row.cartridge_id = cartridge_id
+        row.cartridge_version = version
+        row.save()
+
+    return row
+
+
+def test_a_job_records_the_hash_of_the_stock_file_it_runs(client, tmp_path):
+    """An empty sha256 was on every job. Pinning exists to say which text
+    ran, and the stock file is a real cartridge with a real hash."""
+    del client
+    from odoo_migrator.cartridges import pinned_for
+    from odoo_migrator.jobs import _pinned_identity
+
+    migration = _migration_with(tmp_path, "stock", "1.0.0")
+
+    cartridge_id, version, sha = _pinned_identity(migration, None)
+
+    assert (cartridge_id, version) == ("stock", "1.0.0")
+    assert sha == pinned_for(migration).sha256
+    assert len(sha) == 64
+
+
+def test_the_runner_loads_the_cartridge_the_card_pinned(client, tmp_path, fake_sheller):
+    """The payload carries no text, so the runner used to load the stock file
+    whatever the card said: an imported cartridge was pinned, recorded and
+    drawn, and never run."""
+    del client
+    from odoo_migrator.cartridges import install_from_text
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Batch, Job, Module
+    from odoo_migrator.runner.native import NativeRunner
+
+    text = """
+cartridge: house
+version: 2.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: verdict
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: verdict
+"""
+    install_from_text(text)
+    migration = _migration_with(tmp_path, "house", "2.0.0")
+    with database.connection_context():
+        module = Module.create(migration=migration, technical_name="sale_custom")
+        batch = Batch.create(migration=migration, status="running")
+        job = Job.create(batch=batch, module=module, status="queued")
+
+    runner = NativeRunner(sheller=fake_sheller, hub=None)
+    loaded = runner._cartridge({"job_id": job.job_id})
+
+    assert loaded.cartridge == "house"
+    assert [step.kind for step in loaded.pipeline] == ["verdict"]

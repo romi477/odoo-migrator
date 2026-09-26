@@ -274,11 +274,22 @@ def _pinned_identity(migration, cartridge) -> tuple[str, str, str]:
         (CartridgeInstall.cartridge_id == wanted_id)
         & (CartridgeInstall.version == wanted_version)
     )
-    if row is None:
+    if row is not None:
+
+        return (row.cartridge_id, row.version, row.sha256 or "")
+    # No install row means the stock file, which is a real cartridge with a
+    # real hash. Recording an empty one left every job unable to say which
+    # text it ran — the one thing pinning exists for.
+    from odoo_migrator.cartridges import pinned_for
+    from odoo_migrator.runner.cartridge import CartridgeError
+
+    try:
+        loaded = pinned_for(migration)
+    except CartridgeError:
 
         return (wanted_id, wanted_version, "")
 
-    return (row.cartridge_id, row.version, row.sha256 or "")
+    return (wanted_id, wanted_version, loaded.sha256 or "")
 
 
 def recorded_pair(migration) -> tuple[str, str]:

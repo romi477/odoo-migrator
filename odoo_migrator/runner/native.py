@@ -13,8 +13,7 @@ from odoo_migrator.events import EventHub
 from odoo_migrator.jobs import apply_progress, apply_result
 from odoo_migrator.models import CheckpointMessage, Job, Migration, Module, StepRun, ToolCall
 from odoo_migrator.module_paths import module_root
-from odoo_migrator.paths import repo_dir
-from odoo_migrator.runner.cartridge import load_cartridge, load_cartridge_file
+from odoo_migrator.runner.cartridge import load_cartridge
 from odoo_migrator.runner.context import StepContext
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.registry import resolve
@@ -236,12 +235,25 @@ class NativeRunner:
             ctx.write_keys[side] = opened["write_key"]
 
     def _cartridge(self, payload: dict):
+        """The cartridge this migration pinned, not always the stock file.
+
+        The payload carries no text, so this used to load
+        ``cartridges/stock.yaml`` whatever the card said — an imported
+        cartridge was pinned, recorded on the job, drawn on Flow, and never
+        run. ``pinned_for`` is the same lookup the screens use.
+        """
         text = payload.get("cartridge_text")
         if text:
 
             return load_cartridge(text)
+        from odoo_migrator.cartridges import pinned_for
 
-        return load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
+        with database.connection_context():
+            job = Job.get(Job.job_id == payload["job_id"])
+            module = Module.get_by_id(job.module_id)
+            migration = Migration.get_by_id(module.migration_id)
+
+        return pinned_for(migration)
 
     def _model_client(self, cartridge):
         """Resolve the client, but only for a cartridge that has agent steps.
