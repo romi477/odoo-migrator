@@ -51,12 +51,14 @@ def resume_waiter(job_id: str, answer: str) -> bool:
 class NativeRunner:
     """``start`` returns at once. The job runs on its own thread."""
 
-    def __init__(self, *, sheller, hub: EventHub, progress=None, result=None, client=None):
+    def __init__(self, *, sheller, hub: EventHub, progress=None, result=None, provider=None):
         self.sheller = sheller
         self.hub = hub
         self._progress = progress or (lambda body: apply_progress(body, hub))
         self._result = result or (lambda body: apply_result(body, hub))
-        self.client = client
+        # Only a test passes one. A live run asks the registry for the
+        # provider the cartridge names, step by step.
+        self.provider = provider
         self._threads: dict[str, threading.Thread] = {}
         self._errors: dict[str, BaseException] = {}
 
@@ -255,23 +257,6 @@ class NativeRunner:
 
         return pinned_for(migration)
 
-    def _model_client(self, cartridge):
-        """Resolve the client, but only for a cartridge that has agent steps.
-
-        ``client`` may be a factory: building it reads the key from settings
-        and refuses when there is none, and a cartridge of deterministic steps
-        should not be stopped by a missing key it never needed.
-        """
-        lanes = list(cartridge.pipeline) + list(cartridge.on_failure.pipeline)
-        if not any(step.kind == "agent" for step in lanes):
-
-            return None
-        if callable(self.client):
-
-            return self.client()
-
-        return self.client
-
     def _context(self, payload: dict, cartridge) -> StepContext:
         with database.connection_context():
             job = Job.get(Job.job_id == payload["job_id"])
@@ -343,7 +328,7 @@ class NativeRunner:
             write_keys={},
             session_targets=targets,
             emit=lambda event: self.hub.publish(event.get("kind", "event"), event),
-            client=self._model_client(cartridge),
+            provider=self.provider,
             record_tool=record,
             wait_for_human=wait_for_human,
         )

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from odoo_migrator.runner.agent import MAX_OUTPUT_TOKENS
 from odoo_migrator.runner.cartridge import Budget
 from odoo_migrator.runner.context import StepResult
 from odoo_migrator.runner.providers.base import SettingField
 from odoo_migrator.runner.tools import BoundTool, ReportTool
 
 _EFFORT = "high"
+# The cap on one response, which is not the budget for the step. The models
+# top out at 128K, so passing a 200K run budget as `max_tokens` is a 400.
+MAX_OUTPUT_TOKENS = 64_000
 
 
 class NoModelClient(RuntimeError):

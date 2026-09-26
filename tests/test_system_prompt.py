@@ -40,7 +40,7 @@ def _ctx(**extra):
         ),
         "module": SimpleNamespace(technical_name="sale_custom", old_path="", new_path=""),
         "cartridge": SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-opus-5")),
-        "client": None,
+        "provider": None,
         "prior_answers": {},
         "last_answer": "",
         "last_failure": "",

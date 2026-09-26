@@ -296,7 +296,7 @@ def test_an_agent_step_does_not_own_last_failure(monkeypatch):
         migration=SimpleNamespace(provider_override="", model_override=""),
         module=SimpleNamespace(technical_name="sale_custom"),
         cartridge=SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-opus-5")),
-        client=None,
+        provider=None,
         prior_answers={},
         last_answer="",
         last_failure="upgrade failed",

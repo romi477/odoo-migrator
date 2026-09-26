@@ -12,6 +12,7 @@ from odoo_migrator.runner.cartridge import ModelRef, Step, load_cartridge, load_
 from odoo_migrator.runner.context import StepContext
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.prompting import build_context, resolve_model
+from odoo_migrator.runner.providers.scripted import ScriptedProvider
 from odoo_migrator.sheller.fake import FakeShellerClient
 
 _MINIMAL = """
@@ -174,7 +175,7 @@ def loop_ctx(tmp_path):
             sessions={"old": old["id"], "new": new["id"]},
             write_keys={"old": old["write_key"], "new": new["write_key"]},
             emit=lambda _event: None,
-            client=ModelDouble(always_reports=True),
+            provider=ScriptedProvider(ModelDouble(always_reports=True)),
         )
 
     return build

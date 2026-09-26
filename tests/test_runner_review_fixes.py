@@ -12,10 +12,10 @@ import pytest
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Migration, Module
-from odoo_migrator.runner.agent import MAX_OUTPUT_TOKENS, NoModelClient, run_agent
 from odoo_migrator.runner.cartridge import Budget, Step, load_cartridge
 from odoo_migrator.runner.context import StepContext
 from odoo_migrator.runner.prompting import MAX_TOOL_CALLS, budget_for
+from odoo_migrator.runner.providers.anthropic import MAX_OUTPUT_TOKENS, NoModelClient
 from odoo_migrator.runner.snapshot import diff, snapshot
 from odoo_migrator.runner.steps import ask_human
 from odoo_migrator.runner.tools import ToolRefused, tools_for
@@ -163,13 +163,15 @@ def test_the_output_cap_is_not_the_run_budget():
     assert MAX_OUTPUT_TOKENS <= 128_000
 
 
-def test_an_agent_step_without_a_client_says_so(app, tmp_path):
-    sheller = FakeShellerClient()
-    ctx = _ctx(tmp_path, sheller)
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["exec"], prompt="x")
+def test_an_agent_step_with_no_key_says_so(app, tmp_path, monkeypatch):
+    """There is no client object to be missing any more: a provider that is
+    not ready refuses before it spends anything."""
+    from odoo_migrator.runner.providers.anthropic import AnthropicProvider
 
-    with pytest.raises(NoModelClient):
-        run_agent(step, ctx, client=None, model="claude-opus-5", budget=Budget())
+    monkeypatch.setattr("odoo_migrator.runner.providers.anthropic._key", lambda: "")
+
+    with pytest.raises(NoModelClient, match="settings page"):
+        AnthropicProvider().ensure_ready()
 
 
 def test_ask_human_asks_with_the_last_agent_answer(app, tmp_path):

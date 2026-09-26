@@ -113,14 +113,14 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
     prompt = step.prompt
     if rendered:
         prompt = f"{rendered}\n\n{prompt}" if prompt else rendered
-    from odoo_migrator.runner.providers import ScriptedProvider, get
+    from odoo_migrator.runner.providers import get
     from odoo_migrator.runner.tools import report_tool, tools_for
 
-    if getattr(ctx.client, "scripted", False):
-        provider = ScriptedProvider(ctx.client)
-    else:
-        provider = get(resolve_provider(step, ctx))
-        provider.ensure_ready()
+    # `ctx.provider` is an injected `Provider`, never a client object to be
+    # sniffed for a `scripted` attribute. The branch that did that was the
+    # one place a test drove a different loop than a live run.
+    provider = ctx.provider or get(resolve_provider(step, ctx))
+    provider.ensure_ready()
     result = provider.run_step(
         system=system_prompt(step, ctx),
         prompt=prompt,

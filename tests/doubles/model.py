@@ -2,15 +2,13 @@
 
 
 class ModelDouble:
-    """Stands in for the Anthropic client inside ``run_agent``.
+    """The turns a `ScriptedProvider` replays.
 
     ``always_calls`` asks for the same tool on every turn, which is how a
     budget test proves the loop terminates. ``turns`` is a list of
     ``{"name", "input"}`` actions consumed in order; an empty list, or a
     turn with no tool, is a model that returned nothing useful.
     """
-
-    scripted = True
 
     def __init__(
         self,

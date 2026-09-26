@@ -1,4 +1,7 @@
-"""The agent turn ends on report, or on the budget when the model never does."""
+"""The agent turn ends on report, or on the budget when the model never does.
+
+The double is a provider, so these run the same `run_step` a live turn does.
+"""
 
 import pytest
 from doubles.model import ModelDouble
@@ -6,10 +9,24 @@ from doubles.model import ModelDouble
 from odoo_migrator.db import database, init_db
 from odoo_migrator.migrations import create_migration
 from odoo_migrator.models import Migration, Module
-from odoo_migrator.runner.agent import run_agent
 from odoo_migrator.runner.cartridge import Budget, Step
 from odoo_migrator.runner.context import StepContext
+from odoo_migrator.runner.providers.scripted import ScriptedProvider
+from odoo_migrator.runner.tools import report_tool, tools_for
 from odoo_migrator.sheller.fake import FakeShellerClient
+
+
+def _run(step, ctx, model, budget):
+
+    return ScriptedProvider(model).run_step(
+        system="standing orders",
+        prompt=step.prompt,
+        tools=tools_for(step, ctx),
+        report=report_tool(step),
+        model="claude-opus-5",
+        budget=budget,
+    )
+
 
 AGENT_STEP = Step(
     kind="agent",
@@ -69,13 +86,7 @@ def test_a_step_that_never_converges_ends_at_the_budget(step_context):
     """A double that always asks for another tool call must not hang a run."""
     model = ModelDouble(always_calls="exec")
 
-    result = run_agent(
-        AGENT_STEP,
-        step_context(),
-        client=model,
-        model="claude-opus-5",
-        budget=Budget(tool_calls=5),
-    )
+    result = _run(AGENT_STEP, step_context(), model, Budget(tool_calls=5))
 
     assert result.ok is False
     assert "budget" in result.output.lower()
@@ -98,7 +109,7 @@ def test_a_report_ends_the_step_with_its_flags(step_context):
         prompt="x",
     )
 
-    result = run_agent(step, step_context(), client=model, model="claude-opus-5", budget=Budget())
+    result = _run(step, step_context(), model, Budget())
 
     assert result.ok is True
     assert result.answer == "done"

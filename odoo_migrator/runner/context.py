@@ -30,8 +30,10 @@ class StepContext:
     last_answer: str = ""
     previous_diff: str = ""
     last_failure: str = ""
-    # The model client for agent steps. Deterministic steps never touch it.
-    client: object = None
+    # A provider to use instead of the one the cartridge names. Only a test
+    # sets this, and what it sets is a real `Provider`, so the step runs the
+    # same code a live turn does.
+    provider: object = None
     # Seconds one exec may take before it is interrupted. None uses the
     # catalog's own ceiling.
     command_timeout: float | None = None

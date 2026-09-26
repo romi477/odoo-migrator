@@ -10,6 +10,7 @@ from odoo_migrator.jobs import answer_job
 from odoo_migrator.migrations import create_migration
 from odoo_migrator.models import Batch, Job, Migration, Module, ToolCall
 from odoo_migrator.runner.native import NativeRunner
+from odoo_migrator.runner.providers.scripted import ScriptedProvider
 
 _CARTRIDGE = """
 cartridge: t
@@ -72,7 +73,7 @@ def native_job(app, fake_sheller, tmp_path):
             {"name": "report", "input": {"answer": "ported"}},
         ]
     )
-    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub, client=model)
+    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub, provider=ScriptedProvider(model))
     runner.start({"job_id": job.job_id, "cartridge_text": _CARTRIDGE})
 
     return job, runner
@@ -109,7 +110,7 @@ def parked_job(app, fake_sheller, tmp_path):
             {"name": "report", "input": {"answer": "done"}},
         ]
     )
-    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub, client=model)
+    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub, provider=ScriptedProvider(model))
     runner.start({"job_id": job.job_id, "cartridge_text": _ASKS})
     for _ in range(200):
         if reloaded(job).status == "waiting_for_human":
