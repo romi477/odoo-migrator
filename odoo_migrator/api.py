@@ -1152,6 +1152,8 @@ def create_app(
         cartridge_id: str | None = Form(None),
         cartridge_version: str | None = Form(None),
         model_webhook_path: str | None = Form(None),
+        old_database: str | None = Form(None),
+        new_database: str | None = Form(None),
         provider_override: str | None = Form(None),
         model_override: str | None = Form(None),
     ):
@@ -1184,6 +1186,8 @@ def create_app(
             cartridge_id=cartridge_id,
             cartridge_version=cartridge_version,
             model_webhook_path=model_webhook_path,
+            old_database=old_database,
+            new_database=new_database,
             provider_override=provider_override,
             model_override=model_override,
         ) is None:

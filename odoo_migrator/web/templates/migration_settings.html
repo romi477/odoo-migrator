@@ -103,6 +103,21 @@
         read it at the checkpoint.</p>
       </li>
       <li>
+        <label>Source database
+          <input type="text" name="old_database" value="{{ expanded.old_database }}"
+                 placeholder="from the container's odoo.conf" autocomplete="off">
+        </label>
+        <label>Target database
+          <input type="text" name="new_database" value="{{ expanded.new_database }}"
+                 placeholder="from the container's odoo.conf" autocomplete="off">
+        </label>
+        <p class="field-hint">Leave blank to use the database each container's
+        own <code>odoo.conf</code> names. One Postgres often holds dozens, and a
+        config without <code>db_name</code> is ordinary — then this is the only
+        way to say which one. A name that is not there is refused when the run
+        starts, and the refusal lists what the container does have.</p>
+      </li>
+      <li>
         <label>Flow
           <select name="cartridge_id">
             {% for item in cartridges %}

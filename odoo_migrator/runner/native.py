@@ -360,26 +360,30 @@ class NativeRunner:
         """
         owner = {"kind": "agent", "migration_id": migration.id}
         targets = {}
-        for side, container in (
-            ("old", migration.old_container),
-            ("new", migration.new_container),
+        for side, container, chosen in (
+            ("old", migration.old_container, migration.old_database),
+            ("new", migration.new_container, migration.new_database),
         ):
             if not container:
                 raise RuntimeError(f"the {side} container of this migration is not up")
             probed = self.sheller.probe(container)
-            database_name = probed.get("db_name") or ""
             known = probed.get("databases") or []
-            # The configured name is not a database that exists. Opening a
-            # shell on it starts a process that dies at once, and the only
-            # thing the job used to record was session_dead.
+            # The card first, then the container's own odoo.conf. A config
+            # without `db_name` is ordinary and one Postgres commonly holds
+            # dozens of databases, so the probe cannot be the only answer.
+            database_name = (chosen or "").strip() or (probed.get("db_name") or "")
             if not database_name:
                 raise RuntimeError(
-                    f"the {side} container {container} has no database configured"
+                    f"the {side} container {container} names no database in its "
+                    f"config, and the migration card names none either. "
+                    f"{_choices(known)}"
                 )
+            # Opening a shell on a database that is not there starts a process
+            # that dies at once, and all the job could record was session_dead.
             if known and database_name not in known:
                 raise RuntimeError(
-                    f"database {database_name!r} does not exist on the {side} "
-                    f"container {container}"
+                    f"database {database_name!r} is not on the {side} container "
+                    f"{container}. {_choices(known)}"
                 )
             targets[side] = {
                 "container": container,
@@ -412,6 +416,23 @@ class NativeRunner:
             row.tokens_out = result.tokens_out
             row.tokens_cached = result.tokens_cached
             row.save()
+
+
+# Enough to recognise the one that was meant; a shared Postgres can hold
+# dozens, and the whole list would bury the sentence in front of it.
+_SHOWN = 12
+
+
+def _choices(known: list) -> str:
+    if not known:
+
+        return "It reports no databases at all."
+    listed = ", ".join(str(name) for name in known[:_SHOWN])
+    if len(known) > _SHOWN:
+
+        return f"It has {len(known)}, among them: {listed}."
+
+    return f"It has: {listed}."
 
 
 def _module_root(ctx: StepContext) -> Path | None:

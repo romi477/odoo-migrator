@@ -81,6 +81,11 @@ class Migration(BaseModel):
     new_project_path = TextField()
     old_container = CharField(default="")
     new_container = CharField(default="")
+    # Which database on each side. Empty means the one the container's own
+    # odoo.conf names. One Postgres commonly holds dozens, and a config
+    # without `db_name` is ordinary, so this cannot only be probed.
+    old_database = CharField(default="")
+    new_database = CharField(default="")
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)
     model_webhook_path = TextField(default="")

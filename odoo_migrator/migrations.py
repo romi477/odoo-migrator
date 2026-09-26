@@ -28,6 +28,8 @@ def _row(migration: Migration) -> dict:
         "cartridge_id": migration.cartridge_id or "stock",
         "cartridge_version": migration.cartridge_version or "1.0.0",
         "model_webhook_path": migration.model_webhook_path or "migrate-module",
+        "old_database": migration.old_database or "",
+        "new_database": migration.new_database or "",
         "provider_override": migration.provider_override or "",
         "model_override": migration.model_override or "",
     }
@@ -286,6 +288,8 @@ def save_migration_settings(
     cartridge_id: str | None = None,
     cartridge_version: str | None = None,
     model_webhook_path: str | None = None,
+    old_database: str | None = None,
+    new_database: str | None = None,
     provider_override: str | None = None,
     model_override: str | None = None,
 ) -> dict | None:
@@ -314,6 +318,13 @@ def save_migration_settings(
             row.cartridge_version = cartridge_version.strip() or None
         if model_webhook_path is not None:
             row.model_webhook_path = model_webhook_path.strip()
+        # A blank field means the container's own config, which is what the
+        # hint under it says. There is nothing to validate here: whether the
+        # database exists is answered by the probe, at the start of a run.
+        if old_database is not None:
+            row.old_database = old_database.strip()
+        if new_database is not None:
+            row.new_database = new_database.strip()
         if provider_override is not None or model_override is not None:
             provider = (provider_override or "").strip()
             name = (model_override if model_override is not None else row.model_override).strip()
