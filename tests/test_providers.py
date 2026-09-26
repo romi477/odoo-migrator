@@ -80,6 +80,7 @@ def test_scripted_converges_on_report():
     step = _step(raises=["needs_human"])
 
     result = ScriptedProvider(client).run_step(
+        system="",
         prompt="x",
         tools=tools_for(step, _ctx()),
         report=report_tool(step),
@@ -94,6 +95,7 @@ def test_scripted_converges_on_report():
 
 def test_scripted_can_fail_to_converge():
     result = ScriptedProvider(ModelDouble(turns=[])).run_step(
+        system="",
         prompt="x",
         tools=[],
         report=report_tool(_step()),
@@ -107,6 +109,7 @@ def test_scripted_can_fail_to_converge():
 
 def test_scripted_stops_at_the_tool_budget():
     result = ScriptedProvider(ModelDouble(always_calls="exec")).run_step(
+        system="",
         prompt="x",
         tools=[BoundTool("exec", lambda **_kwargs: "ok")],
         report=report_tool(_step()),
@@ -129,6 +132,7 @@ def test_scripted_returns_a_refused_tool():
     client = ModelDouble(turns=[{"name": "exec", "input": {"side": "old", "code": "1"}}])
 
     result = ScriptedProvider(client).run_step(
+        system="",
         prompt="x",
         tools=tools,
         report=report_tool(step),
@@ -217,6 +221,7 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
         return "ok"
 
     result = CursorProvider().run_step(
+        system="",
         prompt="port it",
         tools=[BoundTool("exec", _exec)],
         report=report_tool(step),
@@ -234,6 +239,7 @@ def test_cursor_without_a_key_does_not_call_the_sdk(monkeypatch):
     monkeypatch.setattr("odoo_migrator.runner.providers.cursor._key", lambda: "")
     with pytest.raises(RuntimeError, match="Cursor API key"):
         CursorProvider().run_step(
+            system="",
             prompt="x",
             tools=[],
             report=report_tool(_step()),

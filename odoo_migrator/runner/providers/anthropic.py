@@ -34,6 +34,7 @@ class AnthropicProvider:
     def run_step(
         self,
         *,
+        system: str,
         prompt: str,
         tools: list[BoundTool],
         report: ReportTool,
@@ -57,6 +58,8 @@ class AnthropicProvider:
             "output_config": {"effort": _EFFORT},
             "stream": True,
         }
+        if system:
+            kwargs["system"] = system
         if budget.tool_calls is not None:
             kwargs["max_iterations"] = budget.tool_calls
         client = anthropic.Anthropic(api_key=_key())

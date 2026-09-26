@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from odoo_migrator.rules import assemble_rules
+from odoo_migrator.rules import assemble_rules, load_system_prompt
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
@@ -81,6 +81,26 @@ def budget_for(step: Step, ctx: StepContext) -> Budget:
     return Budget(tool_calls=min(calls, MAX_TOOL_CALLS), tokens=min(tokens, MAX_TOKENS))
 
 
+def system_prompt(step: Step, ctx: StepContext) -> str:
+    """The standing instruction, plus which module and versions this is.
+
+    ``prompts/system.md`` is the part that never changes; the line under it
+    is what a step cannot work without and the cartridge should not have to
+    repeat in every prompt it writes. Without any of this the model answers
+    in prose, never calls a tool, and the step ends with nothing reported.
+    """
+    standing = load_system_prompt().strip()
+    facts = (
+        f"## This run\n"
+        f"Module: {ctx.module.technical_name}\n"
+        f"Odoo {ctx.migration.source_version} (old) to "
+        f"{ctx.migration.target_version} (new)\n"
+        f"Step: {step.id or step.kind}"
+    )
+
+    return f"{standing}\n\n{facts}"
+
+
 def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
     """One agent step: render its context, then let the model report."""
     rendered = build_context(step, ctx)
@@ -96,6 +116,7 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
         provider = get(resolve_provider(step, ctx))
         provider.ensure_ready()
     result = provider.run_step(
+        system=system_prompt(step, ctx),
         prompt=prompt,
         tools=tools_for(step, ctx),
         report=report_tool(step),

@@ -37,10 +37,18 @@ class Provider(Protocol):
     def run_step(
         self,
         *,
+        system: str,
         prompt: str,
         tools: list[BoundTool],
         report: ReportTool,
         model: str,
         budget: Budget,
     ) -> StepResult:
-        """Run one turn. The step ends when the model calls ``report``."""
+        """Run one turn. The step ends when the model calls ``report``.
+
+        ``system`` is the standing instruction for every step of every
+        cartridge: what the agent is, that a tool is the only way to see
+        anything, and that a step ends with ``report``. A provider whose
+        SDK has no system field prepends it to ``prompt`` rather than
+        dropping it.
+        """

@@ -30,13 +30,14 @@ class ScriptedProvider:
     def run_step(
         self,
         *,
+        system: str,
         prompt: str,
         tools: list[BoundTool],
         report: ReportTool,
         model: str,
         budget: Budget,
     ) -> StepResult:
-        del prompt, model
+        del system, prompt, model
         by_name = {tool.name: tool for tool in tools}
         limit = budget.tool_calls
         while True:

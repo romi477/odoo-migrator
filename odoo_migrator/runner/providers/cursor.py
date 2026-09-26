@@ -40,6 +40,7 @@ class CursorProvider:
     def run_step(
         self,
         *,
+        system: str,
         prompt: str,
         tools: list[BoundTool],
         report: ReportTool,
@@ -102,7 +103,12 @@ class CursorProvider:
                     )
                 )
                 try:
-                    result = agent.send(prompt or "").wait()
+                    # ``AgentOptions`` has no system field, so the standing
+                    # instruction rides at the head of the first message.
+                    # Dropping it would leave this provider's agent the only
+                    # one that was never told how a step ends.
+                    opening = f"{system}\n\n{prompt}" if system else (prompt or "")
+                    result = agent.send(opening).wait()
                 finally:
                     agent.close()
             except CursorAgentError as exc:

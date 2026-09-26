@@ -40,6 +40,7 @@ def run_agent(
     from odoo_migrator.runner.providers.scripted import ScriptedProvider
 
     return ScriptedProvider(client).run_step(
+        system="",
         prompt=step.prompt or "",
         tools=tools_for(step, ctx),
         report=report_tool(step),
