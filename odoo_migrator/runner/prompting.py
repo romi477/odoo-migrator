@@ -135,8 +135,10 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
         # What `ask_human` asks with. Without it a checkpoint showed a
         # constant string while the diagnosis sat in prior_answers unread.
         ctx.last_answer = result.answer
-    if not result.ok:
-        ctx.last_failure = result.output or ""
+    # `last_failure` belongs to the loop. Setting it here as well meant a
+    # `diagnose` that failed overwrote the failure it was called to explain,
+    # and the `patch` gated after it in the same lane read the diagnosis's
+    # own error as the thing to fix.
 
     return result
 

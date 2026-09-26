@@ -134,8 +134,38 @@ def test_a_gated_step_is_skipped_when_its_flag_is_not_raised():
     assert outcome == "passed"
 
 
-def test_the_retry_loop_actually_loops_and_stops_at_the_limit():
-    outcome, ran = run_recorded(ALWAYS_FAILS, loop_ctx(), retry_limit=3)
+def test_a_lane_that_changes_nothing_stops_instead_of_spending_every_attempt():
+    """`patch` runs, writes nothing, and the same `upgrade` fails again. The
+    live run proved this shape five times over, at 740K tokens."""
+    outcome, ran = run_recorded(ALWAYS_FAILS, loop_ctx(), retry_limit=5)
+
+    assert ran.count("lint") == 2
+    assert outcome == "failed"
+
+
+def test_the_retry_loop_spends_its_attempts_while_the_lane_keeps_working():
+    ran: list[str] = []
+    cartridge = load_cartridge(ALWAYS_FAILS)
+    ctx = loop_ctx()
+
+    def resolve(kind: str):
+        def runner(step, current):
+            label = step.id or step.kind
+            ran.append(label)
+            if label == "patch":
+                # A real patch writes files, which shows up as a new diff.
+                current.previous_diff = f"diff {len(ran)}"
+
+                return StepResult(ok=True)
+            if label == "upgrade":
+
+                return StepResult(ok=False, output="upgrade failed")
+
+            return StepResult(ok=True)
+
+        return runner
+
+    outcome = run_job(cartridge, ctx, retry_limit=3, resolve=resolve)
 
     assert ran.count("lint") == 3
     assert outcome == "failed"
@@ -237,3 +267,46 @@ def test_a_failure_on_resume_at_itself_retries_that_step():
 
     assert ran[ran.index("diagnose") + 1] == "lint"
     assert outcome == "passed"
+
+
+def test_an_agent_step_does_not_own_last_failure(monkeypatch):
+    """`diagnose` reads `last_failure`, and so does the `patch` gated after it
+    in the same lane. A diagnose that failed used to replace the upgrade's
+    error with its own, and the patch then fixed the wrong thing. The loop
+    sets this field; a step does not."""
+    from types import SimpleNamespace
+
+    from odoo_migrator.runner.cartridge import ModelRef, Step
+    from odoo_migrator.runner.prompting import run_agent_step
+
+    class _Provider:
+        def ensure_ready(self):
+
+            return None
+
+        def run_step(self, **_kwargs):
+
+            return StepResult(ok=False, output="diagnose crashed")
+
+    monkeypatch.setattr("odoo_migrator.runner.providers.get", lambda _name: _Provider())
+    monkeypatch.setattr(
+        "odoo_migrator.runner.prompting.system_prompt", lambda _step, _ctx: "standing"
+    )
+    ctx = SimpleNamespace(
+        migration=SimpleNamespace(provider_override="", model_override=""),
+        module=SimpleNamespace(technical_name="sale_custom"),
+        cartridge=SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-opus-5")),
+        client=None,
+        prior_answers={},
+        last_answer="",
+        last_failure="upgrade failed",
+        previous_diff="",
+        sessions={},
+    )
+
+    result = run_agent_step(
+        Step(kind="agent", id="diagnose", sessions=["new"], tools=[], prompt="why"), ctx
+    )
+
+    assert not result.ok
+    assert ctx.last_failure == "upgrade failed"
