@@ -138,6 +138,11 @@ class NativeRunner:
             # sat queued until a restart called it unknown.
             cartridge = self._cartridge(payload)
             ctx = self._context(payload, cartridge)
+            # Opened here rather than inside `_context`, so `ctx` is already
+            # bound when it happens. Opening the old side and then failing on
+            # the new one used to leave `ctx` unassigned, and the `finally`
+            # below closed nothing: a live odoo-bin stayed on the host.
+            self._open_sessions(ctx)
             outcome = run_job(
                 cartridge,
                 ctx,
@@ -330,7 +335,6 @@ class NativeRunner:
             record_tool=record,
             wait_for_human=wait_for_human,
         )
-        self._open_sessions(ctx)
 
         return ctx
 

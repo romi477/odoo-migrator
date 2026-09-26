@@ -19,6 +19,7 @@ from odoo_migrator.runner.prompting import MAX_TOOL_CALLS, budget_for
 from odoo_migrator.runner.snapshot import diff, snapshot
 from odoo_migrator.runner.steps import ask_human
 from odoo_migrator.runner.tools import ToolRefused, tools_for
+from odoo_migrator.sheller.errors import ShellerError
 from odoo_migrator.sheller.fake import FakeShellerClient
 
 
@@ -315,3 +316,50 @@ def test_a_huge_diff_does_not_go_into_the_prompt_whole(app, tmp_path):
 
     assert len(rendered) < MAX_DIFF_CHARS * 2
     assert "truncated" in rendered
+
+
+def test_a_session_opened_before_a_failed_open_is_still_closed(app, tmp_path, fake_sheller):
+    """`old` opens, `new` refuses. The runner used to leave the old shell
+    running: `ctx` was never assigned, so the `finally` closed nothing."""
+    from odoo_migrator.models import Batch, Job
+    from odoo_migrator.runner.native import NativeRunner
+
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    old.mkdir()
+    new.mkdir()
+    with database.connection_context():
+        migration = Migration.create(
+            name="Leak",
+            accent_color="oklch(0.70 0.15 305)",
+            source_version="17.0",
+            target_version="18.0",
+            old_project_path=str(old),
+            new_project_path=str(new),
+            old_container="odoo-old",
+            new_container="odoo-new",
+        )
+        module = Module.create(migration=migration, technical_name="sale_custom")
+        batch = Batch.create(migration=migration, status="running")
+        job = Job.create(batch=batch, module=module, status="queued")
+
+    real_open = fake_sheller.open_session
+    opened: list[str] = []
+
+    def open_once(**kwargs):
+        if opened:
+            raise ShellerError("the new container refused a session", status=409)
+        row = real_open(**kwargs)
+        opened.append(row["id"])
+
+        return row
+
+    fake_sheller.open_session = open_once
+
+    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub)
+    runner.start({"job_id": job.job_id})
+    with pytest.raises(ShellerError):
+        runner.wait(job.job_id)
+
+    assert opened
+    assert opened[0] in fake_sheller.closes
