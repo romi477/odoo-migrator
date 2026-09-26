@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from odoo_migrator.module_paths import module_root, relative_to_root
 from odoo_migrator.rules import assemble_rules, load_system_prompt
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
@@ -95,6 +96,11 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
         f"Module: {ctx.module.technical_name}\n"
         f"Odoo {ctx.migration.source_version} (old) to "
         f"{ctx.migration.target_version} (new)\n"
+        # The paths `read_file` and `write_file` take. A project that keeps
+        # its addons in a subdirectory is the common shape, and a model told
+        # only the module's name writes one level too high.
+        f"Its directory on the old side: {relative_to_root(ctx.migration, ctx.module, 'old')}\n"
+        f"Its directory on the new side: {relative_to_root(ctx.migration, ctx.module, 'new')}\n"
         f"Step: {step.id or step.kind}"
     )
 
@@ -191,15 +197,8 @@ def _clipped(text: str, limit: int) -> str:
 
 
 def _old_root(ctx: StepContext) -> Path | None:
-    if ctx.module.old_path:
 
-        return Path(ctx.module.old_path)
-    project = ctx.migration.old_project_path
-    if not project:
-
-        return None
-
-    return Path(project) / ctx.module.technical_name
+    return module_root(ctx.migration, ctx.module, "old")
 
 
 def _prior_answers(ctx: StepContext) -> str:

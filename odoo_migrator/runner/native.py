@@ -12,6 +12,7 @@ from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
 from odoo_migrator.jobs import apply_progress, apply_result
 from odoo_migrator.models import CheckpointMessage, Job, Migration, Module, StepRun, ToolCall
+from odoo_migrator.module_paths import module_root
 from odoo_migrator.paths import repo_dir
 from odoo_migrator.runner.cartridge import load_cartridge, load_cartridge_file
 from odoo_migrator.runner.context import StepContext
@@ -398,12 +399,5 @@ class NativeRunner:
 
 def _module_root(ctx: StepContext) -> Path | None:
     """Where this module lives inside the target project."""
-    if ctx.module.new_path:
 
-        return Path(ctx.module.new_path)
-    project = ctx.migration.new_project_path
-    if not project:
-
-        return None
-
-    return Path(project) / ctx.module.technical_name
+    return module_root(ctx.migration, ctx.module, "new")

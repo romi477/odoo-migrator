@@ -6,6 +6,7 @@ import ast
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
@@ -36,15 +37,8 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
 
 def _module_root(ctx: StepContext) -> Path | None:
-    if ctx.module.new_path:
 
-        return Path(ctx.module.new_path)
-    project = ctx.migration.new_project_path
-    if not project:
-
-        return None
-
-    return Path(project) / ctx.module.technical_name
+    return module_root(ctx.migration, ctx.module, "new")
 
 
 def _python(path: Path, relative: str) -> list[str]:
