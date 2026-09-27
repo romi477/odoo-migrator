@@ -158,3 +158,25 @@ def test_a_checkout_reads_its_own_directories():
 
     assert paths.rules_dir() == PACKAGING.parent / "rules"
     assert paths.cartridges_dir() == PACKAGING.parent / "cartridges"
+
+
+def test_an_installed_build_promotes_into_the_user_directory(tmp_path, monkeypatch):
+    """No checkout, so the rules come from the wheel. That directory belongs
+    to the install and is replaced by the next one."""
+    from odoo_migrator import paths
+
+    monkeypatch.setattr(paths, "repo_dir", lambda: tmp_path / "site-packages")
+    monkeypatch.setattr(paths, "user_dir", lambda: tmp_path / "home")
+
+    assert paths.rules_overlay_dir() == tmp_path / "home" / "rules"
+
+
+def test_a_checkout_writes_its_rules_where_they_are_reviewed(tmp_path, monkeypatch):
+    from odoo_migrator import paths
+
+    checkout = tmp_path / "checkout"
+    (checkout / "rules").mkdir(parents=True)
+    monkeypatch.setattr(paths, "repo_dir", lambda: checkout)
+
+    assert paths.rules_overlay_dir() is None
+    assert paths.rules_dir() == checkout / "rules"

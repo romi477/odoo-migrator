@@ -6,6 +6,7 @@ from pathlib import Path
 
 from odoo_migrator.paths import prompts_dir as default_prompts_dir
 from odoo_migrator.paths import rules_dir as default_rules_dir
+from odoo_migrator.paths import rules_overlay_dir
 
 
 class RulesError(Exception):
@@ -26,6 +27,33 @@ class MissingRulesError(RulesError):
 
 class MissingPromptError(RulesError):
     """prompts/system.md is missing. The payload cannot invent a prompt."""
+
+
+def _layers(rules_dir: Path | None) -> list[Path]:
+    """Where a rules file is looked for, nearest first.
+
+    An installed build reads its rules from inside the wheel and cannot keep
+    anything there: the next upgrade replaces that directory. A promoted
+    finding is written to the overlay instead, and read back from in front of
+    the build's copy. A checkout has no overlay — the files in git are both.
+    """
+    if rules_dir is not None:
+
+        return [Path(rules_dir)]
+    overlay = rules_overlay_dir()
+    base = default_rules_dir()
+
+    return [overlay, base] if overlay is not None else [base]
+
+
+def _find(name: str, layers: list[Path]) -> Path | None:
+    for directory in layers:
+        candidate = directory / name
+        if candidate.is_file():
+
+            return candidate
+
+    return None
 
 
 @dataclass(frozen=True)
@@ -112,12 +140,12 @@ def assemble_rules(
     there, so a build that lost it ran every step without the rules that
     tell the agent how to find things out, and nothing said so.
     """
-    directory = Path(rules_dir) if rules_dir is not None else default_rules_dir()
+    layers = _layers(rules_dir)
     versions = _versions(source, target)
     last = len(versions) - 1
-    common = directory / "common.md"
-    if not common.is_file():
-        raise MissingRulesError(f"No shared rules file: {common}")
+    common = _find("common.md", layers)
+    if common is None:
+        raise MissingRulesError(f"No shared rules file: {layers[-1] / 'common.md'}")
     docs = [
         RuleDoc(
             version="common",
@@ -126,9 +154,11 @@ def assemble_rules(
         )
     ]
     for index, version in enumerate(versions):
-        path = directory / f"{version}.md"
-        if not path.is_file():
-            raise MissingRulesError(f"No rules file for {version}: {path}")
+        path = _find(f"{version}.md", layers)
+        if path is None:
+            raise MissingRulesError(
+                f"No rules file for {version}: {layers[-1] / f'{version}.md'}"
+            )
         docs.append(
             RuleDoc(version=version, role=_role(index, last), text=path.read_text(encoding="utf-8"))
         )
@@ -161,14 +191,22 @@ def append_finding(
     on nobody can tell which run produced it. A comment, so it does not
     become a heading in the prompt the model reads.
     """
-    directory = Path(rules_dir) if rules_dir is not None else default_rules_dir()
+    layers = _layers(rules_dir)
     _parse(version)
     body = (text or "").strip()
     if not body:
         raise RulesError("That finding has no text to promote.")
-    path = directory / f"{version}.md"
-    if not path.is_file():
-        raise MissingRulesError(f"No rules file for {version}: {path}")
+    name = f"{version}.md"
+    found = _find(name, layers)
+    if found is None:
+        raise MissingRulesError(f"No rules file for {version}: {layers[-1] / name}")
+    # The nearest layer is the one that survives an upgrade. When the file
+    # is only in the build, the overlay starts as a copy of it, so the
+    # promoted paragraph is appended to the rules as they were sent.
+    path = layers[0] / name
+    if path != found:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(found.read_text(encoding="utf-8"), encoding="utf-8")
     current = path.read_text(encoding="utf-8")
     if current and not current.endswith("\n"):
         current += "\n"

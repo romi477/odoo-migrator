@@ -135,7 +135,9 @@ They accumulate inside one job and stay on that job. At
 checkpoint you **Promote** a finding into a version file you pick. The
 next module's prompt includes that text. Editing a rules file mid-batch
 changes the next module; the hash on the job records what this one
-actually saw.
+actually saw. In a checkout the file written is the one in git. An
+installed build cannot keep anything inside itself, so Promote writes to
+`~/.odoo-migrator/rules/` and that copy is read first.
 
 **`sync` vs `batch_defer`?**
 

@@ -70,6 +70,13 @@ Curate it into the right section and keep that comment: it is the only
 record of which run produced the paragraph. Promote does not write to
 `common.md`.
 
+Where it lands depends on where the app runs from. In a checkout it is the
+file here, which is why these files are reviewable at all. An installed
+build reads its rules from inside the package, so Promote writes to
+`~/.odoo-migrator/rules/<version>.md` — a copy of this file plus the new
+paragraph — and the app reads that copy in front of the build's. Bringing
+one back means copying the paragraph here by hand.
+
 ## Tests
 
 `tests/test_rules.py` covers assembly and the shipped stacks with it. Run it

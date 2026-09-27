@@ -8,6 +8,7 @@ from odoo_migrator.rules import (
     MissingRulesError,
     RulesError,
     SameVersionError,
+    append_finding,
     assemble_rules,
     load_system_prompt,
 )
@@ -185,3 +186,70 @@ def test_shipped_rules_assemble_nineteen_to_twenty():
     assert docs[-1].role == "target"
     assert "ir.access" in docs[-1].text
     assert "is_company" in docs[-1].text
+
+
+def _overlay(monkeypatch, directory):
+    monkeypatch.setattr("odoo_migrator.rules.rules_overlay_dir", lambda: directory)
+
+
+def test_the_overlay_is_read_in_front_of_the_builds_own_copy(tmp_path, monkeypatch):
+    """An installed build reads its rules from inside the wheel. Anything
+    written for this machine lives beside the database instead."""
+    build = tmp_path / "bundled"
+    _write(build, "17.0", "the build's 17.0\n")
+    _write(build, "18.0", "the build's 18.0\n")
+    (build / "common.md").write_text("shared\n", encoding="utf-8")
+    overlay = tmp_path / "home" / "rules"
+    _write(overlay, "18.0", "promoted 18.0\n")
+    monkeypatch.setattr("odoo_migrator.rules.default_rules_dir", lambda: build)
+    _overlay(monkeypatch, overlay)
+
+    docs = assemble_rules("17.0", "18.0")
+
+    assert [doc.text for doc in docs] == [
+        "shared\n",
+        "the build's 17.0\n",
+        "promoted 18.0\n",
+    ]
+
+
+def test_promote_writes_where_an_upgrade_will_not_replace_it(tmp_path, monkeypatch):
+    """Appending to the copy inside site-packages loses the finding at the
+    next install, and fails outright when that directory is read-only."""
+    build = tmp_path / "bundled"
+    _write(build, "18.0", "# 18.0\nthe build's rules\n")
+    (build / "common.md").write_text("shared\n", encoding="utf-8")
+    _write(build, "17.0", "17\n")
+    overlay = tmp_path / "home" / "rules"
+    monkeypatch.setattr("odoo_migrator.rules.default_rules_dir", lambda: build)
+    _overlay(monkeypatch, overlay)
+
+    written = append_finding("18.0", "`state` is not a field on that model.", module="sale_custom")
+
+    assert written == overlay / "18.0.md"
+    assert (build / "18.0.md").read_text(encoding="utf-8") == "# 18.0\nthe build's rules\n"
+    # The overlay starts as a copy, so the promoted line is appended to the
+    # rules as they were sent, not to an otherwise empty file.
+    kept = written.read_text(encoding="utf-8")
+    assert "the build's rules" in kept
+    assert "not a field on that model" in kept
+    assert "promoted from sale_custom" in kept
+    assert assemble_rules("17.0", "18.0")[-1].text == kept
+
+
+def test_promote_still_refuses_a_version_no_layer_has(tmp_path, monkeypatch):
+    build = tmp_path / "bundled"
+    _write(build, "18.0", "18\n")
+    monkeypatch.setattr("odoo_migrator.rules.default_rules_dir", lambda: build)
+    _overlay(monkeypatch, tmp_path / "home" / "rules")
+
+    with pytest.raises(MissingRulesError, match="19.0"):
+        append_finding("19.0", "something")
+
+
+def test_a_checkout_has_no_overlay_and_promote_lands_in_git():
+    """The rules are reviewed in git. Writing this machine's copy instead
+    would take them out of review without saying so."""
+    from odoo_migrator.paths import rules_overlay_dir
+
+    assert rules_overlay_dir() is None

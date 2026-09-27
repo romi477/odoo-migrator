@@ -77,8 +77,13 @@ sends two version entries (source + target); 16→19 sends four. The app
 concatenates those, stamps a hash of that stack on the job, and renders
 the text into the prompt. `rules/common.md` is sent once in front of the
 versions: shared context, not a version, and not a file Promote writes to.
-Like a version file, it is required: a stack without it is refused. Promoting a finding at checkpoint asks which version
-file.
+Like a version file, it is required: a stack without it is refused.
+
+Promoting a finding at checkpoint asks which version file. In a checkout
+that file is the one in git, where it is reviewed. An installed build reads
+its rules from inside the package, which the next upgrade replaces and which
+is often not writable, so Promote writes to `~/.odoo-migrator/rules/`
+instead and the app reads that copy in front of the build's own.
 
 ## Cartridges and providers
 

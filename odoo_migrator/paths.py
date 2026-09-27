@@ -50,6 +50,25 @@ def repo_dir() -> Path:
     return package_dir().parent
 
 
+def user_dir() -> Path:
+    """This machine's own directory, beside the database and ``.env``.
+
+    What the app writes that is not part of the build lives here. A build
+    directory is replaced by the next upgrade.
+    """
+
+    return Path.home() / ".odoo-migrator"
+
+
+def _checkout(name: str) -> Path | None:
+    checkout = repo_dir() / name
+    if checkout.is_dir():
+
+        return checkout
+
+    return None
+
+
 def _data_dir(name: str) -> Path:
     """The checkout's ``name/`` when there is one, else the copy in the package.
 
@@ -58,8 +77,8 @@ def _data_dir(name: str) -> Path:
     against the checkout used to find nothing in an installed build: no rules,
     no system prompt, no stock cartridge — the first job refused to start.
     """
-    checkout = repo_dir() / name
-    if checkout.is_dir():
+    checkout = _checkout(name)
+    if checkout is not None:
 
         return checkout
     bundled = package_dir() / f"bundled_{name}"
@@ -67,7 +86,7 @@ def _data_dir(name: str) -> Path:
 
         return bundled
 
-    return checkout
+    return repo_dir() / name
 
 
 def rules_dir() -> Path:
@@ -83,3 +102,20 @@ def prompts_dir() -> Path:
 def cartridges_dir() -> Path:
 
     return _data_dir("cartridges")
+
+
+def rules_overlay_dir() -> Path | None:
+    """Where a promoted finding goes when there is no checkout to write to.
+
+    In a checkout the rules are the files in git and Promote appends to them
+    there, which is the point of keeping them reviewable. An installed build
+    reads them from inside the wheel: a directory the next upgrade replaces,
+    and often one the process cannot write to at all. Promote would have
+    appended a finding to it and lost it without saying so. A file here is
+    read in front of the build's own copy.
+    """
+    if _checkout("rules") is not None:
+
+        return None
+
+    return user_dir() / "rules"

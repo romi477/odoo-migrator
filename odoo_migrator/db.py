@@ -4,12 +4,14 @@ from pathlib import Path
 
 from peewee import SqliteDatabase
 
+from odoo_migrator.paths import user_dir
+
 database = SqliteDatabase(None)
 
 
 def default_db_path() -> Path:
 
-    return Path.home() / ".odoo-migrator" / "migrator.sqlite"
+    return user_dir() / "migrator.sqlite"
 
 
 def default_env_path() -> Path:
