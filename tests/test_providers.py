@@ -165,8 +165,9 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
             self.custom_tools = custom_tools
 
     class AgentOptions:
-        def __init__(self, model, api_key, tools, local):
+        def __init__(self, model, api_key, tools, local, mode=None):
             captured["tools"] = tools
+            captured["mode"] = mode
             captured["custom"] = local.custom_tools
 
     class _Result:
@@ -230,6 +231,8 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
     )
 
     assert captured["tools"] == []
+    # Built-in tools off, custom tools on, and acting rather than planning.
+    assert captured["mode"] == "agent"
     assert "exec" in captured["custom"]
     assert result.ok
     assert result.answer == "ported"

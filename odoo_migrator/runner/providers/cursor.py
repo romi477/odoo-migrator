@@ -95,6 +95,15 @@ class CursorProvider:
                     AgentOptions(
                         model=model,
                         api_key=_key(),
+                        # `mode` is 'agent' or 'plan', and unset takes
+                        # whatever the service defaults to. A step of this
+                        # runner always wants the agent to act: `plan`
+                        # answers in prose and calls nothing, which is what
+                        # a step with no report looks like from here.
+                        mode="agent",
+                        # The built-in toolset only. `custom_tools` below is
+                        # a separate field and is not affected: the catalog
+                        # is what this agent may touch.
                         tools=[],
                         local=LocalAgentOptions(
                             cwd=Path(cwd),
@@ -185,6 +194,7 @@ def _account(result, calls: int, offered: list[str]) -> str:
     rows = [
         f"status: {getattr(result, 'status', '')}",
         f"model: {getattr(result, 'model', '')}",
+        "mode: agent",
         f"duration_ms: {getattr(result, 'duration_ms', '')}",
         f"tool calls made: {calls}",
         f"tools offered: {', '.join(offered)}",
