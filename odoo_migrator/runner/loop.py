@@ -86,6 +86,7 @@ def run_job(
         ctx.attempt = attempt
         ctx.log_errors = []
         flags: set[str] = set()
+        ctx.lap_flags = flags
         finished = True
         while index < len(pipeline):
             step = pipeline[index]

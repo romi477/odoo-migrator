@@ -36,15 +36,18 @@ _HINTS = {
     ),
     "probe": (
         "Only when the module has no tests. Replays the understand recipe on "
-        "both versions and reports every difference."
+        "both versions and reports every difference. A real one raises "
+        "behaviour_differs, and the verdict fails the lap on it."
     ),
     "write_test": (
         "Only when the module has no tests. Turns the replayed recipe into a "
         "real test in the ported module and runs it."
     ),
     "verdict": (
-        "Judges the lap. At strictness strict it fails when probe left no "
-        "answer. basic and enhanced add no check of their own."
+        "Judges the lap. It fails when probe raised behaviour_differs, at "
+        "every strictness. An error in Odoo's log fails it above basic and "
+        "is a finding at basic. At strict it also fails when probe left no "
+        "answer."
     ),
     "diagnose": (
         "Works out why the lap failed, from the log, the journal, the source, "

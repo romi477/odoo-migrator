@@ -40,6 +40,16 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     failing the lap; `enhanced` and `strict` fail it.
     """
     level = (ctx.module.strictness or ctx.migration.strictness_default or "basic").strip()
+    if "behaviour_differs" in ctx.lap_flags:
+        # At every level. For a module without tests this is the only
+        # evidence of behaviour there is, and a module that behaves
+        # differently is not ported however cleanly it installs.
+        found = (ctx.prior_answers.get("probe") or "").strip() or "(the probe gave no detail)"
+
+        return StepResult(
+            ok=False,
+            output=f"the probe found behaviour that differs between the versions:\n{found}",
+        )
     if ctx.log_errors:
         shown = "\n".join(ctx.log_errors[:_SHOWN])
         more = len(ctx.log_errors) - _SHOWN

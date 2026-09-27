@@ -13,6 +13,9 @@ from odoo_migrator.runner.tools import TOOL_SIDES
 DETERMINISTIC = ("lint", "upgrade", "tests", "verdict", "ask_human")
 KINDS = DETERMINISTIC + ("agent",)
 BUILTIN_FLAGS = {"no_tests": "tests", "tests_failed": "tests", "lint_failed": "lint"}
+# Flags a deterministic step reads, by that step's kind. A cartridge raises
+# them; the step is what gives them a meaning.
+BUILTIN_READS = {"behaviour_differs": "verdict"}
 CONTEXT_ITEMS = (
     "rules",
     "module_source",
@@ -188,6 +191,10 @@ def _refuse_invalid(loaded: Cartridge) -> None:
     for flag in sorted(read):
         if flag not in vocabulary:
             raise CartridgeError(f"unknown flag '{flag}' is not raised")
+    # A deterministic step that gives a flag its meaning reads it too. It is
+    # not a `when`, so it does not need the flag raised to be valid.
+    kinds = {step.kind for step in steps}
+    read |= {flag for flag, kind in BUILTIN_READS.items() if kind in kinds}
     for flag in sorted(raised - read):
         raise CartridgeError(f"flag '{flag}' is raised and never read")
     names = {_label(step) for step in loaded.pipeline}

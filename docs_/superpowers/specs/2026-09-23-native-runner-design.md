@@ -571,6 +571,12 @@ steps whose outcomes the app itself interprets:
 | `tests_failed` | `tests` |
 | `lint_failed` | `lint` |
 
+One flag goes the other way: a deterministic step reads it.
+
+| flag | read by |
+|---|---|
+| `behaviour_differs` | `verdict` — the lap fails at every strictness. In the stock flow `probe` raises it when the port does something the original did not, or when the fixture recipe will not replay on the target. For a module without tests `probe` is the only evidence of behaviour; without the flag the verdict meant "installs and upgrades", while the product promises a comparison against two live containers |
+
 Everything else is a cartridge's own, declared in an agent step's `raises`
 and validated against the same file. `small_fix` and `start_over` are
 mutually exclusive by the rule that makes them useful: the diagnosis picks
@@ -593,8 +599,9 @@ at load time with a message naming the alternatives, never a crash mid-run:
    step's `raises` **in this file**. This catches the likeliest error such a
    file has, a typo in a flag name, which would otherwise be a step that
    silently never runs.
-6. A flag declared in `raises` that no `when` ever reads. Dead branch logic,
-   and usually the other half of the same typo.
+6. A flag declared in `raises` that no `when` ever reads, and no
+   deterministic step in the file reads either. Dead branch logic, and
+   usually the other half of the same typo.
 7. `retry.resume_at` does not name a step in `pipeline`.
 8. An `agent` step without a prompt; a deterministic step with one. The
    second is a typo, and swallowing it lets someone believe they changed

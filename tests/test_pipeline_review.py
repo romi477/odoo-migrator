@@ -1024,3 +1024,89 @@ on_failure:
     with database.connection_context():
         diff = Attempt.select().where(Attempt.job == job.id).first().diff
     assert "-x = 1" in diff and "+x = 2" in diff
+
+
+# -- probe: a difference in behaviour fails the lap ----------------------------
+
+
+@pytest.mark.parametrize("level", ["basic", "enhanced", "strict"])
+def test_a_difference_the_probe_found_fails_the_lap(ctx_for, level):
+    ctx = ctx_for()
+    ctx.migration.strictness_default = level
+    ctx.prior_answers["probe"] = "amount_total is 110 on 17.0 and 100 on 18.0"
+    ctx.lap_flags = {"no_tests", "behaviour_differs"}
+
+    result = verdict.run(Step(kind="verdict"), ctx)
+
+    assert result.ok is False
+    assert "amount_total is 110" in result.output
+
+
+def test_the_stock_probe_raises_the_flag_the_verdict_reads():
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+
+    assert "behaviour_differs" in stock.step_by_id("probe").raises
+    assert "rules" in stock.step_by_id("probe").context
+
+
+def test_a_flag_only_verdict_reads_needs_a_verdict_in_the_file():
+    text = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: probe
+    sessions: [new]
+    tools: [exec]
+    raises: [behaviour_differs]
+    prompt: probe
+%s
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: probe
+"""
+    assert load_cartridge(text % "  - step: verdict")
+    with pytest.raises(CartridgeError, match="never read"):
+        load_cartridge(text % "")
+
+
+def test_the_loop_hands_the_verdict_this_laps_flags(ctx_for):
+    lap = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: probe
+    sessions: [new]
+    tools: [exec]
+    raises: [behaviour_differs]
+    prompt: probe
+  - step: verdict
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: probe
+"""
+    ctx = ctx_for()
+    ctx.cartridge = load_cartridge(lap)
+    ctx.provider = _Scripted(
+        [
+            StepResult(ok=True, answer="totals differ", flags={"behaviour_differs"}),
+            StepResult(ok=True, answer="same on both sides"),
+        ]
+    )
+
+    outcome = run_job(ctx.cartridge, ctx, retry_limit=3)
+
+    # Lap one fails on the flag; lap two raised none, so it passes.
+    assert outcome == "passed"
+    assert ctx.attempt == 2

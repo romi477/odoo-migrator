@@ -42,12 +42,20 @@ pipeline:
     when: no_tests
     sessions: [old, new]
     tools: [exec, source, reopen, rollback]
-    context: [prior_answers]
+    context: [rules, prior_answers]
+    raises: [behaviour_differs]
     prompt: |
       This module ships no tests. Replay the fixture recipe from the
       understand step on both sides, call the same methods on each, and
       report every difference. A recipe that will not replay on the new
       version is a failure worth reporting on its own.
+
+      Raise behaviour_differs when the ported module does something the
+      original did not, or when the recipe will not replay on the new
+      version. Leave it unset when both sides answered the same, and say
+      in your answer what you compared. A difference the target version
+      makes on purpose, written in the rules, is not one: name it and
+      leave the flag unset.
 
   - step: agent
     id: write_test
