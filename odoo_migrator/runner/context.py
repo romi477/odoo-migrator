@@ -42,6 +42,9 @@ class StepContext:
     # ERROR and CRITICAL records Odoo logged during this lap's upgrade and
     # tests. `verdict` fails a lap that has any; the loop clears it per lap.
     log_errors: list[str] = field(default_factory=list)
+    # What the job reports besides its verdict: `{"text", "source"}`, as the
+    # result payload's findings. The checkpoint shows them.
+    findings: list[dict] = field(default_factory=list)
     # Set by the native runner so a tool call lands on the step that made it.
     step_run_id: int | None = None
     # The same step, by name, for the run log.

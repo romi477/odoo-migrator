@@ -185,9 +185,10 @@ def _bind(name: str, step, ctx):
             value = _dispatch(name, ctx, side, kwargs)
         except ToolRefused:
             raise
-        # UnicodeDecodeError is a ValueError: a binary file under the module
-        # is an answer to give the model, not a crash of the step.
-        except (ShellerError, OSError, ValueError) as exc:
+        # A binary file under the module is an answer to give the model, not
+        # a crash of the step. Named, not ValueError: that would hand our own
+        # bugs to the model as if they were its mistakes.
+        except (ShellerError, OSError, UnicodeDecodeError) as exc:
             _record(ctx, name, side, ran_in, "", _elapsed(started), False, str(exc))
 
             return f"error: {exc}"

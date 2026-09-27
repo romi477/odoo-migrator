@@ -328,21 +328,65 @@ def test_a_ready_session_is_left_alone(ctx_for):
 # -- verdict: the baseline is no errors in the log ---------------------------
 
 
-def test_a_lap_that_logged_an_error_does_not_pass(ctx_for):
+_RECORDS = [
+    "2026-09-27 10:00:00,001 7 INFO acme odoo.modules.loading: loading",
+    "2026-09-27 10:00:00,002 7 ERROR acme odoo.addons.base: view invalid",
+]
+
+
+@pytest.mark.parametrize("level", ["enhanced", "strict"])
+def test_an_error_in_the_log_fails_the_lap_above_basic(ctx_for, level):
     ctx = ctx_for()
-    verdict.note_log_errors(
-        ctx,
-        [
-            "2026-09-27 10:00:00,001 7 INFO acme odoo.modules.loading: loading",
-            "2026-09-27 10:00:00,002 7 ERROR acme odoo.addons.base: view invalid",
-        ],
-    )
+    ctx.migration.strictness_default = level
+    ctx.prior_answers["probe"] = "same on both sides"
+    verdict.note_log_errors(ctx, _RECORDS)
 
     result = verdict.run(Step(kind="verdict"), ctx)
 
     assert result.ok is False
     assert "view invalid" in result.output
     assert "loading" not in result.output
+    assert ctx.findings == []
+
+
+def test_at_basic_an_error_in_the_log_is_a_finding(ctx_for):
+    """On a shared database the record is often another module's."""
+    ctx = ctx_for()
+    verdict.note_log_errors(ctx, _RECORDS)
+
+    result = verdict.run(Step(kind="verdict"), ctx)
+
+    assert result.ok is True
+    assert len(ctx.findings) == 1
+    assert "view invalid" in ctx.findings[0]["text"]
+    assert ctx.findings[0]["source"] == "verdict: odoo log"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Traceback: psycopg2.errors.ERROR during the query",
+        "    raise UserError('ERROR in the wizard')",
+        "FAIL: test_total (ERROR expected) ",
+        "odoo.sql_db: ERROR bad query",
+    ],
+)
+def test_the_word_alone_is_not_a_log_record(ctx_for, line):
+    ctx = ctx_for()
+
+    verdict.note_log_errors(ctx, [line])
+
+    assert ctx.log_errors == []
+
+
+def test_a_coloured_record_still_counts(ctx_for):
+    ctx = ctx_for()
+
+    verdict.note_log_errors(
+        ctx, ["2026-09-27 10:00:00,002 7 \x1b[1;31mERROR\x1b[0m acme odoo.sql_db: bad query"]
+    )
+
+    assert len(ctx.log_errors) == 1
 
 
 def test_a_clean_lap_passes(ctx_for):
@@ -412,6 +456,20 @@ def test_a_project_path_with_a_tilde_is_the_home_directory(ctx_for, monkeypatch,
     written = write(side="new", path="sale_custom/x.py", content="x = 1\n")
 
     assert written == str((home / "proj" / "sale_custom" / "x.py").resolve())
+
+
+def test_our_own_value_error_is_not_handed_to_the_model(ctx_for, monkeypatch):
+    ctx = ctx_for()
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["exec"], prompt="p")
+    (run,) = tools_for(step, ctx)
+
+    def broken(*_args, **_kwargs):
+        raise ValueError("a bug in the runner")
+
+    monkeypatch.setattr("odoo_migrator.runner.tools._dispatch", broken)
+
+    with pytest.raises(ValueError, match="a bug in the runner"):
+        run(side="new", code="1")
 
 
 def test_reading_a_binary_file_is_an_answer_not_a_crash(ctx_for):
@@ -762,3 +820,126 @@ on_failure:
     assert rows and rows[0].finished_at is not None
     assert rows[0].ok is False
     assert "provider fell over" in rows[0].output
+
+
+# -- the two project roots ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("repo", "repo"),
+        ("repo/v17", "repo"),
+        ("repo", "repo/v18"),
+        ("repo/./v17/..", "repo"),
+    ],
+)
+def test_overlapping_project_roots_are_refused(tmp_path, old, new):
+    """With a new root at or above the old one, the module found under the
+    new root is the old module, and `fresh` empties it."""
+    from odoo_migrator.migrations import ProjectPathsError
+
+    init_db(tmp_path / "roots.sqlite")
+    with pytest.raises(ProjectPathsError):
+        create_migration(
+            name="Acme",
+            accent="violet",
+            source_version="17.0",
+            target_version="18.0",
+            old_project_path=str(tmp_path / old),
+            new_project_path=str(tmp_path / new),
+        )
+
+
+def test_siblings_are_fine(tmp_path):
+    init_db(tmp_path / "roots.sqlite")
+
+    assert create_migration(
+        name="Acme",
+        accent="violet",
+        source_version="17.0",
+        target_version="18.0",
+        old_project_path=str(tmp_path / "repo" / "v17"),
+        new_project_path=str(tmp_path / "repo" / "v18"),
+    )
+
+
+def test_the_form_says_why_it_refused_the_roots(client, tmp_path):
+    response = client.post(
+        "/migrations",
+        data={
+            "name": "Acme",
+            "accent": "violet",
+            "source_version": "17.0",
+            "target_version": "18.0",
+            "old_project_path": str(tmp_path / "repo"),
+            "new_project_path": str(tmp_path / "repo"),
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    assert "same directory" in response.text
+
+
+def test_a_fresh_step_never_clears_the_old_module(ctx_for, sheller, tmp_path):
+    """A migration saved before the roots were checked can still overlap."""
+    from pathlib import Path
+
+    ctx = ctx_for()
+    old_module = tmp_path / "shared" / "sale_custom"
+    old_module.mkdir(parents=True)
+    (old_module / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    ctx.migration.old_project_path = str(tmp_path / "shared")
+    ctx.migration.new_project_path = str(tmp_path / "shared")
+    ctx.module.new_path = str(old_module)
+
+    _runner(sheller)._clear_module(ctx, "rewrite")
+
+    assert (Path(old_module) / "__manifest__.py").is_file()
+
+
+# -- the read snippet, against the one Sheller runs ----------------------------
+
+_SHELLER_MCP = "/opt/projects/odoo-sheller/odoo_sheller/mcp.py"
+
+
+def _code_lines(snippet: str) -> list[str]:
+
+    return [
+        line.rstrip()
+        for line in snippet.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("sale/models/sale_order.py", None, None, 10, 40, None),
+        ("sale", None, None, None, None, None),
+        (None, "sale.order", "action_confirm", None, None, "sale"),
+        (None, "sale.order", None, None, None, None),
+    ],
+)
+def test_the_snippet_is_still_the_one_sheller_runs(args):
+    """Copied, so it can drift. Checked when the sibling checkout is here."""
+    import ast
+    from pathlib import Path
+
+    from odoo_migrator.sheller.source import source_snippet
+
+    path = Path(_SHELLER_MCP)
+    if not path.is_file():
+        pytest.skip("no odoo-sheller checkout next to this one")
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    found = next(
+        (node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_source_snippet"),
+        None,
+    )
+    assert found is not None, "odoo-sheller no longer has _source_snippet"
+    namespace: dict = {}
+    exec(compile(ast.Module(body=[found], type_ignores=[]), _SHELLER_MCP, "exec"), namespace)  # noqa: S102
+    theirs = namespace["_source_snippet"](*args)
+
+    assert _code_lines(source_snippet(*args)) == _code_lines(theirs)

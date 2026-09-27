@@ -62,6 +62,7 @@ from odoo_migrator.jobs import (
     start_job,
 )
 from odoo_migrator.migrations import (
+    ProjectPathsError,
     archive_migration,
     create_migration,
     get_active,
@@ -357,7 +358,7 @@ def create_app(
         refused_with = {"creating": True, "typed": typed}
         try:
             created = create_migration(**typed)
-        except RulesError as refused:
+        except (RulesError, ProjectPathsError) as refused:
 
             return _overview(request, error=str(refused), **refused_with)
         if created is None:

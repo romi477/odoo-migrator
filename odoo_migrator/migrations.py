@@ -1,6 +1,7 @@
 """Active migrations. Each call opens its own connection_context."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from peewee import fn
 
@@ -237,6 +238,34 @@ def get_active(migration_id: str | None) -> dict | None:
         return _row(row)
 
 
+class ProjectPathsError(ValueError):
+    """The two project roots overlap. The old one is the only copy of the source."""
+
+
+def check_project_paths(old: str, new: str) -> None:
+    """Refuse two roots that are the same directory, or where one holds the other.
+
+    Nothing compared them while nothing wrote to the old side. A step marked
+    `fresh` empties the module's directory on the new side, and the module is
+    looked up under the new root: with equal roots, or a new root above the
+    old one, that directory is the old module — the only copy of its source.
+    `write_file` on the new side lands in it just the same.
+    """
+    old, new = (old or "").strip(), (new or "").strip()
+    if not old or not new:
+
+        return
+    old_root = Path(old).expanduser().resolve()
+    new_root = Path(new).expanduser().resolve()
+    if old_root == new_root:
+        raise ProjectPathsError("The old and the new project are the same directory.")
+    if old_root.is_relative_to(new_root) or new_root.is_relative_to(old_root):
+        raise ProjectPathsError(
+            "One project directory is inside the other. The port writes under the "
+            "new one, and must not be able to reach the old module's source."
+        )
+
+
 def create_migration(
     *,
     name: str,
@@ -252,6 +281,7 @@ def create_migration(
     # Refuse an impossible version pair here, where someone typed it, rather
     # than when the first job is assembled several screens later.
     check_versions(source_version.strip(), target_version.strip())
+    check_project_paths(old_project_path, new_project_path)
     with database.connection_context():
         row = Migration.create(
             name=name.strip(),

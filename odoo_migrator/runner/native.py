@@ -252,6 +252,7 @@ class NativeRunner:
                             "verdict": outcome,
                         }
                     ],
+                    "findings": list(ctx.findings),
                 }
             )
         self._log(
@@ -349,6 +350,21 @@ class NativeRunner:
             self._log(ctx.job_id, label, f"not clearing {root}: outside the new project", level="warn")
 
             return
+        # A migration created before the roots were checked against each
+        # other can still have them overlap, and the directory found under
+        # the new root is then the old module itself.
+        old_raw = str(ctx.migration.old_project_path or "").strip()
+        if old_raw:
+            old = Path(old_raw).expanduser().resolve()
+            if resolved.is_relative_to(old) or old.is_relative_to(resolved):
+                self._log(
+                    ctx.job_id,
+                    label,
+                    f"not clearing {root}: it is inside the old project {old}",
+                    level="error",
+                )
+
+                return
         if not (resolved / "__manifest__.py").is_file():
 
             return

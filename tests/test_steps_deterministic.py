@@ -79,8 +79,12 @@ def step_context(tmp_path, sheller_fake):
 
 
 def test_lint_fails_a_manifest_that_is_not_python(tmp_path, step_context):
-    (tmp_path / "__manifest__.py").write_text("{'name': 'x',", encoding="utf-8")
-    ctx = step_context(new_module_path=tmp_path)
+    # Not tmp_path itself: its parent would be the new project root, with the
+    # old project inside it, and overlapping roots are refused.
+    module_dir = tmp_path / "new" / "flat"
+    module_dir.mkdir(parents=True)
+    (module_dir / "__manifest__.py").write_text("{'name': 'x',", encoding="utf-8")
+    ctx = step_context(new_module_path=module_dir)
 
     result = lint.run(Step(kind="lint"), ctx)
 

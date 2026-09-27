@@ -7,8 +7,16 @@ import re
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
-# An Odoo log record: `<date> <time> <pid> ERROR <db> <logger>: <message>`.
-_LOG_ERROR = re.compile(r"\s(ERROR|CRITICAL)\s")
+# An Odoo log record, as odoo-bin writes it and Sheller passes it through:
+# `2026-09-27 10:00:00,123 1 ERROR acme odoo.addons.sale: ...`. Anchored on
+# the whole prefix: the bare word also turns up inside tracebacks and test
+# output, and failing a green lap on one of those costs more than missing a
+# record.
+_LOG_ERROR = re.compile(
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \d+ (?:ERROR|CRITICAL) \S+ \S+: "
+)
+# A terminal's colours, in case a container runs odoo-bin with them on.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 # Enough to recognise the problem; the whole log is in the run log already.
 _SHOWN = 20
 
@@ -16,30 +24,31 @@ _SHOWN = 20
 def note_log_errors(ctx: StepContext, lines) -> None:
     """Keep the ERROR and CRITICAL records a step's stderr carried."""
     for line in lines or ():
-        text = str(line)
-        if _LOG_ERROR.search(text):
-            ctx.log_errors.append(text.strip())
+        text = _ANSI.sub("", str(line)).strip()
+        if _LOG_ERROR.match(text):
+            ctx.log_errors.append(text)
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
-    """Baseline at every level: no errors in the log.
+    """Errors in the log: a finding at `basic`, a failed lap above it.
 
-    The product spec's done criteria put it in the baseline — the module
-    installs, upgrades, its tests pass, and Odoo logged no error doing it. A
-    view that fails to validate or a data file that raises during an upgrade
-    can log ERROR and still leave the module `installed`, and the lap used to
-    pass on that.
+    The product spec's baseline is that Odoo logged no error while the module
+    installed, upgraded and ran its tests. A view that fails to validate can
+    log ERROR and still leave the module `installed`, and the lap used to
+    pass on that silently. On a shared database the record is often another
+    module's, so `basic` writes it down for the checkpoint instead of
+    failing the lap; `enhanced` and `strict` fail it.
     """
+    level = (ctx.module.strictness or ctx.migration.strictness_default or "basic").strip()
     if ctx.log_errors:
         shown = "\n".join(ctx.log_errors[:_SHOWN])
         more = len(ctx.log_errors) - _SHOWN
         tail = f"\n(and {more} more)" if more > 0 else ""
+        said = f"Odoo logged {len(ctx.log_errors)} error(s) during this lap:\n{shown}{tail}"
+        if level != "basic":
 
-        return StepResult(
-            ok=False,
-            output=f"Odoo logged {len(ctx.log_errors)} error(s) during this lap:\n{shown}{tail}",
-        )
-    level = (ctx.module.strictness or ctx.migration.strictness_default or "basic").strip()
+            return StepResult(ok=False, output=said)
+        ctx.findings.append({"text": said, "source": "verdict: odoo log"})
     if level == "strict" and not (ctx.prior_answers.get("probe") or "").strip():
 
         return StepResult(
