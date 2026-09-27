@@ -183,11 +183,11 @@ fake Sheller, a fake compose engine, a stub executor. Doubles answer the
 way the real thing answers.
 
 A `@pytest.mark.live` test talks to a Sheller daemon that may already be
-serving on 8765. It depends on that daemon's sessions; skip it when the
-port is busy with someone else's work.
+serving on 8765. It depends on that daemon's sessions, so the default run
+leaves it out; run it on purpose:
 
 ```bash
-uv run pytest -m "not live"
+uv run pytest -m live
 ```
 
 ## API

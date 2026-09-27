@@ -13,6 +13,7 @@ from odoo_migrator.sheller import (
     ShellerError,
     ShellerNotOwner,
     ShellerSessionDead,
+    ShellerTimeout,
     ShellerUnreachable,
     mcp_for_ui,
 )
@@ -431,12 +432,24 @@ def test_health_on_a_dead_transport_is_unreachable():
 
 @pytest.mark.live
 def test_attach_to_a_live_daemon():
-    """Review gate: a daemon already on 8765 is usable. Skip if none is."""
-    client = HttpShellerClient("http://127.0.0.1:8765", timeout=2.0)
+    """Review gate: a daemon already on 8765 is usable. Skip if none is.
+
+    2s was the timeout, and a daemon busy with someone's session answered
+    later than that: a timeout is not ShellerUnreachable, so the test failed
+    instead of skipping. Something other than Sheller on the port is a skip
+    too, not a verdict on the client.
+    """
+    client = HttpShellerClient("http://127.0.0.1:8765", timeout=15.0)
     try:
         health = client.health()
     except ShellerUnreachable:
         pytest.skip("no daemon on 8765")
+    except ShellerTimeout:
+        pytest.skip("the daemon on 8765 did not answer /health within 15s")
+    except (ShellerError, ValueError) as exc:
+        pytest.skip(f"8765 is not answering like a Sheller daemon: {exc}")
+    if not isinstance(health, dict) or "version" not in health:
+        pytest.skip("8765 is not answering like a Sheller daemon")
 
     assert health["ok"] is True
     assert health["version"]

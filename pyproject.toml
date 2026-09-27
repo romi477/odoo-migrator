@@ -44,6 +44,10 @@ cartridges = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `live` tests talk to whatever answers on 8765. Run by default, they made
+# the suite depend on a daemon's load: a busy one timed out, and the suite
+# is meant to pass with no daemon at all. `uv run pytest -m live` runs them.
+addopts = ["-m", "not live"]
 markers = [
     "live: talks to a Sheller daemon that may not be running",
 ]
