@@ -48,7 +48,7 @@ class CursorProvider:
         budget: Budget,
     ) -> StepResult:
         self.ensure_ready()
-        from cursor_sdk import Agent, AgentOptions, CustomTool, LocalAgentOptions
+        from cursor_sdk import AgentOptions, Client, CustomTool, LocalAgentOptions
         from cursor_sdk.errors import CursorAgentError
         captured: dict = {}
         spent = {"calls": 0}
@@ -90,8 +90,20 @@ class CursorProvider:
         # Built-in tools are off, so this directory is only a cwd the SDK
         # requires. The agent reaches the project through the catalog.
         with tempfile.TemporaryDirectory(prefix="cursor-step-") as cwd:
+            # `Client.launch_bridge` and not the module-level `Agent.create`.
+            # The default client launches a bridge and then connects to it as
+            # a stranger, so it does not own it: registering custom tools
+            # falls into connect mode, which starts a *second* callback
+            # server in this process and repoints the bridge at it. The
+            # agent kept answering `Tool not available` for every one of
+            # them. An owned bridge registers the handlers on the server it
+            # was launched pointing at.
+            #
+            # One bridge per step. The provider is a registry singleton
+            # shared by every job, and a step already takes tens of seconds.
+            client = Client.launch_bridge(workspace=cwd)
             try:
-                agent = Agent.create(
+                agent = client.create_agent(
                     AgentOptions(
                         model=model,
                         api_key=_key(),
@@ -123,6 +135,8 @@ class CursorProvider:
             except CursorAgentError as exc:
 
                 return StepResult(ok=False, output=str(exc))
+            finally:
+                client.close()
         usage = getattr(result, "usage", None)
         tokens_in = int(getattr(usage, "input_tokens", 0) or 0)
         tokens_out = int(getattr(usage, "output_tokens", 0) or 0)

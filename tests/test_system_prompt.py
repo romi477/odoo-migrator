@@ -138,10 +138,8 @@ def test_cursor_has_no_system_field_so_it_leads_with_it(monkeypatch):
             return _Result()
 
     class _Agent:
-        @classmethod
-        def create(cls, options):
-
-            return cls()
+        def __init__(self, options=None):
+            pass
 
         def send(self, prompt):
             captured["prompt"] = prompt
@@ -153,6 +151,24 @@ def test_cursor_has_no_system_field_so_it_leads_with_it(monkeypatch):
             return None
 
     sdk = types.ModuleType("cursor_sdk")
+    class _Client:
+        # `Client.launch_bridge` is the owned-bridge path the provider must
+        # take: the default client does not own its bridge, and custom tools
+        # then register on a callback server the bridge never heard of.
+        @classmethod
+        def launch_bridge(cls, workspace=None):
+            captured["workspace"] = workspace
+
+            return cls()
+
+        def create_agent(self, options):
+
+            return _Agent(options)
+
+        def close(self):
+            captured["client_closed"] = True
+
+    sdk.Client = _Client
     sdk.Agent = _Agent
     sdk.AgentOptions = lambda **kwargs: SimpleNamespace(**kwargs)
     sdk.CustomTool = lambda execute, description=None, input_schema=None: SimpleNamespace(

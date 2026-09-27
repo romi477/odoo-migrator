@@ -181,11 +181,8 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
             return _Result()
 
     class _Agent:
-        @classmethod
-        def create(cls, options):
+        def __init__(self, options=None):
             captured["options"] = options
-
-            return cls()
 
         def send(self, prompt):
             captured["prompt"] = prompt
@@ -197,6 +194,24 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
             return None
 
     sdk = types.ModuleType("cursor_sdk")
+    class _Client:
+        # `Client.launch_bridge` is the owned-bridge path the provider must
+        # take: the default client does not own its bridge, and custom tools
+        # then register on a callback server the bridge never heard of.
+        @classmethod
+        def launch_bridge(cls, workspace=None):
+            captured["workspace"] = workspace
+
+            return cls()
+
+        def create_agent(self, options):
+
+            return _Agent(options)
+
+        def close(self):
+            captured["client_closed"] = True
+
+    sdk.Client = _Client
     sdk.Agent = _Agent
     sdk.AgentOptions = AgentOptions
     sdk.CustomTool = CustomTool
@@ -233,6 +248,10 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
     assert captured["tools"] == []
     # Built-in tools off, custom tools on, and acting rather than planning.
     assert captured["mode"] == "agent"
+    # The bridge is ours. With the default client it is not, and every
+    # custom tool came back "Tool not available" from the agent.
+    assert captured["workspace"]
+    assert captured["client_closed"]
     assert "exec" in captured["custom"]
     assert result.ok
     assert result.answer == "ported"
