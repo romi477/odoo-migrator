@@ -11,7 +11,7 @@ pipeline:
     id: understand
     sessions: [old]
     tools: [exec, source, run_test, list_tests, journal, read_file]
-    context: [module_source]
+    context: [rules, module_source]
     prompt: |
       You are reading a module on the old Odoo version. A live session is
       open: do not guess from source alone — call methods and look at what

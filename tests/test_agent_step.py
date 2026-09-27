@@ -8,6 +8,7 @@ from doubles.model import ModelDouble
 from odoo_migrator.db import database, init_db
 from odoo_migrator.migrations import create_migration
 from odoo_migrator.models import Migration, Module
+from odoo_migrator.rules import RuleDoc
 from odoo_migrator.runner.cartridge import ModelRef, Step, load_cartridge, load_cartridge_file
 from odoo_migrator.runner.context import StepContext
 from odoo_migrator.runner.loop import run_job
@@ -207,3 +208,50 @@ def test_the_stock_cartridge_runs_to_passed_against_doubles(loop_ctx):
 
     assert outcome == "passed"
     assert ran[:4] == ["understand", "port", "lint", "upgrade"]
+
+
+def test_a_version_file_cannot_escape_its_own_section(agent_ctx, monkeypatch):
+    """The wrapper used to be a `### 18.0` heading, outranked by the `## ORM`
+    the file itself carries. A 17.0 → 20.0 stack then rendered as four
+    unattributed `## ORM` sections, with 17.0's "do not rename it to
+    `aggregator`" sitting beside 18.0's "`group_operator` is now
+    `aggregator`" and nothing saying which version either belonged to.
+    """
+    docs = [
+        RuleDoc(version="common", role="context", text="# Shared\n## Holds\nboth\n"),
+        RuleDoc(version="17.0", role="source", text="# 17.0\n## ORM\nnot aggregator\n"),
+        RuleDoc(version="18.0", role="target", text="# 18.0\n## ORM\nnow aggregator\n"),
+    ]
+    monkeypatch.setattr(
+        "odoo_migrator.runner.prompting.assemble_rules", lambda *_a, **_k: docs
+    )
+    step = Step(kind="agent", id="port", context=["rules"], prompt="port")
+
+    rendered = build_context(step, agent_ctx())
+
+    older = rendered.split("--- rules/17.0.md")[1].split("--- end rules/17.0.md")[0]
+    assert "not aggregator" in older
+    assert "now aggregator" not in older
+    assert "--- end rules/18.0.md" in rendered
+    assert "--- rules/common.md" in rendered
+
+
+def test_the_stack_says_which_file_is_the_one_to_satisfy(agent_ctx, monkeypatch):
+    """`(source)` and `(target)` were the app's words for the ends of the
+    stack, and a model reading only the label has no reason to know the
+    source file describes what the module may stop doing."""
+    docs = [
+        RuleDoc(version="17.0", role="source", text="from\n"),
+        RuleDoc(version="18.0", role="intermediate", text="through\n"),
+        RuleDoc(version="19.0", role="target", text="to\n"),
+    ]
+    monkeypatch.setattr(
+        "odoo_migrator.runner.prompting.assemble_rules", lambda *_a, **_k: docs
+    )
+    step = Step(kind="agent", id="port", context=["rules"], prompt="port")
+
+    rendered = build_context(step, agent_ctx())
+
+    assert "rules/19.0.md — the version to land on" in rendered
+    assert "rules/17.0.md — the version this module is written for today" in rendered
+    assert "rules/18.0.md — passed through" in rendered

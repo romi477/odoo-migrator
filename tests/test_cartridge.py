@@ -90,3 +90,15 @@ def test_the_shipped_stock_cartridge_loads():
     assert loaded.cartridge == "stock"
     assert loaded.step_by_id("understand") is not None
     assert loaded.on_failure.retry.resume_at == "lint"
+
+
+def test_understand_is_given_the_rules_it_is_asked_to_predict_with():
+    """Its prompt asks what will break on the target version. Without the
+    stack it had the module's source and nothing describing the target, so
+    the answer the port reads was a guess from memory."""
+    from odoo_migrator.paths import repo_dir
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    loaded = load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
+
+    assert "rules" in loaded.step_by_id("understand").context

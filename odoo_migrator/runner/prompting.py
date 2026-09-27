@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from odoo_migrator.module_paths import module_root, relative_to_root
-from odoo_migrator.rules import assemble_rules, load_system_prompt
+from odoo_migrator.rules import RuleDoc, assemble_rules, load_system_prompt
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
@@ -165,9 +165,37 @@ def _render(item: str, ctx: StepContext) -> str:
 
 def _rules(ctx: StepContext) -> str:
     docs = assemble_rules(ctx.migration.source_version, ctx.migration.target_version)
-    chunks = [f"### {doc.version} ({doc.role})\n{doc.text}" for doc in docs]
 
-    return "\n\n".join(chunks)
+    return "\n\n".join(_rule_doc(doc) for doc in docs)
+
+
+def _rule_doc(doc: RuleDoc) -> str:
+    """One rules file, delimited by name rather than by heading depth.
+
+    These files carry their own `#` and `##` headings, so a `### 18.0`
+    wrapper is outranked by the text it is meant to contain: a 17.0 → 20.0
+    stack renders as four unattributed `## ORM` sections, and 17.0's "do not
+    rename it to `aggregator`" ends up beside 18.0's "`group_operator` is now
+    `aggregator`" with nothing saying which version each belongs to. The
+    marker lines do not depend on what the file puts inside.
+    """
+    name = "common.md" if doc.version == "common" else f"{doc.version}.md"
+    role = _ROLES.get(doc.role, doc.role)
+    body = doc.text.strip()
+
+    return f"--- rules/{name} — {role} ---\n{body}\n--- end rules/{name} ---"
+
+
+# What a role means, in words. "source" and "target" are the app's names for
+# the ends of the stack; a model given only the label has no reason to know
+# that the source file describes what the module may stop doing, while the
+# target file is the one it has to satisfy.
+_ROLES = {
+    "context": "shared context, ahead of the version files",
+    "source": "the version this module is written for today",
+    "intermediate": "passed through on the way, not landed on",
+    "target": "the version to land on; satisfy this one",
+}
 
 
 def _module_source(ctx: StepContext) -> str:
