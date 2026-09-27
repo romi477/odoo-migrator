@@ -73,10 +73,12 @@ call `session_busy`.
 ## Rules are per version, not per pair
 
 `rules/18.0.md` is the document for landing on 18.0. A 17→18 migration
-sends two entries (source + target); 16→19 sends four. The app
-concatenates source and every version after it through target, stamps a
-hash of that stack on the job, and renders the text into the prompt.
-Promoting a finding at checkpoint asks which version file.
+sends two version entries (source + target); 16→19 sends four. The app
+concatenates those, stamps a hash of that stack on the job, and renders
+the text into the prompt. `rules/common.md`, when present, is sent once
+in front of the versions: shared context, not a version, and not a file
+Promote writes to. Promoting a finding at checkpoint asks which version
+file.
 
 ## Cartridges and providers
 

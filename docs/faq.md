@@ -127,6 +127,7 @@ with parameters. OpenCode is specified and not built.
 Pair documents grow as the square of the versions, and a 16→19 jump
 would have nothing to read. `rules/18.0.md` is "how to land on 18.0".
 The app concatenates source plus every version after it through target.
+`rules/common.md` is sent once in front of that stack.
 
 **Where do findings go?**
 

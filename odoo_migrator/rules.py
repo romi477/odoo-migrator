@@ -102,16 +102,27 @@ def check_versions(source: str, target: str) -> None:
 def assemble_rules(
     source: str, target: str, *, rules_dir: Path | None = None
 ) -> list[RuleDoc]:
-    """Source document, then every version after it through the target.
+    """Shared context, then the source, then every version through the target.
 
-    17.0 → 18.0 is two entries (source, target). 16.0 → 19.0 is four
-    (source, two intermediate, target). A missing file raises; it is not
-    skipped, because a hole in the stack would travel downstream unnoticed.
+    ``common.md`` is prepended when it exists. It is not a version and
+    Promote does not write to it. 17.0 → 18.0 is then two version entries
+    (source, target). 16.0 → 19.0 is four. A missing version file raises;
+    it is not skipped, because a hole in the stack would travel downstream
+    unnoticed.
     """
     directory = Path(rules_dir) if rules_dir is not None else default_rules_dir()
     versions = _versions(source, target)
     last = len(versions) - 1
     docs = []
+    common = directory / "common.md"
+    if common.is_file():
+        docs.append(
+            RuleDoc(
+                version="common",
+                role="context",
+                text=common.read_text(encoding="utf-8"),
+            )
+        )
     for index, version in enumerate(versions):
         path = directory / f"{version}.md"
         if not path.is_file():

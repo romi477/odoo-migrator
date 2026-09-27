@@ -46,7 +46,8 @@ course without babysitting every module.
 
 Rules are one file per version (`rules/18.0.md`), never per pair. The app
 assembles the ordered stack for a migration — that is also what makes
-16.0 → 19.0 possible at all. Prompts and rules travel in the job payload
+16.0 → 20.0 possible at all. `rules/common.md` is shared context and is
+sent in front of that stack. Prompts and rules travel in the job payload
 as resolved text.
 
 Full documentation: [docs/](docs/README.md) — architecture, the UI guide,
@@ -228,7 +229,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `odoo_migrator/rules.py` | Per-version files, assembled stack, promote |
 | `odoo_migrator/web/` | Jinja in `templates/`, assets in `static/` — only `static/` is mounted |
 | `cartridges/stock.yaml` | The stock flow |
-| `rules/` | `16.0.md` … `19.0.md` at the repo root, not inside the package |
+| `rules/` | `16.0.md` … `20.0.md` at the repo root, not inside the package |
 | `prompts/system.md` | System prompt, resolved into the agent step |
 | `packaging/` | `setup.sh` creates the virtualenv; `serve.sh` starts the app. The desktop build lands here later, as in odoo-sheller |
 | `tests/` | Suite; no live Docker required except `@pytest.mark.live` |

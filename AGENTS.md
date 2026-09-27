@@ -66,7 +66,8 @@ own question if you think one is wrong.
   git where they can be reviewed.
 - **Rules are one file per version** (`rules/18.0.md`), never per pair —
   pair documents grow as the square of the versions. The app assembles
-  the ordered stack for a migration. This is also what makes 16.0 → 19.0
+  the ordered stack for a migration. `rules/common.md` is shared context
+  and is sent in front of that stack. This is also what makes 16.0 → 20.0
   possible at all.
 - **Sessions belong to the agent, not the app.** A rewrite invalidates
   any session open on the *new* container, so a fresh one opens after it.

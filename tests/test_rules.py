@@ -114,10 +114,52 @@ def test_missing_system_prompt_is_a_hard_error(tmp_path):
         load_system_prompt(prompts_dir=tmp_path)
 
 
-def test_shipped_stubs_assemble_seventeen_to_eighteen():
+def test_a_common_file_is_sent_once_in_front_of_the_versions(tmp_path):
+    _write(tmp_path, "17.0", "coming from 17.0\n")
+    _write(tmp_path, "18.0", "what 18.0 changed\n")
+    (tmp_path / "common.md").write_text("shared\n", encoding="utf-8")
+    docs = assemble_rules("17.0", "18.0", rules_dir=tmp_path)
+
+    assert [(doc.version, doc.role) for doc in docs] == [
+        ("common", "context"),
+        ("17.0", "source"),
+        ("18.0", "target"),
+    ]
+    assert docs[0].text == "shared\n"
+
+
+def test_shipped_rules_assemble_seventeen_to_eighteen():
     docs = assemble_rules("17.0", "18.0")
 
-    assert [doc.version for doc in docs] == ["17.0", "18.0"]
-    assert docs[0].role == "source"
-    assert docs[1].role == "target"
-    assert "18.0" in docs[1].text
+    assert [doc.version for doc in docs] == ["common", "17.0", "18.0"]
+    assert docs[0].role == "context"
+    assert docs[1].role == "source"
+    assert docs[2].role == "target"
+    assert "attrs" in docs[1].text
+    assert "aggregator" in docs[2].text
+
+
+def test_shipped_rules_say_when_the_list_root_changes():
+    """16 and 17 keep <tree>. 18 is where the root becomes <list>."""
+    sixteen = {doc.version: doc.text for doc in assemble_rules("16.0", "17.0")}
+    eighteen = {doc.version: doc.text for doc in assemble_rules("17.0", "18.0")}
+    nineteen = {doc.version: doc.text for doc in assemble_rules("18.0", "19.0")}
+
+    assert "root tag is `tree`" in sixteen["16.0"]
+    assert "root tag is still `tree`" in sixteen["17.0"]
+    assert "root tag is `list`" in eighteen["18.0"]
+    assert "<tree>` is not a valid root" in eighteen["18.0"]
+    assert "root tag stays `list`" in nineteen["19.0"]
+    assert "Python 3.10 or newer" in nineteen["19.0"]
+    assert "Python 3.12" not in nineteen["19.0"]
+    assert "tree" in sixteen["common"]
+    assert "list" in sixteen["common"]
+
+
+def test_shipped_rules_assemble_nineteen_to_twenty():
+    docs = assemble_rules("19.0", "20.0")
+
+    assert [doc.version for doc in docs] == ["common", "19.0", "20.0"]
+    assert docs[-1].role == "target"
+    assert "ir.access" in docs[-1].text
+    assert "is_company" in docs[-1].text
