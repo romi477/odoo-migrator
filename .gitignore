@@ -4,6 +4,9 @@
 __pycache__/
 
 *.egg-info/
+# `uv build` leaves these behind.
+build/
+dist/
 .pytest_cache/
 .ruff_cache/
 .cursor/

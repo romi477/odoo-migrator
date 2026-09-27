@@ -180,3 +180,11 @@ def test_a_checkout_writes_its_rules_where_they_are_reviewed(tmp_path, monkeypat
 
     assert paths.rules_overlay_dir() is None
     assert paths.rules_dir() == checkout / "rules"
+
+
+def test_the_build_does_not_carry_the_rules_router():
+    """`rules/AGENTS.md` is written for whoever edits the rules. The runtime
+    opens `common.md` and the version files and never it."""
+    config = _pyproject()["tool"]["setuptools"]
+
+    assert config["exclude-package-data"]["odoo_migrator.bundled_rules"] == ["AGENTS.md"]

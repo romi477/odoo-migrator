@@ -64,6 +64,12 @@ odoo_migrator = ["web/**/*"]
 "odoo_migrator.bundled_prompts" = ["*.md"]
 "odoo_migrator.bundled_cartridges" = ["*.yaml"]
 
+# `rules/AGENTS.md` is for whoever edits the rules, and it says so in its
+# first line. The runtime never reads it — `assemble_rules` opens `common.md`
+# and the version files — so a build has no use for it.
+[tool.setuptools.exclude-package-data]
+"odoo_migrator.bundled_rules" = ["AGENTS.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # `live` tests talk to whatever answers on 8765. Run by default, they made
