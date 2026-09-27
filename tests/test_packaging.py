@@ -105,3 +105,56 @@ def test_serve_passes_the_port_and_has_no_widen_flag(tmp_path):
     assert "--host" not in plain.stdout
     assert "--reload" in reloaded.stdout
     assert "--host" not in reloaded.stdout
+
+
+def _pyproject() -> dict:
+    import tomllib
+
+    return tomllib.loads((PACKAGING.parent / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def test_every_package_in_the_tree_is_listed():
+    """The list is explicit so data directories can be mapped into the
+    package; a new subpackage left off it would be missing from a wheel."""
+    root = PACKAGING.parent
+    listed = set(_pyproject()["tool"]["setuptools"]["packages"])
+    found = {
+        ".".join(init.parent.relative_to(root).parts)
+        for init in (root / "odoo_migrator").rglob("__init__.py")
+        if "__pycache__" not in init.parts
+    }
+
+    assert found <= listed, f"not in pyproject.toml: {sorted(found - listed)}"
+
+
+def test_rules_prompts_and_cartridges_ship_inside_the_package():
+    config = _pyproject()["tool"]["setuptools"]
+    mapped = config["package-dir"]
+
+    assert mapped["odoo_migrator.bundled_rules"] == "rules"
+    assert mapped["odoo_migrator.bundled_prompts"] == "prompts"
+    assert mapped["odoo_migrator.bundled_cartridges"] == "cartridges"
+    for name in mapped:
+        assert name in config["packages"]
+        assert config["package-data"][name]
+
+
+def test_an_installed_build_reads_the_bundled_copies(tmp_path, monkeypatch):
+    """No checkout next to the package: the copies inside it are used."""
+    from odoo_migrator import paths
+
+    package = tmp_path / "site-packages" / "odoo_migrator"
+    for name in ("rules", "prompts", "cartridges"):
+        (package / f"bundled_{name}").mkdir(parents=True)
+    monkeypatch.setattr(paths, "package_dir", lambda: package)
+
+    assert paths.rules_dir() == package / "bundled_rules"
+    assert paths.prompts_dir() == package / "bundled_prompts"
+    assert paths.cartridges_dir() == package / "bundled_cartridges"
+
+
+def test_a_checkout_reads_its_own_directories():
+    from odoo_migrator import paths
+
+    assert paths.rules_dir() == PACKAGING.parent / "rules"
+    assert paths.cartridges_dir() == PACKAGING.parent / "cartridges"

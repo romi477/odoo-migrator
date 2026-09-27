@@ -35,12 +35,34 @@ dev = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["odoo_migrator*"]
+# rules/, prompts/ and cartridges/ stay at the root of the checkout, where
+# they are edited and reviewed. A wheel or a freeze has no checkout, so they
+# ship inside the package under these names; `paths` looks in the checkout
+# first. `packages.find` cannot map a directory to a package name, hence the
+# explicit list.
+[tool.setuptools]
+packages = [
+    "odoo_migrator",
+    "odoo_migrator.provision",
+    "odoo_migrator.runner",
+    "odoo_migrator.runner.providers",
+    "odoo_migrator.runner.steps",
+    "odoo_migrator.sheller",
+    "odoo_migrator.bundled_rules",
+    "odoo_migrator.bundled_prompts",
+    "odoo_migrator.bundled_cartridges",
+]
+
+[tool.setuptools.package-dir]
+"odoo_migrator.bundled_rules" = "rules"
+"odoo_migrator.bundled_prompts" = "prompts"
+"odoo_migrator.bundled_cartridges" = "cartridges"
 
 [tool.setuptools.package-data]
 odoo_migrator = ["web/**/*"]
-cartridges = ["*.yaml"]
+"odoo_migrator.bundled_rules" = ["*.md"]
+"odoo_migrator.bundled_prompts" = ["*.md"]
+"odoo_migrator.bundled_cartridges" = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -229,7 +229,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `odoo_migrator/rules.py` | Per-version files, assembled stack, promote |
 | `odoo_migrator/web/` | Jinja in `templates/`, assets in `static/` — only `static/` is mounted |
 | `cartridges/stock.yaml` | The stock flow |
-| `rules/` | `16.0.md` … `20.0.md` at the repo root, not inside the package |
+| `rules/` | `common.md` and `16.0.md` … `20.0.md`, edited at the repo root. A wheel carries them, with `prompts/` and `cartridges/`, as `odoo_migrator/bundled_*`; the checkout wins when there is one |
 | `prompts/system.md` | System prompt, resolved into the agent step |
 | `packaging/` | `setup.sh` creates the virtualenv; `serve.sh` starts the app. The desktop build lands here later, as in odoo-sheller |
 | `tests/` | Suite; no live Docker required except `@pytest.mark.live` |

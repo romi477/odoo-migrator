@@ -42,7 +42,7 @@ def static_dir() -> Path:
 
 
 def repo_dir() -> Path:
-    """Checkout root. ``rules/`` and ``prompts/`` live here, not inside the package."""
+    """Checkout root. ``rules/``, ``prompts/`` and ``cartridges/`` live here."""
     if getattr(sys, "frozen", False):
 
         return package_dir()
@@ -50,11 +50,36 @@ def repo_dir() -> Path:
     return package_dir().parent
 
 
+def _data_dir(name: str) -> Path:
+    """The checkout's ``name/`` when there is one, else the copy in the package.
+
+    A wheel and a freeze have no checkout. They carry these directories as
+    ``odoo_migrator/bundled_<name>`` (see ``pyproject.toml``). Resolving only
+    against the checkout used to find nothing in an installed build: no rules,
+    no system prompt, no stock cartridge — the first job refused to start.
+    """
+    checkout = repo_dir() / name
+    if checkout.is_dir():
+
+        return checkout
+    bundled = package_dir() / f"bundled_{name}"
+    if bundled.is_dir():
+
+        return bundled
+
+    return checkout
+
+
 def rules_dir() -> Path:
 
-    return repo_dir() / "rules"
+    return _data_dir("rules")
 
 
 def prompts_dir() -> Path:
 
-    return repo_dir() / "prompts"
+    return _data_dir("prompts")
+
+
+def cartridges_dir() -> Path:
+
+    return _data_dir("cartridges")

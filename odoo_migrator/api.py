@@ -1382,7 +1382,7 @@ def create_app(
 
     @app.get("/flow")
     def flow(request: Request):
-        from odoo_migrator.paths import repo_dir
+        from odoo_migrator.paths import cartridges_dir
         from odoo_migrator.runner.cartridge import load_cartridge_file
         from odoo_migrator.runner.flow import flow_graph
 
@@ -1407,7 +1407,7 @@ def create_app(
         embedded = None
         if not migration_id:
             embedded = flow_graph(
-                load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
+                load_cartridge_file(cartridges_dir() / "stock.yaml")
             )
 
         return _page(

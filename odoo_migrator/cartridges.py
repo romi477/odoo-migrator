@@ -7,7 +7,7 @@ import yaml
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.models import CartridgeInstall, Job, Migration
-from odoo_migrator.paths import repo_dir
+from odoo_migrator.paths import cartridges_dir
 from odoo_migrator.runner.cartridge import (
     KINDS,
     Cartridge,
@@ -67,7 +67,7 @@ def pinned_for(migration) -> Cartridge:
 
         return load_cartridge(body)
 
-    return load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
+    return load_cartridge_file(cartridges_dir() / "stock.yaml")
 
 
 def list_installs() -> list[dict]:
