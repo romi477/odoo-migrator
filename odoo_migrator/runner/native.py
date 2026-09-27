@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import shutil
 import threading
 import traceback
 from datetime import UTC, datetime
@@ -16,11 +17,13 @@ from odoo_migrator.jobs import apply_progress, apply_result
 from odoo_migrator.models import CheckpointMessage, Job, Migration, Module, StepRun, ToolCall
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.cartridge import load_cartridge
-from odoo_migrator.runner.context import StepContext
+from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.registry import resolve
+from odoo_migrator.runner.sessions import close_side, ensure_usable, open_side
 from odoo_migrator.runner.snapshot import diff as diff_snapshots
 from odoo_migrator.runner.snapshot import snapshot
+from odoo_migrator.sheller.errors import ShellerError
 
 # job_id -> event the human's answer releases. The thread that parked is
 # the only one that waits; answer_job sets the event from the request thread.
@@ -31,6 +34,25 @@ _RETRY_LIMIT = 5
 _WAITERS: dict[str, threading.Event] = {}
 _ANSWERS: dict[str, str] = {}
 _GUARD = threading.Lock()
+
+# One job at a time on a target database. The queue runs one module at a
+# time, but Migrate on the tree does not wait for it, and two jobs rebuilding
+# one database's registry at once fight over `ir_module_module` — a lock
+# wait, a serialization failure, or an install of the other job's module
+# half-way through its own port. Held while a job runs, released while it is
+# parked on a person.
+_TARGETS: dict[tuple[str, str], threading.Lock] = {}
+
+
+def _target_lock(ctx) -> threading.Lock | None:
+    target = ctx.session_targets.get("new")
+    if not target:
+
+        return None
+    key = (target["container"], target["database"])
+    with _GUARD:
+
+        return _TARGETS.setdefault(key, threading.Lock())
 
 
 def resume_waiter(job_id: str, answer: str) -> bool:
@@ -120,9 +142,22 @@ class NativeRunner:
                 )
                 self._progress({"job_id": job_id, "stage": label, "attempt": current.attempt})
                 self._log(job_id, label, f"{step.kind} step started")
+                self._mend_sessions(current, label)
                 writes = "write_file" in (step.tools or ())
                 before = snapshot(_module_root(current)) if writes else {}
-                result = runner(step, current)
+                try:
+                    if step.fresh:
+                        self._clear_module(current, label)
+                    result = runner(step, current)
+                except Exception as exc:
+                    # The row is closed either way. It used to stay open with
+                    # no outcome, and the trace showed a step still running
+                    # for a job that had long failed.
+                    self._close_step(
+                        step_run,
+                        StepResult(ok=False, output=f"{type(exc).__name__}: {exc}"),
+                    )
+                    raise
                 if writes:
                     self._note_diff(current, before)
                 self._close_step(step_run, result)
@@ -175,12 +210,18 @@ class NativeRunner:
                 "sessions open: "
                 + ", ".join(f"{side}={value}" for side, value in sorted(ctx.sessions.items())),
             )
-            outcome = run_job(
-                cartridge,
-                ctx,
-                retry_limit=(ctx.migration.retry_limit or _RETRY_LIMIT),
-                resolve=resolve_step,
-            )
+            lock = _target_lock(ctx)
+            ctx.target_lock = lock
+            self._hold_target(ctx)
+            try:
+                outcome = run_job(
+                    cartridge,
+                    ctx,
+                    retry_limit=(ctx.migration.retry_limit or _RETRY_LIMIT),
+                    resolve=resolve_step,
+                )
+            finally:
+                self._release_target(ctx)
         except Exception as exc:  # noqa: BLE001 - the job has to hear about every failure.
             self._errors[job_id] = exc
             self._log(
@@ -190,7 +231,7 @@ class NativeRunner:
                 detail="".join(traceback.format_exception(exc)),
                 level="error",
             )
-            self._fail(job_id, exc)
+            self._fail(job_id, exc, attempt=ctx.attempt if ctx is not None else 1)
 
             return
         finally:
@@ -222,7 +263,7 @@ class NativeRunner:
         )
         self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
 
-    def _fail(self, job_id: str, exc: BaseException) -> None:
+    def _fail(self, job_id: str, exc: BaseException, attempt: int = 1) -> None:
         """Tell the app the job failed, then say so on the stream.
 
         Publishing the event without the result left the row running while
@@ -233,7 +274,9 @@ class NativeRunner:
                 {
                     "job_id": job_id,
                     "status": "failed",
-                    "attempts": [{"iteration": 1, "verdict": f"{type(exc).__name__}: {exc}"}],
+                    "attempts": [
+                        {"iteration": attempt, "verdict": f"{type(exc).__name__}: {exc}"}
+                    ],
                 }
             )
         self.hub.publish(
@@ -257,29 +300,89 @@ class NativeRunner:
             job.save()
 
     def _close_sessions(self, ctx: StepContext) -> None:
-        for side, session_id in list(ctx.sessions.items()):
-            if not session_id:
-                continue
-            with contextlib.suppress(Exception):
-                # A session already gone is not a failure: the daemon answers
-                # 404 for one whose process died, and closing twice is normal
-                # on the parked path.
-                self.sheller.close(session_id, write_key=ctx.write_keys.get(side, ""))
-            ctx.sessions[side] = ""
+        # A session already gone is not a failure: the daemon answers 404 for
+        # one whose process died, and closing twice is normal on the parked
+        # path.
+        for side in list(ctx.sessions):
+            close_side(ctx, side)
 
     def _open_sessions(self, ctx: StepContext) -> None:
-        for side, target in ctx.session_targets.items():
+        for side in ctx.session_targets:
             if ctx.sessions.get(side):
                 continue
-            opened = self.sheller.open_session(
-                container=target["container"],
-                database=target["database"],
-                odoo_bin=target["odoo_bin"],
-                owner=target["owner"],
-                allow_commit=side == "new",
+            open_side(ctx, side)
+
+    def _mend_sessions(self, ctx: StepContext, label: str) -> None:
+        """A session that died or is stuck on an old command is fixed here.
+
+        Nothing did this before: after one timeout or one crashed shell,
+        every later step on that side answered `session_busy` or
+        `session_dead`, and the failure lane diagnosed the session instead
+        of the module.
+        """
+        for side in list(ctx.session_targets):
+            if not ctx.sessions.get(side):
+                continue
+            try:
+                done = ensure_usable(ctx, side)
+            except ShellerError as exc:
+                self._log(ctx.job_id, label, f"{side} session unusable: {exc}", level="warn")
+                continue
+            if done:
+                self._log(ctx.job_id, label, done, level="warn")
+
+    def _clear_module(self, ctx: StepContext, label: str) -> None:
+        """Empty the module's directory on the new side, for a step that starts over.
+
+        `rewrite` is told not to reconstruct the previous attempt, and then
+        found it on disk: whatever it did not overwrite stayed in the module
+        and was imported with the rest. Only a directory strictly inside the
+        new project root, holding a manifest, is cleared.
+        """
+        root = _module_root(ctx)
+        project = Path(ctx.migration.new_project_path or "").expanduser().resolve()
+        if root is None or not root.is_dir() or not str(ctx.migration.new_project_path or "").strip():
+
+            return
+        resolved = root.resolve()
+        if resolved == project or not resolved.is_relative_to(project):
+            self._log(ctx.job_id, label, f"not clearing {root}: outside the new project", level="warn")
+
+            return
+        if not (resolved / "__manifest__.py").is_file():
+
+            return
+        removed = 0
+        for child in sorted(resolved.iterdir()):
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+            removed += 1
+        self._log(ctx.job_id, label, f"cleared {removed} entr(ies) from {root} before starting over")
+
+    def _hold_target(self, ctx: StepContext) -> None:
+        lock = getattr(ctx, "target_lock", None)
+        if lock is None:
+
+            return
+        if not lock.acquire(blocking=False):
+            target = ctx.session_targets["new"]
+            self._log(
+                ctx.job_id,
+                "runner",
+                f"waiting for {target['container']}/{target['database']}: "
+                "another job is migrating on it",
+                level="warn",
             )
-            ctx.sessions[side] = opened["id"]
-            ctx.write_keys[side] = opened["write_key"]
+            lock.acquire()
+        ctx.target_held = True
+
+    def _release_target(self, ctx: StepContext) -> None:
+        lock = getattr(ctx, "target_lock", None)
+        if lock is not None and getattr(ctx, "target_held", False):
+            ctx.target_held = False
+            lock.release()
 
     def _cartridge(self, payload: dict):
         """The cartridge this migration pinned, not always the stock file.
@@ -353,6 +456,9 @@ class NativeRunner:
                 parked = Job.get(Job.job_id == payload["job_id"])
                 CheckpointMessage.create(job=parked, author="agent", text=question)
             self._close_sessions(ctx)
+            # A person may take a day. Another job can use the database
+            # meanwhile; this one takes it back before it touches it again.
+            self._release_target(ctx)
             self._result(
                 {
                     "job_id": payload["job_id"],
@@ -364,6 +470,7 @@ class NativeRunner:
             with _GUARD:
                 _WAITERS.pop(payload["job_id"], None)
                 answer = _ANSWERS.pop(payload["job_id"], "")
+            self._hold_target(ctx)
             self._open_sessions(ctx)
 
             return answer

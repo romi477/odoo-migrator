@@ -354,6 +354,7 @@ near-identical step implementations in Python would buy nothing and would put
 | `context` | what goes into the prompt besides the prompt, from a closed vocabulary |
 | `raises` | the flags this step may set, which later steps gate on with `when` |
 | `budget` | optional `tool_calls` / `tokens`, honoured only when **lower** than the migration's ceiling |
+| `fresh` | optional; the module's directory on the new side is emptied before the step runs. Only on an agent step that declares `write_file`. The stock `rewrite` sets it: told not to reconstruct the previous attempt, it otherwise found that attempt on disk and kept whatever it did not overwrite |
 
 **The context vocabulary is closed**, for the same reason the flags are: a
 cartridge author selects from a list, never writes an expression.

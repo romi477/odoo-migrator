@@ -55,6 +55,11 @@ class Step(BaseModel):
     prompt: str = ""
     model: ModelRef | None = None
     budget: Budget | None = None
+    # Start from an empty module directory on the new side. For a step that
+    # writes the module again: told not to reconstruct the previous attempt,
+    # it otherwise found that attempt on disk, and kept what it did not
+    # overwrite.
+    fresh: bool = False
 
 
 class Retry(BaseModel):
@@ -173,6 +178,10 @@ def _refuse_invalid(loaded: Cartridge) -> None:
         for item in step.context:
             if item not in CONTEXT_ITEMS:
                 raise CartridgeError(f"unknown context '{item}'")
+        if step.fresh and (step.kind != "agent" or "write_file" not in step.tools):
+            raise CartridgeError(
+                f"step '{label}' is fresh, and only an agent step that writes files can be"
+            )
     raised = {flag for step in steps for flag in step.raises}
     vocabulary = set(BUILTIN_FLAGS) | raised
     read = {step.when for step in steps if step.when}

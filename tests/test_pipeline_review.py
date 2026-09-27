@@ -1,0 +1,764 @@
+"""The pipeline review: every place a live run broke that the doubles hid."""
+
+from types import SimpleNamespace
+
+import httpx2
+import pytest
+
+from odoo_migrator.db import database, init_db
+from odoo_migrator.migrations import create_migration
+from odoo_migrator.models import Migration, Module
+from odoo_migrator.runner import sessions as session_helpers
+from odoo_migrator.runner.cartridge import Budget, CartridgeError, Step, load_cartridge
+from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.loop import run_job
+from odoo_migrator.runner.steps import lint, tests, upgrade, verdict
+from odoo_migrator.runner.tools import tools_for
+from odoo_migrator.sheller import FakeShellerClient, HttpShellerClient
+from odoo_migrator.sheller.errors import ShellerBusy, ShellerSessionDead, ShellerTimeout
+
+_MINIMAL = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: verdict
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: verdict
+"""
+
+
+@pytest.fixture(autouse=True)
+def no_waiting(monkeypatch):
+    monkeypatch.setattr(session_helpers, "POLL_SECONDS", 0)
+
+
+@pytest.fixture
+def sheller():
+
+    return FakeShellerClient()
+
+
+@pytest.fixture
+def ctx_for(tmp_path, sheller):
+    init_db(tmp_path / "review.sqlite")
+
+    def build(*, project="new", target_version="18.0"):
+        new_root = tmp_path / project
+        module_dir = new_root / "sale_custom"
+        module_dir.mkdir(parents=True, exist_ok=True)
+        created = create_migration(
+            name="Acme",
+            accent="violet",
+            source_version="17.0",
+            target_version=target_version,
+            old_project_path=str(tmp_path / "old"),
+            new_project_path=str(new_root),
+        )
+        with database.connection_context():
+            migration = Migration.get_by_id(created["id"])
+            module = Module.create(
+                migration=migration, technical_name="sale_custom", new_path=str(module_dir)
+            )
+        targets = {
+            side: {
+                "container": container,
+                "database": "acme",
+                "odoo_bin": "/opt/odoo/odoo-bin",
+                "owner": {"kind": "agent", "migration_id": migration.id},
+            }
+            for side, container in (("old", "odoo-old"), ("new", "odoo-new"))
+        }
+        ctx = StepContext(
+            job_id="job-1",
+            attempt=1,
+            migration=migration,
+            module=module,
+            cartridge=load_cartridge(_MINIMAL),
+            sheller=sheller,
+            sessions={},
+            session_targets=targets,
+            emit=lambda _event: None,
+        )
+        for side in targets:
+            session_helpers.open_side(ctx, side)
+
+        return ctx
+
+    return build
+
+
+# -- tests: the daemon's report, read whole --------------------------------
+
+
+def _seed_one_test(sheller):
+    sheller.tests_for(
+        "sale_custom", sheller.catalogue("sale_custom", {"TestSale": ["test_total"]})
+    )
+
+
+def test_a_failing_test_fails_the_step(ctx_for, sheller):
+    """The daemon says red with `error: None` and `test.success: false`. The
+    step looked for `ok` and `status`, which it never sends, and passed."""
+    _seed_one_test(sheller)
+    sheller.test_outcomes["sale_custom.TestSale.test_total"] = {
+        "success": False,
+        "failures": 1,
+        "stderr": ["AssertionError: 10 != 12"],
+    }
+
+    result = tests.run(Step(kind="tests"), ctx_for())
+
+    assert result.ok is False
+    assert result.flags == {"tests_failed"}
+    assert "1 failure(s)" in result.output
+    assert "AssertionError: 10 != 12" in result.output
+
+
+def test_a_run_of_zero_tests_is_not_a_pass(ctx_for, sheller):
+    _seed_one_test(sheller)
+    sheller.test_outcomes["sale_custom.TestSale.test_total"] = {"tests_run": 0}
+
+    result = tests.run(Step(kind="tests"), ctx_for())
+
+    assert result.ok is False
+    assert "ran 0 tests" in result.output
+
+
+def test_the_step_gives_a_test_time_to_run(ctx_for, sheller):
+    _seed_one_test(sheller)
+
+    assert tests.run(Step(kind="tests"), ctx_for()).ok is True
+    assert sheller.tests_run[0]["timeout"] >= 300
+
+
+def _http(handler) -> HttpShellerClient:
+
+    return HttpShellerClient("http://sheller", transport=httpx2.MockTransport(handler))
+
+
+def test_the_http_call_outlasts_the_test_it_waits_for(monkeypatch):
+    """The client default was 30s against the daemon's 300."""
+    seen = {}
+    client = _http(lambda request: httpx2.Response(200, json={}))
+    real = client._http.request
+
+    def spy(method, path, **kwargs):
+        seen.update(kwargs)
+
+        return real(method, path, **kwargs)
+
+    monkeypatch.setattr(client._http, "request", spy)
+    client.run_test("s1", "m.TestX", write_key="k")
+    assert seen["timeout"] > 300
+    client.run_test("s1", "m.TestX", write_key="k", timeout=1800)
+    assert seen["timeout"] > 1800
+
+
+def test_busy_and_the_daemons_own_timeout_are_their_own_errors():
+    busy = _http(lambda request: httpx2.Response(409, json={"detail": "session busy"}))
+    with pytest.raises(ShellerBusy):
+        busy.exec("s1", "1", write_key="k")
+    late = _http(lambda request: httpx2.Response(504, json={"detail": "timed out"}))
+    with pytest.raises(ShellerTimeout):
+        late.exec("s1", "1", write_key="k")
+
+
+# -- source: Sheller's snippet, not a dotted name sent as Python -------------
+
+
+def test_source_runs_the_read_snippet_and_parses_it(ctx_for, sheller):
+    ctx = ctx_for()
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    (source,) = tools_for(step, ctx)
+
+    answer = source(side="new", model="sale.order", method="action_confirm")
+
+    sent = sheller.execs[-1]
+    assert "_os_read()" in sent
+    assert "type(env['sale.order'])" in sent
+    assert "action_confirm" in answer
+    assert "NameError" not in answer
+
+
+def test_source_refuses_what_the_daemon_would_refuse(ctx_for):
+    ctx = ctx_for()
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    (source,) = tools_for(step, ctx)
+
+    assert "nothing_to_read" in source(side="new")
+    assert "method_without_model" in source(side="new", path="sale", method="x")
+
+
+def test_source_says_why_a_read_failed(ctx_for, sheller):
+    sheller.exec_answers["_os_read()"] = {
+        "error": {"type": "KeyError", "message": "'no.such.model'", "traceback": ""}
+    }
+    ctx = ctx_for()
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    (source,) = tools_for(step, ctx)
+
+    answer = source(side="new", model="no.such.model")
+
+    assert "unreadable" in answer
+    assert "KeyError" in answer
+
+
+# -- upgrade: a fresh process, the list refreshed, a failure cleaned up ------
+
+
+def test_upgrade_runs_in_a_fresh_session(ctx_for, sheller):
+    """The session open since the job started imported the old Python."""
+    ctx = ctx_for()
+    before = ctx.sessions["new"]
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert result.ok is True
+    assert ctx.sessions["new"] != before
+    assert before in sheller.closes
+    code = next(code for code in sheller.execs if "button_immediate" in code)
+    assert "update_list()" in code
+    assert code.index("update_list()") < code.index("button_immediate")
+    assert ctx.sessions["new"] in sheller.commits
+
+
+def test_upgrade_does_not_commit_what_the_agent_left_pending(ctx_for, sheller):
+    """Closing the old session is what discards it; the upgrade's own commit
+    then has nothing of the agent's to carry."""
+    ctx = ctx_for()
+    sheller.exec(ctx.sessions["new"], "env['res.partner'].create({})", write_key=ctx.write_keys["new"])
+    stale = ctx.sessions["new"]
+
+    upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert stale in sheller.closes
+    assert stale not in sheller.commits
+
+
+def test_a_failed_upgrade_puts_the_module_states_back(ctx_for, sheller):
+    sheller.exec_answers["button_immediate"] = {
+        "error": {
+            "type": "ParseError",
+            "message": "while parsing views.xml",
+            "traceback": "Traceback\n  ...\nParseError: field 'x' does not exist",
+        },
+        "stderr": ["2026-09-27 10:00:00,001 7 ERROR acme odoo.modules.loading: boom"],
+    }
+    sheller.exec_answers["button_install_cancel"] = {"result": "['sale_custom']"}
+    ctx = ctx_for()
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert result.ok is False
+    assert "ParseError: field 'x' does not exist" in result.output
+    assert "reset the states of: sale_custom" in result.output
+    # The failed process is not the one diagnose gets.
+    reset_session = ctx.sessions["new"]
+    assert reset_session in sheller.commits
+    assert ctx.log_errors
+
+
+def test_an_upgrade_that_outlives_the_call_is_waited_for(ctx_for, sheller):
+    """The daemon stops waiting at 300s; the upgrade carries on in the session."""
+    sheller.hangs_on = "button_immediate"
+    sheller.hangs_for = 3
+    sheller.exec_answers["search_count"] = {"result": "('installed', 0)"}
+    ctx = ctx_for()
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert result.ok is True
+    assert "outlived" in result.output
+
+
+def test_an_upgrade_that_outlives_the_call_and_did_not_finish_fails(ctx_for, sheller):
+    sheller.hangs_on = "button_immediate"
+    sheller.hangs_for = 1
+    sheller.exec_answers["search_count"] = {"result": "('to upgrade', 1)"}
+
+    result = upgrade.run(Step(kind="upgrade"), ctx_for())
+
+    assert result.ok is False
+    assert "did not finish" in result.output
+
+
+# -- sessions: a dead or stuck one is mended before the next step ------------
+
+
+def test_a_dead_session_is_reopened(ctx_for, sheller):
+    ctx = ctx_for()
+    dead = ctx.sessions["new"]
+    sheller.kill(dead)
+    with pytest.raises(ShellerSessionDead):
+        sheller.exec(dead, "1", write_key=ctx.write_keys["new"])
+
+    done = session_helpers.ensure_usable(ctx, "new")
+
+    assert "dead" in done
+    assert ctx.sessions["new"] != dead
+    assert sheller.exec(ctx.sessions["new"], "1", write_key=ctx.write_keys["new"])["error"] is None
+
+
+def test_a_busy_session_is_interrupted_and_kept(ctx_for, sheller):
+    ctx = ctx_for()
+    sheller.hangs_on = "search([])"
+    with pytest.raises(ShellerTimeout):
+        sheller.exec(ctx.sessions["new"], "env['x'].search([])", write_key=ctx.write_keys["new"])
+    kept = ctx.sessions["new"]
+
+    done = session_helpers.ensure_usable(ctx, "new")
+
+    assert "interrupted" in done
+    assert ctx.sessions["new"] == kept
+    assert kept in sheller.interrupts
+
+
+def test_a_ready_session_is_left_alone(ctx_for):
+    ctx = ctx_for()
+    kept = ctx.sessions["new"]
+
+    assert session_helpers.ensure_usable(ctx, "new") == ""
+    assert ctx.sessions["new"] == kept
+
+
+# -- verdict: the baseline is no errors in the log ---------------------------
+
+
+def test_a_lap_that_logged_an_error_does_not_pass(ctx_for):
+    ctx = ctx_for()
+    verdict.note_log_errors(
+        ctx,
+        [
+            "2026-09-27 10:00:00,001 7 INFO acme odoo.modules.loading: loading",
+            "2026-09-27 10:00:00,002 7 ERROR acme odoo.addons.base: view invalid",
+        ],
+    )
+
+    result = verdict.run(Step(kind="verdict"), ctx)
+
+    assert result.ok is False
+    assert "view invalid" in result.output
+    assert "loading" not in result.output
+
+
+def test_a_clean_lap_passes(ctx_for):
+
+    assert verdict.run(Step(kind="verdict"), ctx_for()).ok is True
+
+
+# -- lint --------------------------------------------------------------------
+
+
+def test_lint_reports_a_file_that_is_not_utf8(ctx_for):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    root = ctx.module.new_path
+    (Path(root) / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    (Path(root) / "legacy.py").write_bytes(b"# \xff\xfe latin-1\n")
+
+    result = lint.run(Step(kind="lint"), ctx)
+
+    assert result.ok is False
+    assert "legacy.py: not UTF-8" in result.output
+
+
+@pytest.mark.parametrize(
+    ("manifest", "expected"),
+    [
+        ("{'name': 'x', 'depends': [], 'installable': False}", "installable is False"),
+        ("{'name': 'x', 'depends': [], 'version': '17.0.1.0.0'}", "is for 17.0"),
+    ],
+)
+def test_lint_reads_what_odoo_will_refuse_in_a_manifest(ctx_for, manifest, expected):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    (Path(ctx.module.new_path) / "__manifest__.py").write_text(manifest, encoding="utf-8")
+
+    result = lint.run(Step(kind="lint"), ctx)
+
+    assert result.ok is False
+    assert expected in result.output
+
+
+def test_lint_accepts_the_target_series(ctx_for):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    (Path(ctx.module.new_path) / "__manifest__.py").write_text(
+        "{'name': 'x', 'depends': [], 'version': '18.0.1.0.0'}", encoding="utf-8"
+    )
+
+    assert lint.run(Step(kind="lint"), ctx).ok is True
+
+
+# -- tools -------------------------------------------------------------------
+
+
+def test_a_project_path_with_a_tilde_is_the_home_directory(ctx_for, monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    (home / "proj").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    ctx = ctx_for()
+    ctx.migration.new_project_path = "~/proj"
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["write_file"], prompt="p")
+    (write,) = tools_for(step, ctx)
+
+    written = write(side="new", path="sale_custom/x.py", content="x = 1\n")
+
+    assert written == str((home / "proj" / "sale_custom" / "x.py").resolve())
+
+
+def test_reading_a_binary_file_is_an_answer_not_a_crash(ctx_for):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    (Path(ctx.module.new_path) / "logo.png").write_bytes(b"\x89PNG\xff\xfe")
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["read_file"], prompt="p")
+    (read,) = tools_for(step, ctx)
+
+    assert read(side="new", path="sale_custom/logo.png").startswith("error:")
+
+
+# -- the loop: a person's answer, the lane's failures, repeats ---------------
+
+_ASKS = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: port
+    sessions: [new]
+    tools: [exec]
+    context: [prior_answers]
+    prompt: port
+on_failure:
+  pipeline:
+    - step: agent
+      id: diagnose
+      sessions: [new]
+      tools: [exec]
+      context: [prior_answers]
+      raises: [needs_human]
+      prompt: why
+    - step: ask_human
+      when: needs_human
+  retry:
+    resume_at: port
+"""
+
+
+class _Scripted:
+    """Answers each step in turn, and keeps every prompt it was given."""
+
+    def __init__(self, results):
+        self.results = list(results)
+        self.prompts: list[str] = []
+
+    def ensure_ready(self):
+
+        return None
+
+    def run_step(self, *, prompt, **_kwargs):
+        self.prompts.append(prompt)
+
+        return self.results.pop(0)
+
+
+def test_a_persons_answer_reaches_the_next_prompt(ctx_for):
+    ctx = ctx_for()
+    ctx.cartridge = load_cartridge(_ASKS)
+    ctx.wait_for_human = lambda question: "use the v18 tax API"
+    provider = _Scripted(
+        [
+            StepResult(ok=False, output="port failed"),
+            StepResult(ok=True, answer="which API?", flags={"needs_human"}),
+            StepResult(ok=True, answer="ported"),
+        ]
+    )
+    ctx.provider = provider
+
+    outcome = run_job(ctx.cartridge, ctx, retry_limit=3)
+
+    assert outcome == "passed"
+    assert ctx.prior_answers["ask_human"] == "use the v18 tax API"
+    assert "use the v18 tax API" in provider.prompts[-1]
+
+
+def test_the_same_failure_with_new_addresses_is_still_the_same(ctx_for):
+    """A traceback never repeats byte for byte; the check never fired."""
+    lane = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: port
+    sessions: [new]
+    tools: [exec]
+    prompt: port
+on_failure:
+  pipeline:
+    - step: agent
+      id: diagnose
+      sessions: [new]
+      tools: [exec]
+      prompt: why
+  retry:
+    resume_at: port
+"""
+    ctx = ctx_for()
+    ctx.cartridge = load_cartridge(lane)
+    ctx.provider = _Scripted(
+        [
+            StepResult(ok=False, output="<Record object at 0x10a2b3c4> took 12.5s"),
+            StepResult(ok=True, answer="no idea"),
+            StepResult(ok=False, output="<Record object at 0x7f00ee11> took 13.1s"),
+            StepResult(ok=True, answer="no idea"),
+            StepResult(ok=False, output="must not get this far"),
+        ]
+    )
+
+    outcome = run_job(ctx.cartridge, ctx, retry_limit=5)
+
+    assert outcome == "failed"
+    assert ctx.attempt == 2
+    assert "changed nothing" in ctx.last_failure
+
+
+def test_a_lane_step_that_failed_says_so_in_the_outcome(ctx_for):
+    lane = _ASKS.replace("    - step: ask_human\n      when: needs_human\n", "")
+    ctx = ctx_for()
+    ctx.cartridge = load_cartridge(lane.replace("raises: [needs_human]\n      ", ""))
+    ctx.provider = _Scripted(
+        [
+            StepResult(ok=False, output="port failed"),
+            StepResult(ok=False, output="stopped at the token budget"),
+            StepResult(ok=False, output="port failed"),
+            StepResult(ok=False, output="stopped at the token budget"),
+        ]
+    )
+
+    assert run_job(ctx.cartridge, ctx, retry_limit=5) == "failed"
+    assert "diagnose failed: stopped at the token budget" in ctx.last_failure
+
+
+# -- providers ---------------------------------------------------------------
+
+
+def _anthropic(monkeypatch, turns):
+    import anthropic
+
+    from odoo_migrator.runner.providers.anthropic import AnthropicProvider
+
+    seen = {}
+
+    class _Messages:
+        def tool_runner(self, **kwargs):
+            seen.update(kwargs)
+
+            return iter(turns)
+
+    class _Client:
+        def __init__(self, api_key=None):
+            self.beta = SimpleNamespace(messages=_Messages())
+
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+    monkeypatch.setattr("odoo_migrator.runner.providers.anthropic._key", lambda: "k")
+
+    return AnthropicProvider(), seen
+
+
+def _turn(*, inp=0, out=0, read=0, written=0, content=()):
+    message = SimpleNamespace(
+        content=list(content),
+        usage=SimpleNamespace(
+            input_tokens=inp,
+            output_tokens=out,
+            cache_read_input_tokens=read,
+            cache_creation_input_tokens=written,
+        ),
+    )
+
+    return SimpleNamespace(get_final_message=lambda: message)
+
+
+def _run(provider, budget=None):
+    from odoo_migrator.runner.tools import report_tool
+
+    step = Step(kind="agent", id="port", sessions=["new"], raises=[], prompt="p")
+
+    return provider.run_step(
+        system="s", prompt="p", tools=[], report=report_tool(step),
+        model="claude-opus-5", budget=budget or Budget(),
+    )
+
+
+def test_the_conversation_is_cached(monkeypatch):
+    provider, seen = _anthropic(monkeypatch, [_turn(inp=10)])
+
+    _run(provider)
+
+    assert seen["cache_control"] == {"type": "ephemeral"}
+
+
+def test_cache_reads_do_not_spend_the_budget(monkeypatch):
+    """Five turns re-reading a 40K prefix is not 200K of new work."""
+    turns = [_turn(inp=500, written=500, out=100, read=40_000) for _ in range(5)]
+    provider, _ = _anthropic(monkeypatch, turns)
+
+    result = _run(provider, Budget(tokens=10_000))
+
+    assert "token budget" not in result.output
+    assert result.tokens_in == 5000
+    assert result.tokens_cached == 200_000
+
+
+def test_the_step_ends_at_report(monkeypatch):
+    report = SimpleNamespace(type="tool_use", name="report", input={"answer": "ported"})
+    turns = [_turn(inp=10, content=[report]), _turn(inp=99_999)]
+    provider, _ = _anthropic(monkeypatch, turns)
+
+    result = _run(provider)
+
+    assert result.ok is True
+    assert result.answer == "ported"
+    assert result.tokens_in == 10
+
+
+# -- cartridge: a step that starts over --------------------------------------
+
+
+def test_fresh_is_only_for_a_step_that_writes():
+    text = _MINIMAL.replace("  - step: verdict\n", "  - step: verdict\n    fresh: true\n")
+    with pytest.raises(CartridgeError, match="fresh"):
+        load_cartridge(text)
+
+
+def test_the_stock_rewrite_starts_from_an_empty_directory():
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+
+    assert stock.step_by_id("rewrite").fresh is True
+    assert stock.step_by_id("patch").fresh is False
+
+
+# -- the native runner ---------------------------------------------------------
+
+
+def _runner(sheller):
+    from odoo_migrator.events import EventHub
+    from odoo_migrator.runner.native import NativeRunner
+
+    return NativeRunner(sheller=sheller, hub=EventHub())
+
+
+def test_a_fresh_step_starts_from_an_empty_module(ctx_for, sheller):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    root = Path(ctx.module.new_path)
+    (root / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    (root / "models").mkdir()
+    (root / "models" / "old_attempt.py").write_text("x = 1\n", encoding="utf-8")
+
+    _runner(sheller)._clear_module(ctx, "rewrite")
+
+    assert root.is_dir()
+    assert list(root.iterdir()) == []
+
+
+def test_a_fresh_step_never_clears_the_project_root(ctx_for, sheller):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    project = Path(ctx.migration.new_project_path)
+    (project / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    ctx.module.new_path = str(project)
+
+    _runner(sheller)._clear_module(ctx, "rewrite")
+
+    assert (project / "__manifest__.py").is_file()
+
+
+def test_two_jobs_on_one_database_share_one_lock(ctx_for, tmp_path):
+    from odoo_migrator.runner.native import _target_lock
+
+    first = ctx_for(project="a")
+    second = ctx_for(project="b")
+    other = ctx_for(project="c")
+    other.session_targets["new"] = {**other.session_targets["new"], "database": "elsewhere"}
+
+    assert _target_lock(first) is _target_lock(second)
+    assert _target_lock(first) is not _target_lock(other)
+
+
+def test_a_parked_job_lets_another_use_the_database(ctx_for, sheller):
+    from odoo_migrator.runner.native import _target_lock
+
+    ctx = ctx_for()
+    runner = _runner(sheller)
+    ctx.target_lock = _target_lock(ctx)
+    runner._hold_target(ctx)
+    assert ctx.target_lock.locked()
+
+    runner._release_target(ctx)
+
+    assert not ctx.target_lock.locked()
+    runner._release_target(ctx)  # twice is harmless: it is not held
+
+
+def test_a_step_that_raises_still_closes_its_row(app, fake_sheller, tmp_path):
+    """The trace used to show a step running for a job long failed."""
+    from test_native_runner import _module
+
+    from odoo_migrator.models import StepRun
+
+    job = _module(tmp_path)
+    runner = _runner(fake_sheller)
+    cartridge = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: port
+    sessions: [new]
+    tools: [exec]
+    prompt: port
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: port
+"""
+
+    class _Boom:
+        def ensure_ready(self):
+
+            return None
+
+        def run_step(self, **_kwargs):
+            raise RuntimeError("provider fell over")
+
+    runner.provider = _Boom()
+    runner.start({"job_id": job.job_id, "cartridge_text": cartridge})
+    with pytest.raises(RuntimeError):
+        runner.wait(job.job_id)
+
+    with database.connection_context():
+        rows = list(StepRun.select().where(StepRun.job == job.id))
+    assert rows and rows[0].finished_at is not None
+    assert rows[0].ok is False
+    assert "provider fell over" in rows[0].output

@@ -64,8 +64,8 @@ _HINTS = {
         "changes what is wrong, leaving the rest."
     ),
     "rewrite": (
-        "Writes the module again from the old version. It is not given the "
-        "previous attempt."
+        "Writes the module again from the old version. Its directory on the "
+        "new side is emptied first, and it is not given the previous attempt."
     ),
 }
 _KIND_HINTS = {

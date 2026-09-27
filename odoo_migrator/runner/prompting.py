@@ -231,10 +231,17 @@ def _old_root(ctx: StepContext) -> Path | None:
     return module_root(ctx.migration, ctx.module, "old")
 
 
+# A person's answer should read as one, not as the name of a step kind.
+_ANSWER_NAMES = {"ask_human": "ask_human (the answer a person gave to the question above)"}
+
+
 def _prior_answers(ctx: StepContext) -> str:
     if not ctx.prior_answers:
 
         return "(none)"
-    lines = [f"{step_id}: {answer}" for step_id, answer in ctx.prior_answers.items()]
+    lines = [
+        f"{_ANSWER_NAMES.get(step_id, step_id)}: {answer}"
+        for step_id, answer in ctx.prior_answers.items()
+    ]
 
     return "\n".join(lines)
