@@ -14,10 +14,11 @@ an agent working in this directory.
 | `common.md` | once, in front of the stack | what holds across this directory, and the reading order the agent is given |
 | `<major>.md` | the source file, then every later one through the target | what landing on that version requires, as a delta on the file before it |
 
-16.0 → 19.0 sends five documents: `common`, `16.0` (source), `17.0` and
-`18.0` (intermediate), `19.0` (target). There is no pair document and there
-will not be one — pairs grow as the square of the versions, and the stack is
-what makes a multi-version jump possible at all.
+16.0 → 20.0, the widest jump these files cover, sends six documents:
+`common`, `16.0` (source), `17.0` through `19.0` (intermediate), `20.0`
+(target). There is no pair document and there will not be one — pairs grow
+as the square of the versions, and the stack is what makes a multi-version
+jump possible at all.
 
 A new major is a file and nothing else. No registry, no list to extend:
 19.0 → 20.0 started working the moment `20.0.md` existed.
