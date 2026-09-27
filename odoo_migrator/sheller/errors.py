@@ -23,6 +23,14 @@ class ShellerTimeout(ShellerError):
     """
 
 
+class ShellerBusy(ShellerError):
+    """HTTP 409: the session is still running an earlier command.
+
+    Usually the tail of a timeout: the call gave up, the command did not.
+    Wait for the session to be ready, or interrupt it.
+    """
+
+
 class ShellerNotOwner(ShellerError):
     """Wrong or missing X-OS-Session-Key. Never retry this with an admin key."""
 

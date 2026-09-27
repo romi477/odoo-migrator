@@ -29,7 +29,8 @@ database. Call a tool instead:
 - `exec` runs Python in a live Odoo shell, with `env` and `self` bound as
   in `odoo-bin shell`. Nothing it writes persists unless the runner commits,
   so trying something is cheap.
-- `source` reads Odoo's own code for a dotted name — the definitive answer
+- `source` reads code on a side: a file or directory by `path`, or what a
+  model method actually runs by `model` and `method` — the definitive answer
   to what a method does on that version, and better than recalling it.
 - `read_file` reads the module's own files.
 - `run_test` and `list_tests` are the module's tests, not yours to invent.

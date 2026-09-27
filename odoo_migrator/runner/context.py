@@ -39,6 +39,9 @@ class StepContext:
     command_timeout: float | None = None
     # The last run_test payload, so test_result can answer without a second call.
     last_test: dict | None = None
+    # ERROR and CRITICAL records Odoo logged during this lap's upgrade and
+    # tests. `verdict` fails a lap that has any; the loop clears it per lap.
+    log_errors: list[str] = field(default_factory=list)
     # Set by the native runner so a tool call lands on the step that made it.
     step_run_id: int | None = None
     # The same step, by name, for the run log.
@@ -46,6 +49,9 @@ class StepContext:
     record_tool: Callable | None = None
     # When set, ask_human parks, waits, and returns the human's answer.
     wait_for_human: Callable | None = None
+    # The lock on the target database this job holds while it runs.
+    target_lock: object = None
+    target_held: bool = False
 
 
 @dataclass

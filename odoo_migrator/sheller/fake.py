@@ -5,7 +5,13 @@ import re
 import secrets
 import uuid
 
-from odoo_migrator.sheller.errors import ShellerError, ShellerNotOwner, ShellerTimeout
+from odoo_migrator.sheller.errors import (
+    ShellerBusy,
+    ShellerError,
+    ShellerNotOwner,
+    ShellerSessionDead,
+    ShellerTimeout,
+)
 
 # databases[0] is a different Odoo major's database — the trap that 410s a
 # real session. db_name is the one this container is configured for.
@@ -81,6 +87,15 @@ class FakeShellerClient:
         # way the real client does when the HTTP call expires, and the
         # command stays busy in the session until interrupted.
         self.hangs_on: str | None = None
+        # How many `get_session` polls a hung command takes to finish on its
+        # own. None is for ever: only an interrupt ends it.
+        self.hangs_for: int | None = None
+        # fragment -> fields merged into the answer of an exec whose code
+        # contains it. How a test makes Odoo raise, or log, for one command.
+        self.exec_answers: dict[str, dict] = {}
+        # spec -> fields merged into that run's `test` block.
+        self.test_outcomes: dict[str, dict] = {}
+        self.rollbacks: list[str] = []
 
     def health(self) -> dict:
 
@@ -183,12 +198,26 @@ class FakeShellerClient:
         session = self._sessions.get(session_id)
         if session is None:
             raise ShellerError("unknown session", status=404)
+        if self._running(session) and self.hangs_for is not None:
+            session["hung_polls"] = session.get("hung_polls", 0) + 1
+            if session["hung_polls"] >= self.hangs_for:
+                for command in session["commands"]:
+                    if command.get("status") == "running":
+                        command["status"] = "done"
+        if session["state"] in ("ready", "busy"):
+            session["state"] = "busy" if self._running(session) else "ready"
 
         return {key: value for key, value in session.items() if key in self._DESCRIBED}
 
     def exec(
         self, session_id: str, code: str, *, write_key: str, timeout: float | None = None
     ) -> dict:
+        """The daemon's answer: 200 with `error` set when the Python raised.
+
+        This used to answer `{"ok": True}` for any code at all, so a tool
+        that sent a bare dotted name as Python passed here and raised
+        NameError on every live container.
+        """
         session = self._require(session_id, write_key)
         if self.exec_error is not None:
             raise self.exec_error
@@ -198,6 +227,7 @@ class FakeShellerClient:
                 {"kind": "exec", "id": self._next_command + 1, "code": code, "status": "running"}
             )
             self._next_command += 1
+            session["hung_polls"] = 0
 
             raise ShellerTimeout(f"no answer within the timeout for {session_id}")
         self._next_command += 1
@@ -205,12 +235,28 @@ class FakeShellerClient:
         session["commands"].append(
             {"kind": "exec", "id": command_id, "code": code, "status": "done"}
         )
-        if "ir.module.module" in code:
-            payload = json.dumps(self.graph_modules)
+        session["pending_commands"] += 1
+        result = "None"
+        if "_os_read()" in code:
+            result = repr(json.dumps({"text": "def action_confirm(self):\n    ...", "line": 1}))
+        elif "ir.module.module" in code and "json.dumps(rows)" in code:
+            result = repr(json.dumps(self.graph_modules))
+        answer = {
+            "id": command_id,
+            "stdout": "",
+            "stdout_truncated": False,
+            "result": result,
+            "result_truncated": False,
+            "error": None,
+            "duration": 0.0,
+            "stderr": [],
+            "stderr_truncated": False,
+        }
+        for fragment, fields in self.exec_answers.items():
+            if fragment in code:
+                answer.update(fields)
 
-            return {"ok": True, "id": command_id, "result": repr(payload), "error": None}
-
-        return {"ok": True, "id": command_id, "result": "None", "code": code, "error": None}
+        return answer
 
     def run_test(
         self,
@@ -220,15 +266,15 @@ class FakeShellerClient:
         write_key: str,
         timeout: float | None = None,
     ) -> dict:
-        """Refuse a malformed spec, exactly as the daemon does.
+        """Refuse a malformed spec, and answer a run the way the daemon does.
 
-        This used to accept any string and answer ok, so a runner that
-        shipped `module.Class.{'name': ..., 'spec': ...}` passed its tests
-        and failed on the first real module with 400 `invalid_test_spec`.
-        The daemon's rule is `module.TestClass` or
-        `module.TestClass.test_method`, and nothing else.
+        The spec rule is `module.TestClass` or `module.TestClass.test_method`
+        — a looser double let `module.Class.{'name': ...}` through. The
+        answer is the daemon's too: a red run is `error: None` with
+        `test.success` false. It used to be `{"ok": True}`, and the step that
+        read it counted every failing test as a pass.
         """
-        self._require(session_id, write_key)
+        session = self._require(session_id, write_key)
         if not TEST_SPEC_RE.match(test or ""):
             raise ShellerError(
                 "invalid_test_spec",
@@ -239,9 +285,40 @@ class FakeShellerClient:
                     "recovery": "use 'module.TestClass' or 'module.TestClass.test_method'",
                 },
             )
-        self.tests_run.append({"test": test, "session_id": session_id})
+        self.tests_run.append({"test": test, "session_id": session_id, "timeout": timeout})
+        # Odoo's runner rolls back whatever the session held before testing.
+        discarded = session["pending_commands"] > 0
+        session["pending_commands"] = 0
+        module, test_class, test_method = TEST_SPEC_RE.match(test).groups()
+        outcome = {
+            "module": module,
+            "test_class": test_class,
+            "test_method": test_method,
+            "tests_run": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "success": True,
+        }
+        outcome.update(self.test_outcomes.get(test, {}))
+        stderr = list(outcome.pop("stderr", []))
 
-        return {"ok": True, "test": test}
+        return {
+            "stdout": "",
+            "stdout_truncated": False,
+            "result": None,
+            "result_truncated": False,
+            "error": outcome.pop("error", None),
+            "duration": 0.0,
+            "test": outcome,
+            "stderr": stderr,
+            "stderr_truncated": False,
+            "discarded_pending": discarded,
+        }
+
+    def kill(self, session_id: str) -> None:
+        """The process died: every call answers 410 until it is closed."""
+        self._sessions[session_id]["state"] = "dead"
 
     def commit(self, session_id: str, *, write_key: str) -> dict:
         session = self._require(session_id, write_key)
@@ -252,22 +329,25 @@ class FakeShellerClient:
         return {"ok": True}
 
     def rollback(self, session_id: str, *, write_key: str) -> dict:
-        self._require(session_id, write_key)
+        session = self._require(session_id, write_key)
+        self.rollbacks.append(session_id)
+        session["pending_commands"] = 0
 
         return {"ok": True}
 
     def close(self, session_id: str, *, write_key: str) -> dict:
-        session = self._require(session_id, write_key)
+        session = self._require(session_id, write_key, verb="close")
         self.closes.append(session_id)
         self._journals[session_id] = session
         del self._sessions[session_id]
 
         return {"ok": True}
 
-    def source(self, session_id: str, *, dotted: str, write_key: str) -> dict:
-        """Same path as the daemon: source is an exec, not its own route."""
+    def source(self, session_id: str, *, write_key: str, **target) -> dict:
+        """The client's own path: the snippet runs through `exec`."""
+        from odoo_migrator.sheller.source import read_source
 
-        return self.exec(session_id, dotted, write_key=write_key)
+        return read_source(self, session_id, write_key=write_key, **target)
 
     def forget_journal(self, session_id: str) -> None:
         """The journal file is gone. The trace row still has the ids."""
@@ -359,13 +439,18 @@ class FakeShellerClient:
         }
 
     def interrupt(self, session_id: str, *, write_key: str) -> dict:
-        self._require(session_id, write_key)
+        self._require(session_id, write_key, verb="interrupt")
         self.interrupts.append(session_id)
         for command in self._sessions[session_id]["commands"]:
             if command.get("status") == "running":
                 command["status"] = "interrupted"
 
         return {"ok": True}
+
+    @staticmethod
+    def _running(session: dict) -> bool:
+
+        return any(command.get("status") == "running" for command in session["commands"])
 
     def _remembered(self, session_id: str) -> dict:
         session = self._sessions.get(session_id) or self._journals.get(session_id)
@@ -374,10 +459,16 @@ class FakeShellerClient:
 
         return session
 
-    def _require(self, session_id: str, write_key: str) -> dict:
+    def _require(self, session_id: str, write_key: str, *, verb: str = "exec") -> dict:
         session = self._sessions.get(session_id)
         if session is None:
             raise ShellerError("unknown session", status=404)
+        if session["state"] == "dead" and verb != "close":
+            raise ShellerSessionDead(
+                "session_gone: the shell process exited", status=410
+            )
+        if verb == "exec" and self._running(session):
+            raise ShellerBusy("session_busy: a command is still running", status=409)
         # Measured against the daemon on 8765: a close with an empty key is
         # 403 not_owner, for an agent session we had just opened ourselves.
         # There is no corpse exemption to lean on either — a session whose

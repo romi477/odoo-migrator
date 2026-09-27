@@ -340,10 +340,13 @@ def test_exec_run_test_commit_rollback_close(sheller):
     sid = opened["id"]
     key = opened["write_key"]
 
+    # The daemon's shapes: `error` is None on success, and a test run's
+    # outcome is under `test`. Neither answer carries an `ok`.
     executed = sheller.exec(sid, "1 + 1", write_key=key)
-    assert executed["ok"] is True
+    assert executed["error"] is None
     tested = sheller.run_test(sid, "sale.TestSale.test_ok", write_key=key)
-    assert tested["ok"] is True
+    assert tested["error"] is None
+    assert tested["test"]["success"] is True
     assert sheller.commit(sid, write_key=key)["ok"] is True
     assert sheller.rollback(sid, write_key=key)["ok"] is True
     assert sheller.close(sid, write_key=key)["ok"] is True
@@ -409,7 +412,7 @@ def test_http_client_never_sends_an_admin_key():
     client = _http_client(FakeShellerClient())
     opened = _open(client, allow_commit=True)
 
-    assert client.exec(opened["id"], "1", write_key=opened["write_key"])["ok"] is True
+    assert client.exec(opened["id"], "1", write_key=opened["write_key"])["error"] is None
     assert client.commit(opened["id"], write_key=opened["write_key"])["ok"] is True
     assert client.rollback(opened["id"], write_key=opened["write_key"])["ok"] is True
     assert client.close(opened["id"], write_key=opened["write_key"])["ok"] is True

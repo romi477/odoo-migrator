@@ -175,6 +175,16 @@ def loop_ctx(tmp_path):
             sheller=sheller,
             sessions={"old": old["id"], "new": new["id"]},
             write_keys={"old": old["write_key"], "new": new["write_key"]},
+            # What the runner records: `upgrade` reopens the new side on it.
+            session_targets={
+                side: {
+                    "container": container,
+                    "database": "acme",
+                    "odoo_bin": "/opt/odoo/odoo-bin",
+                    "owner": {"kind": "agent", "migration_id": migration.id},
+                }
+                for side, container in (("old", "odoo-old"), ("new", "odoo-new"))
+            },
             emit=lambda _event: None,
             provider=ScriptedProvider(ModelDouble(always_reports=True)),
         )

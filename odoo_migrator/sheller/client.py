@@ -6,6 +6,7 @@ from typing import Protocol
 import httpx2
 
 from odoo_migrator.sheller.errors import (
+    ShellerBusy,
     ShellerError,
     ShellerNotOwner,
     ShellerSessionDead,
@@ -20,6 +21,13 @@ SESSION_KEY_HEADER = "X-OS-Session-Key"
 # process is killed. Stay past that wait so a slow registry load can finish
 # and a real death still comes back as the daemon's own reason.
 SESSION_OPEN_TIMEOUT = 120.0
+# The daemon's own ceiling for a test run when the body names none. The HTTP
+# call has to outlast whichever ceiling applies: the client default is 30s,
+# and a test class that ran longer came back as a timeout while it kept the
+# session busy, so every spec after it answered `session_busy`.
+DAEMON_TEST_TIMEOUT = 300.0
+# Room for the daemon to notice its own timeout and say so, before ours fires.
+HTTP_MARGIN = 30.0
 
 
 def mcp_for_ui(health: dict) -> dict | None:
@@ -76,7 +84,7 @@ class ShellerClient(Protocol):
 
     def close(self, session_id: str, *, write_key: str) -> dict: ...
 
-    def source(self, session_id: str, *, dotted: str, write_key: str) -> dict: ...
+    def source(self, session_id: str, *, write_key: str, **target) -> dict: ...
 
     def journal(self, session_id: str) -> dict: ...
 
@@ -200,6 +208,7 @@ class HttpShellerClient:
             f"/api/sessions/{session_id}/run_test",
             json=body,
             write_key=write_key,
+            timeout=(timeout or DAEMON_TEST_TIMEOUT) + HTTP_MARGIN,
         )
 
     def commit(self, session_id: str, *, write_key: str) -> dict:
@@ -220,10 +229,15 @@ class HttpShellerClient:
             "DELETE", f"/api/sessions/{session_id}", write_key=write_key
         )
 
-    def source(self, session_id: str, *, dotted: str, write_key: str) -> dict:
-        """Read through ``exec``. The daemon has no source route; its MCP tool is this call."""
+    def source(self, session_id: str, *, write_key: str, **target) -> dict:
+        """Read through ``exec``, with the snippet Sheller's MCP tool runs.
 
-        return self.exec(session_id, dotted, write_key=write_key)
+        ``target`` is ``path`` (with ``first``/``last``) or ``model`` (with
+        ``method`` and ``module``). The daemon has no source route.
+        """
+        from odoo_migrator.sheller.source import read_source
+
+        return read_source(self, session_id, write_key=write_key, **target)
 
     def journal(self, session_id: str) -> dict:
         """``GET /api/journals/{id}`` is ndjson, not a JSON object."""
@@ -325,6 +339,16 @@ def _raise_http(response: httpx2.Response) -> None:
         detail = response.text
     if response.status_code == 403:
         raise ShellerNotOwner("not_owner", status=403, detail=detail)
+    if response.status_code == 409:
+        raise ShellerBusy(
+            f"session_busy: {detail}", status=409, detail=detail
+        )
+    if response.status_code == 504:
+        # The daemon's own ceiling (300s on exec) expired. As with ours, the
+        # command is still running in the session.
+        raise ShellerTimeout(
+            f"the daemon gave up waiting: {detail}", status=504, detail=detail
+        )
     if response.status_code == 410:
         raise ShellerSessionDead(
             _session_dead_message(detail), status=410, detail=detail

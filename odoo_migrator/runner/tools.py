@@ -52,13 +52,21 @@ TOOL_SCHEMAS = {
         },
         "required": ["side", "code"],
     },
+    # Sheller's `os_source`: a file or directory by `path`, or the code a
+    # model's method runs by `model` + `method`. `module` picks one link of
+    # the override chain.
     "source": {
         "type": "object",
         "properties": {
             "side": {"type": "string"},
-            "dotted": {"type": "string"},
+            "path": {"type": "string"},
+            "first": {"type": "integer"},
+            "last": {"type": "integer"},
+            "model": {"type": "string"},
+            "method": {"type": "string"},
+            "module": {"type": "string"},
         },
-        "required": ["side", "dotted"],
+        "required": ["side"],
     },
     "read_file": {
         "type": "object",
@@ -85,6 +93,27 @@ TOOL_SCHEMAS = {
         "required": ["side"],
     },
 }
+# What the model is told each tool does. One generic line for all of them
+# left `source` to be guessed at, and a guess is what it got.
+TOOL_DESCRIPTIONS = {
+    "exec": "Run Python in the live Odoo shell on this side; `env` is bound.",
+    "source": (
+        "Read code on this side. `path='sale/models/sale_order.py'` (with "
+        "optional `first`/`last` lines) reads a file, a directory lists it; "
+        "`model='sale.order'` with `method='action_confirm'` returns the code "
+        "that runs and its override chain, and `module=` picks one link."
+    ),
+    "journal": "The session's journal: every command it ran and what came back.",
+    "history": "The session's command history.",
+    "run_test": "Run one test spec: 'module.TestClass' or 'module.TestClass.test_method'.",
+    "list_tests": "The test classes a module declares, each with a ready spec.",
+    "test_result": "The report of the last run_test.",
+    "interrupt": "Stop the command this side's session is running.",
+    "rollback": "Discard everything this side's session holds uncommitted.",
+    "reopen": "Open a fresh session on this side; do it after changing Python files.",
+    "read_file": "Read a file, by a path relative to this side's project root.",
+    "write_file": "Write a file, by a path relative to the new project's root.",
+}
 _SIDE_ONLY = {
     "type": "object",
     "properties": {"side": {"type": "string"}},
@@ -99,7 +128,7 @@ class BoundTool:
         self.name = name
         self._fn = fn
         self.input_schema = TOOL_SCHEMAS.get(name, _SIDE_ONLY)
-        self.description = f"Run {name} on one side this step declared."
+        self.description = TOOL_DESCRIPTIONS.get(name, f"Run {name} on one side this step declared.")
 
     def __call__(self, **kwargs) -> str:
         return self._fn(**kwargs)
@@ -156,7 +185,9 @@ def _bind(name: str, step, ctx):
             value = _dispatch(name, ctx, side, kwargs)
         except ToolRefused:
             raise
-        except (ShellerError, OSError) as exc:
+        # UnicodeDecodeError is a ValueError: a binary file under the module
+        # is an answer to give the model, not a crash of the step.
+        except (ShellerError, OSError, ValueError) as exc:
             _record(ctx, name, side, ran_in, "", _elapsed(started), False, str(exc))
 
             return f"error: {exc}"
@@ -214,7 +245,13 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
 
         return _exec(ctx, session_id, write_key, kwargs.get("code", ""))
     if name == "source":
-        return sheller.source(session_id, dotted=kwargs.get("dotted", ""), write_key=write_key)
+        target = {
+            key: kwargs[key]
+            for key in ("path", "first", "last", "model", "method", "module")
+            if kwargs.get(key) not in (None, "")
+        }
+
+        return sheller.source(session_id, write_key=write_key, **target)
     if name == "journal":
         return sheller.journal(session_id)
     if name == "history":
@@ -278,28 +315,22 @@ def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:
     `describe()` answers container, database and owner but never `odoo_bin`,
     and `open_session` refuses without it.
     """
-    target = ctx.session_targets.get(side)
-    if not target:
-        raise ToolRefused(f"no target recorded for side {side!r}")
-    ctx.sheller.close(session_id, write_key=write_key)
-    opened = ctx.sheller.open_session(
-        container=target["container"],
-        database=target["database"],
-        odoo_bin=target["odoo_bin"],
-        owner=target.get("owner") or {"kind": "agent"},
-        allow_commit=side == "new",
-    )
-    ctx.sessions[side] = opened["id"]
-    ctx.write_keys[side] = opened["write_key"]
+    del session_id, write_key
+    from odoo_migrator.runner.sessions import reopen_side
 
-    return opened["id"]
+    if not ctx.session_targets.get(side):
+        raise ToolRefused(f"no target recorded for side {side!r}")
+
+    return reopen_side(ctx, side)
 
 
 def _project_root(ctx, side: str) -> Path:
     migration = ctx.migration
     raw = migration.old_project_path if side == "old" else migration.new_project_path
 
-    return Path(raw).resolve()
+    # `~` as typed on the card. `module_paths` expands it, so without this
+    # the prompt named one directory and the tools wrote under `./~`.
+    return Path(raw).expanduser().resolve()
 
 
 def _inside(ctx, side: str, relative: str) -> Path:

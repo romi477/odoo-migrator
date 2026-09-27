@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -13,6 +14,10 @@ from odoo_migrator.runner.context import StepContext, StepResult
 # A manifest Odoo will not load is missing its name. `depends` is how the
 # graph is read; a file without it is not a module manifest.
 _REQUIRED = ("name", "depends")
+# `<series>.x.y.z`, the five-part form. Odoo prepends the running series to a
+# version that does not start with it, so `17.0.1.0.0` on 18.0 loads as
+# `18.0.17.0.1.0.0` — and migration scripts compare against that.
+_SERIES_VERSION = re.compile(r"^(\d+\.\d+)\.\d+\.\d+\.\d+$")
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
@@ -26,7 +31,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             continue
         relative = path.relative_to(root).as_posix()
         if path.suffix == ".py":
-            problems.extend(_python(path, relative))
+            problems.extend(_python(path, relative, ctx.migration.target_version or ""))
         elif path.suffix == ".xml":
             problems.extend(_xml(path, relative))
     if problems:
@@ -41,8 +46,14 @@ def _module_root(ctx: StepContext) -> Path | None:
     return module_root(ctx.migration, ctx.module, "new")
 
 
-def _python(path: Path, relative: str) -> list[str]:
-    text = path.read_text(encoding="utf-8")
+def _python(path: Path, relative: str, target: str = "") -> list[str]:
+    # A file that is not UTF-8 is a finding. It used to raise out of the
+    # step and fail the whole job instead of the lap.
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+
+        return [f"{relative}: not UTF-8 ({exc.reason} at byte {exc.start})"]
     try:
         ast.parse(text, filename=relative)
     except SyntaxError as exc:
@@ -63,8 +74,17 @@ def _python(path: Path, relative: str) -> list[str]:
     if missing:
 
         return [f"{relative}: missing {', '.join(missing)}"]
+    problems = []
+    if value.get("installable") is False:
+        problems.append(f"{relative}: installable is False, so Odoo will not install it")
+    found = _SERIES_VERSION.match(str(value.get("version") or ""))
+    if target and found and found.group(1) != target:
+        problems.append(
+            f"{relative}: version {value['version']} is for {found.group(1)}; "
+            f"the target is {target}"
+        )
 
-    return []
+    return problems
 
 
 def _xml(path: Path, relative: str) -> list[str]:

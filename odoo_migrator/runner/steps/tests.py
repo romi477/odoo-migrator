@@ -6,6 +6,12 @@ from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.sheller.errors import ShellerError
 
+# Seconds one spec may run. Past the daemon's default of 300: a module's own
+# test class on a real database is not a unit test.
+TEST_TIMEOUT = 1800.0
+# The end of the log is where the traceback and the summary are. `diagnose`
+# reads this as `last_failure`; "1 failure" alone gives it nothing to work on.
+_LOG_TAIL = 60
 
 def run(step: Step, ctx: StepContext) -> StepResult:
     session_id = ctx.sessions.get("new")
@@ -26,17 +32,72 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     failed: list[str] = []
     for spec in _specs(name, classes):
         try:
-            report = ctx.sheller.run_test(session_id, spec, write_key=write_key)
+            report = ctx.sheller.run_test(
+                session_id, spec, write_key=write_key, timeout=TEST_TIMEOUT
+            )
         except ShellerError as exc:
             failed.append(f"{spec}: {exc}")
             continue
-        if report.get("ok") is False or report.get("error") or report.get("status") == "fail":
-            failed.append(f"{spec}: {report.get('error') or report.get('status') or 'failed'}")
+        _note_log_errors(ctx, report)
+        problem = report_failure(report)
+        if problem:
+            failed.append(f"{spec}: {problem}{_tail(report)}")
     if failed:
 
         return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(failed))
 
     return StepResult(ok=True, output=f"{len(classes)} test class(es) passed")
+
+
+def report_failure(report: dict) -> str:
+    """Why a run is red, or "" when it is green. The daemon's shape, read whole.
+
+    A red run is not an error: the daemon answers `error: None` and puts the
+    outcome in `test`. This used to look for `ok` and `status`, which the
+    daemon never sends, so a failing test passed. A run of zero tests is red
+    too — the spec matched nothing, and "nothing failed" is not a pass.
+    """
+    error = report.get("error")
+    if error:
+        if isinstance(error, dict):
+
+            return f"{error.get('type') or 'Error'}: {error.get('message') or ''}".strip()
+
+        return str(error)
+    outcome = report.get("test")
+    if not isinstance(outcome, dict):
+
+        return "the daemon returned no test report"
+    if outcome.get("success") is not True:
+
+        return (
+            f"{outcome.get('failures') or 0} failure(s), "
+            f"{outcome.get('errors') or 0} error(s) "
+            f"in {outcome.get('tests_run') or 0} test(s)"
+        )
+    if not outcome.get("tests_run"):
+
+        return "ran 0 tests: the runner found nothing under this spec"
+
+    return ""
+
+
+def _tail(report: dict) -> str:
+    lines = [str(line) for line in (report.get("stderr") or [])]
+    stdout = str(report.get("stdout") or "").strip()
+    if stdout:
+        lines.extend(stdout.splitlines())
+    if not lines:
+
+        return ""
+
+    return "\n" + "\n".join(lines[-_LOG_TAIL:])
+
+
+def _note_log_errors(ctx: StepContext, report: dict) -> None:
+    from odoo_migrator.runner.steps.verdict import note_log_errors
+
+    note_log_errors(ctx, report.get("stderr") or [])
 
 
 def _specs(module: str, classes: list) -> list[str]:
