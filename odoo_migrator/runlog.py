@@ -97,6 +97,17 @@ def lines(job_id: str, *, after: int = 0, limit: int = 1000) -> list[dict]:
         ]
 
 
+def clear(job_id: str) -> int:
+    """Delete one job's log. Returns how many lines went."""
+    with database.connection_context():
+        job = Job.get_or_none(Job.job_id == job_id)
+        if job is None:
+
+            return 0
+
+        return RunLog.delete().where(RunLog.job == job).execute()
+
+
 def detail_of(line_id: int) -> str | None:
     with database.connection_context():
         row = RunLog.get_or_none(RunLog.id == line_id)

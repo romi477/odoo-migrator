@@ -207,3 +207,43 @@ def test_nothing_is_logged_against_an_unknown_job():
 
     assert runlog.lines("no-such-job") == []
     assert RunLog.select().count() >= 0
+
+
+def test_clearing_drops_the_lines_and_keeps_the_job(client, job):
+    runlog.write(job.job_id, source="runner", text="job started")
+    runlog.write(job.job_id, source="port", text="agent step started")
+
+    gone = client.request("DELETE", f"/api/jobs/{job.job_id}/log").json()
+
+    assert gone["deleted"] == 2
+    assert runlog.lines(job.job_id) == []
+    with database.connection_context():
+        assert Job.get_by_id(job.id).status == "running"
+
+
+def test_clearing_an_unknown_job_is_not_an_error(client):
+
+    assert client.request("DELETE", "/api/jobs/no-such-job/log").json()["deleted"] == 0
+
+
+def test_the_panel_offers_copy_and_clear(client):
+    from test_run_workspace import _open
+
+    _open(client)
+
+    page = client.get("/run").text
+
+    assert "data-run-log-copy" in page
+    assert "data-run-log-body-copy" in page
+    assert "data-run-log-clear" in page
+    assert "data-run-log-body-close" in page
+    # The glyph is an include, so a missing template is a 500 and not a
+    # silently empty button.
+    assert "copy-glyph" in page
+
+
+def test_the_copy_button_is_on_the_component_catalogue(client):
+    page = client.get("/components").text
+
+    assert "copy-button" in page
+    assert "run-log-body-panel" in page

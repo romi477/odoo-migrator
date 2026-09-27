@@ -2842,9 +2842,6 @@ pre.test-output {
   overflow: auto;
   margin: 0;
   padding: 10px;
-  border: 1px solid var(--chrome-edge);
-  border-radius: 8px;
-  background: var(--panel-raised);
   font-size: 12px;
   white-space: pre-wrap;
 }
@@ -2852,4 +2849,59 @@ pre.test-output {
 .run-log-line.is-open {
   background: var(--panel-raised);
   border-radius: 4px;
+}
+
+/* A glyph-only button: the label is on `aria-label`, and the two states
+   after a click are the only feedback a copy can give. */
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  color: var(--text-dim, #8a7568);
+  line-height: 1;
+}
+
+.copy-button:hover {
+  color: var(--text);
+}
+
+.copy-button.is-copied {
+  color: #4f8a52;
+}
+
+.copy-button.is-failed {
+  color: #c4552a;
+}
+
+.run-log-clear {
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+.run-log-body-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel-raised);
+}
+
+.run-log-body-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--chrome-edge);
+  font-size: 12px;
+  color: var(--text-dim, #8a7568);
+}
+
+.run-log-body-label {
+  margin-right: auto;
+}
+
+.run-log-close {
+  padding: 0 8px;
+  font-size: 14px;
+  line-height: 1;
 }

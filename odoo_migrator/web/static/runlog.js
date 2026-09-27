@@ -11,6 +11,8 @@
   var list = panel.querySelector("[data-run-log]");
   var empty = panel.querySelector("[data-run-log-empty]");
   var body = panel.querySelector("[data-run-log-body]");
+  var bodyPanel = panel.querySelector("[data-run-log-body-panel]");
+  var bodyLabel = panel.querySelector("[data-run-log-body-label]");
   var follow = panel.querySelector("[data-run-log-follow]");
   var job = panel.getAttribute("data-job") || "";
   var last = 0;
@@ -46,22 +48,26 @@
       open.className = "run-log-open";
       open.textContent = "body";
       open.addEventListener("click", function () {
+        /* A second click closes it. Without that the pane stayed open on
+           a line that had scrolled away, describing nothing on screen. */
+        if (item.classList.contains("is-open")) {
+          closeBody();
+          return;
+        }
         fetch("/api/log/" + line.id)
           .then(function (response) {
             return response.text();
           })
           .then(function (text) {
-            /* Which line this body belongs to, and put it where the eye
-               already is: the panel scrolls, so an unlabelled block at the
-               foot of it reads as part of whatever is on screen. */
             var chosen = list.querySelector(".is-open");
             if (chosen) {
               chosen.classList.remove("is-open");
             }
             item.classList.add("is-open");
-            body.hidden = false;
-            body.textContent = when.textContent + "  " + who.textContent + "\n\n" + text;
-            body.scrollIntoView({ block: "nearest" });
+            bodyPanel.hidden = false;
+            bodyLabel.textContent = when.textContent + "  " + who.textContent;
+            body.textContent = text;
+            bodyPanel.scrollIntoView({ block: "nearest" });
           });
       });
       item.appendChild(open);
@@ -71,6 +77,102 @@
     if (stick) {
       list.scrollTop = list.scrollHeight;
     }
+  }
+
+  function closeBody() {
+    var chosen = list.querySelector(".is-open");
+    if (chosen) {
+      chosen.classList.remove("is-open");
+    }
+    bodyPanel.hidden = true;
+    body.textContent = "";
+  }
+
+  /* Copying is why the log exists: a failed run gets pasted into a chat or
+     an issue. `navigator.clipboard` is the good path, and it is refused
+     often enough — a permissions policy, an embedded view, a browser that
+     wants a stronger user gesture — that a button relying on it alone is a
+     button that sometimes silently does nothing. The textarea fallback
+     needs no permission. */
+  function copy(text, button) {
+    function done(ok) {
+      button.classList.add(ok ? "is-copied" : "is-failed");
+      setTimeout(function () {
+        button.classList.remove("is-copied");
+        button.classList.remove("is-failed");
+      }, 1200);
+    }
+    function viaTextarea() {
+      var pad = document.createElement("textarea");
+      pad.value = text;
+      pad.setAttribute("readonly", "");
+      pad.style.position = "fixed";
+      pad.style.opacity = "0";
+      document.body.appendChild(pad);
+      pad.select();
+      var ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (err) {
+        ok = false;
+      }
+      document.body.removeChild(pad);
+      done(ok);
+    }
+    if (!navigator.clipboard) {
+      viaTextarea();
+      return;
+    }
+    navigator.clipboard.writeText(text).then(function () {
+      done(true);
+    }, viaTextarea);
+  }
+
+  function asText() {
+    var rows = [];
+    var items = list.querySelectorAll(".run-log-line");
+    for (var i = 0; i < items.length; i++) {
+      var cells = items[i].querySelectorAll("span");
+      var parts = [];
+      for (var j = 0; j < cells.length; j++) {
+        parts.push(cells[j].textContent);
+      }
+      rows.push(parts.join("  "));
+    }
+    return rows.join("\n");
+  }
+
+  var copyAll = panel.querySelector("[data-run-log-copy]");
+  if (copyAll) {
+    copyAll.addEventListener("click", function () {
+      copy(asText(), copyAll);
+    });
+  }
+  var copyBody = panel.querySelector("[data-run-log-body-copy]");
+  if (copyBody) {
+    copyBody.addEventListener("click", function () {
+      copy(body.textContent, copyBody);
+    });
+  }
+  var closer = panel.querySelector("[data-run-log-body-close]");
+  if (closer) {
+    closer.addEventListener("click", closeBody);
+  }
+  var clear = panel.querySelector("[data-run-log-clear]");
+  if (clear) {
+    clear.addEventListener("click", function () {
+      if (!job) {
+        return;
+      }
+      fetch("/api/jobs/" + job + "/log", { method: "DELETE" }).then(function () {
+        list.innerHTML = "";
+        last = 0;
+        closeBody();
+        if (empty) {
+          empty.hidden = false;
+        }
+      });
+    });
   }
 
   function load() {

@@ -1,0 +1,9 @@
+{# Two sheets, one behind the other: the usual copy glyph. `currentColor`
+   so the button's own colour rules apply, and aria-hidden because the
+   button already carries the label. #}
+<svg class="copy-glyph" viewBox="0 0 16 16" width="14" height="14"
+     fill="none" stroke="currentColor" stroke-width="1.4"
+     stroke-linejoin="round" aria-hidden="true">
+  <rect x="5.5" y="5.5" width="8" height="9" rx="1.5"></rect>
+  <path d="M10.5 3.5v-1a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h1"></path>
+</svg>

@@ -1456,6 +1456,18 @@ def create_app(
 
         return JSONResponse({"job_id": job_id, "lines": runlog.lines(job_id, after=after)})
 
+    @app.delete("/api/jobs/{job_id}/log")
+    def job_log_clear(job_id: str):
+        """Drop this job's log. The job, its steps and its result stay.
+
+        The log is a reading aid, not a record of the run: the outcome
+        lives on the job and its `StepRun` rows. Clearing is how a long
+        session stops drowning the next run.
+        """
+        from odoo_migrator import runlog
+
+        return JSONResponse({"job_id": job_id, "deleted": runlog.clear(job_id)})
+
     @app.get("/api/log/{line_id}")
     def job_log_detail(line_id: int):
         """One line's body, fetched when it is opened and not before.

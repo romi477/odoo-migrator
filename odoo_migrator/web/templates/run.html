@@ -217,6 +217,12 @@
       <header class="run-log-head">
         <h2 class="pipeline-panel-title">Log</h2>
         <span class="mono run-log-job">{% if log_job %}{{ log_job.module }} · {{ log_job.status }}{% endif %}</span>
+        <button type="button" class="copy-button" data-run-log-copy
+                title="Copy the whole log" aria-label="Copy the whole log">
+          {% include "_copy_icon.svg" %}
+        </button>
+        <button type="button" class="run-log-clear" data-run-log-clear
+                title="Delete this job's log" aria-label="Delete this job's log">Clear</button>
         <label class="run-log-follow">
           <input type="checkbox" data-run-log-follow checked>
           Follow
@@ -226,7 +232,18 @@
       <p class="field-hint" data-run-log-empty{% if log_job %} hidden{% endif %}>
         No job has run on this migration yet.
       </p>
-      <pre class="run-log-body" data-run-log-body hidden></pre>
+      <div class="run-log-body-panel" data-run-log-body-panel hidden>
+        <header class="run-log-body-head">
+          <span class="mono run-log-body-label" data-run-log-body-label></span>
+          <button type="button" class="copy-button" data-run-log-body-copy
+                  title="Copy this body" aria-label="Copy this body">
+            {% include "_copy_icon.svg" %}
+          </button>
+          <button type="button" class="run-log-close" data-run-log-body-close
+                  title="Close this body" aria-label="Close this body">×</button>
+        </header>
+        <pre class="run-log-body" data-run-log-body></pre>
+      </div>
     </article>
   </div>
   {% elif screen == 'sheller' %}

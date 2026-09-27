@@ -62,6 +62,25 @@
     </li>
   </ol>
 
+  <h2>Copy button</h2>
+  <div class="row">
+    <button type="button" class="copy-button" aria-label="Copy">{% include "_copy_icon.svg" %}</button>
+    <button type="button" class="copy-button is-copied" aria-label="Copied">{% include "_copy_icon.svg" %}</button>
+    <button type="button" class="copy-button is-failed" aria-label="Copy refused">{% include "_copy_icon.svg" %}</button>
+  </div>
+
+  <h2>Log body</h2>
+  <div class="run-log-body-panel">
+    <header class="run-log-body-head">
+      <span class="mono run-log-body-label">13:27:32  understand</span>
+      <button type="button" class="copy-button" aria-label="Copy this body">{% include "_copy_icon.svg" %}</button>
+      <button type="button" class="run-log-close" aria-label="Close">×</button>
+    </header>
+    <pre class="run-log-body">status: finished
+tool calls made: 0
+tools offered: exec, read_file, report, source</pre>
+  </div>
+
   <h2>Flow canvas</h2>
   <ul class="flow-legend">
     <li><span class="flow-swatch agent" aria-hidden="true"></span> Agent. A model turn.</li>
