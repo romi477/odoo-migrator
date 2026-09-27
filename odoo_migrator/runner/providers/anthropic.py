@@ -89,7 +89,7 @@ class AnthropicProvider:
                 # The step ends at `report`. Left to the runner, the call was
                 # executed on the next iteration — which then asked the model
                 # for one more turn it had no use for, and paid for it.
-                reported = _report_input(message, report.name)
+                reported = _report_input(message, report)
                 if reported is not None:
                     captured.clear()
                     captured.update(reported)
@@ -154,6 +154,10 @@ def _as_beta(beta_tool, tool: BoundTool):
 def _report_beta(beta_tool, report: ReportTool, captured: dict):
     def submit(**payload: object) -> str:
         """End the step. Set a flag only when it is true."""
+        refused = report.refusal(payload)
+        if refused:
+
+            return refused
         captured.clear()
         captured.update(payload)
 
@@ -191,12 +195,22 @@ def _spent(usage: dict) -> int:
     return usage["in"] + usage["out"]
 
 
-def _report_input(message, name: str) -> dict | None:
-    for block in getattr(message, "content", None) or []:
-        if getattr(block, "type", "") == "tool_use" and getattr(block, "name", "") == name:
-            payload = getattr(block, "input", None)
+def _report_input(message, report: ReportTool) -> dict | None:
+    """The report this turn ended with, or None — a refused one included.
 
-            return dict(payload) if isinstance(payload, dict) else {}
+    A refused report is not the end of the step: left to stop the loop here,
+    the model would never hear why it was refused, and the runner would act
+    on a contradiction it was told to reject.
+    """
+    for block in getattr(message, "content", None) or []:
+        if getattr(block, "type", "") == "tool_use" and getattr(block, "name", "") == report.name:
+            payload = getattr(block, "input", None)
+            payload = dict(payload) if isinstance(payload, dict) else {}
+            if report.refusal(payload):
+
+                return None
+
+            return payload
 
     return None
 

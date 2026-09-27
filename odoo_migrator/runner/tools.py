@@ -36,6 +36,13 @@ TOOL_SIDES = {
 }
 
 
+# Flags that cannot both be true in one report. The diagnosis picks one
+# repair; raising both ran the whole failure lane, and `rewrite` — which
+# starts from an empty module directory — deleted the fix `patch` had just
+# written, in the same lap and at the cost of two agent steps.
+EXCLUSIVE_FLAGS = (("small_fix", "start_over"),)
+
+
 class ToolRefused(Exception):
     """The step asked a tool to touch a session or path it did not declare."""
 
@@ -151,7 +158,31 @@ class ReportTool:
         self.input_schema = {"type": "object", "properties": properties}
         self._step = step
 
+    def refusal(self, payload: dict) -> str:
+        """Why this report cannot be accepted, in words for the model, or "".
+
+        A refused report does not end the step: the model is told what is
+        wrong with it and reports again. The alternative is the runner
+        choosing for it, which hides that the diagnosis contradicted itself.
+        """
+        for pair in EXCLUSIVE_FLAGS:
+            raised = [flag for flag in pair if payload.get(flag)]
+            if len(raised) > 1:
+
+                return (
+                    f"{' and '.join(raised)} cannot both be true: they ask for "
+                    "different repairs, and running both undoes the first. "
+                    "Report again with the one you mean."
+                )
+
+        return ""
+
     def __call__(self, **payload) -> str:
+        refused = self.refusal(payload)
+        if refused:
+
+            return refused
+
         return json.dumps(payload)
 
 

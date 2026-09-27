@@ -92,3 +92,36 @@ def test_write_file_refuses_a_path_that_escapes_the_project(step_context):
         write(side="new", path="../outside.py", content="x = 1\n")
 
     assert "escapes" in str(refused.value)
+
+
+def test_a_report_cannot_ask_for_a_patch_and_a_rewrite_at_once():
+    """The spec calls them mutually exclusive. Both raised, the whole failure
+    lane ran: `patch` wrote a fix and `rewrite`, which starts from an empty
+    module directory, deleted it in the same lap."""
+    diagnose = Step(
+        kind="agent",
+        id="diagnose",
+        prompt="why",
+        raises=["needs_human", "small_fix", "start_over"],
+    )
+    report = report_tool(diagnose)
+
+    refused = report.refusal({"small_fix": True, "start_over": True})
+
+    assert "small_fix and start_over cannot both be true" in refused
+    assert "Report again" in refused
+    assert report(small_fix=True, start_over=True) == refused
+
+
+def test_one_repair_at_a_time_is_accepted():
+    diagnose = Step(
+        kind="agent",
+        id="diagnose",
+        prompt="why",
+        raises=["needs_human", "small_fix", "start_over"],
+    )
+    report = report_tool(diagnose)
+
+    assert report.refusal({"small_fix": True, "answer": "a field moved"}) == ""
+    assert report.refusal({"start_over": True, "needs_human": True}) == ""
+    assert '"small_fix": true' in report(small_fix=True).replace("True", "true")

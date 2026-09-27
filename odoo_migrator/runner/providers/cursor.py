@@ -128,8 +128,13 @@ class CursorProvider:
             return run
 
         def report_execute(arguments, _context) -> str:
+            payload = dict(arguments or {})
+            refused = report.refusal(payload)
+            if refused:
+
+                return refused
             captured.clear()
-            captured.update(dict(arguments or {}))
+            captured.update(payload)
 
             return "reported"
 

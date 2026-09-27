@@ -177,9 +177,17 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
         usage = None
 
     class _Run:
+        # The reports the agent makes in one run, in order. More than one is
+        # how a refused report is replayed: the tool answers, the agent tries
+        # again inside the same run.
+        reports = ({"answer": "ported"},)
+
         def wait(self):
             captured["custom"]["exec"].execute({"side": "new", "code": "1"}, None)
-            captured["custom"]["report"].execute({"answer": "ported"}, None)
+            captured["answers"] = [
+                captured["custom"]["report"].execute(dict(payload), None)
+                for payload in _Run.reports
+            ]
 
             return _Result()
 
@@ -307,6 +315,29 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
         routed.detail
     )
 
+    # `small_fix` and `start_over` at once is a refused report: the tool says
+    # why and the agent reports again. Accepted, the failure lane ran `patch`
+    # and then `rewrite`, which starts from an empty module directory and
+    # deleted the fix `patch` had just written.
+    diagnose = _step(id="diagnose", raises=["small_fix", "start_over"])
+    _Run.reports = (
+        {"small_fix": True, "start_over": True},
+        {"answer": "a field moved", "small_fix": True},
+    )
+    decided = CursorProvider().run_step(
+        system="",
+        prompt="why",
+        tools=[BoundTool("exec", _exec)],
+        report=report_tool(diagnose),
+        model="composer-2.5",
+        budget=Budget(tool_calls=5),
+    )
+
+    assert "cannot both be true" in captured["answers"][0]
+    assert captured["answers"][1] == "reported"
+    assert decided.flags == {"small_fix"}
+    assert decided.answer == "a field moved"
+
 
 def test_cursor_without_a_key_does_not_call_the_sdk(monkeypatch):
     monkeypatch.setattr("odoo_migrator.runner.providers.cursor._key", lambda: "")
@@ -319,3 +350,63 @@ def test_cursor_without_a_key_does_not_call_the_sdk(monkeypatch):
             model="composer-2.5",
             budget=Budget(),
         )
+
+
+def test_scripted_sends_a_contradictory_report_back_to_the_model():
+    """Live providers refuse it and let the model report again; the double
+    has to take the same path, or the tests agree with a loop that cannot
+    happen against a real model."""
+    client = ModelDouble(
+        turns=[
+            {"name": "report", "input": {"small_fix": True, "start_over": True}},
+            {"name": "report", "input": {"answer": "a field moved", "small_fix": True}},
+        ]
+    )
+    step = _step(id="diagnose", raises=["small_fix", "start_over"])
+
+    result = ScriptedProvider(client).run_step(
+        system="",
+        prompt="why",
+        tools=tools_for(step, _ctx()),
+        report=report_tool(step),
+        model="claude-opus-5",
+        budget=Budget(tool_calls=5),
+    )
+
+    assert result.ok is True
+    assert result.flags == {"small_fix"}
+    assert result.answer == "a field moved"
+
+
+def test_anthropic_does_not_end_the_step_on_a_contradictory_report():
+    from odoo_migrator.runner.providers.anthropic import _report_beta, _report_input
+
+    step = _step(id="diagnose", raises=["small_fix", "start_over"])
+    report = report_tool(step)
+    both = types.SimpleNamespace(
+        content=[
+            types.SimpleNamespace(
+                type="tool_use",
+                name="report",
+                input={"small_fix": True, "start_over": True},
+            )
+        ]
+    )
+    one = types.SimpleNamespace(
+        content=[
+            types.SimpleNamespace(type="tool_use", name="report", input={"start_over": True})
+        ]
+    )
+
+    assert _report_input(both, report) is None
+    assert _report_input(one, report) == {"start_over": True}
+
+    captured: dict = {}
+    submitted = []
+    _report_beta(lambda fn, **kw: submitted.append(fn) or fn, report, captured)
+    submit = submitted[0]
+
+    assert "cannot both be true" in submit(small_fix=True, start_over=True)
+    assert captured == {}
+    assert submit(answer="done", small_fix=True) == "reported"
+    assert captured == {"answer": "done", "small_fix": True}

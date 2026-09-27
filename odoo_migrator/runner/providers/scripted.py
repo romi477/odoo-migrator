@@ -51,6 +51,11 @@ class ScriptedProvider:
             name = action.get("name") or action.get("tool")
             payload = action.get("input") or {}
             if name == "report":
+                # A live provider hands a refused report back to the model and
+                # lets it report again. A double that accepted one would agree
+                # with a loop no live run takes.
+                if report.refusal(payload):
+                    continue
 
                 return _from_report(report, payload)
             tool = by_name.get(name)
