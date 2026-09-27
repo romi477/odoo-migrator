@@ -118,11 +118,27 @@ class CursorProvider:
         tokens_in = int(getattr(usage, "input_tokens", 0) or 0)
         tokens_out = int(getattr(usage, "output_tokens", 0) or 0)
         tokens_cached = int(getattr(usage, "cache_read_tokens", 0) or 0)
+        detail = _account(result, spent["calls"], sorted(custom))
+        status = str(getattr(result, "status", "") or "")
+        # A run that did not complete is not "the model returned nothing
+        # useful": the SDK knows why and puts it here. Reading only
+        # `captured` reported the symptom and threw the cause away.
+        if status and status not in ("completed", "finished", "success"):
+
+            return StepResult(
+                ok=False,
+                output=f"the agent run ended {status}",
+                detail=detail,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                tokens_cached=tokens_cached,
+            )
         if budget.tokens is not None and tokens_in + tokens_out > budget.tokens:
 
             return StepResult(
                 ok=False,
                 output="stopped at the token budget",
+                detail=detail,
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 tokens_cached=tokens_cached,
@@ -131,7 +147,11 @@ class CursorProvider:
 
             return StepResult(
                 ok=False,
-                output="the model returned nothing useful",
+                output=(
+                    f"the agent finished without calling report "
+                    f"({spent['calls']} tool call(s) made)"
+                ),
+                detail=detail,
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 tokens_cached=tokens_cached,
@@ -146,10 +166,34 @@ class CursorProvider:
             ok=True,
             flags=flags,
             answer=str(captured.get("answer") or ""),
+            detail=detail,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             tokens_cached=tokens_cached,
         )
+
+
+def _account(result, calls: int, offered: list[str]) -> str:
+    """What the SDK reported, for the run log.
+
+    `RunResult` carries `status`, the agent's own `result` text, the model
+    and a duration. None of it was read, so a step that ended with no
+    report looked identical whether the agent refused, crashed, or was
+    never given a tool it could call.
+    """
+    text = str(getattr(result, "result", "") or "").strip()
+    rows = [
+        f"status: {getattr(result, 'status', '')}",
+        f"model: {getattr(result, 'model', '')}",
+        f"duration_ms: {getattr(result, 'duration_ms', '')}",
+        f"tool calls made: {calls}",
+        f"tools offered: {', '.join(offered)}",
+        "",
+        "agent said:",
+        text or "(nothing)",
+    ]
+
+    return "\n".join(rows)
 
 
 def _key() -> str:

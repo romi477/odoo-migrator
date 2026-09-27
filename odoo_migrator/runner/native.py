@@ -5,9 +5,11 @@ from __future__ import annotations
 import contextlib
 import json
 import threading
+import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 
+from odoo_migrator import runlog
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
 from odoo_migrator.jobs import apply_progress, apply_result
@@ -87,6 +89,10 @@ class NativeRunner:
         if error is not None:
             raise error
 
+    def _log(self, job_id: str, source: str, text: str, detail: str = "", level: str = "info") -> None:
+
+        runlog.write(job_id, source=source, text=text, detail=detail, level=level, hub=self.hub)
+
     def _run(self, payload: dict) -> None:
         job_id = payload["job_id"]
         ctx = None
@@ -103,20 +109,30 @@ class NativeRunner:
                         "attempt_started",
                         {"job_id": job_id, "attempt": current.attempt},
                     )
+                    self._log(job_id, "runner", f"attempt {current.attempt}")
                 step_run = self._open_step(current, step)
                 current.step_run_id = step_run
                 label = step.id or step.kind
+                current.step_run_label = label
                 self.hub.publish(
                     "step_started",
                     {"job_id": job_id, "step": label, "kind": step.kind, "attempt": current.attempt},
                 )
                 self._progress({"job_id": job_id, "stage": label, "attempt": current.attempt})
+                self._log(job_id, label, f"{step.kind} step started")
                 writes = "write_file" in (step.tools or ())
                 before = snapshot(_module_root(current)) if writes else {}
                 result = runner(step, current)
                 if writes:
                     self._note_diff(current, before)
                 self._close_step(step_run, result)
+                self._log(
+                    job_id,
+                    label,
+                    _outcome_line(result),
+                    detail=result.detail or result.output,
+                    level="info" if result.ok else "error",
+                )
                 self.hub.publish(
                     "step_finished",
                     {
@@ -137,13 +153,28 @@ class NativeRunner:
             # will not load and a missing model key all raise here. Outside
             # this try they killed the thread with nobody told, and the job
             # sat queued until a restart called it unknown.
+            self._log(job_id, "runner", "job started")
             cartridge = self._cartridge(payload)
+            self._log(
+                job_id,
+                "runner",
+                f"cartridge {cartridge.cartridge} {cartridge.version} "
+                f"({cartridge.sha256[:12]}), model {cartridge.model.provider}/"
+                f"{cartridge.model.name}",
+            )
             ctx = self._context(payload, cartridge)
+            self._log(job_id, "runner", _where_line(ctx), detail=_where_detail(ctx))
             # Opened here rather than inside `_context`, so `ctx` is already
             # bound when it happens. Opening the old side and then failing on
             # the new one used to leave `ctx` unassigned, and the `finally`
             # below closed nothing: a live odoo-bin stayed on the host.
             self._open_sessions(ctx)
+            self._log(
+                job_id,
+                "runner",
+                "sessions open: "
+                + ", ".join(f"{side}={value}" for side, value in sorted(ctx.sessions.items())),
+            )
             outcome = run_job(
                 cartridge,
                 ctx,
@@ -152,6 +183,13 @@ class NativeRunner:
             )
         except Exception as exc:  # noqa: BLE001 - the job has to hear about every failure.
             self._errors[job_id] = exc
+            self._log(
+                job_id,
+                "runner",
+                f"{type(exc).__name__}: {exc}",
+                detail="".join(traceback.format_exception(exc)),
+                level="error",
+            )
             self._fail(job_id, exc)
 
             return
@@ -175,6 +213,13 @@ class NativeRunner:
                     ],
                 }
             )
+        self._log(
+            job_id,
+            "runner",
+            f"job {outcome}",
+            detail=ctx.last_failure,
+            level="error" if outcome == "failed" else "info",
+        )
         self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
 
     def _fail(self, job_id: str, exc: BaseException) -> None:
@@ -265,6 +310,12 @@ class NativeRunner:
         targets = self._targets(migration)
 
         def record(tool, side, session_id, command_id, duration_ms, ok, preview):
+            self._log(
+                payload["job_id"],
+                ctx.step_run_label or "runner",
+                f"{tool}({side}) {duration_ms}ms {'ok' if ok else 'failed'}: {preview}",
+                level="info" if ok else "warn",
+            )
             with database.connection_context():
                 ToolCall.create(
                     step_run=ctx.step_run_id,
@@ -400,6 +451,7 @@ class NativeRunner:
             row.tokens_in = result.tokens_in
             row.tokens_out = result.tokens_out
             row.tokens_cached = result.tokens_cached
+            row.output = (result.output or "")[:4000]
             row.save()
 
 
@@ -418,6 +470,45 @@ def _choices(known: list) -> str:
         return f"It has {len(known)}, among them: {listed}."
 
     return f"It has: {listed}."
+
+
+def _outcome_line(result) -> str:
+    """One line a person can scan. The body goes to the line's detail."""
+    head = "ok" if result.ok else "failed"
+    flags = ", ".join(sorted(result.flags))
+    spent = ""
+    if result.tokens_in or result.tokens_out:
+        spent = f", {result.tokens_in}+{result.tokens_out} tokens"
+    reason = (result.output or "").strip().splitlines()
+    tail = f" — {reason[0]}" if reason else ""
+
+    return f"{head}{f' [{flags}]' if flags else ''}{spent}{tail}"
+
+
+def _where_line(ctx: StepContext) -> str:
+    sides = ctx.session_targets
+
+    return " · ".join(
+        f"{side}: {target['container']}/{target['database']}"
+        for side, target in sorted(sides.items())
+    ) or "no containers"
+
+
+def _where_detail(ctx: StepContext) -> str:
+    """The facts a run goes wrong over, written down once, in one place."""
+    from odoo_migrator.module_paths import module_root
+
+    rows = [f"module: {ctx.module.technical_name}"]
+    for side in ("old", "new"):
+        target = ctx.session_targets.get(side) or {}
+        rows.append(
+            f"{side}: container={target.get('container', '')} "
+            f"database={target.get('database', '')} "
+            f"odoo_bin={target.get('odoo_bin', '')} "
+            f"source={module_root(ctx.migration, ctx.module, side)}"
+        )
+
+    return "\n".join(rows)
 
 
 def _module_root(ctx: StepContext) -> Path | None:

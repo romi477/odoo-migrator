@@ -52,6 +52,7 @@ from odoo_migrator.jobs import (
     latest_checkpoint,
     live_run,
     promote_finding,
+    recent_job,
     reconcile_jobs,
     reopen_finished,
     reopen_module,
@@ -826,6 +827,7 @@ def create_app(
                 versions = []
             pipeline_steps = list_pipeline_steps(current["id"])
         pipeline_queue = queue_snapshot(current["id"]) if current else None
+        log_job = recent_job(current["id"]) if current else None
 
         return _page(
             request,
@@ -839,6 +841,7 @@ def create_app(
                 "thread": thread,
                 "pipeline_steps": pipeline_steps,
                 "pipeline_queue": pipeline_queue,
+                "log_job": log_job,
                 "sheller_web_url": _browsable(settings["sheller_base_url"], "/web"),
                 "versions": versions,
                 "error": error,
@@ -1445,6 +1448,32 @@ def create_app(
             ]
 
         return JSONResponse(rows)
+
+    @app.get("/api/jobs/{job_id}/log")
+    def job_log(job_id: str, after: int = 0):
+        """The run log so far. `after` is the last line the page holds."""
+        from odoo_migrator import runlog
+
+        return JSONResponse({"job_id": job_id, "lines": runlog.lines(job_id, after=after)})
+
+    @app.get("/api/log/{line_id}")
+    def job_log_detail(line_id: int):
+        """One line's body, fetched when it is opened and not before.
+
+        Prompts and model answers carry the customer's source. They are a
+        click away, the way a Sheller journal body is: this tool gets
+        demonstrated on a projector.
+        """
+        from fastapi.responses import PlainTextResponse
+
+        from odoo_migrator import runlog
+
+        body = runlog.detail_of(line_id)
+        if body is None:
+
+            return PlainTextResponse("not available", status_code=404)
+
+        return PlainTextResponse(body or "(empty)")
 
     @app.get("/api/flow/trace/{tool_call_id}/body")
     def flow_trace_body(request: Request, tool_call_id: int):

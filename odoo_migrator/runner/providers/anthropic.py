@@ -67,6 +67,8 @@ class AnthropicProvider:
         client = anthropic.Anthropic(api_key=_key())
         runner = client.beta.messages.tool_runner(**kwargs)
         overspent = False
+        turns = 0
+        said = ""
         try:
             # Every turn, not the last one. `until_done()` hands back the
             # final message, and reading usage off that dropped everything
@@ -74,26 +76,37 @@ class AnthropicProvider:
             # nearly all of it. The token budget has nowhere else to be
             # enforced either: the SDK caps iterations, not tokens.
             for turn in runner:
-                _add_usage(turn.get_final_message(), usage)
+                message = turn.get_final_message()
+                turns += 1
+                said = _text_of(message) or said
+                _add_usage(message, usage)
                 if budget.tokens is not None and _spent(usage) > budget.tokens:
                     overspent = True
                     break
         except anthropic.APIError as exc:
+            account = _account(turns, said, tools)
             if captured:
 
-                return _from_report(report, captured, usage)
+                return _from_report(report, captured, usage, account)
 
-            return StepResult(ok=False, output=str(exc), **_counts(usage))
+            return StepResult(ok=False, output=str(exc), detail=account, **_counts(usage))
+        account = _account(turns, said, tools)
         if captured:
 
-            return _from_report(report, captured, usage)
+            return _from_report(report, captured, usage, account)
         if overspent:
 
-            return StepResult(ok=False, output="stopped at the token budget", **_counts(usage))
+            return StepResult(
+                ok=False,
+                output="stopped at the token budget",
+                detail=account,
+                **_counts(usage),
+            )
 
         return StepResult(
             ok=False,
-            output="the step ended without a report",
+            output=f"the step ended without a report, after {turns} turn(s)",
+            detail=account,
             **_counts(usage),
         )
 
@@ -164,7 +177,26 @@ def _counts(usage: dict) -> dict:
     }
 
 
-def _from_report(report: ReportTool, payload: dict, usage: dict) -> StepResult:
+def _text_of(message) -> str:
+    blocks = getattr(message, "content", None) or []
+    parts = [str(getattr(block, "text", "")) for block in blocks]
+
+    return "\n".join(part for part in parts if part).strip()
+
+
+def _account(turns: int, said: str, tools: list) -> str:
+    rows = [
+        f"turns: {turns}",
+        f"tools offered: {', '.join(tool.name for tool in tools)}",
+        "",
+        "last text from the model:",
+        said or "(none)",
+    ]
+
+    return "\n".join(rows)
+
+
+def _from_report(report: ReportTool, payload: dict, usage: dict, detail: str = "") -> StepResult:
     flags = {
         flag
         for flag in report.input_schema["properties"]
@@ -175,5 +207,6 @@ def _from_report(report: ReportTool, payload: dict, usage: dict) -> StepResult:
         ok=True,
         flags=flags,
         answer=str(payload.get("answer") or ""),
+        detail=detail,
         **_counts(usage),
     )

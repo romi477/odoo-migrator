@@ -21,6 +21,12 @@ function fillResultCornerGlyph(glyph, kind) {
     return;
   }
   const src = new EventSource("/sse");
+  /* One stream per page, as the comment above says. Anything else that
+     wants events takes this one: a second EventSource is a second
+     subscriber and a second thread parked on the server for the page's
+     whole life. */
+  window.migratorSse = src;
+  document.dispatchEvent(new CustomEvent("sse-ready", { detail: src }));
 
   src.addEventListener("module", function (event) {
     let data;

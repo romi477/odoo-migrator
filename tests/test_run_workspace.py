@@ -71,8 +71,11 @@ def test_run_page_is_the_pipeline_only(client):
 
     assert page.status_code == 200
     assert 'class="workspace"' in page.text
-    assert page.text.count("workspace-panel") == 1
-    assert "data-pipeline" in page.text
+    # The pipeline and its log, and nothing else. Counting panels was the
+    # old way of saying this, and the log made the number wrong without
+    # making the page wrong.
+    assert page.text.count("data-pipeline\n") + page.text.count("data-pipeline ") == 1
+    assert "data-run-log-panel" in page.text
     assert "data-observer" not in page.text
     assert "No module is running." in page.text
     assert 'data-screen="pipeline"' in page.text

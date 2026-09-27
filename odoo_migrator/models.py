@@ -227,6 +227,26 @@ class StepRun(BaseModel):
     # The providers report it; nothing used to store it.
     tokens_cached = IntegerField(default=0)
     cost_cents = IntegerField(default=0)
+    # Why the step ended the way it did. The runner computed this and threw
+    # it away, so a failed step was a red badge with no sentence behind it.
+    output = TextField(default="")
+
+
+class RunLog(BaseModel):
+    """One line of one job's run log.
+
+    Kept in the database rather than a file: a job runs on a thread, the
+    page that watches it reloads, and a run that failed at 13:26 has to be
+    readable at 14:00. `detail` is the body — a prompt, an answer, a
+    traceback — shown only when the line is opened.
+    """
+
+    job = ForeignKeyField(Job, backref="log_lines")
+    at = DateTimeField(default=_now)
+    level = CharField(default="info")
+    source = CharField(default="")
+    text = TextField(default="")
+    detail = TextField(default="")
 
 
 class ToolCall(BaseModel):
@@ -280,6 +300,7 @@ ALL_MODELS = [
     PipelineQueueState,
     PipelineQueueItem,
     StepRun,
+    RunLog,
     ToolCall,
     CheckpointMessage,
 ]

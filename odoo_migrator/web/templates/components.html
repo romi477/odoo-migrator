@@ -42,6 +42,26 @@
     <li class="human">The sale one. Keep the stock method.</li>
   </ol>
 
+  <h2>Run log</h2>
+  <ol class="run-log">
+    <li class="run-log-line info">
+      <span class="run-log-at mono">13:26:29</span>
+      <span class="run-log-source mono">understand</span>
+      <span class="run-log-text">agent step started</span>
+    </li>
+    <li class="run-log-line warn">
+      <span class="run-log-at mono">13:26:41</span>
+      <span class="run-log-source mono">understand</span>
+      <span class="run-log-text">exec(old) 812ms failed: session_busy</span>
+    </li>
+    <li class="run-log-line error is-open">
+      <span class="run-log-at mono">13:27:06</span>
+      <span class="run-log-source mono">understand</span>
+      <span class="run-log-text">failed, 111802+1905 tokens — the agent finished without calling report</span>
+      <button type="button" class="run-log-open">body</button>
+    </li>
+  </ol>
+
   <h2>Flow canvas</h2>
   <ul class="flow-legend">
     <li><span class="flow-swatch agent" aria-hidden="true"></span> Agent. A model turn.</li>

@@ -41,6 +41,8 @@ class StepContext:
     last_test: dict | None = None
     # Set by the native runner so a tool call lands on the step that made it.
     step_run_id: int | None = None
+    # The same step, by name, for the run log.
+    step_run_label: str = ""
     record_tool: Callable | None = None
     # When set, ask_human parks, waits, and returns the human's answer.
     wait_for_human: Callable | None = None
@@ -52,6 +54,11 @@ class StepResult:
     flags: set[str] = field(default_factory=set)
     answer: str = ""
     output: str = ""
+    # The provider's own account of the turn: how many rounds, what the model
+    # said, why it stopped. One line of `output` is not enough to tell a
+    # model that refused from a model that was never asked, and that is the
+    # question a failed step leaves behind.
+    detail: str = ""
     # What this turn spent, as the provider observed it. The runner does not
     # read a specific SDK's response object to find these.
     tokens_in: int = 0

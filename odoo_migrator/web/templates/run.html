@@ -3,6 +3,7 @@
 {% block extra_head %}
 {% if screen == 'pipeline' %}
 <script defer src="/static/pipeline.js"></script>
+<script defer src="/static/runlog.js"></script>
 {% endif %}
 {% endblock %}
 {% block screen %}
@@ -205,6 +206,27 @@
         {% endif %}
       </div>
       <p data-pipeline-empty{% if live %} hidden{% endif %}>No module is running.</p>
+    </article>
+
+    {# The run log. A step's outcome used to be a badge with no sentence
+       behind it, so a run that stopped left nothing to read. Bodies —
+       prompts, answers, tracebacks — open on a click, never by default. #}
+    <article class="workspace-panel run-log-panel"
+             data-run-log-panel
+             {% if log_job %}data-job="{{ log_job.job_id }}"{% endif %}>
+      <header class="run-log-head">
+        <h2 class="pipeline-panel-title">Log</h2>
+        <span class="mono run-log-job">{% if log_job %}{{ log_job.module }} · {{ log_job.status }}{% endif %}</span>
+        <label class="run-log-follow">
+          <input type="checkbox" data-run-log-follow checked>
+          Follow
+        </label>
+      </header>
+      <ol class="run-log" data-run-log aria-live="polite"></ol>
+      <p class="field-hint" data-run-log-empty{% if log_job %} hidden{% endif %}>
+        No job has run on this migration yet.
+      </p>
+      <pre class="run-log-body" data-run-log-body hidden></pre>
     </article>
   </div>
   {% elif screen == 'sheller' %}

@@ -808,6 +808,32 @@ def live_run(migration_id: str) -> dict | None:
         }
 
 
+def recent_job(migration_id: str) -> dict | None:
+    """The job the run log should show: the one in flight, else the last one.
+
+    Not the same question as `live_run`. A run that failed two minutes ago
+    is exactly the one someone wants to read, and it is no longer live.
+    """
+    with database.connection_context():
+        job = (
+            Job.select()
+            .join(Module)
+            .where(Module.migration == migration_id)
+            .order_by(Job.id.desc())
+            .first()
+        )
+        if job is None:
+
+            return None
+
+        return {
+            "job_id": job.job_id,
+            "module": job.module.technical_name,
+            "status": job.status,
+            "live": job.status in IN_FLIGHT,
+        }
+
+
 def latest_checkpoint(migration_id: str) -> dict | None:
     """The open review, if this migration has one."""
     with database.connection_context():

@@ -21,12 +21,19 @@ def _create(client, name="Acme"):
     )
 
 
+# What the page fetches for itself: a graph, a run log, a log line's body.
+# These are read by the browser that is already showing the page, on
+# loopback, and carry no key. Anything else under /api/ would be a machine
+# surface coming back.
+PAGE_OWN = ("/api/flow", "/api/jobs", "/api/log")
+
+
 def test_no_route_requires_a_machine_key(client):
     """The File API and the Sheller proxy were the only authenticated routes.
 
     They existed because a remote executor ran in a container and could not
-    reach a daemon that publishes to loopback. /api/flow is the page's own
-    graph, not a machine key.
+    reach a daemon that publishes to loopback. What is left under /api/ is
+    the page fetching its own data.
     """
     paths = [route.path for route in client.app.routes]
 
@@ -34,7 +41,9 @@ def test_no_route_requires_a_machine_key(client):
     assert not [p for p in paths if p.startswith("/api/sheller")]
     assert not [p for p in paths if "webhook" in p or "resume" in p]
     assert not [
-        p for p in paths if p.startswith("/api/") and not p.startswith("/api/flow")
+        p
+        for p in paths
+        if p.startswith("/api/") and not p.startswith(PAGE_OWN)
     ]
 
 
