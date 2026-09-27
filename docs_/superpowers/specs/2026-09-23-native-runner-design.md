@@ -394,7 +394,7 @@ pipeline:
     id: understand
     sessions: [old]
     tools: [exec, source, run_test, list_tests, journal, read_file]
-    context: [module_source]
+    context: [rules, module_source]
     prompt: |
       You are reading a module on the old Odoo version. A live session is
       open: do not guess from source alone — call methods and look at what
@@ -425,12 +425,20 @@ pipeline:
     when: no_tests
     sessions: [old, new]
     tools: [exec, source, reopen, rollback]
-    context: [prior_answers]
+    context: [rules, prior_answers]
+    raises: [behaviour_differs]
     prompt: |
       This module ships no tests. Replay the fixture recipe from the
       understand step on both sides, call the same methods on each, and
       report every difference. A recipe that will not replay on the new
       version is a failure worth reporting on its own.
+
+      Raise behaviour_differs when the ported module does something the
+      original did not, or when the recipe will not replay on the new
+      version. Leave it unset when both sides answered the same, and say
+      in your answer what you compared. A difference the target version
+      makes on purpose, written in the rules, is not one: name it and
+      leave the flag unset.
 
   - step: agent
     id: write_test
@@ -451,7 +459,7 @@ on_failure:
       id: diagnose
       sessions: [new]
       tools: [exec, source, journal, history, read_file]
-      context: [previous_diff, last_failure, prior_answers]
+      context: [rules, previous_diff, last_failure, prior_answers]
       raises: [needs_human, reexamine_old, small_fix, start_over]
       prompt: |
         Work out why it failed. Logs, the journal, source and a live
@@ -485,6 +493,7 @@ on_failure:
     - step: agent
       id: rewrite
       when: start_over
+      fresh: true
       sessions: [old, new]
       tools: [exec, source, read_file, write_file, reopen]
       context: [rules, module_source, prior_answers]

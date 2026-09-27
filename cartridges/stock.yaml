@@ -76,7 +76,7 @@ on_failure:
       id: diagnose
       sessions: [new]
       tools: [exec, source, journal, history, read_file]
-      context: [previous_diff, last_failure, prior_answers]
+      context: [rules, previous_diff, last_failure, prior_answers]
       raises: [needs_human, reexamine_old, small_fix, start_over]
       prompt: |
         Work out why it failed. Logs, the journal, source and a live

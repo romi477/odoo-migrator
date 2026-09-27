@@ -1110,3 +1110,28 @@ on_failure:
     # Lap one fails on the flag; lap two raised none, so it passes.
     assert outcome == "passed"
     assert ctx.attempt == 2
+
+
+def test_the_spec_shows_the_stock_cartridge_as_it_is():
+    """The design of record quotes the whole file. It had drifted: the spec's
+    copy gave `understand` no rules and `diagnose` none either."""
+    from pathlib import Path
+
+    spec = Path("docs_/superpowers/specs/2026-09-23-native-runner-design.md").read_text(
+        encoding="utf-8"
+    )
+    start = spec.index("```yaml", spec.index("### The stock cartridge")) + len("```yaml\n")
+    quoted = spec[start : spec.index("```", start)]
+
+    assert quoted == Path("cartridges/stock.yaml").read_text(encoding="utf-8")
+
+
+def test_diagnose_reads_the_rules():
+    """The step that decides what is wrong did not see what the target changed."""
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+
+    assert "rules" in stock.step_by_id("diagnose").context
