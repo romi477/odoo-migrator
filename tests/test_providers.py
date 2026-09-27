@@ -161,14 +161,16 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
             self.input_schema = input_schema
 
     class LocalAgentOptions:
-        def __init__(self, cwd, custom_tools):
+        def __init__(self, cwd, custom_tools, sandbox_options=None):
             self.custom_tools = custom_tools
+            self.sandbox_options = sandbox_options
 
     class AgentOptions:
-        def __init__(self, model, api_key, tools, local, mode=None):
-            captured["tools"] = tools
+        def __init__(self, model, api_key, local, mode=None, disallowed_tools=()):
+            captured["denied"] = tuple(disallowed_tools)
             captured["mode"] = mode
             captured["custom"] = local.custom_tools
+            captured["sandbox"] = local.sandbox_options
 
     class _Result:
         usage = None
@@ -216,6 +218,7 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
     sdk.AgentOptions = AgentOptions
     sdk.CustomTool = CustomTool
     sdk.LocalAgentOptions = LocalAgentOptions
+    sdk.SandboxOptions = lambda enabled=None: {"enabled": enabled}
     errors = types.ModuleType("cursor_sdk.errors")
 
     class CursorAgentError(Exception):
@@ -245,8 +248,16 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
         budget=Budget(tool_calls=5, tokens=1000),
     )
 
-    assert captured["tools"] == []
-    # Built-in tools off, custom tools on, and acting rather than planning.
+    # `tools=[]` is never passed: it also removes the two meta-tools an
+    # agent needs to call a custom tool, and the whole catalog then came
+    # back "Tool not available". The dangerous built-ins go by name.
+    assert "tools" not in captured
+    assert "shell" in captured["denied"]
+    assert "piWrite" in captured["denied"]
+    # The two the agent needs to reach a custom tool are never denied.
+    assert "getMcpTools" not in captured["denied"]
+    assert "mcp" not in captured["denied"]
+    assert captured["sandbox"] == {"enabled": True}
     assert captured["mode"] == "agent"
     # The bridge is ours. With the default client it is not, and every
     # custom tool came back "Tool not available" from the agent.

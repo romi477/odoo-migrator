@@ -19,6 +19,56 @@ from odoo_migrator.runner.tools import BoundTool, ReportTool, ToolRefused
 # and the same name with parameters are models, not members of this set.
 _LISTED = frozenset({"composer-2.5", "composer-2", "auto"})
 
+# Cursor's built-in tools that could touch this machine, denied by name.
+#
+# Not `tools=[]`. That reads like "offer no built-in tools" and also takes
+# away `getMcpTools` and `mcp`, which are how an agent reaches a custom
+# tool at all: with it, every tool in our catalog came back "Tool not
+# available" and the agent wrote prose instead of working. Measured on a
+# one-tool probe — called without it, refused with it.
+#
+# These are the API's own names, not the display names the agent recites,
+# and it rejects one it does not know. A Cursor release that renames one
+# therefore fails the step with a message naming every valid tool, which
+# is a loud, one-run fix rather than a silently widened agent.
+#
+# Reads are left alone: the workspace is an empty temporary directory, so
+# there is nothing in it to read. What is denied is the host and the
+# network — shell, edits, fetches, the screen — and control over other
+# agents and this one's own mode.
+DENIED_BUILTINS = (
+    "adopt",
+    "applyAgentDiff",
+    "await",
+    "computerUse",
+    "connectScm",
+    "createAgent",
+    "createPlan",
+    "delete",
+    "edit",
+    "editPrLabels",
+    "fetch",
+    "generateImage",
+    "piBash",
+    "piEdit",
+    "piWrite",
+    "prManagement",
+    "recordScreen",
+    "replaceEnv",
+    "sendToAgent",
+    "setupVmEnvironment",
+    "shell",
+    "startGrindExecution",
+    "startGrindPlanning",
+    "stopAgent",
+    "switchMode",
+    "task",
+    "webFetch",
+    "webSearch",
+    "writeCanvas",
+    "writeShellStdin",
+)
+
 
 class CursorProvider:
     name = "cursor"
@@ -48,7 +98,13 @@ class CursorProvider:
         budget: Budget,
     ) -> StepResult:
         self.ensure_ready()
-        from cursor_sdk import AgentOptions, Client, CustomTool, LocalAgentOptions
+        from cursor_sdk import (
+            AgentOptions,
+            Client,
+            CustomTool,
+            LocalAgentOptions,
+            SandboxOptions,
+        )
         from cursor_sdk.errors import CursorAgentError
         captured: dict = {}
         spent = {"calls": 0}
@@ -87,8 +143,10 @@ class CursorProvider:
             description=report.description,
             input_schema=report.input_schema,
         )
-        # Built-in tools are off, so this directory is only a cwd the SDK
-        # requires. The agent reaches the project through the catalog.
+        # An empty workspace: neither project root is inside it, so what
+        # is left of the built-in toolset sees nothing of the migration. The
+        # catalog is the only route to the projects and the containers, and
+        # the sandbox is Cursor's own containment for the rest.
         with tempfile.TemporaryDirectory(prefix="cursor-step-") as cwd:
             # `Client.launch_bridge` and not the module-level `Agent.create`.
             # The default client launches a bridge and then connects to it as
@@ -113,13 +171,16 @@ class CursorProvider:
                         # answers in prose and calls nothing, which is what
                         # a step with no report looks like from here.
                         mode="agent",
-                        # The built-in toolset only. `custom_tools` below is
-                        # a separate field and is not affected: the catalog
-                        # is what this agent may touch.
-                        tools=[],
+                        # Named denials, not `tools=[]`. That reads like
+                        # "offer no built-in tools" and also takes away the
+                        # two the agent needs to call a custom tool at all.
+                        # Measured on a one-tool probe: called without it,
+                        # "Tool not available" with it.
+                        disallowed_tools=DENIED_BUILTINS,
                         local=LocalAgentOptions(
                             cwd=Path(cwd),
                             custom_tools=custom,
+                            sandbox_options=SandboxOptions(enabled=True),
                         ),
                     )
                 )
@@ -212,6 +273,7 @@ def _account(result, calls: int, offered: list[str]) -> str:
         f"duration_ms: {getattr(result, 'duration_ms', '')}",
         f"tool calls made: {calls}",
         f"tools offered: {', '.join(offered)}",
+        f"built-ins denied: {len(DENIED_BUILTINS)}",
         "",
         "agent said:",
         text or "(nothing)",

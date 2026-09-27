@@ -175,12 +175,13 @@ def test_cursor_has_no_system_field_so_it_leads_with_it(monkeypatch):
         execute=execute
     )
 
-    def _local(cwd, custom_tools):
+    def _local(cwd, custom_tools, sandbox_options=None):
         captured["custom"] = custom_tools
 
-        return SimpleNamespace(custom_tools=custom_tools)
+        return SimpleNamespace(custom_tools=custom_tools, sandbox_options=sandbox_options)
 
     sdk.LocalAgentOptions = _local
+    sdk.SandboxOptions = lambda enabled=None: {"enabled": enabled}
     errors = types.ModuleType("cursor_sdk.errors")
     errors.CursorAgentError = type("CursorAgentError", (Exception,), {})
     monkeypatch.setitem(sys.modules, "cursor_sdk", sdk)
