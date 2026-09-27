@@ -364,7 +364,7 @@ cartridge author selects from a list, never writes an expression.
 | `rules` | the assembled per-version rules stack for this migration |
 | `module_source` | the module as it exists on the old version |
 | `prior_answers` | what earlier agent steps in this job answered |
-| `previous_diff` | what the last step that wrote files produced |
+| `previous_diff` | everything written to the module since the job began: the module now, against the module as the job found it |
 | `last_failure` | the output of the step that failed: test report, traceback, lint findings |
 
 This is where `patch` and `rewrite` stop being a distinction hidden in code:
@@ -726,11 +726,20 @@ is the obvious seed for a real test later.
 ### What the agent writes, and how the next step sees it
 
 A step that can call `write_file` is snapshotted before it runs and again
-after, and the unified diff of the two is what `previous_diff` renders and
-what the checkpoint shows. Nothing else knows a file changed: the agent
-writes through a tool, not through a route the app can observe. This is the
-mechanism the `patch` / `rewrite` distinction rests on, so it is part of the
-runner rather than a convenience.
+after. The diff of the two is that step's record, kept per attempt for the
+checkpoint. `previous_diff` is not that diff: it is the module now against
+the module as the job found it, snapshotted once before the first step.
+Nothing else knows a file changed: the agent writes through a tool, not
+through a route the app can observe. This is the mechanism the `patch` /
+`rewrite` distinction rests on, so it is part of the runner rather than a
+convenience.
+
+It was "what the last step that wrote files produced", and that broke
+exactly where `patch` needs it. After `write_test` it was the diff of the
+test, and `patch` — told to change what is wrong and leave the rest — had to
+fix a port it could not see. "Since the lap began" is not enough either: a
+retry resumes at `lint`, so a lap that fails in `tests` has written nothing
+by then, and `patch` would be handed an empty diff.
 
 ### Containment
 

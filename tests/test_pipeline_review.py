@@ -943,3 +943,84 @@ def test_the_snippet_is_still_the_one_sheller_runs(args):
     theirs = namespace["_source_snippet"](*args)
 
     assert _code_lines(source_snippet(*args)) == _code_lines(theirs)
+
+
+# -- previous_diff: everything since the job began -----------------------------
+
+
+def test_patch_sees_the_port_and_the_test_not_only_the_last_step(ctx_for, sheller):
+    """After `write_test` it used to be the test's diff alone, and `patch`
+    was asked to fix a port it could not see."""
+    from pathlib import Path
+
+    from odoo_migrator.models import Batch, Job
+    from odoo_migrator.runner.snapshot import snapshot
+
+    ctx = ctx_for()
+    with database.connection_context():
+        batch = Batch.create(migration=ctx.migration, status="running")
+        job = Job.create(batch=batch, module=ctx.module, status="running")
+    ctx.job_id = job.job_id
+    root = Path(ctx.module.new_path)
+    (root / "models.py").write_text("class Sale:\n    pass\n", encoding="utf-8")
+    ctx.baseline_files = snapshot(root)
+    runner = _runner(sheller)
+
+    before = snapshot(root)
+    (root / "models.py").write_text("class Sale:\n    _name = 'sale.custom'\n", encoding="utf-8")
+    runner._note_diff(ctx, before)
+    before = snapshot(root)
+    (root / "tests").mkdir()
+    (root / "tests" / "test_sale.py").write_text("def test_x():\n    pass\n", encoding="utf-8")
+    runner._note_diff(ctx, before)
+
+    assert "_name = 'sale.custom'" in ctx.previous_diff
+    assert "def test_x" in ctx.previous_diff
+    # The checkpoint still keeps each step's own hunk.
+    with database.connection_context():
+        logged = Job.get_by_id(job.id).file_diffs
+    assert "_name = 'sale.custom'" in logged and "def test_x" in logged
+
+
+def test_the_baseline_is_the_module_as_the_job_found_it(app, fake_sheller, tmp_path):
+    from test_native_runner import _module
+
+    job = _module(tmp_path)
+    module_dir = tmp_path / "new" / "sale_custom"
+    (module_dir / "models.py").write_text("x = 1\n", encoding="utf-8")
+    cartridge = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-opus-5}
+pipeline:
+  - step: agent
+    id: port
+    sessions: [new]
+    tools: [write_file]
+    prompt: port
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: port
+"""
+    from doubles.model import ModelDouble
+
+    from odoo_migrator.runner.providers.scripted import ScriptedProvider
+
+    model = ModelDouble(
+        turns=[
+            {"name": "write_file", "input": {"side": "new", "path": "sale_custom/models.py", "content": "x = 2\n"}},
+            {"name": "report", "input": {"answer": "ported"}},
+        ]
+    )
+    runner = _runner(fake_sheller)
+    runner.provider = ScriptedProvider(model)
+    runner.start({"job_id": job.job_id, "cartridge_text": cartridge})
+    runner.wait(job.job_id)
+
+    from odoo_migrator.models import Attempt
+
+    with database.connection_context():
+        diff = Attempt.select().where(Attempt.job == job.id).first().diff
+    assert "-x = 1" in diff and "+x = 2" in diff

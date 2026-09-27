@@ -60,8 +60,9 @@ _HINTS = {
         "Goes back to the old version with the question the diagnosis raised."
     ),
     "patch": (
-        "Applies the named fix on the new side. It has the previous diff and "
-        "changes what is wrong, leaving the rest."
+        "Applies the named fix on the new side. It has everything written to "
+        "the module since the job began, and changes what is wrong, leaving "
+        "the rest."
     ),
     "rewrite": (
         "Writes the module again from the old version. Its directory on the "

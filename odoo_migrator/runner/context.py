@@ -28,7 +28,13 @@ class StepContext:
     # The most recent agent answer. `ask_human` asks with it, so the human
     # reads the diagnosis instead of a constant.
     last_answer: str = ""
+    # The module now against the module as the job found it. Not the last
+    # step's diff: after `write_test` that was the test, and `patch` could
+    # not see the port it was asked to fix.
     previous_diff: str = ""
+    # The new side's module files when the job began; `previous_diff` is
+    # measured from here.
+    baseline_files: dict[str, str] = field(default_factory=dict)
     last_failure: str = ""
     # A provider to use instead of the one the cartridge names. Only a test
     # sets this, and what it sets is a real `Provider`, so the step runs the

@@ -203,6 +203,7 @@ class NativeRunner:
             # bound when it happens. Opening the old side and then failing on
             # the new one used to leave `ctx` unassigned, and the `finally`
             # below closed nothing: a live odoo-bin stayed on the host.
+            ctx.baseline_files = snapshot(_module_root(ctx))
             self._open_sessions(ctx)
             self._log(
                 job_id,
@@ -286,12 +287,17 @@ class NativeRunner:
         )
 
     def _note_diff(self, ctx: StepContext, before: dict) -> None:
-        """Record what the step wrote, for the next prompt and the checkpoint."""
-        hunk = diff_snapshots(before, snapshot(_module_root(ctx)))
+        """Record what the step wrote, for the checkpoint and the next prompt.
+
+        The checkpoint keeps each step's own hunk, per attempt. The prompt
+        gets the whole change since the job began.
+        """
+        after = snapshot(_module_root(ctx))
+        hunk = diff_snapshots(before, after)
         if not hunk:
 
             return
-        ctx.previous_diff = hunk
+        ctx.previous_diff = diff_snapshots(ctx.baseline_files, after)
         with database.connection_context():
             job = Job.get(Job.job_id == ctx.job_id)
             blob = json.loads(job.file_diffs or "{}")
