@@ -16,6 +16,15 @@ from odoo_migrator.rules import (
 def _write(rules_dir: Path, version: str, text: str) -> None:
     rules_dir.mkdir(parents=True, exist_ok=True)
     (rules_dir / f"{version}.md").write_text(text, encoding="utf-8")
+    # Every real stack leads with it; a directory without it is refused.
+    common = rules_dir / "common.md"
+    if not common.exists():
+        common.write_text("shared\n", encoding="utf-8")
+
+
+def _versions_only(docs):
+
+    return [doc for doc in docs if doc.role != "context"]
 
 
 def test_seventeen_to_eighteen_is_source_then_target(tmp_path):
@@ -24,6 +33,7 @@ def test_seventeen_to_eighteen_is_source_then_target(tmp_path):
     docs = assemble_rules("17.0", "18.0", rules_dir=tmp_path)
 
     assert [(doc.version, doc.role, doc.text) for doc in docs] == [
+        ("common", "context", "shared\n"),
         ("17.0", "source", "coming from 17.0\n"),
         ("18.0", "target", "what 18.0 changed\n"),
     ]
@@ -35,7 +45,7 @@ def test_sixteen_to_nineteen_is_four_docs_in_version_order(tmp_path):
     _write(tmp_path, "17.0", "17")
     _write(tmp_path, "18.0", "18")
     _write(tmp_path, "19.0", "19")
-    docs = assemble_rules("16.0", "19.0", rules_dir=tmp_path)
+    docs = _versions_only(assemble_rules("16.0", "19.0", rules_dir=tmp_path))
 
     assert [(doc.version, doc.role) for doc in docs] == [
         ("16.0", "source"),
@@ -54,6 +64,17 @@ def test_missing_intermediate_file_is_a_hard_error(tmp_path):
 
     with pytest.raises(MissingRulesError, match="18.0"):
         assemble_rules("16.0", "19.0", rules_dir=tmp_path)
+
+
+def test_a_missing_common_file_is_a_hard_error(tmp_path):
+    """It was sent only when it was there, so losing it changed every prompt
+    and said nothing."""
+    _write(tmp_path, "17.0", "17")
+    _write(tmp_path, "18.0", "18")
+    (tmp_path / "common.md").unlink()
+
+    with pytest.raises(MissingRulesError, match="common.md"):
+        assemble_rules("17.0", "18.0", rules_dir=tmp_path)
 
 
 def test_same_version_is_refused(tmp_path):
@@ -96,7 +117,8 @@ def test_every_stack_has_a_source_and_a_target(tmp_path):
         _write(tmp_path, version, version)
 
     for source, target in (("17.0", "18.0"), ("16.0", "19.0"), ("18.0", "19.0")):
-        roles = [doc.role for doc in assemble_rules(source, target, rules_dir=tmp_path)]
+        docs = _versions_only(assemble_rules(source, target, rules_dir=tmp_path))
+        roles = [doc.role for doc in docs]
 
         assert roles[0] == "source"
         assert roles[-1] == "target"

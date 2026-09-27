@@ -104,25 +104,27 @@ def assemble_rules(
 ) -> list[RuleDoc]:
     """Shared context, then the source, then every version through the target.
 
-    ``common.md`` is prepended when it exists. It is not a version and
-    Promote does not write to it. 17.0 → 18.0 is then two version entries
-    (source, target). 16.0 → 19.0 is four. A missing version file raises;
-    it is not skipped, because a hole in the stack would travel downstream
-    unnoticed.
+    ``common.md`` always leads. It is not a version and Promote does not
+    write to it. 17.0 → 18.0 is then two version entries (source, target)
+    after it; 16.0 → 19.0 is four. A missing file raises, ``common.md``
+    included; it is not skipped, because a hole in the stack would travel
+    downstream unnoticed. ``common.md`` used to be sent only when it was
+    there, so a build that lost it ran every step without the rules that
+    tell the agent how to find things out, and nothing said so.
     """
     directory = Path(rules_dir) if rules_dir is not None else default_rules_dir()
     versions = _versions(source, target)
     last = len(versions) - 1
-    docs = []
     common = directory / "common.md"
-    if common.is_file():
-        docs.append(
-            RuleDoc(
-                version="common",
-                role="context",
-                text=common.read_text(encoding="utf-8"),
-            )
+    if not common.is_file():
+        raise MissingRulesError(f"No shared rules file: {common}")
+    docs = [
+        RuleDoc(
+            version="common",
+            role="context",
+            text=common.read_text(encoding="utf-8"),
         )
+    ]
     for index, version in enumerate(versions):
         path = directory / f"{version}.md"
         if not path.is_file():
