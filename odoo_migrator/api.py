@@ -955,6 +955,27 @@ def create_app(
 
         return RedirectResponse("/run", status_code=303)
 
+    @app.post("/run/modules/{module_id}/answer")
+    def run_answer(request: Request, module_id: int, answer: str = Form("")):
+        """The same answer as on Tree, from the screen that watches the run."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        try:
+            module_for_migration(current["id"], module_id)
+            answer_job(
+                module_id=module_id,
+                answer=answer,
+                hub=request.app.state.hub,
+                resume=getattr(request.app.state.executor, "resume", None),
+            )
+        except (GraphError, ContractError) as refused:
+
+            return _run_page(request, error=str(refused))
+
+        return RedirectResponse("/run", status_code=303)
+
     @app.post("/run/queue/clear")
     def run_queue_clear(request: Request):
         current = get_active(request.cookies.get(OPEN_COOKIE))

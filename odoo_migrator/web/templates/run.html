@@ -204,6 +204,21 @@
           {% endfor %}
         </ol>
         {% endif %}
+        {# The question, where the run is being watched. It used to live only
+           on Tree, so a module that parked while Pipeline was open said
+           "waiting_for_human" and offered nothing to answer it with. #}
+        <form class="ask pipeline-ask" method="post"
+              action="{% if live %}/run/modules/{{ live.module_id }}/answer{% endif %}"
+              {% if not live or live.status != "waiting_for_human" %}hidden{% endif %}>
+          <p class="question">{% if live %}{{ live.question or "" }}{% endif %}</p>
+          <label>
+            Answer
+            <textarea name="answer" required
+                      aria-label="Answer{% if live %} for {{ live.module }}{% endif %}"></textarea>
+          </label>
+          <button type="submit" class="primary"
+                  aria-label="Answer{% if live %} {{ live.module }}{% endif %}">Answer</button>
+        </form>
       </div>
       <p data-pipeline-empty{% if live %} hidden{% endif %}>No module is running.</p>
     </article>

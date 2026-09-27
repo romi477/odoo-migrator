@@ -2905,3 +2905,49 @@ pre.test-output {
   font-size: 14px;
   line-height: 1;
 }
+
+/* The checkpoint question on Pipeline. The agent writes markdown and the
+   diagnosis can be long, so it keeps its line breaks and scrolls rather
+   than pushing the answer box off the screen. */
+.pipeline-ask {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  justify-items: start;
+}
+
+.pipeline-ask[hidden] {
+  display: none;
+}
+
+.pipeline-ask .question {
+  max-height: 34vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.pipeline-ask label {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pipeline-ask textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: var(--panel-raised);
+  color: inherit;
+  font: inherit;
+}
