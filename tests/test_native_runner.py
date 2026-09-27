@@ -201,6 +201,28 @@ def test_an_answer_to_a_job_whose_runner_is_gone_does_not_pretend(client, abando
 
     assert answered.answer == "drop the override"
     assert reloaded(abandoned_job).status == "unknown"
+    # The batch it belonged to is not running either. `reconcile_jobs` spares
+    # a batch whose job is parked, because a person still owes it an answer;
+    # once that answer has nowhere to go, a batch left `running` blocks every
+    # later one on the migration and no screen can clear it.
+    with database.connection_context():
+        assert Batch.get_by_id(abandoned_job.batch_id).status == "unknown"
+
+
+def test_an_answer_that_resumes_leaves_its_batch_running(client, parked_job):
+    """The runner is still on it; the batch is not over."""
+    job, runner = parked_job
+
+    answer_job(
+        module_id=job.module_id,
+        answer="drop the override",
+        hub=client.app.state.hub,
+        resume=runner.resume,
+    )
+    runner.wait(job.job_id)
+
+    with database.connection_context():
+        assert Batch.get_by_id(job.batch_id).status == "running"
 
 
 def test_the_thread_never_shares_a_connection(native_job):

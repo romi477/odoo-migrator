@@ -746,6 +746,16 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Jo
         module = job.module
         module.status = job.status
         module.save()
+        if not resumed:
+            # Nothing is left to finish this batch. `reconcile_jobs` leaves a
+            # batch `running` while one of its jobs is parked, because a
+            # person still owes it an answer; this is where that stops being
+            # true. Left running it blocks every later batch on the migration
+            # behind "A batch is already running on this migration", and no
+            # screen can clear that — review works off `checkpoint`.
+            Batch.update(status="unknown").where(
+                (Batch.id == job.batch_id) & (Batch.status == "running")
+            ).execute()
         _emit(hub, job, module)
 
     return job
