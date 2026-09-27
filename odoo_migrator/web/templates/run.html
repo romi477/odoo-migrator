@@ -217,6 +217,15 @@
       <header class="run-log-head">
         <h2 class="pipeline-panel-title">Log</h2>
         <span class="mono run-log-job">{% if log_job %}{{ log_job.module }} · {{ log_job.status }}{% endif %}</span>
+        {# The job's id, short. Without it a log can be looked at but not
+           named, and "the run that failed" is not something you can hand
+           to anyone. The copy button next to it gives the whole id. #}
+        {% if log_job %}
+        <button type="button" class="copy-button run-log-id mono"
+                data-run-log-id="{{ log_job.job_id }}"
+                title="Copy this job's id: {{ log_job.job_id }}"
+                aria-label="Copy this job's id">job {{ log_job.job_id[:8] }}</button>
+        {% endif %}
         <button type="button" class="copy-button" data-run-log-copy
                 title="Copy the whole log" aria-label="Copy the whole log">
           {% include "_copy_icon.svg" %}

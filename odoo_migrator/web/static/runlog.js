@@ -79,6 +79,15 @@
     }
   }
 
+  function showJob(id) {
+    if (!jobId) {
+      return;
+    }
+    jobId.setAttribute("data-run-log-id", id);
+    jobId.textContent = "job " + id.slice(0, 8);
+    jobId.title = "Copy this job's id: " + id;
+  }
+
   function closeBody() {
     var chosen = list.querySelector(".is-open");
     if (chosen) {
@@ -130,6 +139,9 @@
 
   function asText() {
     var rows = [];
+    if (job) {
+      rows.push("job " + job);
+    }
     var items = list.querySelectorAll(".run-log-line");
     for (var i = 0; i < items.length; i++) {
       var cells = items[i].querySelectorAll("span");
@@ -142,6 +154,12 @@
     return rows.join("\n");
   }
 
+  var jobId = panel.querySelector("[data-run-log-id]");
+  if (jobId) {
+    jobId.addEventListener("click", function () {
+      copy(jobId.getAttribute("data-run-log-id"), jobId);
+    });
+  }
   var copyAll = panel.querySelector("[data-run-log-copy]");
   if (copyAll) {
     copyAll.addEventListener("click", function () {
@@ -219,9 +237,11 @@
         job = data.job_id;
         last = 0;
         list.innerHTML = "";
+        showJob(data.job_id);
       } else if (!job) {
         panel.setAttribute("data-job", data.job_id);
         job = data.job_id;
+        showJob(data.job_id);
       }
       if (empty) {
         empty.hidden = true;

@@ -247,3 +247,42 @@ def test_the_copy_button_is_on_the_component_catalogue(client):
 
     assert "copy-button" in page
     assert "run-log-body-panel" in page
+
+
+def test_the_panel_names_the_job_so_it_can_be_referred_to(client, tmp_path):
+    """A log that cannot be named is one nobody can point at."""
+    from test_run_workspace import _open
+
+    del tmp_path
+    _open(client)
+
+    page = client.get("/run").text
+
+    assert "data-run-log-id" in page or "No job has run" in page
+
+
+def test_the_job_id_is_shown_and_copyable(client, app, tmp_path, fake_sheller):
+    from odoo_migrator.jobs import recent_job
+
+    del app, fake_sheller
+    created = create_migration(
+        name="Acme",
+        accent="violet",
+        source_version="17.0",
+        target_version="18.0",
+        old_project_path=str(tmp_path / "old"),
+        new_project_path=str(tmp_path / "new"),
+    )
+    with database.connection_context():
+        migration = Migration.get_by_id(created["id"])
+        module = Module.create(migration=migration, technical_name="sale_custom")
+        batch = Batch.create(migration=migration, status="running")
+        done = Job.create(batch=batch, module=module, status="failed")
+    client.post(f"/migrations/{created['id']}/open", follow_redirects=False)
+
+    page = client.get("/run").text
+
+    assert recent_job(created["id"])["job_id"] == done.job_id
+    assert f'data-run-log-id="{done.job_id}"' in page
+    # Short in the button, whole in the title and on the clipboard.
+    assert done.job_id[:8] in page
