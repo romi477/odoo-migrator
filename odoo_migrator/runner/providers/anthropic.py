@@ -59,6 +59,12 @@ class AnthropicProvider:
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": _EFFORT},
             "stream": True,
+            # Every turn resends the whole conversation: the rules, the module
+            # source, every tool result so far. Uncached, a 40K-token prompt
+            # re-billed on each of a port's writes crossed a 200K budget by
+            # the fifth tool call. The top-level breakpoint moves with the
+            # conversation, so each turn reads the one before it from cache.
+            "cache_control": {"type": "ephemeral"},
         }
         if system:
             kwargs["system"] = system
@@ -80,6 +86,14 @@ class AnthropicProvider:
                 turns += 1
                 said = _text_of(message) or said
                 _add_usage(message, usage)
+                # The step ends at `report`. Left to the runner, the call was
+                # executed on the next iteration — which then asked the model
+                # for one more turn it had no use for, and paid for it.
+                reported = _report_input(message, report.name)
+                if reported is not None:
+                    captured.clear()
+                    captured.update(reported)
+                    break
                 if budget.tokens is not None and _spent(usage) > budget.tokens:
                     overspent = True
                     break
@@ -158,14 +172,33 @@ def _add_usage(message, usage: dict) -> None:
     if counted is None:
 
         return
+    # Input is what was billed at full rate or above: uncached tokens plus
+    # the ones written to the cache. Reads from the cache are counted apart.
     usage["in"] += int(getattr(counted, "input_tokens", 0) or 0)
+    usage["in"] += int(getattr(counted, "cache_creation_input_tokens", 0) or 0)
     usage["out"] += int(getattr(counted, "output_tokens", 0) or 0)
     usage["cached"] += int(getattr(counted, "cache_read_input_tokens", 0) or 0)
 
 
 def _spent(usage: dict) -> int:
+    """What the budget holds a step to: new input and output, not cache reads.
+
+    A cache read is the same prefix again at a tenth of the price. Counting
+    it as new input made the budget grow with the square of the turns, so
+    it measured how long a conversation was rather than what it cost.
+    """
 
     return usage["in"] + usage["out"]
+
+
+def _report_input(message, name: str) -> dict | None:
+    for block in getattr(message, "content", None) or []:
+        if getattr(block, "type", "") == "tool_use" and getattr(block, "name", "") == name:
+            payload = getattr(block, "input", None)
+
+            return dict(payload) if isinstance(payload, dict) else {}
+
+    return None
 
 
 def _counts(usage: dict) -> dict:

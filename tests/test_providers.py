@@ -267,6 +267,22 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
     assert result.ok
     assert result.answer == "ported"
 
+    # Over budget, but the agent had already reported. The tokens are spent
+    # either way; discarding the answer sent the lap into the failure lane.
+    _Result.usage = types.SimpleNamespace(input_tokens=5000, output_tokens=10)
+    over = CursorProvider().run_step(
+        system="",
+        prompt="port it",
+        tools=[BoundTool("exec", _exec)],
+        report=report_tool(step),
+        model="composer-2.5",
+        budget=Budget(tool_calls=5, tokens=1000),
+    )
+
+    assert over.ok
+    assert over.answer == "ported"
+    assert over.tokens_in == 5000
+
 
 def test_cursor_without_a_key_does_not_call_the_sdk(monkeypatch):
     monkeypatch.setattr("odoo_migrator.runner.providers.cursor._key", lambda: "")

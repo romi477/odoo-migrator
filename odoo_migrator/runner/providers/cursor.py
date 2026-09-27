@@ -217,7 +217,10 @@ class CursorProvider:
                 tokens_out=tokens_out,
                 tokens_cached=tokens_cached,
             )
-        if budget.tokens is not None and tokens_in + tokens_out > budget.tokens:
+        # Checked after the run, so a report the agent already made stands: the
+        # tokens are spent either way, and throwing the answer away with them
+        # sent the lap into the failure lane with nothing to show for it.
+        if not captured and budget.tokens is not None and tokens_in + tokens_out > budget.tokens:
 
             return StepResult(
                 ok=False,
