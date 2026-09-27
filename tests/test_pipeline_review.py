@@ -1,5 +1,6 @@
 """The pipeline review: every place a live run broke that the doubles hid."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx2
@@ -13,7 +14,7 @@ from odoo_migrator.runner.cartridge import Budget, CartridgeError, Step, load_ca
 from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.steps import lint, tests, upgrade, verdict
-from odoo_migrator.runner.tools import tools_for
+from odoo_migrator.runner.tools import ToolRefused, tools_for
 from odoo_migrator.sheller import FakeShellerClient, HttpShellerClient
 from odoo_migrator.sheller.errors import ShellerBusy, ShellerSessionDead, ShellerTimeout
 
@@ -1135,3 +1136,39 @@ def test_diagnose_reads_the_rules():
     stock = load_cartridge_file(Path("cartridges/stock.yaml"))
 
     assert "rules" in stock.step_by_id("diagnose").context
+
+
+def test_a_port_cannot_be_written_beside_the_addons_directory(ctx_for, tmp_path):
+    """The live gate's first run passed without testing anything it wrote.
+
+    The project keeps its addons in `project/`, so the module is
+    `project/mig_test_base`. The agent took the module's technical name for
+    its path and wrote the whole port to `mig_test_base/` — inside the
+    project root, so nothing refused it, and outside the directory the
+    container mounts, so Odoo never saw a line of it. `upgrade` and `tests`
+    ran on the copy that was already installed and the lap went green.
+    """
+    ctx = ctx_for()
+    root = Path(ctx.migration.new_project_path)
+    inside = root / "project" / "mig_test_base"
+    inside.mkdir(parents=True, exist_ok=True)
+    (inside / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    with database.connection_context():
+        module = Module.get_by_id(ctx.module.id)
+        module.technical_name = "mig_test_base"
+        module.new_path = str(inside)
+        module.save()
+    ctx.module = module
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["write_file"], prompt="p")
+    (write,) = tools_for(step, ctx)
+
+    with pytest.raises(ToolRefused) as refused:
+        write(side="new", path="mig_test_base/__manifest__.py", content="{}")
+
+    assert "project/mig_test_base" in str(refused.value)
+
+    written = write(
+        side="new", path="project/mig_test_base/models/x.py", content="x = 1\n"
+    )
+
+    assert written == str(inside / "models" / "x.py")

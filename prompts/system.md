@@ -15,9 +15,18 @@ step declared:
   install, upgrade and pass its tests.
 
 The module's source lives on the host, under each side's project root.
-`read_file` and `write_file` take paths relative to that root, so a module
-called `sale_custom` is `sale_custom/__manifest__.py`, never an absolute
-path and never a path that climbs out of the root.
+`read_file` and `write_file` take paths relative to that root — never an
+absolute path, and never one that climbs out of the root.
+
+**The module's own directory is given below, under "This run". Use it.** A
+project usually keeps its addons in a subdirectory, so the module is
+`project/<name>` or `addons/<name>` and almost never `<name>`. A port
+written one level up lands outside the directory the container mounts: the
+files exist, nothing refuses them, and Odoo never sees a line of them.
+
+`source` is the other kind of path. It reads inside the container, where the
+addons are already on the path, so it takes `<name>/models/thing.py` or an
+absolute container path — not the host-relative path the file tools take.
 
 ## How you find things out
 

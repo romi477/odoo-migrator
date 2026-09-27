@@ -387,8 +387,44 @@ def _read_file(ctx, side: str, relative: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _inside_module(ctx, path: Path, relative: str) -> None:
+    """A write lands in the module's own directory, or nowhere.
+
+    The project root is not tight enough. A project that keeps its addons in
+    `project/` has the module at `project/<name>`, and a model that took the
+    module's technical name for its path wrote a whole port to `<name>/` —
+    beside the addons directory, not in it. The container never saw a line of
+    it, `upgrade` and `tests` ran on what was already installed, and the lap
+    passed without touching anything the port had written.
+    """
+    from odoo_migrator.module_paths import host_paths, module_root, relative_to_root
+
+    # The directory recorded on the module, and the one the migration's
+    # current root implies. They are the same in a live run; they differ when
+    # the root was changed after the tree was read, and a write that is right
+    # by either of them is not the mistake this guards against.
+    allowed = [
+        module_root(ctx.migration, ctx.module, "new"),
+        host_paths(ctx.migration, ctx.module.technical_name)[1] or None,
+    ]
+    roots = [Path(one).expanduser().resolve() for one in allowed if one]
+    if not roots:
+
+        return
+    if any(path.is_relative_to(one) for one in roots):
+
+        return
+    wanted = relative_to_root(ctx.migration, ctx.module, "new")
+    raise ToolRefused(
+        f"{relative} is outside the module's directory. This module is "
+        f"{wanted} on the new side: write {wanted}/{Path(relative).name}, "
+        "and everything else under that directory."
+    )
+
+
 def _write_file(ctx, side: str, relative: str, content: str) -> str:
     path = _inside(ctx, side, relative)
+    _inside_module(ctx, path, relative)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
