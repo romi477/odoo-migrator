@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from urllib.parse import parse_qsl
 
 from odoo_migrator.runner.cartridge import Budget
 from odoo_migrator.runner.context import StepResult
@@ -103,6 +104,8 @@ class CursorProvider:
             Client,
             CustomTool,
             LocalAgentOptions,
+            ModelParameterValue,
+            ModelSelection,
             SandboxOptions,
         )
         from cursor_sdk.errors import CursorAgentError
@@ -163,7 +166,7 @@ class CursorProvider:
             try:
                 agent = client.create_agent(
                     AgentOptions(
-                        model=model,
+                        model=_selection(model, ModelSelection, ModelParameterValue),
                         api_key=_key(),
                         # `mode` is 'agent' or 'plan', and unset takes
                         # whatever the service defaults to. A step of this
@@ -202,7 +205,7 @@ class CursorProvider:
         tokens_in = int(getattr(usage, "input_tokens", 0) or 0)
         tokens_out = int(getattr(usage, "output_tokens", 0) or 0)
         tokens_cached = int(getattr(usage, "cache_read_tokens", 0) or 0)
-        detail = _account(result, spent["calls"], sorted(custom))
+        detail = _account(result, spent["calls"], sorted(custom), asked=model)
         status = str(getattr(result, "status", "") or "")
         # A run that did not complete is not "the model returned nothing
         # useful": the SDK knows why and puts it here. Reading only
@@ -260,7 +263,30 @@ class CursorProvider:
         )
 
 
-def _account(result, calls: int, offered: list[str]) -> str:
+def _selection(model: str, selection_type, parameter_type):
+    """``auto-smart?effort=high`` as the SDK wants it: an id and its params.
+
+    The cartridge writes a model with its parameters in one string. Handed
+    over as that string, the SDK made it the id — `auto-smart?effort=high`,
+    no params — and the run reported `ModelSelection(id='default')`: the
+    model the job recorded was not the model that ran.
+    """
+    name, _, query = model.partition("?")
+    params = tuple(
+        parameter_type(id=key, value=value)
+        for key, value in parse_qsl(query, keep_blank_values=True)
+    )
+
+    return selection_type(id=name.strip(), params=params)
+
+
+def _ran_model(result) -> str:
+    chosen = getattr(result, "model", None)
+
+    return str(getattr(chosen, "id", chosen) or "")
+
+
+def _account(result, calls: int, offered: list[str], asked: str = "") -> str:
     """What the SDK reported, for the run log.
 
     `RunResult` carries `status`, the agent's own `result` text, the model
@@ -269,9 +295,11 @@ def _account(result, calls: int, offered: list[str]) -> str:
     never given a tool it could call.
     """
     text = str(getattr(result, "result", "") or "").strip()
+    ran = _ran_model(result)
+    wanted = asked.partition("?")[0].strip()
     rows = [
         f"status: {getattr(result, 'status', '')}",
-        f"model: {getattr(result, 'model', '')}",
+        f"model: {ran or '(not reported)'}",
         "mode: agent",
         f"duration_ms: {getattr(result, 'duration_ms', '')}",
         f"tool calls made: {calls}",
@@ -281,6 +309,10 @@ def _account(result, calls: int, offered: list[str]) -> str:
         "agent said:",
         text or "(nothing)",
     ]
+    if ran and wanted and ran != wanted:
+        # Not a failure: the SDK may name a routed model differently. But the
+        # job records the one it asked for, and a reader has to know.
+        rows.insert(0, f"model mismatch: asked for {asked}, the run reports {ran}")
 
     return "\n".join(rows)
 

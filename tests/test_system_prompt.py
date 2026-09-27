@@ -182,6 +182,8 @@ def test_cursor_has_no_system_field_so_it_leads_with_it(monkeypatch):
 
     sdk.LocalAgentOptions = _local
     sdk.SandboxOptions = lambda enabled=None: {"enabled": enabled}
+    sdk.ModelSelection = lambda id, params=(): {"id": id, "params": list(params)}
+    sdk.ModelParameterValue = lambda id, value: {"id": id, "value": value}
     errors = types.ModuleType("cursor_sdk.errors")
     errors.CursorAgentError = type("CursorAgentError", (Exception,), {})
     monkeypatch.setitem(sys.modules, "cursor_sdk", sdk)

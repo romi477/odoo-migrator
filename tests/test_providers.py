@@ -167,6 +167,7 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
 
     class AgentOptions:
         def __init__(self, model, api_key, local, mode=None, disallowed_tools=()):
+            captured["model"] = model
             captured["denied"] = tuple(disallowed_tools)
             captured["mode"] = mode
             captured["custom"] = local.custom_tools
@@ -219,6 +220,8 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
     sdk.CustomTool = CustomTool
     sdk.LocalAgentOptions = LocalAgentOptions
     sdk.SandboxOptions = lambda enabled=None: {"enabled": enabled}
+    sdk.ModelSelection = lambda id, params=(): {"id": id, "params": list(params)}
+    sdk.ModelParameterValue = lambda id, value: {"id": id, "value": value}
     errors = types.ModuleType("cursor_sdk.errors")
 
     class CursorAgentError(Exception):
@@ -282,6 +285,27 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
     assert over.ok
     assert over.answer == "ported"
     assert over.tokens_in == 5000
+    assert captured["model"] == {"id": "composer-2.5", "params": []}
+
+    # Parameters written into the model name are the SDK's params, not part
+    # of its id. As one string the run reported `ModelSelection(id='default')`.
+    _Result.model = types.SimpleNamespace(id="default")
+    routed = CursorProvider().run_step(
+        system="",
+        prompt="port it",
+        tools=[BoundTool("exec", _exec)],
+        report=report_tool(step),
+        model="auto-smart?effort=high",
+        budget=Budget(tool_calls=5),
+    )
+
+    assert captured["model"] == {
+        "id": "auto-smart",
+        "params": [{"id": "effort", "value": "high"}],
+    }
+    assert "model mismatch: asked for auto-smart?effort=high, the run reports default" in (
+        routed.detail
+    )
 
 
 def test_cursor_without_a_key_does_not_call_the_sdk(monkeypatch):
