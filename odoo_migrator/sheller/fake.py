@@ -1,6 +1,7 @@
 """In-memory Sheller. Same interface as HttpShellerClient; no daemon required."""
 
 import json
+import re
 import secrets
 import uuid
 
@@ -41,6 +42,12 @@ DEFAULT_GRAPH = [
 ]
 
 
+# The daemon's own rule for a test spec: `module.TestClass`, with an
+# optional `.test_method`. Copied rather than approximated, because a
+# double that is looser than the daemon is how a bad spec reached
+# production in the first place.
+TEST_SPEC_RE = re.compile(r"^(\w+)\.(\w+)(?:\.(\w+))?$")
+
 class FakeShellerClient:
     def __init__(
         self,
@@ -54,6 +61,7 @@ class FakeShellerClient:
         self._mcp = mcp
         self._sessions: dict[str, dict] = {}
         self._catalogues: dict[str, list] = {}
+        self.tests_run: list[dict] = []
         # The journal file outlives the session. close drops the live row and
         # leaves this, which is what history and the export still read.
         self._journals: dict[str, list] = {}
@@ -212,7 +220,26 @@ class FakeShellerClient:
         write_key: str,
         timeout: float | None = None,
     ) -> dict:
+        """Refuse a malformed spec, exactly as the daemon does.
+
+        This used to accept any string and answer ok, so a runner that
+        shipped `module.Class.{'name': ..., 'spec': ...}` passed its tests
+        and failed on the first real module with 400 `invalid_test_spec`.
+        The daemon's rule is `module.TestClass` or
+        `module.TestClass.test_method`, and nothing else.
+        """
         self._require(session_id, write_key)
+        if not TEST_SPEC_RE.match(test or ""):
+            raise ShellerError(
+                "invalid_test_spec",
+                status=400,
+                detail={
+                    "error": "invalid_test_spec",
+                    "test": test,
+                    "recovery": "use 'module.TestClass' or 'module.TestClass.test_method'",
+                },
+            )
+        self.tests_run.append({"test": test, "session_id": session_id})
 
         return {"ok": True, "test": test}
 
@@ -276,7 +303,45 @@ class FakeShellerClient:
         return body
 
     def tests_for(self, module: str, classes: list) -> None:
-        self._catalogues[module] = list(classes)
+        """Seed the catalogue, in the shape the daemon returns.
+
+        A class is ``{"name", "spec", "methods": [{"name", "spec"}]}``. The
+        runner used to rebuild specs from names and only ever saw the empty
+        catalogue in tests, so it shipped `str(dict)` into a spec and every
+        module that had tests failed with 400 `invalid_test_spec`. A double
+        that accepts a looser shape hides that again.
+        """
+        for item in classes:
+            if not isinstance(item, dict) or not item.get("spec"):
+                raise ShellerError(
+                    "a test class is {'name', 'spec', 'methods'}, as the "
+                    f"daemon returns it, not {item!r}",
+                    status=500,
+                )
+            for method in item.get("methods") or []:
+                if not isinstance(method, dict) or not method.get("spec"):
+                    raise ShellerError(
+                        "a test method is {'name', 'spec'}, as the daemon "
+                        f"returns it, not {method!r}",
+                        status=500,
+                    )
+        self._catalogues[module] = [dict(item) for item in classes]
+
+    @staticmethod
+    def catalogue(module: str, classes: dict[str, list[str]]) -> list:
+        """Build what the daemon would return for these class/method names."""
+
+        return [
+            {
+                "name": class_name,
+                "spec": f"{module}.{class_name}",
+                "methods": [
+                    {"name": method, "spec": f"{module}.{class_name}.{method}"}
+                    for method in methods
+                ],
+            }
+            for class_name, methods in classes.items()
+        ]
 
     def list_tests(self, session_id: str, *, module: str, write_key: str) -> dict:
         session = self._sessions.get(session_id)

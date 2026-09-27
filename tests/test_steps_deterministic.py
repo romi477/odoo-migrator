@@ -105,3 +105,57 @@ def test_verdict_is_basic_by_default_and_reads_the_migration(step_context):
     result = verdict.run(Step(kind="verdict"), ctx)
 
     assert result.ok is False  # strict wants a probe answer, and there is none
+
+
+def test_a_module_with_tests_runs_the_specs_the_daemon_gave(step_context, sheller_fake):
+    """The runner used to rebuild specs from names and interpolate a mapping,
+    so Sheller was handed `module.Class.{'name': ..., 'spec': ...}` and
+    answered 400 invalid_test_spec. Every module with tests failed that way,
+    and the run blamed the module."""
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue(
+            "sale_custom", {"TestSaleCustom": ["test_one", "test_two"]}
+        ),
+    )
+    ctx = step_context()
+
+    result = tests.run(Step(kind="tests"), ctx)
+
+    ran = [row["test"] for row in sheller_fake.tests_run]
+
+    assert ran == [
+        "sale_custom.TestSaleCustom.test_one",
+        "sale_custom.TestSaleCustom.test_two",
+    ]
+    assert all("{" not in spec for spec in ran)
+    assert result.ok is True
+
+
+def test_a_class_with_no_methods_runs_as_the_class(step_context, sheller_fake):
+    sheller_fake.tests_for(
+        "sale_custom", sheller_fake.catalogue("sale_custom", {"TestSaleCustom": []})
+    )
+
+    tests.run(Step(kind="tests"), step_context())
+
+    assert [row["test"] for row in sheller_fake.tests_run] == ["sale_custom.TestSaleCustom"]
+
+
+def test_the_double_refuses_a_shape_the_daemon_never_returns(sheller_fake):
+    """A double that accepts a looser shape hides the bug it just caught."""
+    from odoo_migrator.sheller.errors import ShellerError
+
+    with pytest.raises(ShellerError, match="as the daemon returns it"):
+        sheller_fake.tests_for("sale_custom", [{"name": "TestSaleCustom"}])
+    with pytest.raises(ShellerError, match="as the daemon returns it"):
+        sheller_fake.tests_for(
+            "sale_custom",
+            [
+                {
+                    "name": "TestSaleCustom",
+                    "spec": "sale_custom.TestSaleCustom",
+                    "methods": [{"name": "test_one"}],
+                }
+            ],
+        )

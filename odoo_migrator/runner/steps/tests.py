@@ -40,16 +40,49 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
 
 def _specs(module: str, classes: list) -> list[str]:
+    """The specs the daemon already composed, not ones rebuilt from names.
+
+    `list_tests` gives every class and every method a ready `spec`. This
+    used to ignore them and interpolate `f"{module}.{class}.{method}"`,
+    where `method` is a mapping — so Sheller was handed
+    `mig_test_base.TestMigTestBase.{'name': 'test_x', 'spec': '...'}` and
+    answered 400 `invalid_test_spec`. Every module with tests failed that
+    way, and the run blamed the module.
+    """
     specs: list[str] = []
     for item in classes:
         if isinstance(item, str):
             specs.append(item if "." in item else f"{module}.{item}")
             continue
-        class_name = item.get("name") or item.get("class") or ""
+        class_spec = _spec_of(item) or f"{module}.{item.get('name') or item.get('class') or ''}"
         methods = item.get("methods") or []
-        if methods:
-            specs.extend(f"{module}.{class_name}.{method}" for method in methods)
-        elif class_name:
-            specs.append(f"{module}.{class_name}")
+        if not methods:
+            specs.append(class_spec)
+            continue
+        for method in methods:
+            found = _method_spec(class_spec, method)
+            if found:
+                specs.append(found)
 
     return specs
+
+
+def _spec_of(item) -> str:
+    if not isinstance(item, dict):
+
+        return ""
+
+    return str(item.get("spec") or "").strip()
+
+
+def _method_spec(class_spec: str, method) -> str:
+    if isinstance(method, str):
+
+        return f"{class_spec}.{method}"
+    ready = _spec_of(method)
+    if ready:
+
+        return ready
+    name = str((method or {}).get("name") or "").strip() if isinstance(method, dict) else ""
+
+    return f"{class_spec}.{name}" if name else ""
