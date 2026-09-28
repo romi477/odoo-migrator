@@ -398,6 +398,20 @@ def _undo_start(
         hub.publish("lamp", {"state": lamp_state()})
 
 
+def _still_to_run(modules: list[dict]) -> list[dict]:
+    """The ones a batch has work to do on.
+
+    A wave is started because something in it is still queued, and the
+    Pipeline queue shows exactly those. The runner did not filter, so a
+    wave with one module left re-ran the three beside it that had already
+    passed — and a module that had been green for an hour came back as
+    `failed` the moment the shell it needed went down. Running a module
+    again is what Reopen is for, and it is the human who asks.
+    """
+
+    return [module for module in modules if module["status"] != "passed"]
+
+
 def start_batch(
     *,
     migration_id: str,
@@ -407,22 +421,30 @@ def start_batch(
     step: int | None = None,
 ) -> Batch:
     if step is not None:
-        ordered = modules_in_step_order(migration_id, step)
+        listed = modules_in_step_order(migration_id, step)
         record_group = step
     elif batch_group is not None:
-        ordered = modules_in_batch_order(migration_id, batch_group)
+        listed = modules_in_batch_order(migration_id, batch_group)
         record_group = batch_group
     else:
         raise ContractError("No batch or step selected.")
-    if not ordered:
+    if not listed:
         empty = (
             "That step has no modules in the plan."
             if step is not None
             else "That batch is empty. Group modules on the tree first."
         )
         raise ContractError(empty)
+    ordered = _still_to_run(listed)
+    if not ordered:
+        raise ContractError(
+            "Every module here has already passed. Reopen one to run it again."
+        )
+    # The guard reads the wave off everything selected, not off what is left
+    # to do. Dropping a passed parent from the list would raise the wave and
+    # block on an earlier step the batch was never waiting for.
     ranks = steps_for_migration(migration_id)
-    wave = min(ranks.get(row["technical_name"], 1) for row in ordered)
+    wave = min(ranks.get(row["technical_name"], 1) for row in listed)
     blocked = earlier_steps_blocking(migration_id, wave)
     if blocked:
         raise ContractError(blocked)
@@ -543,11 +565,13 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         _pipeline_after_batch(migration_id, batch_id, executor, hub)
 
         return
-    remaining = [
-        module
-        for module in modules_in_batch_order(migration_id, group)
-        if module["id"] not in done
-    ]
+    remaining = _still_to_run(
+        [
+            module
+            for module in modules_in_batch_order(migration_id, group)
+            if module["id"] not in done
+        ]
+    )
     if not remaining:
         close_batch(batch_id, hub)
         _pipeline_after_batch(migration_id, batch_id, executor, hub)

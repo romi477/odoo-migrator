@@ -311,3 +311,44 @@ def test_the_lamp_points_at_the_stalled_module_not_only_its_migration(client):
     assert jumped.headers["location"] == f"/tree?focus={sale['id']}"
     script = client.get("/static/tree.js").text
     assert 'get("focus")' in script
+
+
+def test_a_second_run_skips_the_modules_that_already_passed(client):
+    """A wave is started because something in it is still queued. The runner
+    took the whole wave, so the three modules beside it were migrated again
+    — and one of them, green for an hour, came back `failed` the moment the
+    shell it needed went down."""
+    row, sale = _prepared(client)
+    stock = _named(row.id, "stock_custom")
+    _group(client, sale, stock)
+    first = OutcomeExecutor({"stock_custom": "failed"}, client.app)
+    client.app.state.executor = first
+    client.post("/tree/batch/run", data={"batch_group": "1"}, follow_redirects=True)
+    client.post("/run/continue", data={"override": "1"}, follow_redirects=True)
+
+    again = OutcomeExecutor({}, client.app)
+    client.app.state.executor = again
+    client.post("/tree/batch/run", data={"batch_group": "1"}, follow_redirects=True)
+
+    assert first.started == ["sale_custom", "stock_custom"]
+    assert again.started == ["stock_custom"]
+    with database.connection_context():
+        assert Module.get_by_id(sale["id"]).status == "passed"
+        assert Module.get_by_id(stock["id"]).status == "passed"
+
+
+def test_a_batch_with_nothing_left_to_do_says_so_rather_than_redoing_it(client):
+    row, sale = _prepared(client)
+    stock = _named(row.id, "stock_custom")
+    _group(client, sale, stock)
+    client.app.state.executor = OutcomeExecutor({}, client.app)
+    client.post("/tree/batch/run", data={"batch_group": "1"}, follow_redirects=True)
+    client.post("/run/continue", data={"override": "1"}, follow_redirects=True)
+
+    again = OutcomeExecutor({}, client.app)
+    client.app.state.executor = again
+    page = client.post("/tree/batch/run", data={"batch_group": "1"}, follow_redirects=True)
+
+    assert again.started == []
+    # The refusal, not the queue snapshot that also carries the word.
+    assert "Every module here has already passed" in page.text
