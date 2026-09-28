@@ -1172,3 +1172,67 @@ def test_a_port_cannot_be_written_beside_the_addons_directory(ctx_for, tmp_path)
     )
 
     assert written == str(inside / "models" / "x.py")
+
+
+# -- a written test is run by the runner, not only by the agent ---------------
+
+
+def test_the_stock_flow_runs_the_test_it_just_wrote():
+    """`tests` runs before `write_test`, so for a module that shipped none the
+    only run was the one the agent made inside its own step — its outcome was
+    a tool call and never a step anyone could fail on."""
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+    names = [step.id or step.kind for step in stock.pipeline]
+
+    assert names.index("retest") == names.index("write_test") + 1
+    assert names.index("retest") < names.index("verdict")
+    retest = stock.step_by_id("retest")
+    assert retest.kind == "tests"
+    assert retest.when == "no_tests"
+
+
+def test_write_test_can_read_the_target_versions_own_tests():
+    """It had `read_file` and no `source`: it could open the module's files on
+    the host and not the base class it was writing against."""
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+    tools = stock.step_by_id("write_test").tools
+
+    assert "source" in tools
+    assert "list_tests" in tools
+
+
+def test_a_rerun_after_a_write_opens_a_fresh_session(ctx_for, sheller):
+    """The process imported the module's `tests` package when the session
+    opened. A run before a reopen finds the set that was there before."""
+    ctx = ctx_for()
+    ctx.lap_flags = {"no_tests"}
+    before = ctx.sessions["new"]
+    name = ctx.module.technical_name
+    sheller.tests_for(name, sheller.catalogue(name, {"TestThing": ["test_one"]}))
+
+    result = tests.run(Step(kind="tests", id="retest"), ctx)
+
+    assert result.ok is True
+    assert ctx.sessions["new"] != before
+    assert before in sheller.closes
+
+
+def test_the_first_run_of_a_lap_does_not_reopen(ctx_for, sheller):
+    """`upgrade` opened this session a moment ago. Another odoo-bin start per
+    lap buys nothing."""
+    ctx = ctx_for()
+    before = ctx.sessions["new"]
+    name = ctx.module.technical_name
+    sheller.tests_for(name, sheller.catalogue(name, {"TestThing": ["test_one"]}))
+
+    tests.run(Step(kind="tests"), ctx)
+
+    assert ctx.sessions["new"] == before

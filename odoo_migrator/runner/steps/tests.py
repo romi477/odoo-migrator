@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.sessions import reopen_side
 from odoo_migrator.sheller.errors import ShellerError
 
 # Seconds one spec may run. Past the daemon's default of 300: a module's own
@@ -14,12 +15,22 @@ TEST_TIMEOUT = 1800.0
 _LOG_TAIL = 60
 
 def run(step: Step, ctx: StepContext) -> StepResult:
-    session_id = ctx.sessions.get("new")
-    write_key = ctx.write_keys.get("new", "")
     name = ctx.module.technical_name
-    if not session_id:
+    if not ctx.sessions.get("new"):
 
         return StepResult(ok=False, output="no target session")
+    if "no_tests" in ctx.lap_flags:
+        # A test was written after this session opened, and the process
+        # imported the module's `tests` package when it did. Without a fresh
+        # one the run finds the set that was there before and says nothing
+        # about the case that was just added.
+        try:
+            reopen_side(ctx, "new")
+        except ShellerError as exc:
+
+            return StepResult(ok=False, output=f"could not reopen the target session: {exc}")
+    session_id = ctx.sessions["new"]
+    write_key = ctx.write_keys.get("new", "")
     try:
         catalogue = ctx.sheller.list_tests(session_id, module=name, write_key=write_key)
     except ShellerError as exc:

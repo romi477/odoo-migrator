@@ -444,12 +444,23 @@ pipeline:
     id: write_test
     when: no_tests
     sessions: [new]
-    tools: [exec, run_test, read_file, write_file, reopen]
+    tools: [exec, source, run_test, list_tests, read_file, write_file, reopen]
     context: [prior_answers]
     prompt: |
       Turn the recipe you just replayed into a real test in the ported
       module, asserting what the old version actually did. Run it before
       you finish.
+
+      Read a test of a module that has one with `source` before writing
+      yours: the base class and the helpers are the target version's, not
+      the ones you remember.
+
+  # The run above is the agent's own. This one is the runner's, and its
+  # outcome is recorded: a test written and never run used to pass as
+  # `write_test` with nothing after it.
+  - step: tests
+    id: retest
+    when: no_tests
 
   - step: verdict
 
