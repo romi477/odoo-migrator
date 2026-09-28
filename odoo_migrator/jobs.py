@@ -947,8 +947,50 @@ def module_outcome(module_id: int) -> dict | None:
         "stage": job.current_stage or "",
         "finished_at": _stamp(finished),
         "steps": steps,
+        "testing": _testing(runs),
         "messages": messages,
     }
+
+
+def _testing(runs: list) -> list[dict]:
+    """What happened to the tests, in the order it happened.
+
+    A summary that lists `write_test` says a test was written and nothing
+    about whether it ran. The pipeline's own `tests` step runs before that
+    one, so for a module that shipped none the only run there ever is is the
+    one the agent makes inside `write_test` — and it was recorded as a tool
+    call nobody reads.
+
+    Caller holds the connection.
+    """
+    from odoo_migrator.models import ToolCall
+
+    ids = [run.id for run in runs]
+    if not ids:
+
+        return []
+    by_run = {run.id: run for run in runs}
+    told = []
+    for call in (
+        ToolCall.select()
+        .where(ToolCall.step_run.in_(ids))
+        .order_by(ToolCall.id)
+    ):
+        wrote_test = call.tool == "write_file" and "/tests/" in (call.preview or "")
+        if call.tool not in ("run_test", "list_tests") and not wrote_test:
+            continue
+        step = by_run.get(call.step_run_id)
+        told.append(
+            {
+                "step": (step.step_id or step.kind) if step else "",
+                "attempt": step.attempt if step else 0,
+                "what": "wrote" if wrote_test else call.tool,
+                "detail": call.preview or "",
+                "ok": call.ok,
+            }
+        )
+
+    return told
 
 
 def _stamp(value) -> str:

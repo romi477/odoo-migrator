@@ -227,7 +227,13 @@ def _bind(name: str, step, ctx):
         if isinstance(value, dict) and value.get("id") is not None:
             command_id = str(value["id"])
         text = _text(value)
-        _record(ctx, name, side, ran_in, command_id, _elapsed(started), True, text)
+        # What the line says, which is not what the model is handed. A test
+        # run's answer begins with empty stdout and a null result, so the
+        # first 120 characters of it said nothing about the test.
+        _record(
+            ctx, name, side, ran_in, command_id, _elapsed(started), True,
+            _preview(name, value, text),
+        )
 
         return text
 
@@ -429,6 +435,46 @@ def _write_file(ctx, side: str, relative: str, content: str) -> str:
     path.write_text(content, encoding="utf-8")
 
     return str(path)
+
+
+def _preview(name: str, value, text: str) -> str:
+    """One line about what came back, for the run log and the summary.
+
+    The raw answer is kept in the journal and is what the model reads. This
+    is the line a person scans, so for the two tools whose answer is a report
+    it is the report's verdict rather than the head of its JSON.
+    """
+    if not isinstance(value, dict):
+
+        return text
+    if name == "run_test":
+        outcome = value.get("test")
+        if value.get("error"):
+
+            return f"error: {value['error']}"
+        if isinstance(outcome, dict):
+            ran = outcome.get("tests_run") or 0
+            verdict = "passed" if outcome.get("success") and ran else "failed"
+
+            return (
+                f"{verdict}: {ran} test(s), "
+                f"{outcome.get('failures') or 0} failure(s), "
+                f"{outcome.get('errors') or 0} error(s)"
+            )
+    if name == "list_tests":
+        classes = value.get("classes")
+        if isinstance(classes, list):
+            named = [
+                item.get("spec") or item.get("name")
+                for item in classes
+                if isinstance(item, dict)
+            ]
+
+            return f"{len(classes)} class(es): {', '.join(filter(None, named))}" if classes else (
+                "no tests on disk"
+            )
+
+    return text
 
 
 def _text(value) -> str:

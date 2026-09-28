@@ -2867,6 +2867,31 @@ pre.test-output {
   color: var(--red);
 }
 
+/* What happened to the tests: what was listed, what was written, what ran.
+   The step list says `write_test` and stops there. */
+.result-summary-tests {
+  margin-top: 12px;
+}
+
+.result-summary-tests h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.result-summary-tests ol {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.result-summary-tests li.is-failed {
+  color: var(--red);
+}
+
 /* The diagnosis is written with line breaks that carry its structure, and
    it is long: it scrolls here rather than pushing the board down a screen. */
 .result-summary-message {

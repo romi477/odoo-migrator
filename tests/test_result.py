@@ -272,3 +272,60 @@ def test_a_summary_of_another_migrations_module_is_refused(client):
     answer = client.get(f"/api/result/modules/{theirs.id}/summary")
 
     assert answer.status_code == 404
+
+
+def test_the_summary_says_what_happened_to_the_tests(client):
+    """A step list that says `write_test` says a test was written and nothing
+    about whether it ran. The pipeline's own `tests` step runs before that
+    one, so for a module that shipped none the only run there is is the one
+    the agent makes inside `write_test`."""
+    from odoo_migrator.models import StepRun, ToolCall
+
+    migration_id = _open(client)
+    module = _ran(migration_id, "mig_test_account")
+    with database.connection_context():
+        step = StepRun.get(StepRun.step_id == "port")
+        ToolCall.create(
+            step_run=step, tool="list_tests", side="old", ok=True,
+            preview="no tests on disk",
+        )
+        ToolCall.create(
+            step_run=step, tool="write_file", side="new", ok=True,
+            preview="/p/mig_test_account/tests/test_mig_test_account.py",
+        )
+        ToolCall.create(
+            step_run=step, tool="write_file", side="new", ok=True,
+            preview="/p/mig_test_account/models/account_move.py",
+        )
+        ToolCall.create(
+            step_run=step, tool="run_test", side="new", ok=True,
+            preview="passed: 3 test(s), 0 failure(s), 0 error(s)",
+        )
+        ToolCall.create(step_run=step, tool="exec", side="new", ok=True, preview="1")
+
+    testing = client.get(f"/api/result/modules/{module.id}/summary").json()["testing"]
+
+    assert [row["what"] for row in testing] == ["list_tests", "wrote", "run_test"]
+    assert testing[1]["detail"].endswith("test_mig_test_account.py")
+    assert "3 test(s)" in testing[2]["detail"]
+    assert testing[0]["step"] == "port"
+
+
+def test_a_test_run_is_recorded_by_its_verdict_not_its_json():
+    """`{"stdout": "", "stdout_truncated": false, "result": null` is the first
+    120 characters of a test report, and says nothing about the test."""
+    from odoo_migrator.runner.tools import _preview
+
+    report = {
+        "stdout": "",
+        "error": None,
+        "test": {"success": True, "tests_run": 3, "failures": 0, "errors": 0},
+    }
+
+    assert _preview("run_test", report, "{}") == "passed: 3 test(s), 0 failure(s), 0 error(s)"
+    red = {"error": None, "test": {"success": False, "tests_run": 3, "failures": 1, "errors": 0}}
+    assert _preview("run_test", red, "{}").startswith("failed: 3 test(s), 1 failure(s)")
+    # A run of nothing is not a pass, and the line says so.
+    none = {"error": None, "test": {"success": True, "tests_run": 0}}
+    assert _preview("run_test", none, "{}").startswith("failed: 0 test(s)")
+    assert _preview("list_tests", {"classes": []}, "{}") == "no tests on disk"

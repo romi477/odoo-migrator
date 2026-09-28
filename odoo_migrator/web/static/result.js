@@ -49,6 +49,32 @@
       });
       body.appendChild(steps);
     }
+    /* What happened to the tests. A step list that says `write_test` says a
+       test was written and nothing about whether it ran — and the pipeline's
+       own `tests` step runs before that one, so for a module that shipped
+       none the only run there is is the one inside `write_test`. */
+    const testing = document.createElement("section");
+    testing.className = "result-summary-tests";
+    const head = document.createElement("h3");
+    head.textContent = "Tests";
+    testing.appendChild(head);
+    if (data.testing && data.testing.length) {
+      const rows = document.createElement("ol");
+      data.testing.forEach(function (row) {
+        const item = document.createElement("li");
+        item.className = row.ok === false ? "is-failed" : "";
+        item.textContent =
+          row.step + " · " + row.what + " — " + row.detail;
+        rows.appendChild(item);
+      });
+      testing.appendChild(rows);
+    } else {
+      testing.appendChild(
+        line("Nothing was listed, written or run.", "result-summary-line")
+      );
+    }
+    body.appendChild(testing);
+
     /* The agent's own words, and the human's reply. A <pre> because the
        diagnosis is written with line breaks that carry its structure. */
     (data.messages || []).forEach(function (message) {
