@@ -16,6 +16,30 @@
   var follow = panel.querySelector("[data-run-log-follow]");
   var job = panel.getAttribute("data-job") || "";
   var last = 0;
+  /* Clear empties the card, name and all. What that name was is kept here,
+     so the first line of the next run puts it back rather than leaving a
+     list of lines belonging to nothing. */
+  var name = panel.querySelector(".run-log-job");
+  var jobId = panel.querySelector("[data-run-log-id]");
+  var named = name ? name.textContent : "";
+
+  function forget() {
+    if (name) {
+      name.textContent = "";
+    }
+    if (jobId) {
+      jobId.hidden = true;
+    }
+  }
+
+  function remember() {
+    if (name && !name.textContent) {
+      name.textContent = named;
+    }
+    if (jobId && jobId.hidden) {
+      jobId.hidden = false;
+    }
+  }
 
   function atBottom() {
     return list.scrollHeight - list.scrollTop - list.clientHeight < 40;
@@ -26,6 +50,10 @@
       return;
     }
     last = line.id;
+    remember();
+    if (empty) {
+      empty.hidden = true;
+    }
     var item = document.createElement("li");
     item.className = "run-log-line " + (line.level || "info");
     var when = document.createElement("span");
@@ -80,9 +108,18 @@
   }
 
   function showJob(id) {
+    /* A different job, so the name kept for `remember` is not this one's.
+       The live panel above knows whose run this is; it is updated by the
+       same event that brought this line. */
+    var live = document.querySelector("[data-pipeline-module]");
+    named = live ? live.textContent.trim() : "";
+    if (name) {
+      name.textContent = named;
+    }
     if (!jobId) {
       return;
     }
+    jobId.hidden = false;
     jobId.setAttribute("data-run-log-id", id);
     jobId.textContent = "job " + id.slice(0, 8);
     jobId.title = "Copy this job's id: " + id;
@@ -154,7 +191,6 @@
     return rows.join("\n");
   }
 
-  var jobId = panel.querySelector("[data-run-log-id]");
   if (jobId) {
     jobId.addEventListener("click", function () {
       copy(jobId.getAttribute("data-run-log-id"), jobId);
@@ -186,7 +222,9 @@
         list.innerHTML = "";
         last = 0;
         closeBody();
+        forget();
         if (empty) {
+          empty.textContent = "This log was cleared.";
           empty.hidden = false;
         }
       });

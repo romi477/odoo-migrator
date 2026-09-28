@@ -362,3 +362,29 @@ def test_another_job_on_this_module_is_not_the_current_thread(client, live_job):
 
     assert "the question this run asked" in page
     assert "a diagnosis from another run" not in page
+
+
+def test_follow_is_a_switch_and_still_a_checkbox():
+    """A mode reads as on or off, not as ticked. The input stays a real
+    checkbox so the label, the keyboard and the focus ring are the browser's."""
+    from odoo_migrator.paths import static_dir
+
+    css = (static_dir() / "style.css").read_text(encoding="utf-8")
+
+    assert ".run-log-follow input {" in css
+    assert "appearance: none;" in css.split(".run-log-follow input {")[1][:200]
+    assert ".run-log-follow input:checked::after" in css
+    assert ".run-log-follow input:focus-visible" in css
+
+
+def test_clear_empties_the_card_and_not_only_the_lines():
+    """Cleared, the card kept the module and the job id of a log that was no
+    longer there."""
+    from odoo_migrator.paths import static_dir
+
+    script = (static_dir() / "runlog.js").read_text(encoding="utf-8")
+    clear = script.split("data-run-log-clear")[1]
+
+    assert "forget()" in clear
+    # And the next line to arrive puts the name back.
+    assert "remember();" in script.split("function append")[1][:400]
