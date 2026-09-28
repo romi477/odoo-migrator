@@ -206,14 +206,13 @@ class NativeRunner:
             # sat queued until a restart called it unknown.
             self._log(job_id, "runner", "job started")
             cartridge = self._cartridge(payload)
+            ctx = self._context(payload, cartridge)
             self._log(
                 job_id,
                 "runner",
                 f"cartridge {cartridge.cartridge} {cartridge.version} "
-                f"({cartridge.sha256[:12]}), model {cartridge.model.provider}/"
-                f"{cartridge.model.name}",
+                f"({cartridge.sha256[:12]}), model {_model_line(cartridge, ctx)}",
             )
-            ctx = self._context(payload, cartridge)
             self._log(job_id, "runner", _where_line(ctx), detail=_where_detail(ctx))
             # Opened here rather than inside `_context`, so `ctx` is already
             # bound when it happens. Opening the old side and then failing on
@@ -637,6 +636,27 @@ def _outcome_line(result) -> str:
     tail = f" — {reason[0]}" if reason else ""
 
     return f"{head}{f' [{flags}]' if flags else ''}{spent}{tail}"
+
+
+def _model_line(cartridge, ctx) -> str:
+    """What will actually run, and what the file asked for when they differ.
+
+    This line is read to know what a run is about to spend. It printed the
+    cartridge's own model, so a card overriding `anthropic/claude-opus-5`
+    with Cursor still said Opus — the one thing a person watching this line
+    is trying to avoid.
+    """
+    from odoo_migrator.runner.cartridge import Step
+    from odoo_migrator.runner.prompting import resolve_model, resolve_provider
+
+    step = Step(kind="agent", id="", prompt="")
+    chosen = f"{resolve_provider(step, ctx)}/{resolve_model(step, ctx)}"
+    named = f"{cartridge.model.provider}/{cartridge.model.name}"
+    if chosen == named:
+
+        return chosen
+
+    return f"{chosen} (the card's; the cartridge names {named})"
 
 
 def _where_line(ctx: StepContext) -> str:

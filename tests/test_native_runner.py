@@ -285,3 +285,42 @@ def test_a_finished_job_leaves_no_session_behind(client, native_job, fake_shelle
     opened = {row["id"] for row in fake_sheller.opens}
     assert opened
     assert opened <= set(fake_sheller.closes)
+
+
+def test_the_log_names_the_model_that_will_run(client, tmp_path):
+    """The line read to know what a run is about to spend printed the
+    cartridge's own model. A card overriding Opus with Cursor still said
+    Opus — the one thing someone watching this line is trying to avoid."""
+    from odoo_migrator.runner.cartridge import load_cartridge
+    from odoo_migrator.runner.context import StepContext
+    from odoo_migrator.runner.native import _model_line
+
+    del client
+    job = _module(tmp_path)
+    with database.connection_context():
+        module = Module.get_by_id(job.module_id)
+        migration = Migration.get_by_id(module.migration_id)
+        migration.provider_override = "cursor"
+        migration.model_override = "composer-2.5"
+        migration.save()
+    cartridge = load_cartridge(_CARTRIDGE)
+    ctx = StepContext(
+        job_id=job.job_id,
+        attempt=1,
+        migration=migration,
+        module=module,
+        cartridge=cartridge,
+        sheller=None,
+        sessions={},
+        emit=lambda _event: None,
+    )
+
+    line = _model_line(cartridge, ctx)
+
+    assert line.startswith("cursor/composer-2.5")
+    assert "anthropic/claude-opus-5" in line, "the file's own choice is worth saying"
+
+    migration.provider_override = ""
+    migration.model_override = ""
+
+    assert _model_line(cartridge, ctx) == "anthropic/claude-opus-5"
