@@ -742,19 +742,49 @@ def create_app(
     def _result_page(request: Request, error: str | None = None):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         board = migration_results(current["id"]) if current else None
-        thread = checkpoint_thread(current["id"]) if current else []
 
         return _page(
             request,
             "result.html",
             "result",
-            {"board": board, "thread": thread, "error": error},
+            {"board": board, "error": error},
         )
 
     @app.get("/result")
     def result_page(request: Request):
 
         return _result_page(request)
+
+    @app.get("/api/result/modules/{module_id}/summary")
+    def result_module_summary(request: Request, module_id: int):
+        """What the last run on this module did, opened from its card.
+
+        The checkpoint thread used to be one flat list at the top of Result:
+        a paragraph about one module above thirty cards, with nothing saying
+        which one it was about or when it was written.
+        """
+        from odoo_migrator.jobs import module_outcome
+        from odoo_migrator.models import Module
+
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return JSONResponse({"error": "no migration"}, status_code=404)
+        with database.connection_context():
+            owned = (
+                Module.select()
+                .where((Module.id == module_id) & (Module.migration == current["id"]))
+                .exists()
+            )
+        if not owned:
+
+            return JSONResponse({"error": "unknown module"}, status_code=404)
+        outcome = module_outcome(module_id)
+        if outcome is None:
+
+            return JSONResponse({"error": "never ran"}, status_code=404)
+
+        return JSONResponse(outcome)
 
     @app.post("/result/reopen")
     def result_reopen(request: Request):

@@ -21,11 +21,11 @@ def _create(client, name="Acme"):
     )
 
 
-# What the page fetches for itself: a graph, a run log, a log line's body.
-# These are read by the browser that is already showing the page, on
-# loopback, and carry no key. Anything else under /api/ would be a machine
-# surface coming back.
-PAGE_OWN = ("/api/flow", "/api/jobs", "/api/log")
+# What the page fetches for itself: a graph, a run log, a log line's body,
+# one module's last outcome. These are read by the browser that is already
+# showing the page, on loopback, and carry no key. Anything else under /api/
+# would be a machine surface coming back.
+PAGE_OWN = ("/api/flow", "/api/jobs", "/api/log", "/api/result")
 
 
 def test_no_route_requires_a_machine_key(client):

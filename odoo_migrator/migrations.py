@@ -143,9 +143,10 @@ def _result_subtitle(row: dict) -> str:
     return head
 
 
-def _result_module(row: dict) -> dict:
+def _result_module(row: dict, outcome: dict | None = None) -> dict:
     step = row.get("step") or 1
     step_class = step if 1 <= step <= 8 else "more"
+    outcome = outcome or {}
 
     return {
         **row,
@@ -153,6 +154,11 @@ def _result_module(row: dict) -> dict:
         "step_class": step_class,
         "display_status": _result_display_status(row),
         "result_corner": _result_corner(row),
+        # When the last job on this module ended, and whether it left
+        # anything worth opening. A module that never ran has neither.
+        "finished_at": outcome.get("finished_at", ""),
+        "job": outcome.get("job", ""),
+        "has_summary": bool(outcome.get("job")),
     }
 
 
@@ -162,8 +168,10 @@ RESULT_STEPS_PER_PAGE = 4
 def migration_results(migration_id: str) -> dict:
     """Tallies and step columns for the Result dashboard."""
     from odoo_migrator.graph import list_modules
+    from odoo_migrator.jobs import outcomes_for
 
     listed = list_modules(migration_id)
+    outcomes = outcomes_for(migration_id)
     active = [row for row in listed if not row["struck_out"]]
     counts = {
         "total": len(active),
@@ -183,7 +191,7 @@ def migration_results(migration_id: str) -> dict:
             counts["reopenable"] += 1
     by_step: dict[int, list[dict]] = {}
     for row in listed:
-        enriched = _result_module(row)
+        enriched = _result_module(row, outcomes.get(row["id"]))
         step = enriched.get("step") or 1
         by_step.setdefault(step, []).append(enriched)
     steps = [

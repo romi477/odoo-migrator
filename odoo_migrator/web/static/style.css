@@ -2819,6 +2819,71 @@ pre.test-output {
   padding: 4px 0;
 }
 
+/* A result card says when its last run ended, and opens what that run
+   said. The checkpoint thread used to be one flat list above the board. */
+.result-when {
+  margin: 2px 0 0;
+  color: var(--muted-low);
+  font-size: 12px;
+}
+
+.result-summary-open {
+  font: inherit;
+  color: var(--cyan);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.result-summary-panel {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--chrome-radius-inner);
+  background: var(--panel);
+}
+
+.result-summary-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.result-summary-line {
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+.result-summary-steps {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.result-summary-steps li.is-failed {
+  color: var(--red);
+}
+
+/* The diagnosis is written with line breaks that carry its structure, and
+   it is long: it scrolls here rather than pushing the board down a screen. */
+.result-summary-message {
+  margin-top: 12px;
+}
+
+.result-summary-message pre {
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow: auto;
+  margin: 4px 0 0;
+}
+
+.result-summary-message.human pre {
+  color: var(--cyan);
+}
+
 /* The run log on Pipeline. A scrolling panel with its own scrollbar: the
    page must not grow by a screen every time a step calls a tool. */
 .run-log-panel {

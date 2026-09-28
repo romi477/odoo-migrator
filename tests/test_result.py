@@ -177,3 +177,98 @@ def test_result_without_modules_explains_resolve(client):
 
     assert "Resolve the graph on Tree" in page
     assert "result-columns" not in page
+
+
+def _ran(migration_id, name, *, status="passed", question="", answer=""):
+    """A module with one finished job behind it."""
+    from datetime import UTC, datetime
+
+    from odoo_migrator.models import Batch, CheckpointMessage, Job, StepRun
+
+    with database.connection_context():
+        module = Module.create(
+            migration=migration_id, technical_name=name, status=status, depends="[]"
+        )
+        batch = Batch.create(migration=migration_id, status="idle")
+        job = Job.create(batch=batch, module=module, status=status, attempt=2)
+        StepRun.create(
+            job=job, attempt=2, step_id="port", kind="agent", ok=True,
+            finished_at=datetime(2026, 9, 28, 8, 16, tzinfo=UTC), output="",
+        )
+        StepRun.create(
+            job=job, attempt=2, step_id="tests", kind="tests", ok=False,
+            finished_at=datetime(2026, 9, 28, 8, 17, tzinfo=UTC),
+            output="1 failure",
+        )
+        if question:
+            CheckpointMessage.create(job=job, author="agent", text=question)
+        if answer:
+            CheckpointMessage.create(job=job, author="human", text=answer)
+
+        return module
+
+
+def test_a_card_says_when_its_run_ended(client):
+    """`passed` and nothing else. The first question about a result read a
+    day later is when it happened."""
+    migration_id = _open(client)
+    _ran(migration_id, "sale_custom")
+
+    page = client.get("/result").text
+
+    assert "2026-09-28 08:17" in page
+    assert "result-summary-open" in page
+
+
+def test_a_card_opens_what_that_run_said(client):
+    """The checkpoint thread was one flat list for the whole migration: a
+    paragraph about one module above thirty cards, tied to none of them."""
+    migration_id = _open(client)
+    module = _ran(
+        migration_id,
+        "sale_custom",
+        status="failed",
+        question="## diagnose\nThe spec was malformed.",
+        answer="Harness bug, fixed.",
+    )
+
+    page = client.get("/result").text
+    summary = client.get(f"/api/result/modules/{module.id}/summary").json()
+
+    # Not on the screen until someone opens that card.
+    assert "The spec was malformed." not in page
+    assert summary["status"] == "failed"
+    assert summary["attempt"] == 2
+    assert summary["finished_at"] == "2026-09-28 08:17"
+    assert [step["id"] for step in summary["steps"]] == ["port", "tests"]
+    assert summary["steps"][1]["ok"] is False
+    assert [m["author"] for m in summary["messages"]] == ["agent", "human"]
+    assert "malformed" in summary["messages"][0]["text"]
+    assert summary["messages"][0]["at"]
+
+
+def test_a_module_that_never_ran_has_no_summary_to_open(client):
+    migration_id = _open(client)
+    with database.connection_context():
+        module = Module.create(
+            migration=migration_id, technical_name="sale_custom", depends="[]"
+        )
+
+    page = client.get("/result").text
+    answer = client.get(f"/api/result/modules/{module.id}/summary")
+
+    assert "result-summary-open" not in page
+    assert answer.status_code == 404
+
+
+def test_a_summary_of_another_migrations_module_is_refused(client):
+    """The open migration is the one this screen is showing."""
+    other = _create(client, "Other")
+    other_id = other.text.split("/migrations/", 1)[1].split("/open", 1)[0]
+    theirs = _ran(other_id, "not_mine")
+    # Opened last, so this is the migration the screen is showing.
+    _open(client)
+
+    answer = client.get(f"/api/result/modules/{theirs.id}/summary")
+
+    assert answer.status_code == 404

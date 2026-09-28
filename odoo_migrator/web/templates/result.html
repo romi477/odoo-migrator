@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — result{% endblock %}
+{% block extra_head %}
+<script defer src="/static/result.js"></script>
+{% endblock %}
 {% block screen %}
 <section class="screen">
   <header class="screen-head">
@@ -14,14 +17,6 @@
       {% endif %}
     </div>
   </header>
-
-  {% if thread %}
-  <ol class="checkpoint-thread">
-    {% for message in thread %}
-    <li class="{{ message.author }}">{{ message.text }}</li>
-    {% endfor %}
-  </ol>
-  {% endif %}
 
   {% if error %}
   <p class="form-error">{{ error }}</p>
@@ -110,6 +105,14 @@
               <span class="badge queued">queued</span>
               {% endif %}
               <p class="result-subtitle mono">{{ module.subtitle }}</p>
+              {% if module.has_summary %}
+              <p class="result-when mono">
+                {% if module.finished_at %}{{ module.finished_at }}{% else %}not timed{% endif %}
+                · <button type="button" class="result-summary-open"
+                          data-result-summary="{{ module.id }}"
+                          data-result-summary-name="{{ module.technical_name }}">summary</button>
+              </p>
+              {% endif %}
               {% if not module.struck_out and module.display_status in ['passed', 'failed', 'unknown'] %}
               <form method="post" action="/result/modules/{{ module.id }}/reopen" class="result-reopen" data-result-reopen>
                 <button type="submit" aria-label="Reopen {{ module.technical_name }}">Reopen</button>
@@ -123,6 +126,17 @@
       {% endfor %}
       </div>
     </div>
+  </div>
+
+  {# One module's last run, opened from its card. Kept out of the card so a
+     long diagnosis does not push the board around. #}
+  <div class="result-summary-panel" data-result-summary-panel hidden>
+    <header class="result-summary-head">
+      <span class="mono" data-result-summary-title></span>
+      <button type="button" class="run-log-close" data-result-summary-close
+              title="Close this summary" aria-label="Close this summary">×</button>
+    </header>
+    <div data-result-summary-body></div>
   </div>
   {% endif %}
 </section>

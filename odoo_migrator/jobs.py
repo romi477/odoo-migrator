@@ -6,6 +6,8 @@ import json
 import threading
 import uuid
 
+from peewee import fn
+
 from odoo_migrator.contract import (
     ContractError,
     ProgressPayload,
@@ -830,6 +832,119 @@ def checkpoint_thread(migration_id: str) -> list[dict]:
             messages.append({"author": "agent", "text": waiting.question})
 
         return messages
+
+
+def outcomes_for(migration_id: str) -> dict[int, dict]:
+    """Per module, when its last job ended and whether it left anything to read.
+
+    Three queries for a board of thirty cards, not one per card. A card said
+    `passed` and nothing else — not when, which is the first thing anyone
+    asks of a result they are looking at a day later.
+    """
+    with database.connection_context():
+        last: dict[int, Job] = {}
+        for job in (
+            Job.select(Job.id, Job.module, Job.job_id, Job.status)
+            .join(Module)
+            .where(Module.migration == migration_id)
+            .order_by(Job.id)
+        ):
+            last[job.module_id] = job
+        ids = [job.id for job in last.values()]
+        if not ids:
+
+            return {}
+        ended = {
+            row.job_id: row.last
+            for row in StepRun.select(
+                StepRun.job, fn.MAX(StepRun.finished_at).alias("last")
+            )
+            .where(StepRun.job.in_(ids))
+            .group_by(StepRun.job)
+        }
+        said = {
+            row.job_id: row.count
+            for row in CheckpointMessage.select(
+                CheckpointMessage.job, fn.COUNT(CheckpointMessage.id).alias("count")
+            )
+            .where(CheckpointMessage.job.in_(ids))
+            .group_by(CheckpointMessage.job)
+        }
+
+    return {
+        module_id: {
+            "finished_at": _stamp(ended.get(job.id)),
+            "messages": said.get(job.id, 0),
+            "job": job.job_id[:8],
+        }
+        for module_id, job in last.items()
+    }
+
+
+def module_outcome(module_id: int) -> dict | None:
+    """The last job on one module: when it ended, how, and what it said.
+
+    A card said `passed` and nothing else — not when, and not what the run
+    had made of it. The checkpoint thread was on the Result screen as one
+    flat list for the whole migration, so a paragraph about one module sat
+    above thirty cards with nothing tying it to any of them.
+    """
+    with database.connection_context():
+        job = (
+            Job.select()
+            .where(Job.module == module_id)
+            .order_by(Job.id.desc())
+            .first()
+        )
+        if job is None:
+
+            return None
+        runs = list(
+            StepRun.select()
+            .where(StepRun.job == job)
+            .order_by(StepRun.id)
+        )
+        messages = [
+            {
+                "author": row.author,
+                "text": row.text,
+                "at": _stamp(row.created_at),
+            }
+            for row in CheckpointMessage.select()
+            .where(CheckpointMessage.job == job)
+            .order_by(CheckpointMessage.id)
+        ]
+    ended = [run.finished_at for run in runs if run.finished_at]
+    finished = max(ended) if ended else None
+    steps = [
+        {
+            "id": run.step_id or run.kind,
+            "attempt": run.attempt,
+            "ok": run.ok,
+            "output": run.output or "",
+        }
+        for run in runs
+    ]
+
+    return {
+        "job_id": job.job_id,
+        "short": job.job_id[:8],
+        "status": job.status,
+        "attempt": job.attempt,
+        "stage": job.current_stage or "",
+        "finished_at": _stamp(finished),
+        "steps": steps,
+        "messages": messages,
+    }
+
+
+def _stamp(value) -> str:
+    """Minutes, not microseconds: this is read, not sorted."""
+    if not value:
+
+        return ""
+
+    return str(value)[:16].replace("T", " ")
 
 
 def live_run(migration_id: str) -> dict | None:

@@ -474,6 +474,29 @@ tools offered: exec, read_file, report, source</pre>
   without a write key. Result is the migration scoreboard. The banner above
   is revealed by SSE when a batch ends while Pipeline is open.</p>
 
+  <h2>Result card summary</h2>
+  <div class="result-summary-panel">
+    <header class="result-summary-head">
+      <span class="mono">sale_custom</span>
+      <button type="button" class="run-log-close" aria-label="Close this summary">×</button>
+    </header>
+    <div>
+      <p class="result-summary-line mono">failed · attempt 2 · 2026-09-28 08:17 · job fa3f7e71</p>
+      <ol class="result-summary-steps">
+        <li>2 · port</li>
+        <li class="is-failed">2 · tests — 1 failure</li>
+      </ol>
+      <article class="result-summary-message agent">
+        <p class="mono">agent · 2026-09-28 08:17</p>
+        <pre>The spec was malformed: the runner passed str(dict).</pre>
+      </article>
+      <article class="result-summary-message human">
+        <p class="mono">human · 2026-09-28 08:20</p>
+        <pre>Harness bug, fixed. Rerunning.</pre>
+      </article>
+    </div>
+  </div>
+
   <h2>Result dashboard</h2>
   <div class="result-board">
     <article class="card result-summary">
@@ -504,6 +527,9 @@ tools offered: exec, read_file, report, source</pre>
             <div class="result-card-main">
               <span class="name mono">sale_custom</span>
               <p class="result-subtitle mono">product</p>
+              <p class="result-when mono">2026-09-28 08:17 ·
+                <button type="button" class="result-summary-open">summary</button>
+              </p>
               <form class="result-reopen">
                 <button type="button" aria-label="Reopen sale_custom">Reopen</button>
               </form>
