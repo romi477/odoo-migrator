@@ -65,6 +65,11 @@ def read_source(
         return {"error": "unreadable", "reason": "the read produced no payload"}
     if not isinstance(payload, dict):
         raise ShellerError(f"source read returned {type(payload).__name__}")
+    # The snippet ran as a command, so it is in the journal under this id.
+    # Without it a source line had no body: the reader could see the first
+    # 120 characters of a file and nothing else.
+    if executed.get("id") is not None:
+        payload["id"] = executed["id"]
     if payload.get("error"):
 
         return payload

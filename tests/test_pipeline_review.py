@@ -1236,3 +1236,20 @@ def test_the_first_run_of_a_lap_does_not_reopen(ctx_for, sheller):
     tests.run(Step(kind="tests"), ctx)
 
     assert ctx.sessions["new"] == before
+
+
+def test_a_source_read_can_be_opened_in_the_journal(ctx_for, sheller):
+    """The snippet runs as a command, so the journal has it. `read_source`
+    parsed the answer and dropped the id with the envelope, so a source line
+    was the only one of the daemon's commands with nothing to open."""
+    ctx = ctx_for()
+    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    (read,) = tools_for(step, ctx)
+    seen = []
+    ctx.record_tool = lambda *args: seen.append(args)
+
+    read(side="new", path="sale/models/sale_order.py")
+
+    # (tool, side, session, command_id, ...)
+    assert seen[0][0] == "source"
+    assert seen[0][3], "a source read recorded no command id"

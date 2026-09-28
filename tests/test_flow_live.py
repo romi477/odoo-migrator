@@ -195,3 +195,36 @@ def test_a_body_is_read_through_the_resolved_client(tmp_path):
 
     assert body.status_code == 200
     assert "not available" in body.text
+
+
+def test_a_host_tool_offers_no_body(client, tool_call):
+    """`read_file` never reached the daemon, so there is no record of it. The
+    line used to open the session's whole journal, which begins with the
+    metadata of the session and answers nothing that was asked."""
+    from odoo_migrator import runlog
+    from odoo_migrator.models import RunLog
+
+    del client
+    with database.connection_context():
+        job = tool_call.step_run.job
+        read = RunLog.create(
+            job=job, level="info", source="write_test",
+            text="read_file(new) 0ms ok: from odoo import models",
+        )
+
+    lines = {row["id"]: row for row in runlog.lines(job.job_id)}
+
+    assert lines[read.id]["has_detail"] is False
+    assert runlog.tool_call_of(read.id) is None
+
+
+def test_a_command_the_journal_has_forgotten_says_so(client, tool_call, sheller_fake):
+    with database.connection_context():
+        job = tool_call.step_run.job
+    line = _line(job, tool_call)
+    sheller_fake.forget_journal(tool_call.session_id)
+
+    body = client.get(f"/api/log/{line.id}").text
+
+    assert "not available" in body
+    assert "export_meta" not in body

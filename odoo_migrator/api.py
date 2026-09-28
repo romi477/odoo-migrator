@@ -1547,9 +1547,16 @@ def create_app(
         matched = [
             record for record in records if str(record.get("id", "")) == str(command_id)
         ]
-        chosen = matched[0] if matched else {"records": records}
+        if not matched:
+            # Never the whole journal. That begins with the session's own
+            # metadata, which is not what anyone opened a line to read.
 
-        return json.dumps(chosen, default=str)
+            return "not available: that command is no longer in the journal"
+        # A command and its outcome share an id — `run_test` writes the
+        # request and then the result — and the outcome is the half worth
+        # opening a line for.
+
+        return json.dumps(matched[0] if len(matched) == 1 else matched, default=str)
 
     @app.get("/api/log/{line_id}")
     def job_log_detail(request: Request, line_id: int):

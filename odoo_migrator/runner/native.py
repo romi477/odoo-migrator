@@ -470,7 +470,12 @@ class NativeRunner:
                 ctx.step_run_label or "runner",
                 f"{tool}({side}) {duration_ms}ms {'ok' if ok else 'failed'}: {preview}",
                 level="info" if ok else "warn",
-                tool_call_id=call.id,
+                # Only a command the daemon ran has a body to open. `read_file`
+                # and `write_file` are the host's, `list_tests` and `journal`
+                # are routes and not commands: offering a body for those
+                # opened the session's whole journal, which begins with the
+                # metadata of a session and answers nothing that was asked.
+                tool_call_id=call.id if command_id else None,
             )
             self.hub.publish(
                 "tool_called",
