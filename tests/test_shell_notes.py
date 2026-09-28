@@ -95,3 +95,19 @@ def test_the_topics_the_runner_owns_are_left_out():
     assert set(VENDORED) | set(NOT_OURS) == set(theirs), (
         "odoo-sheller has a topic this app has never decided about"
     )
+
+
+def test_the_test_section_describes_our_transport_and_not_the_mcp_tool():
+    """odoo-sheller's own `tests` topic is about `os_run_test`, which opens a
+    session per run and hands back a job to poll. The daemon's route — what
+    this app calls — runs in the session the step is holding and waits, so
+    the copy would have been wrong in the two places that matter: whose
+    transaction is rolled back, and whether there is anything to poll."""
+    text = load_shell_notes()
+
+    assert "not a fresh one" in text
+    assert "discarded_pending" in text
+    assert "nothing to poll" in text
+    # A test written this step is invisible until the process re-imports.
+    assert "call `reopen`, then `run_test`" in text
+    assert "invalid_test_spec" in text

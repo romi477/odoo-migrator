@@ -11,6 +11,11 @@ names are ours; the rest is theirs, kept to the letter. Topics taken:
 ones about opening, closing, owning and committing sessions are left out:
 the runner does all of that, and you never see it.
 
+"Running a test" below is rewritten rather than copied. Theirs describes an
+MCP tool that opens a session of its own per run and hands back a job to
+poll; this app calls the daemon's route directly, in the session the step
+already holds, and waits.
+
 ## What you must not attempt
 
 - Grant yourself commit rights, or call the daemon's admin endpoints.
@@ -215,25 +220,41 @@ A recordset you already hold still has the old context: call
 
 ## Running a test
 
-`run_test` runs one Odoo test method or a whole test class:
-`module.TestClass` or `module.TestClass.test_method`. Unlike `exec`, it
-always opens its own brand-new session first, so there is nothing of yours
-it can discard, and that session closes itself when the run settles. Run
-several classes by calling `run_test` once per class, in turn.
+`run_test(side, test)` runs one Odoo test class or one method:
+`module.TestClass` or `module.TestClass.test_method`. Nothing else is a
+valid spec, and the daemon refuses anything that is not that shape with
+`invalid_test_spec`.
 
-When the class name is unknown, call `list_tests` rather than inventing
-names — it hands back specs already in the right shape. Prefer running
-`module.TestClass`: one class, one call. Do not open a session per method
-unless a single method is the point.
+Do not compose a spec out of names you guessed. `list_tests(side)` answers
+with the classes this module declares on disk and hands back each one's spec
+already shaped — use the string it gives you, for the class and for each
+method. Pass `module=` to ask about a different addon. The answer is files
+on disk, not "installed in this database", and an empty `classes` means the
+module ships no tests.
 
-Odoo's own test runner rolls back whatever transaction a session's cursor is
-holding before it runs tests. The response's `discarded_pending` field says
-whether that happened, so watch it rather than assume nothing was lost.
+**A test you just wrote is not there yet.** The session's process imported
+the module's `tests` package when it opened, and writing a new file does not
+re-import it. Write the file, call `reopen`, then `run_test`. Without the
+reopen the run finds the old set of tests and says nothing about the one you
+added — or finds no class by that name at all.
 
-A long run cannot be answered in one call, so `run_test` hands back
-`{"status": "running", "session_id": ...}` instead. That is not a failure,
-and the run is still going in the container. Call `test_result`, which
-answers either with the finished outcome or with `status: "running"` again —
-in which case call it again straight away. Never answer a `status: "running"`
-by calling `run_test` again: that starts a second, duplicate run on top of
-the first.
+**The run happens in this side's session, not a fresh one.** Odoo's own test
+runner rolls back whatever transaction that session is holding before it
+starts, so anything you set up with `exec` and had not committed is gone
+when the run begins. `discarded_pending` in the answer says whether that
+happened. Build a fixture with `exec` and then run a test against it in the
+same session and you will be testing an empty database: the test must make
+its own data, which is what a real Odoo test does anyway.
+
+The call waits for the run to finish — there is nothing to poll and nothing
+to close afterwards. `test_result(side)` re-reads the report of the last run
+in this step; it does not start one and does not wait for anything.
+
+What comes back is the daemon's shape, not a pass/fail flag: `test` holds
+`success`, `tests_run`, `failures` and `errors`, and `stderr` is the log the
+run produced, which is where the reason lives. A run of zero tests is not a
+pass — it means the spec matched nothing.
+
+Run one class per call, in turn. A class is usually the right unit: one
+call, one registry load. Take a single method only when that method is the
+point.
