@@ -109,12 +109,13 @@
     }
   }
 
-  function showJob(id) {
+  function showJob(id, module) {
     /* A different job, so the name kept for `remember` is not this one's.
-       The live panel above knows whose run this is; it is updated by the
-       same event that brought this line. */
-    var live = document.querySelector("[data-pipeline-module]");
-    named = live ? live.textContent.trim() : "";
+       The name travels on the line. Reading it off the live panel above
+       meant reading it before that panel had been told: a job's first line
+       lands before the progress that renames it, so the new run wore the
+       previous module's name until the first step started. */
+    named = module || "";
     if (name) {
       name.textContent = named;
     }
@@ -125,6 +126,20 @@
     jobId.setAttribute("data-run-log-id", id);
     jobId.textContent = "job " + id.slice(0, 8);
     jobId.title = "Copy this job's id: " + id;
+  }
+
+  /* Named for the run that has just ended, because that is the one whose
+     lines are leaving the panel. */
+  function handoverLine(ended) {
+    var item = document.createElement("li");
+    item.className = "run-log-switch mono";
+    item.textContent =
+      (named ? named + " · " : "") +
+      "job " +
+      ended.slice(0, 8) +
+      " ended. A new run starts below.";
+
+    return item;
   }
 
   function closeBody() {
@@ -273,15 +288,22 @@
       /* A job that started after this page was rendered is the one to
          follow: the panel was showing the previous run until now. */
       if (job && data.job_id !== job) {
+        /* The panel holds one job: Clear, Copy and the body fetch all act
+           on that one. Wiping it silently read as the same run starting
+           over at `understand` — which is what a queue of three modules
+           looks like from here. The previous run is still on record; this
+           says so rather than leaving a list that lost its history. */
+        var handover = handoverLine(job);
         panel.setAttribute("data-job", data.job_id);
         job = data.job_id;
         last = 0;
         list.innerHTML = "";
-        showJob(data.job_id);
+        list.appendChild(handover);
+        showJob(data.job_id, data.module);
       } else if (!job) {
         panel.setAttribute("data-job", data.job_id);
         job = data.job_id;
-        showJob(data.job_id);
+        showJob(data.job_id, data.module);
       }
       if (empty) {
         empty.hidden = true;

@@ -39,6 +39,7 @@ def write(
     clipped = _clip(text, MAX_TEXT)
     body = _clip(detail, MAX_DETAIL)
     row_id = 0
+    module = ""
     at = datetime.now(UTC)
     try:
         with database.connection_context():
@@ -46,6 +47,11 @@ def write(
             if job is None:
 
                 return
+            # Whose run this line belongs to. The page used to read the name
+            # off the live panel above the log, and the first line of a job
+            # arrives before the progress that renames that panel: for the
+            # seconds in between, a new job wore the previous module's name.
+            module = job.module.technical_name
             row = RunLog.create(
                 job=job,
                 at=at,
@@ -68,6 +74,7 @@ def write(
             {
                 "id": row_id,
                 "job_id": job_id,
+                "module": module,
                 "at": at.isoformat(),
                 "level": level,
                 "source": source,

@@ -300,3 +300,17 @@ def test_a_line_carries_the_instant_the_browser_can_place(app, job):
 
     assert "T" in stored and stored.endswith("+00:00")
     assert seen[0][1]["at"] == stored
+
+
+def test_a_line_names_the_module_whose_run_it_belongs_to(app, job):
+    """The panel read the name off the live display above it. A job's first
+    line lands before the progress that renames that display, so a new run
+    wore the previous module's name for as long as its first step took to
+    start — which is how a batch of three modules read as one run going
+    back to `understand`."""
+    seen = []
+    app.state.hub.publish = lambda event, data: seen.append((event, data))
+
+    runlog.write(job.job_id, source="runner", text="job started", hub=app.state.hub)
+
+    assert seen[0][1]["module"] == "sale_custom"

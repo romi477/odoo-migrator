@@ -3042,6 +3042,16 @@ a.ribbon-box:focus-visible {
   color: #c4552a;
 }
 
+/* The seam between two runs. The panel holds one job at a time, so the
+   lines above it are gone; without this the wipe read as the same run
+   starting over. */
+.run-log-switch {
+  color: var(--muted);
+  border-bottom: 1px dashed var(--border);
+  padding: 4px 0 6px;
+  margin-bottom: 4px;
+}
+
 .run-log-at,
 .run-log-source {
   color: var(--muted);
