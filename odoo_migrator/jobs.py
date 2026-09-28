@@ -1080,11 +1080,19 @@ def recent_job(migration_id: str) -> dict | None:
 
             return None
 
+        # Whether there is anything to show. A job whose log was cleared and
+        # a migration that has never run are different things, and the panel
+        # showed an empty box for both.
+        from odoo_migrator.models import RunLog
+
+        lines = RunLog.select().where(RunLog.job == job).count()
+
         return {
             "job_id": job.job_id,
             "module": job.module.technical_name,
             "status": job.status,
             "live": job.status in IN_FLIGHT,
+            "lines": lines,
         }
 
 

@@ -388,3 +388,57 @@ def test_clear_empties_the_card_and_not_only_the_lines():
     assert "forget()" in clear
     # And the next line to arrive puts the name back.
     assert "remember();" in script.split("function append")[1][:400]
+
+
+def test_the_log_says_when_it_is_showing_a_finished_run(client, live_job):
+    """The panel above says no module is running while this line names one.
+    Without a word saying which, the finished run reads as the current one."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Job, RunLog
+
+    with database.connection_context():
+        job = (
+            Job.select()
+            .where(Job.module == live_job["id"])
+            .order_by(Job.id.desc())
+            .first()
+        )
+        RunLog.create(job=job, level="info", source="port", text="agent step started")
+
+    running = client.get("/run").text
+
+    assert "last run" not in running
+
+    with database.connection_context():
+        job = Job.get_by_id(job.id)
+        job.status = "passed"
+        job.save()
+
+    finished = client.get("/run").text
+
+    assert "last run" in finished
+
+
+def test_a_cleared_log_says_so_rather_than_showing_a_blank_box(client, live_job):
+    """A job whose log was cleared and a migration that never ran are
+    different things; the panel showed an empty box for both."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Job, RunLog
+
+    page = client.get("/run").text
+
+    assert "log is empty" in page
+
+    with database.connection_context():
+        job = (
+            Job.select()
+            .where(Job.module == live_job["id"])
+            .order_by(Job.id.desc())
+            .first()
+        )
+        RunLog.create(job=job, level="info", source="port", text="agent step started")
+
+    page = client.get("/run").text
+
+    assert "log is empty" in page  # rendered, and hidden by the template
+    assert "data-run-log-empty hidden" in page
