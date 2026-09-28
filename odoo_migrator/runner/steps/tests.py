@@ -41,7 +41,10 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
         return StepResult(ok=True, flags={"no_tests"}, output=f"{name} declares no tests")
     failed: list[str] = []
-    for spec in _specs(name, classes):
+    ran: list[str] = []
+    specs = _specs(name, classes)
+    for spec in specs:
+        ran.append(spec)
         try:
             report = ctx.sheller.run_test(
                 session_id, spec, write_key=write_key, timeout=TEST_TIMEOUT
@@ -56,8 +59,15 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if failed:
 
         return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(failed))
+    # Which specs, not how many. "1 test class(es) passed" is the same
+    # sentence whether the run covered the module's own case or a class that
+    # came in with a dependency, and the outcome is the one line anyone reads
+    # about a green run.
 
-    return StepResult(ok=True, output=f"{len(classes)} test class(es) passed")
+    return StepResult(
+        ok=True,
+        output=f"{len(ran)} test(s) passed: {', '.join(ran)}" if ran else "nothing to run",
+    )
 
 
 def report_failure(report: dict) -> str:

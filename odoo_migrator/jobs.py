@@ -802,6 +802,40 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Jo
     return job
 
 
+def stop_job(*, module_id: int, hub: EventHub, stop=None) -> bool:
+    """Ask the run on this module to end at its next step.
+
+    ``stop`` is the executor's own ``stop(job_id) -> bool``. Only it knows
+    whether the thread that is running this job is in this process; a restart
+    takes those with it, and saying "stopping" about a job nobody is running
+    is the same lie `answer_job` refuses to tell.
+    """
+    with database.connection_context():
+        job = (
+            Job.select()
+            .where((Job.module == module_id) & (Job.status.in_(IN_FLIGHT)))
+            .order_by(Job.id.desc())
+            .first()
+        )
+        if job is None:
+            raise ContractError("That module is not running.")
+        job_id = job.job_id
+    asked = bool(stop(job_id)) if callable(stop) else False
+    if not asked:
+        # Nothing is running it here. Mark it the way a restart would, so the
+        # row does not sit `running` for ever.
+        with database.connection_context():
+            job = Job.get(Job.job_id == job_id)
+            job.status = "unknown"
+            job.save()
+            module = job.module
+            module.status = "unknown"
+            module.save()
+            _emit(hub, job, module)
+
+    return asked
+
+
 def checkpoint_thread(migration_id: str, *, job_id: str = "") -> list[dict]:
     """The human and the agent, in order. A parked question counts even
     before its row is written.

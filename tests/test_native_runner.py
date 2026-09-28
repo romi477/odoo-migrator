@@ -1,11 +1,13 @@
 """The native runner records every tool call on its own thread."""
 
+import threading
 import time
 
 import pytest
 from doubles.model import ModelDouble
 
 from odoo_migrator.db import database
+from odoo_migrator.events import EventHub
 from odoo_migrator.jobs import answer_job
 from odoo_migrator.migrations import create_migration
 from odoo_migrator.models import Batch, Job, Migration, Module, ToolCall
@@ -324,3 +326,53 @@ def test_the_log_names_the_model_that_will_run(client, tmp_path):
     migration.model_override = ""
 
     assert _model_line(cartridge, ctx) == "anthropic/claude-opus-5"
+
+
+def test_a_stopped_run_ends_at_its_next_step(client, tmp_path):
+    """Stop is not a failure of the module: nothing was found wrong with it.
+    The step in flight finishes — a model turn cannot be called back — and
+    the job ends before the next one opens."""
+    from odoo_migrator.jobs import stop_job
+    from odoo_migrator.runner.native import NativeRunner, stopping
+
+    del client
+    job = _module(tmp_path)
+    runner = NativeRunner(sheller=None, hub=EventHub())
+    runner._threads[job.job_id] = threading.current_thread()
+
+    asked = stop_job(module_id=job.module_id, hub=runner.hub, stop=runner.stop)
+
+    assert asked is True
+    assert stopping(job.job_id) is True
+    assert reloaded(job).status != "failed"
+
+
+def test_stopping_a_job_no_thread_is_running_does_not_pretend(client, tmp_path):
+    """The same lie `answer_job` refuses: a restart took the thread with it."""
+    from odoo_migrator.jobs import stop_job
+    from odoo_migrator.runner.native import NativeRunner
+
+    del client
+    job = _module(tmp_path)
+    runner = NativeRunner(sheller=None, hub=EventHub())
+
+    asked = stop_job(module_id=job.module_id, hub=runner.hub, stop=runner.stop)
+
+    assert asked is False
+    assert reloaded(job).status == "unknown"
+
+
+def test_stopping_a_module_that_is_not_running_is_refused(client, tmp_path):
+    from odoo_migrator.contract import ContractError
+    from odoo_migrator.jobs import stop_job
+    from odoo_migrator.models import Job
+
+    del client
+    job = _module(tmp_path)
+    with database.connection_context():
+        row = Job.get_by_id(job.id)
+        row.status = "passed"
+        row.save()
+
+    with pytest.raises(ContractError, match="not running"):
+        stop_job(module_id=job.module_id, hub=EventHub(), stop=lambda _id: True)

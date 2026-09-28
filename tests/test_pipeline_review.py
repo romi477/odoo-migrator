@@ -1253,3 +1253,19 @@ def test_a_source_read_can_be_opened_in_the_journal(ctx_for, sheller):
     # (tool, side, session, command_id, ...)
     assert seen[0][0] == "source"
     assert seen[0][3], "a source read recorded no command id"
+
+
+def test_a_green_run_says_which_specs_it_covered(ctx_for, sheller):
+    """"1 test class(es) passed" is the same sentence whether the run covered
+    the module's own case or a class that came in with a dependency."""
+    ctx = ctx_for()
+    name = ctx.module.technical_name
+    sheller.tests_for(
+        name, sheller.catalogue(name, {"TestThing": ["test_one", "test_two"]})
+    )
+
+    result = tests.run(Step(kind="tests"), ctx)
+
+    assert result.ok is True
+    assert f"{name}.TestThing.test_one" in result.output
+    assert f"{name}.TestThing.test_two" in result.output

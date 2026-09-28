@@ -60,6 +60,7 @@ from odoo_migrator.jobs import (
     save_notes,
     start_batch,
     start_job,
+    stop_job,
 )
 from odoo_migrator.migrations import (
     ProjectPathsError,
@@ -1009,6 +1010,34 @@ def create_app(
         queue_stop(current["id"], request.app.state.hub)
 
         return RedirectResponse("/run", status_code=303)
+
+    # What a restart leaves behind: a job whose thread died with the process.
+    _NO_RUNNER = (
+        "Nothing in this process is running that job — it was started before "
+        "the last restart. It is marked unknown; start it again when you want it."
+    )
+
+    @app.post("/run/modules/{module_id}/stop")
+    def run_stop(request: Request, module_id: int):
+        """Stop this run, and stop the queue behind it.
+
+        The step in flight finishes — an agent turn cannot be called back —
+        and the job ends there rather than at the end of the module. The
+        queue stop on its own lets the module finish first, which is not
+        what someone watching a run spend tokens is asking for.
+        """
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        queue_stop(current["id"], request.app.state.hub)
+        stopped = stop_job(
+            module_id=module_id,
+            hub=request.app.state.hub,
+            stop=getattr(request.app.state.executor, "stop", None),
+        )
+
+        return _run_page(request, error=None if stopped else _NO_RUNNER)
 
     @app.post("/run/modules/{module_id}/answer")
     def run_answer(request: Request, module_id: int, answer: str = Form("")):

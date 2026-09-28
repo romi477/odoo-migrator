@@ -2715,6 +2715,20 @@ pre.test-output {
   color: #c4552a;
 }
 
+/* Stopping the run that is on screen. The queue's own Stop is about the
+   queue and lets this module finish. */
+.pipeline-stop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pipeline-stop .field-hint {
+  margin: 0;
+}
+
 /* The pipeline, left to right, centred under the module's name. Each block
    carries a lamp saying how that step went on this lap: the ribbon used to
    mark only the current step, in a colour that read as a failure. */

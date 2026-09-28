@@ -13,7 +13,7 @@ from pathlib import Path
 from odoo_migrator import runlog
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
-from odoo_migrator.jobs import apply_progress, apply_result
+from odoo_migrator.jobs import apply_progress, apply_result, lamp_state
 from odoo_migrator.models import CheckpointMessage, Job, Migration, Module, StepRun, ToolCall
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.cartridge import load_cartridge
@@ -42,6 +42,31 @@ _GUARD = threading.Lock()
 # half-way through its own port. Held while a job runs, released while it is
 # parked on a person.
 _TARGETS: dict[tuple[str, str], threading.Lock] = {}
+
+# Jobs a person asked to stop. The loop reads this between steps: the one in
+# flight finishes, because an agent turn cannot be taken back and the step
+# row would be left open on a thread that is still writing to it.
+_STOPPING: set[str] = set()
+
+
+class Stopped(Exception):
+    """A person stopped this run. Not a failure of the module."""
+
+
+def ask_to_stop(job_id: str) -> None:
+    with _GUARD:
+        _STOPPING.add(job_id)
+
+
+def stopping(job_id: str) -> bool:
+    with _GUARD:
+
+        return job_id in _STOPPING
+
+
+def _forget_stop(job_id: str) -> None:
+    with _GUARD:
+        _STOPPING.discard(job_id)
 
 
 def _target_lock(ctx) -> threading.Lock | None:
@@ -97,6 +122,20 @@ class NativeRunner:
         self._threads[job_id] = thread
         thread.start()
 
+    def stop(self, job_id: str) -> bool:
+        """Ask a running job to end at its next step. True when it is ours.
+
+        The step in flight finishes: an agent turn cannot be taken back, and
+        cutting the thread would leave a step row open and a session holding
+        a command nobody is waiting for.
+        """
+        if job_id not in self._threads:
+
+            return False
+        ask_to_stop(job_id)
+
+        return True
+
     def resume(self, job_id: str, answer: str) -> bool:
         """True when this process still has the thread that parked the job."""
 
@@ -133,6 +172,7 @@ class NativeRunner:
 
     def _run(self, payload: dict) -> None:
         job_id = payload["job_id"]
+        _forget_stop(job_id)
         ctx = None
         seen_attempt = 0
 
@@ -141,6 +181,10 @@ class NativeRunner:
 
             def wrapped(step, current):
                 nonlocal seen_attempt
+                if stopping(job_id):
+                    # Before the step is opened, so nothing is left running
+                    # in the trace and no session is asked for more work.
+                    raise Stopped(step.id or step.kind)
                 if current.attempt != seen_attempt:
                     seen_attempt = current.attempt
                     self.hub.publish(
@@ -238,6 +282,20 @@ class NativeRunner:
                 )
             finally:
                 self._release_target(ctx)
+        except Stopped as where:
+            # Not a failure of the module: nothing was found wrong with it.
+            # The step that had started finished first, so whatever it wrote
+            # is on disk and in the trace, and the module is where that step
+            # left it.
+            self._log(
+                job_id,
+                "runner",
+                f"stopped by a person, before {where}",
+                level="warn",
+            )
+            self._stopped(job_id, str(where))
+
+            return
         except Exception as exc:  # noqa: BLE001 - the job has to hear about every failure.
             self._errors[job_id] = exc
             self._log(
@@ -279,6 +337,21 @@ class NativeRunner:
             level="error" if outcome == "failed" else "info",
         )
         self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
+
+    def _stopped(self, job_id: str, where: str) -> None:
+        """Tell the app a person ended this run, and say where it got to."""
+        with database.connection_context():
+            job = Job.get_or_none(Job.job_id == job_id)
+            if job is not None:
+                job.status = "stopped"
+                job.save()
+                module = job.module
+                module.status = "stopped"
+                module.save()
+        self.hub.publish(
+            "job_finished", {"job_id": job_id, "status": "stopped", "step": where}
+        )
+        self.hub.publish("lamp", {"state": lamp_state()})
 
     def _fail(self, job_id: str, exc: BaseException, attempt: int = 1) -> None:
         """Tell the app the job failed, then say so on the stream.

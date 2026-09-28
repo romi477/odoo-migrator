@@ -136,7 +136,7 @@
           <form method="post" action="/run/queue/stop">
             <button type="submit"
                     {% if pipeline_queue.run_state != 'running' %}disabled{% endif %}
-                    aria-label="Stop the pipeline queue after the current module">Stop</button>
+                    aria-label="Take no more modules; let this one finish">Stop after this module</button>
           </form>
           <form method="post" action="/run/queue/clear">
             <button type="submit"
@@ -190,6 +190,14 @@
           <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
         </header>
         <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
+        {# The queue's Stop lets the module finish, which is not what someone
+           watching a run spend tokens is asking for. #}
+        {% if live and live.status == 'running' %}
+        <form method="post" action="/run/modules/{{ live.module_id }}/stop" class="pipeline-stop">
+          <button type="submit" aria-label="Stop this run at its next step">Stop this run</button>
+          <span class="field-hint">The step running now finishes — a model turn cannot be called back — and the run ends there.</span>
+        </form>
+        {% endif %}
         {% if ribbon %}
         <ol class="ribbon" data-ribbon>
           {% for node in ribbon %}
