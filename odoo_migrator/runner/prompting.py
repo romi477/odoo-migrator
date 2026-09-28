@@ -9,7 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from odoo_migrator.module_paths import module_root, relative_to_root
-from odoo_migrator.rules import RuleDoc, assemble_rules, load_system_prompt
+from odoo_migrator.rules import (
+    RuleDoc,
+    assemble_rules,
+    load_shell_notes,
+    load_system_prompt,
+)
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
 
@@ -91,6 +96,7 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
     in prose, never calls a tool, and the step ends with nothing reported.
     """
     standing = load_system_prompt().strip()
+    shell = load_shell_notes().strip()
     facts = (
         f"## This run\n"
         f"Module: {ctx.module.technical_name}\n"
@@ -104,7 +110,7 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
         f"Step: {step.id or step.kind}"
     )
 
-    return f"{standing}\n\n{facts}"
+    return f"{standing}\n\n{shell}\n\n{facts}"
 
 
 def run_agent_step(step: Step, ctx: StepContext) -> StepResult:

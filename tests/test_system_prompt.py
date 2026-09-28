@@ -211,3 +211,16 @@ def test_a_missing_system_prompt_file_is_not_silently_skipped(monkeypatch, tmp_p
                         lambda: (_ for _ in ()).throw(MissingPromptError("gone")))
     with pytest.raises(MissingPromptError):
         system_prompt(_step(), _ctx())
+
+
+def test_the_system_prompt_carries_the_shell_notes():
+    """The tools were listed and never explained: what `source` answers that a
+    file cannot, that the journal already holds a log worth re-running for,
+    that `mapped` is one call where a loop is ten."""
+    text = system_prompt(_step(), _ctx())
+
+    assert "records.mapped('name')" in text
+    assert "which override actually wins" in text
+    # The standing instruction and this run's facts are still around it.
+    assert "Call `report` exactly once" in text
+    assert "Step: port" in text

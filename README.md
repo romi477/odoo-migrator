@@ -231,6 +231,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `cartridges/stock.yaml` | The stock flow |
 | `rules/` | `common.md` and `16.0.md` … `20.0.md`, edited at the repo root. A wheel carries them, with `prompts/` and `cartridges/`, as `odoo_migrator/bundled_*`; the checkout wins when there is one |
 | `prompts/system.md` | System prompt, resolved into the agent step |
+| `prompts/sheller.md` | What the Odoo shell can do, vendored from odoo-sheller's `os_help`: the daemon serves that text over MCP and this app is an HTTP client |
 | `packaging/` | `setup.sh` creates the virtualenv; `serve.sh` starts the app. The desktop build lands here later, as in odoo-sheller |
 | `tests/` | Suite; no live Docker required except `@pytest.mark.live` |
 

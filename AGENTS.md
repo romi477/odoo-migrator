@@ -134,6 +134,15 @@ Rules that are not ours to bend:
   daemon's admin endpoints.
 - A daemon that answers on 8765 may not be ours. Use it; never stop it.
 
+Two things the daemon only serves over MCP are vendored here, because this
+process speaks HTTP to it and there is no route for either: the source
+snippet in `sheller/source.py`, and the shell guidance in
+`prompts/sheller.md` (its `os_help` topics, minus the ones about owning and
+committing sessions, which the runner does). Both have a test that compares
+them with the sibling checkout and skips when it is absent. A copy can
+drift; an agent told its tools exist and nothing about what they do writes
+Python loops where `mapped` is one call.
+
 Sessions the migrator opens are `owner.kind = agent` and carry the
 `migration_id`, so concurrent migrations stay attributable. Commit is
 allowed on the new container and refused on the old one. Sheller's only

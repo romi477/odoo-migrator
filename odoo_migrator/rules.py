@@ -175,6 +175,27 @@ def load_system_prompt(*, prompts_dir: Path | None = None) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def load_shell_notes(*, prompts_dir: Path | None = None) -> str:
+    """What the Odoo shell can do, vendored from odoo-sheller's own help.
+
+    The daemon serves that text to MCP clients through `os_help(topic)`. This
+    app is an HTTP client of the daemon and has no route that would fetch it,
+    so the agent was told the tools existed and nothing about what they can
+    do: it wrote Python loops where `mapped` was one call, read files by path
+    when the registry was the only thing that could say which override runs,
+    and re-ran commands to see a log the journal already held.
+
+    Required, like the system prompt. A build that lost it would send every
+    step a shorter briefing and say nothing.
+    """
+    directory = Path(prompts_dir) if prompts_dir is not None else default_prompts_dir()
+    path = directory / "sheller.md"
+    if not path.is_file():
+        raise MissingPromptError(f"No shell notes at {path} (sheller.md).")
+
+    return path.read_text(encoding="utf-8")
+
+
 def append_finding(
     version: str,
     text: str,
