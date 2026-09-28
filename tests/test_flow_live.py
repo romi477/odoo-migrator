@@ -153,3 +153,45 @@ def test_the_flow_page_is_the_picture_and_not_a_second_log(client, finished_job)
 
     assert "flow-canvas" in page
     assert "flow-trace" not in page
+
+
+def test_a_body_is_read_through_the_resolved_client(tmp_path):
+    """`app.state.sheller` is the slot a test injects a double into and is
+    None in a live process. Reaching for it directly answered every body with
+    a 500, and no test saw it because every test injects one."""
+    from starlette.testclient import TestClient
+
+    from odoo_migrator.api import create_app
+    from odoo_migrator.models import Batch, Job, Module, StepRun, ToolCall
+
+    app = create_app(tmp_path / "live.sqlite")
+
+    assert app.state.sheller is None
+
+    with TestClient(app) as client:
+        # The session id is invented, so a daemon answers 404 and no daemon is
+        # unreachable. Both are the same answer to a reader, and neither is a
+        # crash — which is what this used to be.
+        created = create_migration(
+            name="Acme",
+            accent="violet",
+            source_version="17.0",
+            target_version="18.0",
+            old_project_path=str(tmp_path / "old"),
+            new_project_path=str(tmp_path / "new"),
+        )
+        with database.connection_context():
+            module = Module.create(migration=created["id"], technical_name="sale_custom")
+            batch = Batch.create(migration=created["id"], status="idle")
+            job = Job.create(batch=batch, module=module, status="passed")
+            step = StepRun.create(job=job, attempt=1, step_id="port", kind="agent")
+            call = ToolCall.create(
+                step_run=step, tool="exec", side="new",
+                session_id="sess-1", command_id="1", preview="1", ok=True,
+            )
+            line = _line(job, call)
+
+        body = client.get(f"/api/log/{line.id}")
+
+    assert body.status_code == 200
+    assert "not available" in body.text

@@ -1536,7 +1536,10 @@ def create_app(
 
             return "not available"
         try:
-            journal = request.app.state.sheller.journal(session_id)
+            # `_sheller`, not `app.state.sheller`: that slot holds the double a
+            # test injects and is None in a live process, so reaching for it
+            # directly answered every body with a 500.
+            journal = _sheller(request).journal(session_id)
         except ShellerError:
 
             return "not available"
