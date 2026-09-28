@@ -34,10 +34,10 @@ would leave that root is refused, not clipped back inside. Clamping
 `ProviderSetting` row. The settings page reports whether it is set. A
 blank save keeps the stored value. The process does not print it.
 
-**Sheller journals stay on the daemon.** The Flow trace is a skeleton
-(tool, side, session id, a short preview). The body is fetched when
-someone opens that row, because journals are unmasked and this tool is
-demonstrated on a projector. `~/.odoo-sheller/` is not ours to touch,
+**Sheller journals stay on the daemon.** A tool call is recorded as a
+skeleton (tool, side, session id, a short preview). The body is fetched
+from the journal when someone opens that line in the run log, because
+journals are unmasked and this tool is demonstrated on a projector. `~/.odoo-sheller/` is not ours to touch,
 and `admin.key` is never read.
 
 **Sessions the migrator opens are attributable.** `owner.kind = agent`,

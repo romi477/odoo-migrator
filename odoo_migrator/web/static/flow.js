@@ -13,61 +13,6 @@
   var LINE = "#8a7568";
   var INK = "#1c140f";
 
-  /* The trace is wired before the graph is fetched. It used to sit after an
-     early return, so the only page that ever listed tool calls was the one
-     with no migration open — which is the page that has none. */
-  var trace = document.getElementById("flow-trace");
-  var body = document.getElementById("flow-body");
-  var job = trace && trace.getAttribute("data-job");
-  if (trace && job) {
-    fetch("/api/flow/" + job + "/trace")
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (rows) {
-        if (!rows.length) {
-          var empty = document.createElement("li");
-          empty.className = "flow-trace-empty";
-          empty.textContent = "This job made no tool calls.";
-          trace.appendChild(empty);
-
-          return;
-        }
-        /* One lap ran into the next with nothing between them. The heading
-           says where a step started, so a retry is readable as a retry. */
-        var seen = "";
-        rows.forEach(function (row) {
-          var where = "attempt " + row.attempt + " · " + row.step;
-          if (row.step && where !== seen) {
-            seen = where;
-            var head = document.createElement("li");
-            head.className = "flow-trace-step";
-            head.textContent = where;
-            trace.appendChild(head);
-          }
-          var item = document.createElement("li");
-          var button = document.createElement("button");
-          button.type = "button";
-          if (row.ok === false) {
-            button.classList.add("is-failed");
-          }
-          button.textContent = row.side + " " + row.tool + " " + row.preview;
-          button.addEventListener("click", function () {
-            fetch("/api/flow/trace/" + row.id + "/body")
-              .then(function (response) {
-                return response.text();
-              })
-              .then(function (text) {
-                body.hidden = false;
-                body.textContent = text;
-              });
-          });
-          item.appendChild(button);
-          trace.appendChild(item);
-        });
-      });
-  }
-
   if (migration) {
     fetch("/api/flow/" + migration + "/graph")
       .then(function (response) {

@@ -186,9 +186,9 @@ block for that flag runs: `ask_human` parks the job, `reprobe` returns to
 the old version, `patch` edits the previous diff, `rewrite` starts the
 port again without the previous attempt. The lane then resumes once, at
 `lint`. Orange blocks are a model turn; quiet blocks are the app; a dashed
-border is a flag; the cut rectangle is `ask_human`. With a job, the trace
-under the canvas is the skeleton only — tool, side, session, a short
-preview. The journal body loads when that row is opened, not with the page.
+border is a flag; the cut rectangle is `ask_human`. The canvas is the
+whole screen: a run's tool calls are the run log on Pipeline, and reading
+one job on two screens is what a second list under the picture meant.
 
 **Sheller** (`/sheller`) is only an observer iframe of Sheller's `/web`,
 edge to edge under the nav. The frame does not hold a write key. Do not

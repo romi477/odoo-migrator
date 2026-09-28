@@ -111,9 +111,25 @@ class NativeRunner:
         if error is not None:
             raise error
 
-    def _log(self, job_id: str, source: str, text: str, detail: str = "", level: str = "info") -> None:
+    def _log(
+        self,
+        job_id: str,
+        source: str,
+        text: str,
+        detail: str = "",
+        level: str = "info",
+        tool_call_id: int | None = None,
+    ) -> None:
 
-        runlog.write(job_id, source=source, text=text, detail=detail, level=level, hub=self.hub)
+        runlog.write(
+            job_id,
+            source=source,
+            text=text,
+            detail=detail,
+            level=level,
+            hub=self.hub,
+            tool_call_id=tool_call_id,
+        )
 
     def _run(self, payload: dict) -> None:
         job_id = payload["job_id"]
@@ -435,14 +451,11 @@ class NativeRunner:
         targets = self._targets(migration)
 
         def record(tool, side, session_id, command_id, duration_ms, ok, preview):
-            self._log(
-                payload["job_id"],
-                ctx.step_run_label or "runner",
-                f"{tool}({side}) {duration_ms}ms {'ok' if ok else 'failed'}: {preview}",
-                level="info" if ok else "warn",
-            )
+            # The skeleton row first: the log line points at it, and that
+            # pointer is what turns a 120-character preview into the whole
+            # answer the daemon's journal kept.
             with database.connection_context():
-                ToolCall.create(
+                call = ToolCall.create(
                     step_run=ctx.step_run_id,
                     tool=tool,
                     side=side,
@@ -452,6 +465,13 @@ class NativeRunner:
                     ok=ok,
                     preview=preview or "",
                 )
+            self._log(
+                payload["job_id"],
+                ctx.step_run_label or "runner",
+                f"{tool}({side}) {duration_ms}ms {'ok' if ok else 'failed'}: {preview}",
+                level="info" if ok else "warn",
+                tool_call_id=call.id,
+            )
             self.hub.publish(
                 "tool_called",
                 {

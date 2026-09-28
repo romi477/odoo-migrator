@@ -1465,54 +1465,6 @@ def create_app(
 
         return JSONResponse(flow_graph(pinned_for(row)))
 
-    @app.get("/api/flow/{job_id}/trace")
-    def flow_trace(job_id: str, attempt: int | None = None):
-        from odoo_migrator.models import Job, StepRun, ToolCall
-
-        with database.connection_context():
-            job = Job.get_or_none(Job.job_id == job_id)
-            if job is None:
-
-                return JSONResponse([], status_code=404)
-            runs = StepRun.select().where(StepRun.job == job)
-            if attempt is not None:
-                runs = runs.where(StepRun.attempt == attempt)
-            steps = {run.id: run for run in runs}
-            calls = list(
-                ToolCall.select()
-                .where(ToolCall.step_run.in_(list(steps)))
-                .order_by(ToolCall.id)
-            )
-            rows = [
-                {
-                    "id": call.id,
-                    # Which step made the call, and on which lap. Without
-                    # them the list is one run of every attempt, in order,
-                    # with nothing saying where one ended.
-                    "step": (
-                        steps[call.step_run_id].step_id
-                        or steps[call.step_run_id].kind
-                        if call.step_run_id in steps
-                        else ""
-                    ),
-                    "attempt": (
-                        steps[call.step_run_id].attempt
-                        if call.step_run_id in steps
-                        else 0
-                    ),
-                    "tool": call.tool,
-                    "side": call.side,
-                    "session_id": call.session_id,
-                    "command_id": call.command_id,
-                    "preview": (call.preview or "")[:120],
-                    "ok": call.ok,
-                    "duration_ms": call.duration_ms,
-                }
-                for call in calls
-            ]
-
-        return JSONResponse(rows)
-
     @app.get("/api/jobs/{job_id}/log")
     def job_log(job_id: str, after: int = 0):
         """The run log so far. `after` is the last line the page holds."""
@@ -1532,8 +1484,34 @@ def create_app(
 
         return JSONResponse({"job_id": job_id, "deleted": runlog.clear(job_id)})
 
+    def _journal_body(request: Request, session_id: str, command_id: str) -> str:
+        """One command's record from Sheller's journal, whole.
+
+        The daemon allows a megabyte of stdout per command, so this is not
+        something to copy into our own row: a stored body would be a shorter
+        duplicate of the only full copy there is. The journal can be removed,
+        which is what "not available" means.
+        """
+        from odoo_migrator.sheller.errors import ShellerError
+
+        if not session_id:
+
+            return "not available"
+        try:
+            journal = request.app.state.sheller.journal(session_id)
+        except ShellerError:
+
+            return "not available"
+        records = journal.get("records") or []
+        matched = [
+            record for record in records if str(record.get("id", "")) == str(command_id)
+        ]
+        chosen = matched[0] if matched else {"records": records}
+
+        return json.dumps(chosen, default=str)
+
     @app.get("/api/log/{line_id}")
-    def job_log_detail(line_id: int):
+    def job_log_detail(request: Request, line_id: int):
         """One line's body, fetched when it is opened and not before.
 
         Prompts and model answers carry the customer's source. They are a
@@ -1548,35 +1526,16 @@ def create_app(
         if body is None:
 
             return PlainTextResponse("not available", status_code=404)
+        if not body:
+            # A line about a tool call stores no body of its own. The whole
+            # answer is in the daemon's journal, which is where the trace
+            # under the flow used to be the only way to read it.
+            ran = runlog.tool_call_of(line_id)
+            if ran is not None:
+
+                return PlainTextResponse(_journal_body(request, *ran))
 
         return PlainTextResponse(body or "(empty)")
-
-    @app.get("/api/flow/trace/{tool_call_id}/body")
-    def flow_trace_body(request: Request, tool_call_id: int):
-        from fastapi.responses import PlainTextResponse
-
-        from odoo_migrator.models import ToolCall
-        from odoo_migrator.sheller.errors import ShellerError
-
-        with database.connection_context():
-            call = ToolCall.get_or_none(ToolCall.id == tool_call_id)
-            session_id = call.session_id if call is not None else ""
-            command_id = call.command_id if call is not None else ""
-        if not session_id:
-
-            return PlainTextResponse("not available")
-        try:
-            journal = request.app.state.sheller.journal(session_id)
-        except ShellerError:
-
-            return PlainTextResponse("not available")
-        records = journal.get("records") or []
-        matched = [
-            record for record in records if str(record.get("id", "")) == str(command_id)
-        ]
-        chosen = matched[0] if matched else {"records": records}
-
-        return PlainTextResponse(json.dumps(chosen, default=str))
 
     @app.get("/styleguide")
     def styleguide(request: Request):

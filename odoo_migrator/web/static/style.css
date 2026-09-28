@@ -2819,59 +2819,6 @@ pre.test-output {
   padding: 4px 0;
 }
 
-.flow-trace {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-}
-
-.flow-trace button {
-  font: inherit;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  padding: 4px 0;
-  cursor: pointer;
-}
-
-/* The trace under the picture. It is one job's tool calls, and the header
-   is what says which job: the page takes the newest on this migration. */
-.flow-trace-panel {
-  margin-top: 20px;
-}
-
-.flow-trace-head h2 {
-  margin: 0;
-}
-
-.flow-trace-head p {
-  margin: 2px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.flow-trace-step {
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: lowercase;
-}
-
-.flow-trace-empty {
-  color: var(--muted);
-  padding: 4px 0;
-}
-
-.flow-trace button.is-failed {
-  color: var(--red);
-}
-
-.flow-body {
-  white-space: pre-wrap;
-  max-height: 240px;
-  overflow: auto;
-}
-
 /* The run log on Pipeline. A scrolling panel with its own scrollbar: the
    page must not grow by a screen every time a step calls a tool. */
 .run-log-panel {

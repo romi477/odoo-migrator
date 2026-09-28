@@ -7,6 +7,7 @@ from peewee import (
     BooleanField,
     CharField,
     DateTimeField,
+    DeferredForeignKey,
     ForeignKeyField,
     IntegerField,
     Model,
@@ -247,6 +248,12 @@ class RunLog(BaseModel):
     source = CharField(default="")
     text = TextField(default="")
     detail = TextField(default="")
+    # A line about a tool call points at its skeleton row, which is what can
+    # find the command in Sheller's journal. The line itself carries no body:
+    # a `detail` capped at 20k would be a second, shorter copy of a command's
+    # output the daemon already keeps whole. Deferred because `ToolCall` is
+    # declared below this.
+    tool_call = DeferredForeignKey("ToolCall", null=True, backref="log_lines")
 
 
 class ToolCall(BaseModel):

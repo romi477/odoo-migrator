@@ -1,4 +1,9 @@
-"""The trace is a skeleton. The journal body is fetched only when asked."""
+"""A tool call is a skeleton row. Its body comes from the journal, when asked.
+
+The run log on Pipeline lists the calls; opening one fetches the command's
+whole record from Sheller. Nothing is stored twice — the daemon allows a
+megabyte of stdout per command and keeps the only full copy.
+"""
 
 import pytest
 
@@ -81,56 +86,70 @@ def finished_job(client, tmp_path):
         return job
 
 
-def test_a_trace_line_survives_a_journal_that_is_gone(client, tool_call, sheller_fake):
+def _line(job, call):
+    from odoo_migrator.models import RunLog
+
+    with database.connection_context():
+        return RunLog.create(
+            job=job,
+            level="info",
+            source="port",
+            text=f"{call.tool}({call.side}) 12ms ok: {call.preview}",
+            tool_call=call,
+        )
+
+
+def test_a_log_line_opens_the_command_the_journal_kept(client, tool_call):
+    with database.connection_context():
+        job = tool_call.step_run.job
+    line = _line(job, tool_call)
+
+    body = client.get(f"/api/log/{line.id}")
+
+    assert body.status_code == 200
+    assert "not available" not in body.text
+    assert tool_call.command_id in body.text
+
+
+def test_a_log_line_survives_a_journal_that_is_gone(client, tool_call, sheller_fake):
+    """The journal is the daemon's and can be removed. The line stays."""
+    with database.connection_context():
+        job = tool_call.step_run.job
+    line = _line(job, tool_call)
     sheller_fake.forget_journal(tool_call.session_id)
 
-    body = client.get(f"/api/flow/trace/{tool_call.id}/body")
+    body = client.get(f"/api/log/{line.id}")
 
     assert body.status_code == 200
     assert "not available" in body.text
 
 
-def test_the_trace_is_the_skeleton_and_not_the_bodies(client, finished_job):
-    rows = client.get(f"/api/flow/{finished_job.job_id}/trace").json()
+def test_the_line_stores_no_body_of_its_own(client, tool_call):
+    """A `detail` capped at 20k would be a shorter copy of what the daemon
+    already keeps whole, and a second place for the customer's source to sit."""
+    from odoo_migrator import runlog
+    from odoo_migrator.models import RunLog
 
-    assert rows[0]["session_id"]
-    assert len(rows[0]["preview"]) <= 120
-    assert "stdout" not in rows[0]
+    del client
+    with database.connection_context():
+        job = tool_call.step_run.job
+    line = _line(job, tool_call)
+    with database.connection_context():
+        stored = RunLog.get_by_id(line.id)
+
+    assert stored.detail == ""
+    # The page still offers to open it: the pointer is what says there is
+    # something to read.
+    assert runlog.lines(job.job_id)[-1]["has_detail"] is True
 
 
-def test_a_trace_row_says_which_step_and_lap_made_it(client, finished_job):
-    """Attempt after attempt ran into the next with nothing between them."""
-    rows = client.get(f"/api/flow/{finished_job.job_id}/trace").json()
-
-    assert rows[0]["step"] == "port"
-    assert rows[0]["attempt"] == 1
-
-
-def test_the_flow_page_names_the_job_it_traces(client, finished_job):
-    """The page takes the newest job on the open migration. Named nowhere,
-    the list was "whatever ran last" once a batch had run."""
+def test_the_flow_page_is_the_picture_and_not_a_second_log(client, finished_job):
+    """One job was read on two screens. The calls are the run log's."""
     with database.connection_context():
         migration_id = str(finished_job.module.migration_id)
     client.cookies.set("open_migration", migration_id)
 
     page = client.get("/flow").text
 
-    assert "sale_custom" in page
-    assert finished_job.job_id[:8] in page
-    assert "attempt" in page
-
-
-def test_the_flow_page_says_when_nothing_has_run(client, tmp_path):
-    created = create_migration(
-        name="Empty",
-        accent="violet",
-        source_version="17.0",
-        target_version="18.0",
-        old_project_path=str(tmp_path / "o"),
-        new_project_path=str(tmp_path / "n"),
-    )
-    client.cookies.set("open_migration", created["id"])
-
-    page = client.get("/flow").text
-
-    assert "No job has run on this migration yet." in page
+    assert "flow-canvas" in page
+    assert "flow-trace" not in page

@@ -41,26 +41,6 @@
     </div>
   </aside>
   </div>
-  <section class="flow-trace-panel">
-    <header class="flow-trace-head">
-      <h2>Trace</h2>
-      {% if flow_traced %}
-      {# Whose calls these are. The page shows the newest job on this
-         migration, and a list that names no module is unreadable after a
-         batch. #}
-      <p>
-        <span class="mono">{{ flow_traced.module }}</span>, attempt
-        {{ flow_traced.attempt }},
-        <span class="mono">{{ flow_traced.status }}</span> ·
-        job <span class="mono">{{ flow_traced.short }}</span>
-      </p>
-      {% else %}
-      <p>No job has run on this migration yet.</p>
-      {% endif %}
-    </header>
-    <ol id="flow-trace" class="flow-trace" data-job="{{ flow_job_id }}"></ol>
-  </section>
-  <pre id="flow-body" class="flow-body" hidden></pre>
   {% if flow_embedded %}
   <script type="application/json" id="flow-graph">{{ flow_embedded | tojson }}</script>
   {% endif %}

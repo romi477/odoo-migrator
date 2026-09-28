@@ -33,6 +33,7 @@ def write(
     detail: str = "",
     level: str = "info",
     hub=None,
+    tool_call_id: int | None = None,
 ) -> None:
     """Record one line, and put it on the stream the page is watching."""
     clipped = _clip(text, MAX_TEXT)
@@ -46,7 +47,13 @@ def write(
 
                 return
             row = RunLog.create(
-                job=job, at=at, level=level, source=source, text=clipped, detail=body
+                job=job,
+                at=at,
+                level=level,
+                source=source,
+                text=clipped,
+                detail=body,
+                tool_call=tool_call_id,
             )
             row_id = row.id
     except Exception:  # noqa: BLE001 - the log never fails the run.
@@ -65,7 +72,7 @@ def write(
                 "level": level,
                 "source": source,
                 "text": clipped,
-                "has_detail": bool(body),
+                "has_detail": bool(body) or tool_call_id is not None,
             },
         )
 
@@ -91,7 +98,9 @@ def lines(job_id: str, *, after: int = 0, limit: int = 1000) -> list[dict]:
                 "level": row.level,
                 "source": row.source,
                 "text": row.text,
-                "has_detail": bool(row.detail),
+                # A tool call's body is not stored here: the line points at
+                # the skeleton row that can fetch it from the journal.
+                "has_detail": bool(row.detail) or row.tool_call_id is not None,
             }
             for row in rows
         ]
@@ -113,6 +122,23 @@ def detail_of(line_id: int) -> str | None:
         row = RunLog.get_or_none(RunLog.id == line_id)
 
         return None if row is None else row.detail
+
+
+def tool_call_of(line_id: int) -> tuple[str, str] | None:
+    """The session and command a line's tool call ran as, or None.
+
+    What turns a 120-character preview into the command's whole answer. The
+    journal is the daemon's, and it is the only copy: a body stored here
+    would be a shorter duplicate of something it already keeps.
+    """
+    with database.connection_context():
+        row = RunLog.get_or_none(RunLog.id == line_id)
+        if row is None or row.tool_call_id is None:
+
+            return None
+        call = row.tool_call
+
+        return (call.session_id or "", call.command_id or "")
 
 
 def _clip(text: str, limit: int) -> str:

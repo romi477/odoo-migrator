@@ -203,7 +203,7 @@ ask nobody for a key.
 | `GET` | `/` | Overview |
 | `GET` | `/tree` | Module graph |
 | `GET` | `/run` | Pipeline and checkpoint |
-| `GET` | `/flow` | The pinned cartridge, and a job's trace skeleton |
+| `GET` | `/flow` | The pinned cartridge, drawn |
 | `GET` | `/sheller` | Sheller observer |
 | `GET` | `/result` | Migration outcomes dashboard |
 | `GET` | `/settings` | App settings |
