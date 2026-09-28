@@ -96,3 +96,41 @@ def test_the_trace_is_the_skeleton_and_not_the_bodies(client, finished_job):
     assert rows[0]["session_id"]
     assert len(rows[0]["preview"]) <= 120
     assert "stdout" not in rows[0]
+
+
+def test_a_trace_row_says_which_step_and_lap_made_it(client, finished_job):
+    """Attempt after attempt ran into the next with nothing between them."""
+    rows = client.get(f"/api/flow/{finished_job.job_id}/trace").json()
+
+    assert rows[0]["step"] == "port"
+    assert rows[0]["attempt"] == 1
+
+
+def test_the_flow_page_names_the_job_it_traces(client, finished_job):
+    """The page takes the newest job on the open migration. Named nowhere,
+    the list was "whatever ran last" once a batch had run."""
+    with database.connection_context():
+        migration_id = str(finished_job.module.migration_id)
+    client.cookies.set("open_migration", migration_id)
+
+    page = client.get("/flow").text
+
+    assert "sale_custom" in page
+    assert finished_job.job_id[:8] in page
+    assert "attempt" in page
+
+
+def test_the_flow_page_says_when_nothing_has_run(client, tmp_path):
+    created = create_migration(
+        name="Empty",
+        accent="violet",
+        source_version="17.0",
+        target_version="18.0",
+        old_project_path=str(tmp_path / "o"),
+        new_project_path=str(tmp_path / "n"),
+    )
+    client.cookies.set("open_migration", created["id"])
+
+    page = client.get("/flow").text
+
+    assert "No job has run on this migration yet." in page

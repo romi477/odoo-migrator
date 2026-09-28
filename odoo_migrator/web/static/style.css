@@ -2707,7 +2707,7 @@ pre.test-output {
 }
 
 .flow-edge {
-  color: var(--text-dim, #8a7568);
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -2760,6 +2760,38 @@ pre.test-output {
   cursor: pointer;
 }
 
+/* The trace under the picture. It is one job's tool calls, and the header
+   is what says which job: the page takes the newest on this migration. */
+.flow-trace-panel {
+  margin-top: 20px;
+}
+
+.flow-trace-head h2 {
+  margin: 0;
+}
+
+.flow-trace-head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flow-trace-step {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: lowercase;
+}
+
+.flow-trace-empty {
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.flow-trace button.is-failed {
+  color: var(--red);
+}
+
 .flow-body {
   white-space: pre-wrap;
   max-height: 240px;
@@ -2782,7 +2814,7 @@ pre.test-output {
 }
 
 .run-log-job {
-  color: var(--text-dim, #8a7568);
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -2792,7 +2824,7 @@ pre.test-output {
   gap: 6px;
   margin-left: auto;
   font-size: 12px;
-  color: var(--text-dim, #8a7568);
+  color: var(--muted);
 }
 
 .run-log {
@@ -2825,7 +2857,7 @@ pre.test-output {
 
 .run-log-at,
 .run-log-source {
-  color: var(--text-dim, #8a7568);
+  color: var(--muted);
 }
 
 .run-log-text {
@@ -2857,7 +2889,7 @@ pre.test-output {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
-  color: var(--text-dim, #8a7568);
+  color: var(--muted);
   line-height: 1;
 }
 
@@ -2893,7 +2925,7 @@ pre.test-output {
   padding: 6px 10px;
   border-bottom: 1px solid var(--chrome-edge);
   font-size: 12px;
-  color: var(--text-dim, #8a7568);
+  color: var(--muted);
 }
 
 .run-log-body-label {

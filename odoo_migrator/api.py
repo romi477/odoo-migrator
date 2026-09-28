@@ -1391,6 +1391,10 @@ def create_app(
         version = current["cartridge_version"] if current else "1.0.0"
         migration_id = current["id"] if current else ""
         job_id = ""
+        # Whose trace is under the picture. The page takes the newest job on
+        # the open migration, and said so nowhere: after a batch of thirty
+        # modules the list was "whatever ran last", with nothing naming it.
+        traced = None
         if current:
             from odoo_migrator.models import Job, Module
 
@@ -1404,6 +1408,13 @@ def create_app(
                 )
                 if latest is not None:
                     job_id = latest.job_id
+                    traced = {
+                        "module": latest.module.technical_name,
+                        "job_id": job_id,
+                        "short": job_id[:8],
+                        "attempt": latest.attempt,
+                        "status": latest.status,
+                    }
         embedded = None
         if not migration_id:
             embedded = flow_graph(
@@ -1419,6 +1430,7 @@ def create_app(
                 "flow_version": version,
                 "flow_migration_id": migration_id,
                 "flow_job_id": job_id,
+                "flow_traced": traced,
                 "flow_embedded": embedded,
             },
         )
@@ -1449,15 +1461,29 @@ def create_app(
             runs = StepRun.select().where(StepRun.job == job)
             if attempt is not None:
                 runs = runs.where(StepRun.attempt == attempt)
-            run_ids = [run.id for run in runs]
+            steps = {run.id: run for run in runs}
             calls = list(
                 ToolCall.select()
-                .where(ToolCall.step_run.in_(run_ids))
+                .where(ToolCall.step_run.in_(list(steps)))
                 .order_by(ToolCall.id)
             )
             rows = [
                 {
                     "id": call.id,
+                    # Which step made the call, and on which lap. Without
+                    # them the list is one run of every attempt, in order,
+                    # with nothing saying where one ended.
+                    "step": (
+                        steps[call.step_run_id].step_id
+                        or steps[call.step_run_id].kind
+                        if call.step_run_id in steps
+                        else ""
+                    ),
+                    "attempt": (
+                        steps[call.step_run_id].attempt
+                        if call.step_run_id in steps
+                        else 0
+                    ),
                     "tool": call.tool,
                     "side": call.side,
                     "session_id": call.session_id,
