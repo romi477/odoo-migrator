@@ -75,6 +75,38 @@
     }
     body.appendChild(testing);
 
+    /* Where the run actually happened. The daemon keeps its own journal per
+       session, and finding the id meant grepping the run log for the line
+       that printed it. A side listed twice was reopened, which is ordinary:
+       a rewrite invalidates the session on the new container. */
+    const shells = document.createElement("section");
+    shells.className = "result-summary-sessions";
+    const shellHead = document.createElement("h3");
+    shellHead.textContent = "Sheller sessions";
+    shells.appendChild(shellHead);
+    if (data.sessions && data.sessions.length) {
+      const rows = document.createElement("ol");
+      data.sessions.forEach(function (row) {
+        const item = document.createElement("li");
+        item.className = "mono";
+        item.textContent =
+          row.side +
+          " · " +
+          row.session_id +
+          (row.steps.length ? " — " + row.steps.join(", ") : "") +
+          " · " +
+          row.calls +
+          (row.calls === 1 ? " call" : " calls");
+        rows.appendChild(item);
+      });
+      shells.appendChild(rows);
+    } else {
+      shells.appendChild(
+        line("No shell was opened on this run.", "result-summary-line")
+      );
+    }
+    body.appendChild(shells);
+
     /* The agent's own words, and the human's reply. A <pre> because the
        diagnosis is written with line breaks that carry its structure. */
     (data.messages || []).forEach(function (message) {

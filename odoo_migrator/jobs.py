@@ -1011,6 +1011,7 @@ def module_outcome(module_id: int) -> dict | None:
         "stage": job.current_stage or "",
         "finished_at": _stamp(finished),
         "steps": steps,
+        "sessions": _sessions(runs),
         "testing": _testing(runs),
         "messages": messages,
     }
@@ -1055,6 +1056,57 @@ def _testing(runs: list) -> list[dict]:
         )
 
     return told
+
+
+def _sessions(runs: list) -> list[dict]:
+    """The Sheller sessions this job worked in, in the order it opened them.
+
+    The summary named the steps and never where they ran, so reading the
+    daemon's own journal for a run meant grepping the log for the line that
+    printed the ids. `ShellerSession` is no help: a row is deleted when the
+    session closes, so a finished job has none.
+
+    A side has more than one when a session was reopened, which is ordinary:
+    a rewrite invalidates the session on the new container, and a checkpoint
+    closes both. So these are listed, not folded into one per side.
+
+    Tools that never touch the daemon — `read_file`, `write_file`,
+    `list_tests` — carry no session and are not counted here.
+
+    Caller holds the connection.
+    """
+    from odoo_migrator.models import ToolCall
+
+    ids = [run.id for run in runs]
+    if not ids:
+
+        return []
+    by_run = {run.id: run for run in runs}
+    seen: dict[tuple[str, str], dict] = {}
+    for call in (
+        ToolCall.select()
+        .where(ToolCall.step_run.in_(ids))
+        .order_by(ToolCall.id)
+    ):
+        if not call.session_id:
+            continue
+        key = (call.side, call.session_id)
+        row = seen.get(key)
+        if row is None:
+            row = {
+                "side": call.side,
+                "session_id": call.session_id,
+                "calls": 0,
+                "steps": [],
+            }
+            seen[key] = row
+        row["calls"] += 1
+        step = by_run.get(call.step_run_id)
+        label = (step.step_id or step.kind) if step else ""
+        if label and label not in row["steps"]:
+            row["steps"].append(label)
+
+    return list(seen.values())
 
 
 def _stamp(value) -> str:

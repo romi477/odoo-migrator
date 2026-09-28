@@ -313,6 +313,45 @@ def test_the_summary_says_what_happened_to_the_tests(client):
     assert testing[0]["step"] == "port"
 
 
+def test_the_summary_names_the_sheller_sessions_the_run_worked_in(client):
+    """Reading the daemon's own journal for a run meant grepping the log for
+    the line that printed the ids. `ShellerSession` is no help: its row is
+    deleted when the session closes, so a finished job has none."""
+    from odoo_migrator.models import StepRun, ToolCall
+
+    migration_id = _open(client)
+    module = _ran(migration_id, "mig_test_account")
+    with database.connection_context():
+        port = StepRun.get(StepRun.step_id == "port")
+        tests = StepRun.get(StepRun.step_id == "tests")
+        ToolCall.create(step_run=port, tool="exec", side="old", session_id="old1", ok=True)
+        ToolCall.create(step_run=port, tool="exec", side="new", session_id="new1", ok=True)
+        # No session: these are the host's, or a route, not a command.
+        ToolCall.create(step_run=port, tool="write_file", side="new", ok=True)
+        # The same side again, reopened after the rewrite.
+        ToolCall.create(step_run=tests, tool="exec", side="new", session_id="new2", ok=True)
+        ToolCall.create(step_run=tests, tool="run_test", side="new", session_id="new2", ok=True)
+
+    sessions = client.get(f"/api/result/modules/{module.id}/summary").json()["sessions"]
+
+    assert [(row["side"], row["session_id"]) for row in sessions] == [
+        ("old", "old1"),
+        ("new", "new1"),
+        ("new", "new2"),
+    ]
+    assert sessions[2]["calls"] == 2
+    assert sessions[2]["steps"] == ["tests"]
+
+
+def test_a_module_that_opened_no_shell_says_so(client):
+    migration_id = _open(client)
+    module = _ran(migration_id, "mig_test_account")
+
+    summary = client.get(f"/api/result/modules/{module.id}/summary").json()
+
+    assert summary["sessions"] == []
+
+
 def test_a_test_run_is_recorded_by_its_verdict_not_its_json():
     """`{"stdout": "", "stdout_truncated": false, "result": null` is the first
     120 characters of a test report, and says nothing about the test."""

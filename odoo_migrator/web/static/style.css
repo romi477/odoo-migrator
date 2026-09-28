@@ -2893,17 +2893,20 @@ a.ribbon-box:focus-visible {
 
 /* What happened to the tests: what was listed, what was written, what ran.
    The step list says `write_test` and stops there. */
-.result-summary-tests {
+.result-summary-tests,
+.result-summary-sessions {
   margin-top: 12px;
 }
 
-.result-summary-tests h3 {
+.result-summary-tests h3,
+.result-summary-sessions h3 {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
 }
 
-.result-summary-tests ol {
+.result-summary-tests ol,
+.result-summary-sessions ol {
   margin: 4px 0 0;
   padding-left: 20px;
   color: var(--muted);
@@ -2914,6 +2917,12 @@ a.ribbon-box:focus-visible {
 
 .result-summary-tests li.is-failed {
   color: var(--red);
+}
+
+/* The ids are read to open the daemon's journal, so they are selectable
+   text and not a badge. */
+.result-summary-sessions li {
+  user-select: text;
 }
 
 /* The diagnosis is written with line breaks that carry its structure, and
