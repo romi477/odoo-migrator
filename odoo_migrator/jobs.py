@@ -802,9 +802,15 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Jo
     return job
 
 
-def checkpoint_thread(migration_id: str) -> list[dict]:
+def checkpoint_thread(migration_id: str, *, job_id: str = "") -> list[dict]:
     """The human and the agent, in order. A parked question counts even
-    before its row is written."""
+    before its row is written.
+
+    With ``job_id`` it is that one job's conversation. The unscoped thread is
+    every message in the migration, which on a screen watching one run meant
+    the diagnosis of the module before it — or of this module's previous
+    attempt — sitting under a run that had just started.
+    """
     with database.connection_context():
         rows = (
             CheckpointMessage.select()
@@ -813,7 +819,6 @@ def checkpoint_thread(migration_id: str) -> list[dict]:
             .where(Module.migration == migration_id)
             .order_by(CheckpointMessage.id)
         )
-        messages = [{"author": row.author, "text": row.text} for row in rows]
         waiting = (
             Job.select()
             .join(Module)
@@ -824,12 +829,20 @@ def checkpoint_thread(migration_id: str) -> list[dict]:
                 & (Job.question != "")
             )
             .order_by(Job.id.desc())
-            .first()
         )
-        if waiting is not None and not any(
-            item["text"] == waiting.question for item in messages
+        if job_id:
+            current = Job.get_or_none(Job.job_id == job_id)
+            if current is None:
+
+                return []
+            rows = rows.where(CheckpointMessage.job == current)
+            waiting = waiting.where(Job.id == current.id)
+        messages = [{"author": row.author, "text": row.text} for row in rows]
+        parked = waiting.first()
+        if parked is not None and not any(
+            item["text"] == parked.question for item in messages
         ):
-            messages.append({"author": "agent", "text": waiting.question})
+            messages.append({"author": "agent", "text": parked.question})
 
         return messages
 
@@ -962,6 +975,7 @@ def live_run(migration_id: str) -> dict | None:
             return None
 
         return {
+            "job_id": job.job_id,
             "module_id": job.module_id,
             "module": job.module.technical_name,
             "status": job.status,

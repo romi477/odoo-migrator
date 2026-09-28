@@ -315,3 +315,50 @@ def test_the_module_event_carries_the_same_states(client, live_job):
 
     assert states[0] == {"id": "understand", "state": "done"}
     assert {node["state"] for node in states[1:]} == {"pending"}
+
+
+def test_the_pipeline_thread_is_this_module_and_this_run(client, live_job):
+    """It was every checkpoint in the migration. Starting a second module put
+    the first one's diagnosis under a run that had just begun."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import CheckpointMessage, Job, Module
+
+    with database.connection_context():
+        live = Job.select().where(Job.module == live_job["id"]).order_by(Job.id.desc()).first()
+        migration_id = live.module.migration_id
+        older = Module.create(
+            migration=migration_id, technical_name="mig_test_base", depends="[]"
+        )
+        done = Job.create(batch=live.batch, module=older, status="passed")
+        CheckpointMessage.create(job=done, author="agent", text="the spec was malformed")
+        CheckpointMessage.create(job=live, author="agent", text="which override do we drop?")
+
+    page = client.get("/run").text
+
+    assert "which override do we drop?" in page
+    assert "the spec was malformed" not in page
+
+
+def test_another_job_on_this_module_is_not_the_current_thread(client, live_job):
+    """Scoped to the job on screen, not to the module. A module carries every
+    conversation it ever had; the panel is showing one run."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import CheckpointMessage, Job
+
+    with database.connection_context():
+        live = (
+            Job.select()
+            .where(Job.module == live_job["id"])
+            .order_by(Job.id.desc())
+            .first()
+        )
+        CheckpointMessage.create(job=live, author="agent", text="the question this run asked")
+        # Newer by id and not in flight, so "the module's newest job" would
+        # have picked this one and shown a conversation nobody is having.
+        other = Job.create(batch=live.batch, module_id=live_job["id"], status="failed")
+        CheckpointMessage.create(job=other, author="agent", text="a diagnosis from another run")
+
+    page = client.get("/run").text
+
+    assert "the question this run asked" in page
+    assert "a diagnosis from another run" not in page

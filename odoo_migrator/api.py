@@ -861,7 +861,15 @@ def create_app(
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
         ribbon = _ribbon(current, live) if current and live else []
-        thread = checkpoint_thread(current["id"]) if current else []
+        # The module this panel is showing, not the migration: the thread
+        # used to carry every checkpoint ever written here, so a diagnosis of
+        # the module before this one appeared under a run that had just
+        # started.
+        thread = (
+            checkpoint_thread(current["id"], job_id=live["job_id"])
+            if current and live
+            else []
+        )
         settings = get_app_settings()
         versions = []
         pipeline_steps = []
