@@ -185,10 +185,17 @@
     });
     cyGraph = cy;
     cy.on("tap", "node[kind != 'lane']", function (event) {
-      cy.$("node").removeClass("is-selected");
-      event.target.addClass("is-selected");
-      inspect(event.target.data());
+      select(event.target);
     });
+    /* A ribbon block on Pipeline links here as `/flow#understand`. The ids
+       match because both come from the same place: `step.id or step.kind`.
+       Arriving at a drawing of eighteen boxes with no idea which one was
+       meant is the reason the link exists. */
+    fromHash();
+    if (!window.__flowHashBound) {
+      window.__flowHashBound = true;
+      window.addEventListener("hashchange", fromHash);
+    }
     var close = document.getElementById("flow-inspect-close");
     if (close && !close.dataset.bound) {
       close.dataset.bound = "yes";
@@ -211,6 +218,32 @@
         }
       });
     }
+  }
+
+  function select(node) {
+    if (!cyGraph) {
+      return;
+    }
+    cyGraph.$("node").removeClass("is-selected");
+    node.addClass("is-selected");
+    inspect(node.data());
+  }
+
+  function fromHash() {
+    var wanted = decodeURIComponent((window.location.hash || "").slice(1));
+    if (!wanted || !cyGraph) {
+      return;
+    }
+    var node = cyGraph.getElementById(wanted);
+    if (!node || node.empty() || node.data("kind") === "lane") {
+      return;
+    }
+    select(node);
+    /* `resize` runs on the next frame, after the inspector has taken its
+       width. Centring before that centres on the old viewport. */
+    requestAnimationFrame(function () {
+      cyGraph.center(node);
+    });
   }
 
   function listText(values) {

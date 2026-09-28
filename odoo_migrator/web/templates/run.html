@@ -202,10 +202,15 @@
         <ol class="ribbon" data-ribbon>
           {% for node in ribbon %}
           <li class="ribbon-node" data-step="{{ node.id }}" data-state="{{ node.state }}">
-            <span class="ribbon-box">
+            {# The block names a step of the pinned cartridge, and Flow is
+               where that step says what it does. Without the link the ribbon
+               answered "where are we" and nothing else, and the screen that
+               answers "what is this step" was two tabs away. #}
+            <a class="ribbon-box" href="/flow#{{ node.id }}"
+               title="Read what {{ node.id }} does, on Flow">
               <span class="ribbon-led" aria-hidden="true"></span>
               <span class="ribbon-name">{{ node.id }}</span>
-            </span>
+            </a>
           </li>
           {% endfor %}
         </ol>

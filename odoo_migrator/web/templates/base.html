@@ -89,9 +89,9 @@
           {% endif %}
           <a href="/tree"{% if active == 'tree' %} class="active"{% endif %} data-screen="tree" title="Module dependency tree for the open migration.">Tree</a>
           <span class="step-dot" aria-hidden="true"></span>
-          <a href="/run"{% if active == 'pipeline' %} class="active"{% endif %} data-screen="pipeline" title="Live job: module, stage, attempt, and the checkpoint.">Pipeline</a>
-          <span class="step-dot" aria-hidden="true"></span>
           <a href="/flow"{% if active == 'flow' %} class="active"{% endif %} data-screen="flow" title="The pinned cartridge, drawn.">Flow</a>
+          <span class="step-dot" aria-hidden="true"></span>
+          <a href="/run"{% if active == 'pipeline' %} class="active"{% endif %} data-screen="pipeline" title="Live job: module, stage, attempt, and the checkpoint.">Pipeline</a>
           <span class="step-dot" aria-hidden="true"></span>
           <a href="/sheller"{% if active == 'sheller' %} class="active"{% endif %} data-screen="sheller" title="Sheller observer. The frame does not hold a write key.">Sheller</a>
           {% if current %}

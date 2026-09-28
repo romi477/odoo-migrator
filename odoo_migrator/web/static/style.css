@@ -2765,6 +2765,16 @@ pre.test-output {
   border-radius: var(--chrome-radius-inner);
   background: var(--panel);
   color: var(--muted);
+  text-decoration: none;
+}
+
+/* The block is a link to its own step on Flow. It must not read as body
+   copy with an underline: the lamp and the border are the state, and an
+   underline on five of them in a row is noise. */
+a.ribbon-box:hover,
+a.ribbon-box:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .ribbon-led {

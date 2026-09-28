@@ -130,6 +130,24 @@ def test_the_pipeline_live_panel_is_a_ribbon_of_the_cartridge(client, live_job):
     assert page.count('class="ribbon-node') >= 7
 
 
+def test_every_ribbon_block_links_to_its_own_step_on_flow(client, live_job):
+    """The ribbon said where the run was and never what the step does. Flow
+    holds that, and the ids match because both are `step.id or step.kind`."""
+    from odoo_migrator.cartridges import pinned_for
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Migration
+
+    del live_job
+    page = client.get("/run").text
+    with database.connection_context():
+        migration = Migration.select().where(Migration.archived_at.is_null()).first()
+        names = [step.id or step.kind for step in pinned_for(migration).pipeline]
+
+    assert names
+    for name in names:
+        assert f'href="/flow#{name}"' in page
+
+
 def test_pipeline_shows_live_stage_and_attempt(client):
     row, sale = _prepared(client)
     client.app.state.executor = ProgressingExecutor(client.app)

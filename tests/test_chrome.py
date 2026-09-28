@@ -87,7 +87,10 @@ def test_steps_hook_follows_the_open_migration(client):
         r'data-screen="(tree|flow|sheller|pipeline|result)"',
         steps,
     )
-    assert order == ["tree", "pipeline", "flow", "sheller", "result"]
+    # Flow sits between Tree and Pipeline: it reads the pinned cartridge,
+    # which is configuration, and Pipeline and Sheller are the run. It used
+    # to split those two.
+    assert order == ["tree", "flow", "pipeline", "sheller", "result"]
     assert "step-hook-end" not in html
     assert "switcher-versions" in html
     anchor = re.search(r'<a[^>]*data-screen="tree"[^>]*>', html)
