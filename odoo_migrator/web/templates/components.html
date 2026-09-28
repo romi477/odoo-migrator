@@ -27,13 +27,21 @@
 
   <h2>Pipeline ribbon</h2>
   <ol class="ribbon" data-ribbon>
-    <li class="ribbon-node">understand</li>
-    <li class="ribbon-node">port</li>
-    <li class="ribbon-node is-active">lint</li>
-    <li class="ribbon-node">upgrade</li>
-    <li class="ribbon-node">tests</li>
-    <li class="ribbon-node">probe</li>
-    <li class="ribbon-node">write_test</li>
+    <li class="ribbon-node" data-step="understand" data-state="done">
+      <span class="ribbon-box"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></span>
+    </li>
+    <li class="ribbon-node" data-step="port" data-state="failed">
+      <span class="ribbon-box"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">port</span></span>
+    </li>
+    <li class="ribbon-node" data-step="lint" data-state="running">
+      <span class="ribbon-box"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">lint</span></span>
+    </li>
+    <li class="ribbon-node" data-step="upgrade" data-state="pending">
+      <span class="ribbon-box"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">upgrade</span></span>
+    </li>
+    <li class="ribbon-node" data-step="tests" data-state="pending">
+      <span class="ribbon-box"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">tests</span></span>
+    </li>
   </ol>
 
   <h2>Checkpoint thread</h2>

@@ -2715,24 +2715,98 @@ pre.test-output {
   color: #c4552a;
 }
 
+/* The pipeline, left to right, centred under the module's name. Each block
+   carries a lamp saying how that step went on this lap: the ribbon used to
+   mark only the current step, in a colour that read as a failure. */
 .ribbon {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
   list-style: none;
-  margin: 8px 0 0;
+  margin: 12px 0 0;
   padding: 0;
 }
 
 .ribbon-node {
-  padding: 2px 8px;
-  border: 1px solid var(--line, #d9cfc6);
-  border-radius: 999px;
+  display: flex;
+  align-items: center;
 }
 
-.ribbon-node.is-active {
-  color: #c4552a;
-  border-color: #c4552a;
+/* The arrow is the li's own, so it sits between the boxes and not inside
+   one. */
+.ribbon-node + .ribbon-node::before {
+  content: "→";
+  color: var(--muted-low);
+  padding: 0 6px;
+}
+
+.ribbon-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--chrome-radius-inner);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.ribbon-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-low);
+  flex: none;
+}
+
+.ribbon-node[data-state="done"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--green) 45%, var(--border));
+  color: var(--text);
+}
+
+.ribbon-node[data-state="done"] .ribbon-led {
+  background: var(--green);
+}
+
+.ribbon-node[data-state="failed"] .ribbon-box {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ribbon-node[data-state="failed"] .ribbon-led {
+  background: var(--red);
+}
+
+.ribbon-node[data-state="running"] .ribbon-box {
+  border-color: var(--cyan);
+  color: var(--text);
+}
+
+.ribbon-node[data-state="running"] .ribbon-led {
+  background: var(--cyan);
+  animation: ribbon-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes ribbon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--cyan) 60%, transparent);
+  }
+  50% {
+    opacity: 0.35;
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--cyan) 0%, transparent);
+  }
+}
+
+/* A blinking lamp is the one thing on this page that must not blink for
+   someone who asked the system to stop animating. */
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-node[data-state="running"] .ribbon-led {
+    animation: none;
+  }
 }
 
 .checkpoint-thread {

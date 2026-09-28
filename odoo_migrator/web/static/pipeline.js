@@ -1,18 +1,9 @@
 /* Pipeline queue: compact next row, expandable full list, SSE updates. */
 (function () {
-  function markRibbon() {
-    const stage = document.querySelector("[data-stage]");
-    const ribbon = document.querySelector("[data-ribbon]");
-    if (!stage || !ribbon) {
-      return;
-    }
-    const label = (stage.textContent || "").split("·")[0].trim();
-    ribbon.querySelectorAll(".ribbon-node").forEach(function (node) {
-      node.classList.toggle("is-active", node.textContent.trim() === label);
-    });
-  }
-
-  markRibbon();
+  /* The ribbon is painted by the server on load and by the `module` event
+     after that, both from the job's own step rows. This file used to mark
+     the node whose text matched the stage line, which said only where the
+     run was and never whether that step had failed. */
 
   const panel = document.querySelector("[data-pipeline-queue-panel]");
   if (!panel) {

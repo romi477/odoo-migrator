@@ -30,6 +30,7 @@ from odoo_migrator.models import (
     Job,
     Migration,
     Module,
+    StepRun,
 )
 from odoo_migrator.rules import RulesError, append_finding
 
@@ -96,6 +97,40 @@ def attention_target() -> dict | None:
         }
 
 
+def ribbon_states(job: Job) -> list[dict]:
+    """Every pipeline step of this job's cartridge, with how this lap went.
+
+    The ribbon used to mark the current step and nothing else, so a
+    highlighted `understand` said only "this is where the run is" — not
+    whether it had failed, and the highlight's colour read as an alarm.
+    The failure lane is not here: its steps are not the pipeline, and the
+    line above the ribbon already names the one running.
+
+    Caller holds the connection.
+    """
+    from odoo_migrator.cartridges import pinned_for
+
+    runs = {
+        (run.step_id or run.kind): run
+        for run in StepRun.select().where(
+            (StepRun.job == job) & (StepRun.attempt == job.attempt)
+        )
+    }
+    states = []
+    for step in pinned_for(job.module.migration).pipeline:
+        name = step.id or step.kind
+        run = runs.get(name)
+        if run is None:
+            state = "pending"
+        elif run.finished_at is None:
+            state = "running"
+        else:
+            state = "done" if run.ok else "failed"
+        states.append({"id": name, "state": state})
+
+    return states
+
+
 def _emit(hub: EventHub, job: Job, module: Module) -> None:
     hub.publish(
         "module",
@@ -109,6 +144,10 @@ def _emit(hub: EventHub, job: Job, module: Module) -> None:
             "has_assumptions": bool(module.has_assumptions),
             "technical_name": module.technical_name,
             "current_session_id": job.current_session_id or "",
+            # The ribbon paints itself from this. Rebuilding it from the
+            # stage alone meant guessing that every earlier step passed,
+            # which is the question the ribbon is there to answer.
+            "steps": ribbon_states(job),
         },
     )
     hub.publish("running", {"count": running_migration_count()})

@@ -1,5 +1,7 @@
 """Pipeline and Sheller are separate full-width screens. Task 13."""
 
+from datetime import UTC, datetime
+
 import pytest
 from test_batch import _prepared
 from test_checkpoint import DIFF, FINDING, _failed_checkpoint
@@ -256,3 +258,60 @@ def test_a_settings_url_that_is_not_http_never_becomes_a_frame_src(client):
     # current document and loads this page inside itself.
     assert 'src=""' not in sheller
     assert "Set the Sheller base URL in settings" in sheller
+
+
+def test_the_ribbon_says_how_each_step_went_not_only_where_the_run_is(client, live_job):
+    """A highlighted `understand` said "the run is here" and nothing else,
+    in a colour that read as a failure. Each block now carries the outcome
+    of that step on this lap, and the steps that have not run say so."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Job, StepRun
+
+    with database.connection_context():
+        job = Job.select().where(Job.module == live_job["id"]).order_by(Job.id.desc()).first()
+        StepRun.create(
+            job=job, attempt=job.attempt, step_id="understand", kind="agent",
+            ok=True, finished_at=datetime.now(UTC),
+        )
+        StepRun.create(job=job, attempt=job.attempt, step_id="port", kind="agent")
+
+    page = client.get("/run").text
+
+    assert 'data-step="understand" data-state="done"' in page
+    assert 'data-step="port" data-state="running"' in page
+    assert 'data-step="verdict" data-state="pending"' in page
+
+
+def test_a_failed_step_is_a_failed_block(client, live_job):
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Job, StepRun
+
+    with database.connection_context():
+        job = Job.select().where(Job.module == live_job["id"]).order_by(Job.id.desc()).first()
+        StepRun.create(
+            job=job, attempt=job.attempt, step_id="understand", kind="agent",
+            ok=False, finished_at=datetime.now(UTC),
+        )
+
+    page = client.get("/run").text
+
+    assert 'data-step="understand" data-state="failed"' in page
+
+
+def test_the_module_event_carries_the_same_states(client, live_job):
+    """The page paints itself from these. Rebuilt from the stage line alone
+    they would assume every earlier step passed."""
+    from odoo_migrator.db import database
+    from odoo_migrator.jobs import ribbon_states
+    from odoo_migrator.models import Job, StepRun
+
+    with database.connection_context():
+        job = Job.select().where(Job.module == live_job["id"]).order_by(Job.id.desc()).first()
+        StepRun.create(
+            job=job, attempt=job.attempt, step_id="understand", kind="agent",
+            ok=True, finished_at=datetime.now(UTC),
+        )
+        states = ribbon_states(job)
+
+    assert states[0] == {"id": "understand", "state": "done"}
+    assert {node["state"] for node in states[1:]} == {"pending"}

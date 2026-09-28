@@ -75,6 +75,22 @@ function fillResultCornerGlyph(glyph, kind) {
           const attempt = data.attempt ? " · attempt " + data.attempt : "";
           pipeStage.textContent = (data.stage || "") + attempt;
         }
+        /* The states come from the job's own step rows. Deriving them from
+           the stage would mean assuming every earlier step passed, which is
+           the question the ribbon exists to answer. */
+        if (data.steps && data.steps.length) {
+          const ribbon = pipe.querySelector("[data-ribbon]");
+          if (ribbon) {
+            data.steps.forEach(function (step) {
+              const node = ribbon.querySelector(
+                '[data-step="' + step.id + '"]'
+              );
+              if (node) {
+                node.setAttribute("data-state", step.state);
+              }
+            });
+          }
+        }
       }
     }
     if (onThisMigration) {

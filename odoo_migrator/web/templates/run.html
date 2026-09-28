@@ -192,8 +192,13 @@
         <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
         {% if ribbon %}
         <ol class="ribbon" data-ribbon>
-          {% for step_id in ribbon %}
-          <li class="ribbon-node{% if step_id == live.stage %} is-active{% endif %}">{{ step_id }}</li>
+          {% for node in ribbon %}
+          <li class="ribbon-node" data-step="{{ node.id }}" data-state="{{ node.state }}">
+            <span class="ribbon-box">
+              <span class="ribbon-led" aria-hidden="true"></span>
+              <span class="ribbon-name">{{ node.id }}</span>
+            </span>
+          </li>
           {% endfor %}
         </ol>
         {% endif %}

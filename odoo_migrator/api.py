@@ -797,24 +797,40 @@ def create_app(
 
         return base + suffix
 
-    def _ribbon(current: dict) -> list[str]:
+    def _ribbon(current: dict, live: dict | None) -> list[dict]:
+        """The pipeline, each step with how this lap went. Same shape as SSE."""
         from odoo_migrator.cartridges import pinned_for
-        from odoo_migrator.models import Migration
+        from odoo_migrator.jobs import IN_FLIGHT, ribbon_states
+        from odoo_migrator.models import Job, Migration
 
         with database.connection_context():
             migration = Migration.get_or_none(Migration.id == current["id"])
-        if migration is None:
+            if migration is None:
 
-            return []
-        cartridge = pinned_for(migration)
+                return []
+            job = None
+            if live:
+                job = (
+                    Job.select()
+                    .where(
+                        (Job.module == live["module_id"])
+                        & (Job.status.in_(IN_FLIGHT))
+                    )
+                    .order_by(Job.id.desc())
+                    .first()
+                )
+            if job is not None:
 
-        return [step.id or step.kind for step in cartridge.pipeline]
+                return ribbon_states(job)
+            pipeline = pinned_for(migration).pipeline
+
+        return [{"id": step.id or step.kind, "state": "pending"} for step in pipeline]
 
     def _run_page(request: Request, error: str | None = None, screen: str = "pipeline"):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
-        ribbon = _ribbon(current) if current and live else []
+        ribbon = _ribbon(current, live) if current and live else []
         thread = checkpoint_thread(current["id"]) if current else []
         settings = get_app_settings()
         versions = []
