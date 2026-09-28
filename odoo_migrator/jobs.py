@@ -422,10 +422,8 @@ def start_batch(
 ) -> Batch:
     if step is not None:
         listed = modules_in_step_order(migration_id, step)
-        record_group = step
     elif batch_group is not None:
         listed = modules_in_batch_order(migration_id, batch_group)
-        record_group = batch_group
     else:
         raise ContractError("No batch or step selected.")
     if not listed:
@@ -469,7 +467,11 @@ def start_batch(
         batch = Batch.create(
             migration=migration,
             status="running",
-            batch_group=record_group,
+            # Each in its own column. A step recorded in `batch_group` was
+            # read back as a group, so a step batch advanced through the
+            # group with the same number.
+            batch_group=batch_group,
+            step=step,
             cartridge_id=migration.cartridge_id or "stock",
             cartridge_version=migration.cartridge_version or "1.0.0",
             model_webhook_url=(
@@ -544,6 +546,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
             return
         batch_id = batch.id
         group = batch.batch_group
+        wave = batch.step
         migration_id = str(batch.migration_id)
         stopped = job.status == "failed"
         waiting = job.status == "waiting_for_human"
@@ -559,18 +562,20 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         record_smoke(migration_id, smoke_result)
 
         return
-    if stopped or group is None:
+    if stopped or (group is None and wave is None):
         # A stop is the batch's answer, and a batch of one has nothing next.
         close_batch(batch_id, hub)
         _pipeline_after_batch(migration_id, batch_id, executor, hub)
 
         return
+    # The same selection the batch started from, re-read so it survives a
+    # restart mid-batch.
+    if wave is not None:
+        selected = modules_in_step_order(migration_id, wave)
+    else:
+        selected = modules_in_batch_order(migration_id, group)
     remaining = _still_to_run(
-        [
-            module
-            for module in modules_in_batch_order(migration_id, group)
-            if module["id"] not in done
-        ]
+        [module for module in selected if module["id"] not in done]
     )
     if not remaining:
         close_batch(batch_id, hub)

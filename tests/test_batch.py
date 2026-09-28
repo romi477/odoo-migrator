@@ -352,3 +352,30 @@ def test_a_batch_with_nothing_left_to_do_says_so_rather_than_redoing_it(client):
     assert again.started == []
     # The refusal, not the queue snapshot that also carries the word.
     assert "Every module here has already passed" in page.text
+
+
+def test_a_step_batch_runs_its_wave_and_not_the_group_with_the_same_number(client):
+    """`Batch` recorded a step in `batch_group`, and the runner read that
+    column back as a group. Nothing showed because Resolve sets every
+    module's group to its own wave — until a human regroups one on Tree,
+    which is what that control is for. Here `stock_custom` is moved into
+    group 1 while staying on wave 2: a batch on step 1 used to pick it up
+    and migrate it before its parent's wave was finished."""
+    row, sale = _prepared(client)
+    stock = _named(row.id, "stock_custom")
+    helper = _named(row.id, "web_enterprise_helper")
+    _group(client, stock, group=1)
+    runner = OutcomeExecutor({}, client.app)
+    client.app.state.executor = runner
+
+    client.post("/tree/batch/run", data={"step": "1"}, follow_redirects=True)
+
+    assert sorted(runner.started) == sorted(
+        [sale["technical_name"], helper["technical_name"]]
+    )
+    with database.connection_context():
+        assert Module.get_by_id(stock["id"]).status == "queued"
+        batch = Batch.select().where(Batch.migration == row.id).get()
+
+    assert batch.step == 1
+    assert batch.batch_group is None

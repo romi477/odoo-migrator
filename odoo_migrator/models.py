@@ -135,6 +135,13 @@ class Batch(BaseModel):
     # one started with Migrate. The runner re-reads the order from here
     # after every callback, so it survives a restart mid-batch.
     batch_group = IntegerField(null=True)
+    # Which dependency wave this batch is running, for a batch started from
+    # the Pipeline queue. A step used to be recorded in `batch_group` above,
+    # and the runner read that column back as a group: a step batch walked
+    # the group with the same number. Nothing showed because Resolve sets
+    # every module's `batch_group` to its own wave — until someone regroups
+    # a module by hand on Tree, which is what that control is for.
+    step = IntegerField(null=True)
     model_webhook_url = TextField(default="")
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)
