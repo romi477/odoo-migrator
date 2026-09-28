@@ -28,7 +28,7 @@
         data.status +
           " · attempt " +
           data.attempt +
-          (data.finished_at ? " · " + data.finished_at : "") +
+          (data.finished_at ? " · " + window.localStamp(data.finished_at) : "") +
           " · job " +
           data.short,
         "result-summary-line mono"
@@ -81,7 +81,11 @@
       const wrap = document.createElement("article");
       wrap.className = "result-summary-message " + message.author;
       wrap.appendChild(
-        line(message.author + (message.at ? " · " + message.at : ""), "mono")
+        line(
+          message.author +
+            (message.at ? " · " + window.localStamp(message.at) : ""),
+          "mono"
+        )
       );
       const text = document.createElement("pre");
       text.textContent = message.text;

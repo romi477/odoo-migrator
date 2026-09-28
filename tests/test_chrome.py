@@ -198,3 +198,13 @@ def test_templates_are_not_served_as_static_files(client, name):
     """A mount over the whole of web/ handed out Jinja source at /static/*.html."""
 
     assert client.get(f"/static/{name}").status_code == 404
+
+
+def test_the_timestamp_formatter_loads_ahead_of_every_screen_script(client):
+    """Only the browser knows the reader's zone, so the server sends the
+    instant and this formats it. Deferred scripts run in document order: a
+    screen script that loaded first would call a helper that is not there."""
+    html = client.get("/result").text
+    stamp = html.index("/static/stamp.js")
+
+    assert stamp < html.index("/static/result.js")

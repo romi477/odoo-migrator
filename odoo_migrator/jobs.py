@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import uuid
+from datetime import UTC
 
 from peewee import fn
 
@@ -1028,12 +1029,25 @@ def _testing(runs: list) -> list[dict]:
 
 
 def _stamp(value) -> str:
-    """Minutes, not microseconds: this is read, not sorted."""
+    """The instant, in ISO-8601 with its offset. The browser makes it local.
+
+    This used to truncate to minutes here, which threw the offset away and
+    left every date on Result reading as if it were the reader's own clock
+    when it was UTC. Only the browser knows the reader's zone, so the
+    formatting moved there and what crosses is the unambiguous instant.
+
+    A naive value is read as UTC, because that is what `models._now` writes.
+    """
     if not value:
 
         return ""
+    if isinstance(value, str):
 
-    return str(value)[:16].replace("T", " ")
+        return value
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+
+    return value.isoformat()
 
 
 def live_run(migration_id: str) -> dict | None:

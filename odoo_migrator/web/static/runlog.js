@@ -58,9 +58,11 @@
     item.className = "run-log-line " + (line.level || "info");
     var when = document.createElement("span");
     when.className = "run-log-at mono";
-    /* The stored timestamp is UTC. Only the clock matters when reading a
-       run back, so this shows time of day and not a date. */
-    when.textContent = String(line.at).slice(11, 19);
+    /* The stored timestamp is UTC and arrives with its offset. Only the
+       clock matters when reading a run back, so this shows time of day and
+       not a date — in the reader's zone, which slicing the string did not
+       do: it showed UTC while the header said "last run". */
+    when.textContent = window.localClock(line.at);
     var who = document.createElement("span");
     who.className = "run-log-source mono";
     who.textContent = line.source || "";

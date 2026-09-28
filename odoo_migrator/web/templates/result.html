@@ -107,7 +107,10 @@
               <p class="result-subtitle mono">{{ module.subtitle }}</p>
               {% if module.has_summary %}
               <p class="result-when mono">
-                {% if module.finished_at %}{{ module.finished_at }}{% else %}not timed{% endif %}
+                {# The instant travels whole; `stamp.js` rewrites it in the
+                   reader's zone. Truncated on the server it lost the offset
+                   and read as local time while it was UTC. #}
+                {% if module.finished_at %}<time data-stamp datetime="{{ module.finished_at }}">{{ module.finished_at }}</time>{% else %}not timed{% endif %}
                 · <button type="button" class="result-summary-open"
                           data-result-summary="{{ module.id }}"
                           data-result-summary-name="{{ module.technical_name }}">summary</button>

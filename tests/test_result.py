@@ -216,7 +216,9 @@ def test_a_card_says_when_its_run_ended(client):
 
     page = client.get("/result").text
 
-    assert "2026-09-28 08:17" in page
+    # The instant, whole, with its offset: `stamp.js` renders it in the
+    # reader's zone. Truncated here it read as local time while it was UTC.
+    assert 'datetime="2026-09-28T08:17:00+00:00"' in page
     assert "result-summary-open" in page
 
 
@@ -239,7 +241,7 @@ def test_a_card_opens_what_that_run_said(client):
     assert "The spec was malformed." not in page
     assert summary["status"] == "failed"
     assert summary["attempt"] == 2
-    assert summary["finished_at"] == "2026-09-28 08:17"
+    assert summary["finished_at"] == "2026-09-28T08:17:00+00:00"
     assert [step["id"] for step in summary["steps"]] == ["port", "tests"]
     assert summary["steps"][1]["ok"] is False
     assert [m["author"] for m in summary["messages"]] == ["agent", "human"]

@@ -94,7 +94,10 @@ def lines(job_id: str, *, after: int = 0, limit: int = 1000) -> list[dict]:
         return [
             {
                 "id": row.id,
-                "at": str(row.at),
+                # ISO-8601, not `str()`: the space-separated form is not a
+                # format `Date` is required to parse, and the page renders
+                # these in the reader's own zone.
+                "at": row.at.isoformat(),
                 "level": row.level,
                 "source": row.source,
                 "text": row.text,

@@ -286,3 +286,17 @@ def test_the_job_id_is_shown_and_copyable(client, app, tmp_path, fake_sheller):
     assert f'data-run-log-id="{done.job_id}"' in page
     # Short in the button, whole in the title and on the clipboard.
     assert done.job_id[:8] in page
+
+
+def test_a_line_carries_the_instant_the_browser_can_place(app, job):
+    """`str(datetime)` puts a space where ISO-8601 puts a `T`, which `Date`
+    is not required to parse; and the page shows these in the reader's own
+    zone, so the offset has to survive the trip."""
+    seen = []
+    app.state.hub.publish = lambda event, data: seen.append((event, data))
+
+    runlog.write(job.job_id, source="port", text="started", hub=app.state.hub)
+    stored = runlog.lines(job.job_id)[0]["at"]
+
+    assert "T" in stored and stored.endswith("+00:00")
+    assert seen[0][1]["at"] == stored
