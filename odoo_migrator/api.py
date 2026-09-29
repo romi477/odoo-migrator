@@ -8,7 +8,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import (
@@ -48,6 +48,7 @@ from odoo_migrator.jobs import (
     checkpoint_thread,
     continue_batch,
     dismiss_job,
+    keep_reviewed,
     lamp_state,
     latest_checkpoint,
     live_run,
@@ -787,15 +788,14 @@ def create_app(
 
         return JSONResponse(outcome)
 
-    @app.post("/result/reopen")
-    def result_reopen(request: Request):
-        current = get_active(request.cookies.get(OPEN_COOKIE))
-        if current is None:
+    @app.post("/migrations/{migration_id}/reopen")
+    def migration_reopen(request: Request, migration_id: str):
+        if get_active(migration_id) is None:
 
-            return RedirectResponse("/result", status_code=303)
-        reopen_finished(current["id"], request.app.state.hub)
+            return _overview(request, error="No such migration.")
+        reopen_finished(migration_id, request.app.state.hub)
 
-        return RedirectResponse("/result", status_code=303)
+        return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 
     @app.post("/result/modules/{module_id}/reopen")
     def result_reopen_one(request: Request, module_id: int):
@@ -805,6 +805,21 @@ def create_app(
             return RedirectResponse("/result", status_code=303)
         try:
             reopen_module(module_id, current["id"], request.app.state.hub)
+        except ContractError as refused:
+
+            return _result_page(request, error=str(refused))
+
+        return RedirectResponse("/result", status_code=303)
+
+    @app.post("/result/modules/{module_id}/keep")
+    def result_keep_one(request: Request, module_id: int):
+        """Drop the review note: someone looked, and the module stands."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/result", status_code=303)
+        try:
+            keep_reviewed(module_id, current["id"], request.app.state.hub)
         except ContractError as refused:
 
             return _result_page(request, error=str(refused))
@@ -1122,15 +1137,46 @@ def create_app(
 
         return RedirectResponse("/run", status_code=303)
 
+    # The screens Save and Close may return to. A path from this list and
+    # nothing else, whatever the request carried: the value comes from a
+    # header and a form field, and a redirect to either is an open redirect.
+    _RETURN_SCREENS = frozenset(
+        {"/", "/tree", "/flow", "/run", "/sheller", "/result", "/styleguide"}
+    )
+
+    def _return_screen(request: Request, value: str | None) -> str | None:
+        """`value` as one of this app's screens, or None. Query and fragment
+        are dropped: coming back to Overview with `?settings=` would reopen a
+        migration's settings panel."""
+        if not value:
+
+            return None
+        parsed = urlparse(value)
+        if parsed.netloc and parsed.netloc != request.url.netloc:
+
+            return None
+        if parsed.scheme not in ("", "http", "https"):
+
+            return None
+
+        return parsed.path if parsed.path in _RETURN_SCREENS else None
+
     @app.get("/settings")
     def settings(request: Request):
         stored = get_app_settings()
+        # Where the person was: told by the page that sent them, else by the
+        # browser, else Overview.
+        back = (
+            _return_screen(request, request.query_params.get("back"))
+            or _return_screen(request, request.headers.get("referer"))
+            or "/"
+        )
 
         return _page(
             request,
             "settings.html",
             "settings",
-            {"settings": stored},
+            {"settings": stored, "back": back},
         )
 
     @app.post("/settings")
@@ -1149,7 +1195,12 @@ def create_app(
             cleared={str(cleared)} if cleared else set(),
         )
 
-        return RedirectResponse("/settings", status_code=303)
+        back = _return_screen(request, str(form.get("back") or "")) or "/"
+        if cleared:
+            # Removing a key is not leaving the page.
+            return RedirectResponse(f"/settings?back={quote(back, safe='')}", status_code=303)
+
+        return RedirectResponse(back, status_code=303)
 
     def _known_project_paths() -> list[str]:
         """Every active migration's two project directories.

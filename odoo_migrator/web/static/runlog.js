@@ -152,43 +152,9 @@
   }
 
   /* Copying is why the log exists: a failed run gets pasted into a chat or
-     an issue. `navigator.clipboard` is the good path, and it is refused
-     often enough — a permissions policy, an embedded view, a browser that
-     wants a stronger user gesture — that a button relying on it alone is a
-     button that sometimes silently does nothing. The textarea fallback
-     needs no permission. */
+     an issue. The clipboard work is in copy.js, which Result shares. */
   function copy(text, button) {
-    function done(ok) {
-      button.classList.add(ok ? "is-copied" : "is-failed");
-      setTimeout(function () {
-        button.classList.remove("is-copied");
-        button.classList.remove("is-failed");
-      }, 1200);
-    }
-    function viaTextarea() {
-      var pad = document.createElement("textarea");
-      pad.value = text;
-      pad.setAttribute("readonly", "");
-      pad.style.position = "fixed";
-      pad.style.opacity = "0";
-      document.body.appendChild(pad);
-      pad.select();
-      var ok = false;
-      try {
-        ok = document.execCommand("copy");
-      } catch (err) {
-        ok = false;
-      }
-      document.body.removeChild(pad);
-      done(ok);
-    }
-    if (!navigator.clipboard) {
-      viaTextarea();
-      return;
-    }
-    navigator.clipboard.writeText(text).then(function () {
-      done(true);
-    }, viaTextarea);
+    window.copyText(text, button);
   }
 
   function asText() {
@@ -309,6 +275,10 @@
         empty.hidden = true;
       }
       append(data);
+      /* A line that arrived is a job at work. The panel is folded by default
+         when nothing runs, and opens itself for this — unless the reader has
+         already chosen. */
+      panel.dispatchEvent(new CustomEvent("run-log-live"));
     });
   }
 })();

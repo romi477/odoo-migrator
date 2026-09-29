@@ -12,6 +12,7 @@
   const title = panel.querySelector("[data-result-summary-title]");
   const body = panel.querySelector("[data-result-summary-body]");
   const close = panel.querySelector("[data-result-summary-close]");
+  const copyButton = panel.querySelector("[data-result-summary-copy]");
 
   function line(text, className) {
     const node = document.createElement("p");
@@ -19,6 +20,10 @@
     node.textContent = text;
 
     return node;
+  }
+
+  function count(value) {
+    return Number(value).toLocaleString("en-US");
   }
 
   function render(data) {
@@ -34,6 +39,23 @@
         "result-summary-line mono"
       )
     );
+    /* What the model cost, summed over the job. Cache reads are most of a
+       long step's input and are billed differently, so they are named
+       apart from "in". A module that never called the model has none. */
+    const spent = data.tokens;
+    if (spent && (spent.in || spent.out)) {
+      body.appendChild(
+        line(
+          "tokens · " +
+            count(spent.in) +
+            " in · " +
+            count(spent.out) +
+            " out" +
+            (spent.cached ? " · " + count(spent.cached) + " cached" : ""),
+          "result-summary-line mono"
+        )
+      );
+    }
     if (data.steps && data.steps.length) {
       const steps = document.createElement("ol");
       steps.className = "result-summary-steps";
@@ -44,6 +66,9 @@
           step.attempt +
           " · " +
           step.id +
+          (step.tokens
+            ? " · " + count(step.tokens.in) + "+" + count(step.tokens.out) + " tokens"
+            : "") +
           (step.output ? " — " + step.output : "");
         steps.appendChild(item);
       });
@@ -96,7 +121,7 @@
           (row.steps.length ? " — " + row.steps.join(", ") : "") +
           " · " +
           row.calls +
-          (row.calls === 1 ? " call" : " calls");
+          (row.calls === 1 ? " command" : " commands");
         rows.appendChild(item);
       });
       shells.appendChild(rows);
@@ -129,6 +154,42 @@
     }
   }
 
+  /* The whole window as text, for pasting into a chat or an issue. Read off
+     the rendered blocks in the order they sit, so it says what the panel
+     says: the title, then each heading, line, list item and message. */
+  function asText() {
+    const rows = [title.textContent];
+    body.querySelectorAll("h3, p, li, pre").forEach(function (node) {
+      const text = node.textContent.trim();
+      if (!text) {
+        return;
+      }
+      if (node.tagName === "H3") {
+        rows.push("", text);
+      } else if (node.tagName === "LI") {
+        rows.push("- " + text);
+      } else {
+        rows.push(text);
+      }
+    });
+
+    return rows.join("\n");
+  }
+
+  /* The panel opens under the whole board, and the card that was pressed
+     may be a screen above it. Bring it to the top of the view, smoothly
+     unless the reader asked for less movement. It is done twice — on open,
+     and again once the summary is drawn: at first the panel is one line
+     tall, and the page has no room to scroll it to the top until it grows. */
+  function reveal() {
+    panel.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }
+
   document.addEventListener("click", function (event) {
     const button = event.target.closest("[data-result-summary]");
     if (!button) {
@@ -137,6 +198,7 @@
     const id = button.getAttribute("data-result-summary");
     title.textContent = button.getAttribute("data-result-summary-name") || "";
     panel.hidden = false;
+    reveal();
     body.textContent = "loading…";
     fetch("/api/result/modules/" + id + "/summary")
       .then(function (response) {
@@ -148,8 +210,15 @@
         } else {
           body.textContent = "not available";
         }
+        reveal();
       });
   });
+
+  if (copyButton) {
+    copyButton.addEventListener("click", function () {
+      window.copyText(asText(), copyButton);
+    });
+  }
 
   if (close) {
     close.addEventListener("click", function () {

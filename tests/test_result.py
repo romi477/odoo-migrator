@@ -115,7 +115,7 @@ def test_reopen_puts_a_finished_module_back_to_queued(client):
 
     page = client.get("/result").text
 
-    assert "Reopen finished" in page
+    assert "Reopen finished" not in page
     assert 'aria-label="Reopen sale_custom"' in page
 
     done = client.post(f"/result/modules/{module_id}/reopen", follow_redirects=True)
@@ -142,10 +142,9 @@ def test_reopen_finished_clears_every_recorded_outcome(client):
         )
         kept_id = kept.id
 
-    page = client.post("/result/reopen", follow_redirects=True)
+    page = client.post(f"/migrations/{migration_id}/reopen", follow_redirects=True)
 
     assert page.status_code == 200
-    assert "Reopen finished" not in page.text
     with database.connection_context():
         by_name = {row.technical_name: row.status for row in Module.select()}
         assert by_name["sale_custom"] == "queued"
@@ -249,6 +248,31 @@ def test_a_card_opens_what_that_run_said(client):
     assert summary["messages"][0]["at"]
 
 
+def test_a_summary_says_what_the_model_spent(client):
+    """The run log prints tokens per step as it goes and nothing added them
+    up, so what a module cost was a sum done by hand over a log."""
+    from odoo_migrator.models import Job, StepRun
+
+    migration_id = _open(client)
+    module = _ran(migration_id, "sale_custom")
+    with database.connection_context():
+        job = Job.get(Job.module == module.id)
+        for step, tin, tout, cached in (("understand", 1000, 200, 5000), ("port", 300, 50, 0)):
+            StepRun.create(
+                job=job, attempt=1, step_id=step, kind="agent", ok=True,
+                tokens_in=tin, tokens_out=tout, tokens_cached=cached,
+            )
+
+    summary = client.get(f"/api/result/modules/{module.id}/summary").json()
+
+    assert summary["tokens"] == {"in": 1300, "out": 250, "cached": 5000}
+    by_step = {step["id"]: step for step in summary["steps"]}
+    assert by_step["understand"]["tokens"] == {"in": 1000, "out": 200}
+    # A step that does not call the model spent nothing, and says so as None
+    # so the panel prints nothing rather than "0+0".
+    assert by_step["tests"]["tokens"] is None
+
+
 def test_a_module_that_never_ran_has_no_summary_to_open(client):
     migration_id = _open(client)
     with database.connection_context():
@@ -324,13 +348,32 @@ def test_the_summary_names_the_sheller_sessions_the_run_worked_in(client):
     with database.connection_context():
         port = StepRun.get(StepRun.step_id == "port")
         tests = StepRun.get(StepRun.step_id == "tests")
-        ToolCall.create(step_run=port, tool="exec", side="old", session_id="old1", ok=True)
-        ToolCall.create(step_run=port, tool="exec", side="new", session_id="new1", ok=True)
-        # No session: these are the host's, or a route, not a command.
+        ToolCall.create(
+            step_run=port, tool="exec", side="old", session_id="old1", command_id="1", ok=True
+        )
+        ToolCall.create(
+            step_run=port, tool="exec", side="new", session_id="new1", command_id="1", ok=True
+        )
+        # No session: these are the host's, not the daemon's.
         ToolCall.create(step_run=port, tool="write_file", side="new", ok=True)
+        # Once stamped with one. A run that read eight files and wrote five
+        # showed thirteen "calls" the daemon never heard of; its journal had
+        # five commands and the summary said eighteen.
+        for tool in ("read_file", "read_file", "write_file"):
+            ToolCall.create(step_run=port, tool=tool, side="new", session_id="new1", ok=True)
+        # A route, and a call the daemon refused: neither became a command.
+        ToolCall.create(step_run=port, tool="list_tests", side="new", session_id="new1", ok=True)
+        ToolCall.create(step_run=port, tool="exec", side="new", session_id="new1", ok=False)
         # The same side again, reopened after the rewrite.
-        ToolCall.create(step_run=tests, tool="exec", side="new", session_id="new2", ok=True)
-        ToolCall.create(step_run=tests, tool="run_test", side="new", session_id="new2", ok=True)
+        ToolCall.create(
+            step_run=tests, tool="exec", side="new", session_id="new2", command_id="1", ok=True
+        )
+        ToolCall.create(
+            step_run=tests, tool="run_test", side="new", session_id="new2", command_id="2", ok=True
+        )
+        ToolCall.create(
+            step_run=tests, tool="read_file", side="new", session_id="new2", ok=True
+        )
 
     sessions = client.get(f"/api/result/modules/{module.id}/summary").json()["sessions"]
 
@@ -339,6 +382,7 @@ def test_the_summary_names_the_sheller_sessions_the_run_worked_in(client):
         ("new", "new1"),
         ("new", "new2"),
     ]
+    assert sessions[1]["calls"] == 1
     assert sessions[2]["calls"] == 2
     assert sessions[2]["steps"] == ["tests"]
 
@@ -370,3 +414,112 @@ def test_a_test_run_is_recorded_by_its_verdict_not_its_json():
     none = {"error": None, "test": {"success": True, "tests_run": 0}}
     assert _preview("run_test", none, "{}").startswith("failed: 0 test(s)")
     assert _preview("list_tests", {"classes": []}, "{}") == "no tests on disk"
+
+
+def _chain(migration_id):
+    """base <- sale <- shop <- extra, and `side`, which depends on nothing.
+
+    Returns the ids by name."""
+    import json
+
+    ids = {}
+    with database.connection_context():
+        for name, depends, status in (
+            ("base", [], "passed"),
+            ("sale", ["base"], "passed"),
+            ("shop", ["sale"], "passed"),
+            ("extra", ["shop"], "failed"),
+            ("side", [], "passed"),
+        ):
+            ids[name] = Module.create(
+                migration=migration_id,
+                technical_name=name,
+                status=status,
+                depends=json.dumps(depends),
+            ).id
+
+    return ids
+
+
+def _flagged():
+    with database.connection_context():
+        return {
+            row.technical_name
+            for row in Module.select().where(Module.needs_review == True)
+        }
+
+
+def test_reopening_a_module_marks_what_depends_on_it_for_review(client):
+    """The children passed against the old parent. Green on the board says
+    they are checked, and after the parent changes that is no longer true."""
+    migration_id = _open(client)
+    ids = _chain(migration_id)
+
+    client.post(f"/result/modules/{ids['base']}/reopen", follow_redirects=True)
+
+    # Transitive: shop depends on base only through sale.
+    assert _flagged() == {"sale", "shop"}
+    with database.connection_context():
+        # Still passed. The flag is a note, not a state, so the queue and the
+        # counts are untouched.
+        assert Module.get_by_id(ids["sale"]).status == "passed"
+        assert Module.get_by_id(ids["base"]).status == "queued"
+        # A failed module has nothing to be told; an unrelated one, nothing to fear.
+        assert Module.get_by_id(ids["extra"]).needs_review is False
+        assert Module.get_by_id(ids["side"]).needs_review is False
+
+
+def test_an_excluded_dependent_is_not_marked(client):
+    migration_id = _open(client)
+    ids = _chain(migration_id)
+    with database.connection_context():
+        Module.update(struck_out=True).where(Module.id == ids["sale"]).execute()
+
+    client.post(f"/result/modules/{ids['base']}/reopen", follow_redirects=True)
+
+    assert "sale" not in _flagged()
+
+
+def test_reopening_the_marked_module_itself_clears_its_flag(client):
+    """It is going to run again, which is the review."""
+    migration_id = _open(client)
+    ids = _chain(migration_id)
+    client.post(f"/result/modules/{ids['base']}/reopen", follow_redirects=True)
+
+    client.post(f"/result/modules/{ids['sale']}/reopen", follow_redirects=True)
+
+    with database.connection_context():
+        assert Module.get_by_id(ids["sale"]).needs_review is False
+    # ...and it, in turn, tells its own dependents.
+    assert _flagged() == {"shop"}
+
+
+def test_a_person_can_keep_a_marked_module_as_it_is(client):
+    migration_id = _open(client)
+    ids = _chain(migration_id)
+    client.post(f"/result/modules/{ids['base']}/reopen", follow_redirects=True)
+
+    page = client.get("/result").text
+    assert "data-result-review" in page
+
+    client.post(f"/result/modules/{ids['sale']}/keep", follow_redirects=True)
+
+    assert _flagged() == {"shop"}
+    with database.connection_context():
+        assert Module.get_by_id(ids["sale"]).status == "passed"
+
+
+def test_the_reopen_dialog_says_how_many_modules_it_will_mark(client):
+    migration_id = _open(client)
+    ids = _chain(migration_id)
+
+    page = client.get("/result").text
+
+    # base has two passed dependents (sale, shop); the failed one is not counted.
+    assert "2 modules that depend on it will be marked for review." in page
+    # A module nothing depends on says nothing about it.
+    # base: sale and shop. sale: shop, and the singular says so. shop's only
+    # dependent failed, so it is told nothing.
+    assert "1 module that depends on it will be marked for review." in page
+    assert page.count("will be marked for review.") == 2
+    assert f'action="/result/modules/{ids["side"]}/reopen"' in page

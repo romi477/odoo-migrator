@@ -96,8 +96,8 @@ def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
             "provider_cursor_api_key": "cursor-secret",
             "provider_anthropic_api_key": "anthropic-secret",
         },
-        follow_redirects=True,
     )
+    saved = client.get("/settings")
 
     assert f'value="{SECRET_MASK}"' in saved.text
     assert saved.text.count(f'value="{SECRET_MASK}"') == 2
@@ -114,7 +114,6 @@ def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
             "provider_cursor_api_key": SECRET_MASK,
             "provider_anthropic_api_key": SECRET_MASK,
         },
-        follow_redirects=True,
     )
 
     assert provider_setting("cursor", "api_key") == "cursor-secret"
@@ -148,8 +147,8 @@ def test_sheller_base_url_saves_and_stays_off_other_pages(client):
             "sheller_base_url": "http://127.0.0.1:8765",
             "sheller_image_tag": "1.7.0",
         },
-        follow_redirects=True,
     )
+    saved = client.get("/settings")
 
     assert saved.status_code == 200
     assert 'value="http://127.0.0.1:8765"' in saved.text
@@ -346,8 +345,86 @@ def test_sse_window_is_bounded_in_production_defaults():
     assert api.SSE_MAX_SECONDS <= 600
 
 
+def test_the_lamp_pulses_green_while_something_runs_and_amber_wins(client):
+    """It sat grey beside "1 run": nothing said the work was going on."""
+    from test_tree import _open
+
+    from odoo_migrator.models import Module
+
+    row = _open(client, "Busy")
+    with database.connection_context():
+        Module.create(migration=row.id, technical_name="sale_custom", status="running")
+
+    running = client.get("/").text
+
+    assert 'class="attention-lamp running"' in running
+    assert "A migration is running." in running
+
+    with database.connection_context():
+        Module.create(migration=row.id, technical_name="stock_custom", status="failed")
+
+    assert 'class="attention-lamp needs-attention"' in client.get("/").text
+
+
 def test_styleguide_shows_attention_lamp(client):
     html = client.get("/components").text
 
     assert "attention-lamp" in html
     assert "Attention" in html
+
+
+def _save(client, **extra):
+    return client.post(
+        "/settings",
+        data={
+            "sheller_base_url": "http://127.0.0.1:8765",
+            "sheller_image_tag": "latest",
+            **extra,
+        },
+        follow_redirects=False,
+    )
+
+
+def test_settings_remember_the_screen_they_were_opened_from(client):
+    """Save and Close goes back where the person was, not to a fixed page."""
+    page = client.get("/settings", headers={"referer": "http://testserver/result"}).text
+
+    assert 'name="back" value="/result"' in page
+    assert "Save and Close" in page
+
+
+def test_settings_fall_back_to_overview_when_nothing_says_where_from(client):
+    plain = client.get("/settings").text
+    # A page of some other site is not a screen of this one.
+    foreign = client.get("/settings", headers={"referer": "https://evil.example/result"}).text
+    # Settings coming from settings is not where to return to.
+    itself = client.get("/settings", headers={"referer": "http://testserver/settings"}).text
+
+    for page in (plain, foreign, itself):
+        assert 'name="back" value="/"' in page
+
+
+def test_save_and_close_returns_to_the_screen_it_came_from(client):
+    saved = _save(client, back="/tree")
+
+    assert saved.status_code == 303
+    assert saved.headers["location"] == "/tree"
+
+
+def test_save_and_close_never_leaves_the_app(client):
+    for hostile in ("https://evil.example/", "//evil.example/", "/settings", "/nowhere", ""):
+        saved = _save(client, back=hostile)
+
+        assert saved.headers["location"] == "/", hostile
+
+
+def test_the_bin_stays_on_settings_and_remembers_where_to_go_back(client):
+    """Removing a key is not leaving the page."""
+    removed = _save(client, back="/result", clear_provider="cursor__api_key")
+
+    assert removed.status_code == 303
+    assert removed.headers["location"] == "/settings?back=%2Fresult"
+
+    page = client.get("/settings?back=/result").text
+
+    assert 'name="back" value="/result"' in page

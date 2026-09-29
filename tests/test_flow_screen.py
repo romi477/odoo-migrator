@@ -64,7 +64,10 @@ def test_flow_draws_the_pinned_cartridge_with_nothing_running(client, migration)
     del migration
     page = client.get("/flow").text
 
-    assert "Flow /" in page
+    # The cartridge, once, on the bar under the tab. The heading that used to
+    # say "Flow /" repeated the tab and is gone.
+    assert 'class="flow-bar"' in page
+    assert "Flow /" not in page
     assert "stock" in page and "1.0.0" in page
     assert 'id="flow-inspect" hidden' in page
     assert 'aria-label="Close the step"' in page

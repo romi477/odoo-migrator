@@ -157,10 +157,11 @@
     <button type="submit" class="primary">Save</button>
       </form>
       <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
-        <label>Import a flow
-          <input type="file" name="file" accept=".yaml,.yml,.json">
-        </label>
-        <button type="submit">Import</button>
+        <fieldset class="import-flow">
+          <legend>Import a flow</legend>
+          <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file">
+          <button type="submit">Import</button>
+        </fieldset>
       </form>
       {% endif %}
     </div>
@@ -238,10 +239,11 @@
     <button type="submit" class="primary">Save</button>
   </form>
   <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
-    <label>Import a flow
-      <input type="file" name="file" accept=".yaml,.yml,.json">
-    </label>
-    <button type="submit">Import</button>
+    <fieldset class="import-flow">
+      <legend>Import a flow</legend>
+      <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file">
+      <button type="submit">Import</button>
+    </fieldset>
   </form>
   {% endif %}
 </div>

@@ -123,6 +123,7 @@ def _module_row(module: Module, question: str | None = None) -> dict:
         "node_id": module.node_id,
         "status": module.status,
         "has_assumptions": bool(module.has_assumptions),
+        "needs_review": bool(module.needs_review),
         "notes": module.notes or "",
         "question": question,
         "position": module.position,
@@ -403,6 +404,33 @@ def _downstream(rows: list[Module], start: str) -> list[str]:
         queue.extend(children[name])
 
     return order
+
+
+def dependents_by_name(rows: list[dict]) -> dict[str, set[str]]:
+    """Every module that depends on each one, however far down the chain.
+
+    `rows` are listed modules (`depends` a list of names). A dependency that
+    is not in the list is not a module of this migration and is ignored.
+    """
+    names = {row["technical_name"] for row in rows}
+    children: dict[str, list[str]] = {name: [] for name in names}
+    for row in rows:
+        for dep in row.get("depends") or []:
+            if dep in names:
+                children[dep].append(row["technical_name"])
+    found: dict[str, set[str]] = {}
+    for name in names:
+        seen: set[str] = set()
+        stack = list(children[name])
+        while stack:
+            child = stack.pop()
+            if child in seen or child == name:
+                continue
+            seen.add(child)
+            stack.extend(children[child])
+        found[name] = seen
+
+    return found
 
 
 def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:

@@ -6,14 +6,11 @@
 {% endblock %}
 {% block screen %}
 <section class="screen screen-tree">
-  <header class="screen-head screen-head-compact">
-    <div>
-      <h1>Module tree</h1>
-      {% if not current %}
-      <p>Open a migration to load its dependency graph.</p>
-      {% endif %}
-    </div>
-  </header>
+  {# No heading: the bar above already says this is Tree. The one thing to
+     say here is what to do when there is nothing to draw. #}
+  {% if not current %}
+  <p class="screen-note">Open a migration to load its dependency graph.</p>
+  {% endif %}
 
   {% if error %}
   <p class="form-error">{{ error }}

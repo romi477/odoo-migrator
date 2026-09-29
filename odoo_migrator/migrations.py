@@ -167,10 +167,20 @@ RESULT_STEPS_PER_PAGE = 4
 
 def migration_results(migration_id: str) -> dict:
     """Tallies and step columns for the Result dashboard."""
-    from odoo_migrator.graph import list_modules
+    from odoo_migrator.graph import dependents_by_name, list_modules
     from odoo_migrator.jobs import outcomes_for
 
     listed = list_modules(migration_id)
+    # For the reopen question: how many passed modules downstream would be
+    # marked for review if this one were reopened.
+    below = dependents_by_name(listed)
+    passed_names = {
+        row["technical_name"]
+        for row in listed
+        if row["status"] == "passed"
+        and not row["struck_out"]
+        and not row.get("needs_review")
+    }
     outcomes = outcomes_for(migration_id)
     active = [row for row in listed if not row["struck_out"]]
     counts = {
@@ -192,6 +202,7 @@ def migration_results(migration_id: str) -> dict:
     by_step: dict[int, list[dict]] = {}
     for row in listed:
         enriched = _result_module(row, outcomes.get(row["id"]))
+        enriched["review_count"] = len(below.get(row["technical_name"], set()) & passed_names)
         step = enriched.get("step") or 1
         by_step.setdefault(step, []).append(enriched)
     steps = [

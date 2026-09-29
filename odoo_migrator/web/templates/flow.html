@@ -6,17 +6,17 @@
 {% endblock %}
 {% block screen %}
 <section class="screen">
-  <header class="screen-head">
-    <div>
-      <h1>Flow / <span class="mono">{{ flow_name }}</span></h1>
-      <p><span class="mono">{{ flow_version }}</span>. Select a block to read what it does.</p>
-    </div>
-  </header>
-  <ul class="flow-legend">
-    <li><span class="flow-swatch agent" aria-hidden="true"></span> Agent. A model turn.</li>
-    <li><span class="flow-swatch function" aria-hidden="true"></span> Function. The app runs it. No model.</li>
-    <li><span class="flow-swatch gated" aria-hidden="true"></span> Dashed border. Runs only if that flag was raised.</li>
-  </ul>
+  {# One row: which cartridge is drawn, what the colours mean, how to read
+     it. The heading that used to sit above repeated the tab. #}
+  <div class="flow-bar">
+    <span class="flow-bar-name mono">{{ flow_name }} <span class="flow-bar-version">{{ flow_version }}</span></span>
+    <ul class="flow-legend">
+      <li><span class="flow-swatch agent" aria-hidden="true"></span> Agent. A model turn.</li>
+      <li><span class="flow-swatch function" aria-hidden="true"></span> Function. The app runs it. No model.</li>
+      <li><span class="flow-swatch gated" aria-hidden="true"></span> Dashed border. Runs only if that flag was raised.</li>
+    </ul>
+    <span class="flow-bar-hint">Select a block to read what it does.</span>
+  </div>
   <div class="flow-board">
   <div id="flow-canvas" class="flow-canvas" data-migration="{{ flow_migration_id }}" data-job="{{ flow_job_id }}"></div>
   <aside class="flow-inspect" id="flow-inspect" hidden aria-live="polite">

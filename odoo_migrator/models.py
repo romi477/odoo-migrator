@@ -16,14 +16,22 @@ from peewee import (
 
 from odoo_migrator.db import database
 
-# Status hues (155 / 25 / 62 / 205 / 82) and the background (290) are taken.
+# A migration's colour must never read as a status, so the status hues (155
+# green, 25 red, 62 amber, 82 warning, 205 cyan) are taken, and so is the
+# background's (290). What is left is the blue-to-pink arc and the neutrals.
+# They are spread about 30 degrees apart, with lightness and chroma varied
+# where the arc gets crowded: the six this replaced had four of their hues
+# within 30 degrees of each other, and two migrations could not be told apart
+# by their bars. A stored migration keeps the colour it was given, whatever
+# this list says now.
 ACCENTS = {
+    "blue": "oklch(0.72 0.13 245)",
+    "indigo": "oklch(0.62 0.16 272)",
     "violet": "oklch(0.70 0.15 305)",
-    "magenta": "oklch(0.72 0.14 330)",
-    "indigo": "oklch(0.68 0.10 275)",
-    "orchid": "oklch(0.72 0.12 320)",
-    "slate": "oklch(0.70 0.04 250)",
-    "cobalt": "oklch(0.68 0.10 260)",
+    "magenta": "oklch(0.66 0.21 338)",
+    "pink": "oklch(0.82 0.10 8)",
+    "slate": "oklch(0.72 0.03 250)",
+    "silver": "oklch(0.90 0.01 290)",
 }
 
 
@@ -109,6 +117,12 @@ class Module(BaseModel):
     status = CharField(default="queued")
     struck_out = BooleanField(default=False)
     has_assumptions = BooleanField(default=False)
+    # A module this one depends on was reopened after this one passed, so
+    # what it passed against is no longer what is there. A note beside the
+    # status and not a status of its own: the module is still `passed`, the
+    # queue and the counts read that, and a person decides whether it is
+    # still fine.
+    needs_review = BooleanField(default=False)
     notes = TextField(default="")
     # Every dependency, as a JSON array of names. A single parent kept one
     # edge of the several a module really has: on a real database 81 of 128

@@ -428,6 +428,7 @@ pre,
 }
 
 .result-page-dot {
+  position: relative;
   width: 21px;
   height: 3px;
   padding: 0;
@@ -436,6 +437,16 @@ pre,
   background: var(--muted-low);
   cursor: pointer;
   transition: background 0.12s ease, height 0.12s ease;
+}
+
+/* The bar is 3px high and the pointer is not that precise. The button's own
+   box stays the bar, so the layout does not change; this invisible box is
+   what the pointer lands on. It stops 3px short of the neighbour (half the
+   gap), so the two never share a hit. */
+.result-page-dot::after {
+  content: "";
+  position: absolute;
+  inset: -10px -3px;
 }
 
 .result-page-dot:hover:not(.is-active) {
@@ -515,7 +526,10 @@ pre,
   border-color: var(--red);
 }
 
-.result-card.struck {
+/* An excluded card is dimmed, and the corner badge is not part of what is
+   dimmed. `opacity` on the card took the badge with it, so the one mark that
+   says why the card is quiet came out fainter than the tick on a passed one. */
+.result-card.struck .result-card-main {
   opacity: 0.72;
 }
 
@@ -589,8 +603,8 @@ pre,
 }
 
 .result-corner-badge.excluded {
-  background: oklch(0.38 0.02 290);
-  color: oklch(0.9 0.01 290);
+  background: oklch(0.42 0.02 290);
+  color: oklch(0.94 0.01 290);
 }
 
 .result-corner-glyph-check {
@@ -658,20 +672,113 @@ pre,
 }
 
 .result-reopen {
-  margin: 8px 0 0;
-}
-
-.result-reopen-all {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin-top: 10px;
-}
-
-.result-reopen-all .field-hint {
   margin: 0;
-  flex: 1 1 16rem;
+}
+
+/* The question before an action nobody should trigger by accident. A native
+   <dialog>, so the page behind it is inert and Escape closes it. */
+.confirm-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.confirm-dialog::backdrop {
+  background: oklch(0 0 0 / 0.6);
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.confirm-dialog p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The catalogue's copy of it, open on the page instead of over it. */
+.confirm-dialog.is-specimen {
+  position: static;
+  margin: 0;
+}
+
+/* "Review": this module passed against a parent that has since been
+   reopened. Amber, the colour of things that want a person, and small; the
+   word beside it keeps the mark and says what to do about it. */
+.result-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.result-review-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  color: var(--amber);
+  font-size: 10px;
+}
+
+.result-keep {
+  margin: 0;
+}
+
+.result-keep-button {
+  padding: 0 2px;
+  border: 0;
+  color: var(--muted);
+  font-size: 10px;
+  text-decoration: underline;
+}
+
+.result-keep-button:hover:not(:disabled) {
+  color: var(--cyan);
+}
+
+/* The foot of a card: summary in one corner, reopen in the other, the time
+   between. Quiet until pointed at, because there are thirty of them. */
+.result-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.result-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  color: var(--muted-low);
+}
+
+.result-card-icon:hover:not(:disabled) {
+  color: var(--cyan);
+}
+
+/* Only reopen on a card with no run to open: it still sits in the right
+   corner. */
+.result-card-foot > .result-reopen:only-child {
+  margin-left: auto;
 }
 
 .result-flag {
@@ -833,6 +940,20 @@ a.attention-lamp:hover {
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
+/* Work is going on and nothing is stuck. Green, and the same slow pulse as
+   the amber one so the two read as one lamp with two meanings. */
+.attention-lamp.running .lamp-dot {
+  background: var(--green);
+  animation: attention-lamp 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attention-lamp.needs-attention .lamp-dot,
+  .attention-lamp.running .lamp-dot {
+    animation: none;
+  }
+}
+
 .running-count {
   color: var(--muted-low);
   font-family: var(--mono);
@@ -901,6 +1022,14 @@ a.brand:hover .wordmark {
 
 .screen-head p {
   margin-bottom: 0;
+}
+
+/* The one line a screen may open with when it has nothing to show, or has
+   something to ask. Never a title: the bar above says where you are. */
+.screen-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .card,
@@ -1117,11 +1246,57 @@ a.brand:hover .wordmark {
 
 /* The settings form is a numbered list: each row is a control with a
    plain-language line under it, so the block explains itself. */
+/* The app-settings form is as wide as Create migration and opens the same
+   way: a centred title, and under it the one line that says what it is for.
+   Its fields are not numbered; nothing refers to them by number. */
+.settings-form {
+  max-width: 43rem;
+}
+
+/* The title of a form card is its header: in the middle, without the gap the
+   page-level h2 puts above itself, and set off from the fields by a faint
+   rule that runs edge to edge of the card. Fainter than the card's own
+   outline, which is the accent or the border. */
+.create-migration h2,
+.settings-form h2 {
+  margin: -12px -14px 4px;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
+  color: var(--text);
+  font-size: 15px;
+  text-align: center;
+}
+
+.settings-star {
+  margin-left: 2px;
+  color: var(--muted-low);
+}
+
+.settings-note {
+  margin: 0;
+  color: var(--muted-low);
+  font-size: 12px;
+}
+
+.settings-form .settings-fields {
+  padding-left: 0;
+  list-style: none;
+}
+
 .settings-fields {
   display: grid;
   gap: 16px;
   margin: 0 0 12px;
   padding-left: 1.6rem;
+}
+
+/* Save and Close is one action among a page of fields, not the width of the
+   page. It keeps the edge `.primary` clears, and sits in the middle under the
+   fields. */
+.settings-save {
+  justify-self: center;
+  padding: 4px 14px;
+  border-color: var(--border);
 }
 
 .settings-fields > li {
@@ -1148,6 +1323,24 @@ a.brand:hover .wordmark {
   border-radius: 4px;
   padding: 4px 8px;
   background: var(--panel-raised);
+}
+
+/* Picking a file and importing it are one act, so they share one outline
+   and the title sits in a break of it. */
+.stack-form .import-flow {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.import-flow legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .secret-field {
@@ -1352,6 +1545,7 @@ h2 {
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
   margin: 0 14px 12px;
 }
 
@@ -1530,11 +1724,36 @@ h2 {
 .create-migration {
   display: grid;
   gap: 10px;
-  max-width: 40rem;
+  /* Wide enough for the seven accents on one line. */
+  max-width: 43rem;
   margin-inline: auto;
   /* Outlined in the chosen accent; the cyan fallback is for the gallery
      specimen, which carries no migration accent. */
   border-color: var(--accent, var(--cyan));
+}
+
+
+/* Create and Cancel in the middle, apart from the last field, both with the
+   edge `.primary` would clear. */
+.create-migration .row {
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.create-migration .row > .primary,
+.create-migration .row > .button-link {
+  padding: 4px 14px;
+}
+
+.create-migration .row > .primary {
+  border-color: var(--border);
+}
+
+/* The rule above outranks the one every button gets on hover, so without this
+   the pointer changed nothing. */
+.create-migration .row > .primary:hover:not(:disabled) {
+  border-color: var(--cyan);
 }
 
 .create-migration label,
@@ -1805,17 +2024,11 @@ h2 {
   padding: 12px 16px;
 }
 
-.pipeline-selection.row-card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.pipeline-selection .pipeline-start {
-  width: 100%;
-}
-
-.pipeline-queue-card {
+/* Selection and Queue fold the same way, so they share one frame and one
+   head (`.pipeline-queue-head`, below). A rule written for one of them is
+   a rule the other will not have. */
+.pipeline-queue-card,
+.pipeline-selection {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1823,8 +2036,38 @@ h2 {
   overflow: hidden;
 }
 
-.pipeline-queue-card[data-running="true"] {
-  border-color: var(--amber);
+/* Folded, the Selection head is the whole card; the rule the head draws
+   under itself would double the card's own edge. */
+.pipeline-selection-head[aria-expanded="false"] {
+  border-bottom: 0;
+}
+
+/* Selection's and the log's titles are muted until pointed at; Queue's is
+   the accent. The chevron is the same on all three. */
+.pipeline-selection-head .pipeline-queue-title,
+.run-log-head .pipeline-queue-title {
+  color: var(--muted);
+  transition: color 0.12s ease;
+}
+
+.pipeline-selection-head:hover .pipeline-queue-title,
+.run-log-head:hover .pipeline-queue-title {
+  color: var(--cyan);
+}
+
+.pipeline-selection-body {
+  padding: 12px 16px;
+}
+
+.pipeline-selection .pipeline-start {
+  width: 100%;
+}
+
+/* The two cards of a run have one colour each. The queue is cyan, edge and
+   title; the card of the module in work is amber. What is amber is what is
+   being worked on: that card's edge, and the lamp on the module's row. */
+.pipeline-queue-card {
+  border-color: var(--cyan);
 }
 
 .pipeline-panel-title {
@@ -1845,6 +2088,9 @@ h2 {
   flex: none;
   width: 100%;
   box-sizing: border-box;
+  /* The height of a head that carries buttons, so a head that does not
+     (Selection) is not shorter than the one beside it. */
+  min-height: 40px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--panel-raised, var(--panel));
@@ -1873,10 +2119,9 @@ h2 {
   flex: none;
   width: 8px;
   height: 8px;
-  margin-top: 2px;
   border-right: 2px solid var(--muted);
   border-bottom: 2px solid var(--muted);
-  transform: rotate(45deg);
+  transform: rotate(-45deg);
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
 
@@ -1888,9 +2133,10 @@ h2 {
   border-color: var(--cyan);
 }
 
+/* Points right when folded, down when open. */
 .pipeline-queue-chevron.is-expanded {
-  transform: rotate(-135deg);
-  margin-top: 4px;
+  transform: rotate(45deg);
+  margin-top: 2px;
 }
 
 .pipeline-queue-brand {
@@ -1905,7 +2151,7 @@ h2 {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--amber);
+  color: var(--cyan);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1.1;
@@ -1935,6 +2181,12 @@ h2 {
 
 .pipeline-queue-controls form {
   margin: 0;
+}
+
+/* `.primary` clears the border; beside two bordered siblings that reads as
+   a missing outline, not as emphasis. */
+.pipeline-queue-controls .primary {
+  border-color: var(--border);
 }
 
 .pipeline-queue-card.is-queue-expanded .pipeline-queue-next {
@@ -1993,10 +2245,6 @@ h2 {
   pointer-events: none;
 }
 
-.pipeline-queue-item.pipeline-queue-active {
-  border-color: var(--orange);
-}
-
 .pipeline-lamp {
   width: 8px;
   height: 8px;
@@ -2005,9 +2253,27 @@ h2 {
   flex: none;
 }
 
+/* On a queue row the lamp is the last thing, at the right edge: the row reads
+   as order, rank, name and step, and the lamp says whether it is being worked
+   on, out of the way of the name. */
+.pipeline-queue-item .pipeline-lamp {
+  order: 1;
+  margin-left: auto;
+}
+
+/* The lamp of the module in work: the queue row and the run card below it
+   are the same module, and this is what says so. (The rule used `--orange`,
+   which is not a token here, so the lamp and the row's edge were never
+   drawn.) */
 .pipeline-queue-active .pipeline-lamp {
-  background: var(--orange);
+  background: var(--amber);
   animation: pipeline-lamp-pulse 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-queue-active .pipeline-lamp {
+    animation: none;
+  }
 }
 
 @keyframes pipeline-lamp-pulse {
@@ -2069,14 +2335,6 @@ h2 {
   flex-direction: column;
   gap: 8px;
   min-height: 0;
-}
-
-.screen-head-compact h1 {
-  margin-bottom: 0;
-}
-
-.screen-head-compact p {
-  margin-top: 4px;
 }
 
 .tree-workbench {
@@ -2556,6 +2814,41 @@ pre.test-output {
   background: var(--panel);
 }
 
+/* The card of the module in work is the one the eye should find: while a
+   run is live its edge is amber, the colour of what is being worked on. The
+   live block is shown and hidden from the event stream, and `:has` follows it
+   without a second signal. */
+.workspace-panel:has(.pipeline-live:not([hidden])) {
+  border-color: var(--amber);
+}
+
+/* While the module is actually working, the edge of its card breathes: it
+   brightens and dims, slowly, at the pace of the lamps in the bar. Not while
+   the module waits for a person — that is not work, and the card keeps its
+   plain amber edge. Nothing moves, so it can stay on for hours. */
+@keyframes work-breathe {
+  0%,
+  100% {
+    border-color: color-mix(in oklch, var(--amber) 45%, var(--border));
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  50% {
+    border-color: var(--amber);
+    box-shadow: 0 0 12px 0 color-mix(in oklch, var(--amber) 28%, transparent);
+  }
+}
+
+.workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
+  animation: work-breathe 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
+    animation: none;
+  }
+}
+
 .workspace-panel h2 {
   margin: 0;
   color: var(--muted);
@@ -2598,15 +2891,39 @@ pre.test-output {
   color: var(--text);
 }
 
+/* A line under the tab, said once: what is drawn, what the colours mean, and
+   how to read it. */
+.flow-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+}
+
+.flow-bar-name {
+  color: var(--text);
+}
+
+.flow-bar-version {
+  color: var(--muted);
+}
+
+.flow-bar-hint {
+  margin-left: auto;
+  color: var(--muted-low);
+  font-size: 12px;
+}
+
 .flow-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px 22px;
-  margin: 0 0 12px;
+  gap: 6px 16px;
+  margin: 0;
   padding: 0;
   list-style: none;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .flow-swatch {
@@ -2846,22 +3163,18 @@ a.ribbon-box:focus-visible {
 /* A result card says when its last run ended, and opens what that run
    said. The checkpoint thread used to be one flat list above the board. */
 .result-when {
-  margin: 2px 0 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted-low);
-  font-size: 12px;
-}
-
-.result-summary-open {
-  font: inherit;
-  color: var(--cyan);
-  background: transparent;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .result-summary-panel {
+  scroll-margin-top: 12px;
   margin-top: 16px;
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -2869,11 +3182,61 @@ a.ribbon-box:focus-visible {
   background: var(--panel);
 }
 
+/* Outlined: the bar carries the panel's two controls, and the outline says
+   they belong to the panel and not to the text under it. */
 .result-summary-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.result-summary-title {
+  color: var(--cyan);
+}
+
+.result-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Copy and close sit side by side and are built differently (a glyph and a
+   character), so left to their own padding they come out two sizes. Both
+   are the same small box here, with no edge of their own: they are marks in
+   a bar, and the cyan on hover is what says they can be pressed. */
+.result-summary-actions button,
+.run-log-body-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+}
+
+.result-summary-actions button:hover:not(:disabled),
+.run-log-body-head button:hover:not(:disabled) {
+  color: var(--cyan);
+}
+
+/* The result of a copy outranks the hover, or the pointer that just pressed
+   the button would paint over the answer. */
+.result-summary-actions .copy-button.is-copied,
+.run-log-body-head .copy-button.is-copied {
+  color: #4f8a52;
+}
+
+.result-summary-actions .copy-button.is-failed,
+.run-log-body-head .copy-button.is-failed {
+  color: #c4552a;
 }
 
 .result-summary-line {
@@ -2944,17 +3307,59 @@ a.ribbon-box:focus-visible {
 
 /* The run log on Pipeline. A scrolling panel with its own scrollbar: the
    page must not grow by a screen every time a step calls a tool. */
+/* The log wears the head Selection and Queue wear, and folds the way they
+   do. The frame is the head and the fold under it, so the padding lives on
+   the fold and the head can reach the edge. */
 .run-log-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   min-height: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
-.run-log-head {
+.run-log-fold {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.run-log-head[aria-expanded="false"] {
+  border-bottom: 0;
+}
+
+/* The job's id reads as the last part of the line before it: "module ·
+   status · last run · job 5dcdd1e8", no box of its own. It is still a button
+   (it copies the whole id), so it says so on hover. The dot is part of the
+   button, and the pull to the left takes back the gap the flex row puts
+   between two items so the dot sits where the others do. */
+.copy-button.run-log-id {
+  gap: 7px;
+  margin-left: -8px;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.run-log-id::before {
+  content: "·";
+}
+
+.run-log-id:hover:not(:disabled) {
+  color: var(--cyan);
+}
+
+.run-log-id.is-copied {
+  color: #4f8a52;
+}
+
+.run-log-id.is-failed {
+  color: #c4552a;
 }
 
 .run-log-job {
@@ -2964,23 +3369,39 @@ a.ribbon-box:focus-visible {
 
 /* Follow is a switch, not a tick box: it is a mode the panel is in, and a
    mode reads better as on or off than as checked. Still a real checkbox —
-   the label, the keyboard and the focus ring are the browser's. */
+   the label, the keyboard and the focus ring are the browser's. It is a
+   quiet control beside a log, so it stays neutral: the knob's place says
+   on or off, and the accent is only the outline of the on state. */
 .run-log-follow {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
   font-size: 12px;
   color: var(--muted);
   cursor: pointer;
+}
+
+/* The log's three controls, right-aligned as one group: what sits left of
+   them changes width with the job's name, and they must not follow it. */
+.run-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.run-log-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border-strong);
 }
 
 .run-log-follow input {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  width: 30px;
-  height: 16px;
+  width: 26px;
+  height: 14px;
   margin: 0;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
@@ -2994,8 +3415,8 @@ a.ribbon-box:focus-visible {
   position: absolute;
   top: 1px;
   left: 1px;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--muted-low);
   transition: transform 120ms ease, background 120ms ease;
@@ -3003,12 +3424,12 @@ a.ribbon-box:focus-visible {
 
 .run-log-follow input:checked {
   border-color: var(--cyan);
-  background: var(--cyan-dark);
+  background: var(--border);
 }
 
 .run-log-follow input:checked::after {
-  transform: translateX(14px);
-  background: var(--cyan);
+  transform: translateX(12px);
+  background: var(--muted);
 }
 
 .run-log-follow input:focus-visible {
@@ -3023,7 +3444,50 @@ a.ribbon-box:focus-visible {
   }
 }
 
+/* Pipeline is laid out to the height of the window: the panels above keep
+   the room they need and the log takes what is left, scrolling inside its own
+   frame. With a fixed share of the window instead, a running job's card made
+   the page taller than the window and the log's bottom edge went out of the
+   canvas — the frame was there, out of sight, and only showed once the card
+   above had gone. */
+.screen-pipeline {
+  display: flex;
+  flex-direction: column;
+  /* The screen's usual 40px underneath is room to scroll into; here the log
+     is the last thing and fills the window, so it is only dead space. The
+     same gap as at the top. */
+  padding-bottom: var(--screen-start);
+}
+
+.screen-pipeline > * {
+  flex: none;
+}
+
+.screen-pipeline > .workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.screen-pipeline .run-log-panel {
+  flex: 1 1 auto;
+  min-height: 220px;
+}
+
+/* Folded, it is only its head: no share of the window to fill. */
+.screen-pipeline .run-log-panel.is-collapsed {
+  flex: none;
+  min-height: 0;
+}
+
+.screen-pipeline .run-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
 .run-log {
+  counter-reset: log-line;
   list-style: none;
   margin: 0;
   padding: 8px;
@@ -3037,10 +3501,22 @@ a.ribbon-box:focus-visible {
 
 .run-log-line {
   display: grid;
-  grid-template-columns: 62px 84px 1fr auto;
+  grid-template-columns: 4ch 62px 84px 1fr auto;
   gap: 8px;
   align-items: baseline;
   padding: 2px 0;
+}
+
+/* The line's number in this job's log. A counter and not markup: it needs no
+   line-by-line bookkeeping in the script, restarts with the list, and is not
+   part of the text someone selects or copies. */
+.run-log-line::before {
+  counter-increment: log-line;
+  content: counter(log-line);
+  color: var(--muted-low);
+  font-family: var(--mono);
+  text-align: right;
+  user-select: none;
 }
 
 .run-log-line.warn .run-log-text {
@@ -3111,6 +3587,7 @@ a.ribbon-box:focus-visible {
   color: #c4552a;
 }
 
+.run-log-copy,
 .run-log-clear {
   padding: 1px 8px;
   font-size: 11px;

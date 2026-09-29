@@ -51,16 +51,26 @@
   </ol>
 
   <h2>Run log</h2>
-  <header class="run-log-head">
-    <h3 class="pipeline-panel-title">Log</h3>
-    <span class="mono run-log-job">sale_custom · running</span>
-    <button type="button" class="copy-button run-log-id mono">job fa3f7e71</button>
-    <button type="button" class="run-log-clear">Clear</button>
-    <label class="run-log-follow">
-      <input type="checkbox" checked>
-      Follow
-    </label>
+  <div class="workspace-panel run-log-panel">
+  <header class="pipeline-queue-head is-expandable run-log-head" role="button" tabindex="0" aria-expanded="true">
+    <div class="pipeline-queue-head-text">
+      <span class="pipeline-queue-chevron is-expanded" aria-hidden="true"></span>
+      <h2 class="pipeline-queue-title">Log</h2>
+      <span class="mono run-log-job">sale_custom · running</span>
+      <button type="button" class="copy-button run-log-id mono">job fa3f7e71</button>
+    </div>
+    <div class="run-log-actions">
+      <button type="button" class="copy-button run-log-copy">Copy</button>
+      <span class="run-log-sep" aria-hidden="true"></span>
+      <button type="button" class="run-log-clear">Clear</button>
+      <span class="run-log-sep" aria-hidden="true"></span>
+      <label class="run-log-follow">
+        <input type="checkbox" checked>
+        Follow
+      </label>
+    </div>
   </header>
+  <div class="run-log-fold">
   <ol class="run-log">
     <li class="run-log-switch mono">mig_test_partner · job 42b40cc5 ended. A new run starts below.</li>
     <li class="run-log-line info">
@@ -80,6 +90,8 @@
       <button type="button" class="run-log-open">body</button>
     </li>
   </ol>
+  </div>
+  </div>
 
   <h2>Copy button</h2>
   <div class="row">
@@ -206,6 +218,9 @@ tools offered: exec, read_file, report, source</pre>
     <span class="attention-lamp idle" title="Nothing needs attention.">
       <span class="lamp-dot"></span>
     </span>
+    <span class="attention-lamp running" title="A migration is running.">
+      <span class="lamp-dot"></span>
+    </span>
     <span class="attention-lamp needs-attention" title="A module is waiting.">
       <span class="lamp-dot"></span>
     </span>
@@ -213,7 +228,7 @@ tools offered: exec, read_file, report, source</pre>
     <span class="running-count" data-running="2">2</span>
   </div>
   <p>The lamp is global: a stall on another migration must still be visible.
-  Idle is muted; needs-attention pulses amber. The count is how many
+  Idle is muted; running pulses green; needs-attention pulses amber and wins over running. The count is how many
   migrations are running, not how many modules.</p>
 
   <h2>Destructive</h2>
@@ -407,8 +422,18 @@ tools offered: exec, read_file, report, source</pre>
 
   <h2>Run workspace</h2>
   <div class="pipeline-panels">
-    <section class="pipeline-panel pipeline-selection row-card">
-      <h2 class="pipeline-panel-title">Selection</h2>
+    <section class="pipeline-panel pipeline-selection card"
+             x-data="{ open: false }">
+      <header class="pipeline-queue-head is-expandable pipeline-selection-head"
+              role="button" tabindex="0" :aria-expanded="open ? 'true' : 'false'"
+              @click="open = !open">
+        <div class="pipeline-queue-head-text">
+          <span class="pipeline-queue-chevron" :class="{ 'is-expanded': open }"
+                aria-hidden="true"></span>
+          <h2 class="pipeline-queue-title">Selection</h2>
+        </div>
+      </header>
+      <div class="pipeline-selection-body" x-show="open" x-cloak>
       <form class="pipeline-start">
         <label class="pipeline-step-picker">
           <select aria-label="Migration step to queue">
@@ -421,8 +446,9 @@ tools offered: exec, read_file, report, source</pre>
           <button type="button" class="primary">Add all steps to queue</button>
         </div>
       </form>
+      </div>
     </section>
-    <section class="pipeline-queue-card card is-queue-expanded">
+    <section class="pipeline-queue-card card is-queue-expanded" data-running="true">
       <header class="pipeline-queue-head is-expandable">
         <div class="pipeline-queue-head-text">
           <span class="pipeline-queue-chevron is-expanded" aria-hidden="true"></span>
@@ -488,13 +514,17 @@ tools offered: exec, read_file, report, source</pre>
   <h2>Result card summary</h2>
   <div class="result-summary-panel">
     <header class="result-summary-head">
-      <span class="mono">sale_custom</span>
-      <button type="button" class="run-log-close" aria-label="Close this summary">×</button>
+      <span class="mono result-summary-title">sale_custom</span>
+      <div class="result-summary-actions">
+        <button type="button" class="copy-button" aria-label="Copy this summary">{% include "_copy_icon.svg" %}</button>
+        <button type="button" class="run-log-close" aria-label="Close this summary">×</button>
+      </div>
     </header>
     <div>
       <p class="result-summary-line mono">failed · attempt 2 · 2026-09-28 08:17 · job fa3f7e71</p>
+      <p class="result-summary-line mono">tokens · 111,802 in · 1,905 out · 45,000 cached</p>
       <ol class="result-summary-steps">
-        <li>2 · port</li>
+        <li>2 · port · 98,400+1,200 tokens</li>
         <li class="is-failed">2 · tests — 1 failure</li>
       </ol>
       <section class="result-summary-tests">
@@ -508,9 +538,9 @@ tools offered: exec, read_file, report, source</pre>
       <section class="result-summary-sessions">
         <h3>Sheller sessions</h3>
         <ol>
-          <li class="mono">old · 8e34ab34e6d8 — understand, port, probe · 19 calls</li>
-          <li class="mono">new · 050b2f5034b1 — port · 16 calls</li>
-          <li class="mono">new · c41b73c34b01 — probe, write_test · 13 calls</li>
+          <li class="mono">old · 8e34ab34e6d8 — understand, port, probe · 19 commands</li>
+          <li class="mono">new · 050b2f5034b1 — port · 16 commands</li>
+          <li class="mono">new · c41b73c34b01 — probe, write_test · 13 commands</li>
         </ol>
       </section>
       <article class="result-summary-message agent">
@@ -523,6 +553,43 @@ tools offered: exec, read_file, report, source</pre>
       </article>
     </div>
   </div>
+
+  <h2>Working card</h2>
+  <div class="workspace">
+    <article class="workspace-panel">
+      <div class="pipeline-live">
+        <header class="name-line">
+          <span class="name mono">mig_test_crm</span>
+          <span class="badge running" data-pipeline-status>running</span>
+        </header>
+        <p class="mono">port · attempt 1</p>
+      </div>
+    </article>
+  </div>
+  <p>The card of the module in work has the accent for an edge, and while it
+  is running the edge breathes. A module waiting for a person keeps the edge
+  and stops breathing.</p>
+
+  <h2>Import group</h2>
+  <form class="stack-form">
+    <fieldset class="import-flow">
+      <legend>Import a flow</legend>
+      <input type="file" aria-label="Flow file">
+      <button type="button">Import</button>
+    </fieldset>
+  </form>
+  <p>A file picker and the button that uses it are one act, so they share
+  one outline and the title sits in a break of it.</p>
+
+  <h2>Confirm dialog</h2>
+  <dialog class="confirm-dialog is-specimen" open>
+    <h2>Reopen sale_custom?</h2>
+    <p>The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and files already written to the new project are left as they are.</p>
+    <div class="confirm-actions">
+      <button type="button">Cancel</button>
+      <button type="button" class="primary">Reopen</button>
+    </div>
+  </dialog>
 
   <h2>Result dashboard</h2>
   <div class="result-board">
@@ -553,13 +620,24 @@ tools offered: exec, read_file, report, source</pre>
             </span>
             <div class="result-card-main">
               <span class="name mono">sale_custom</span>
-              <p class="result-subtitle mono">product</p>
-              <p class="result-when mono">2026-09-28 08:17 ·
-                <button type="button" class="result-summary-open">summary</button>
-              </p>
-              <form class="result-reopen">
-                <button type="button" aria-label="Reopen sale_custom">Reopen</button>
-              </form>
+              <span class="result-review">
+                <span class="result-review-tag">review</span>
+                <form class="result-keep"><button type="button" class="result-keep-button">keep</button></form>
+              </span>
+              <p class="result-subtitle mono">needs product</p>
+              <div class="result-card-foot">
+                <button type="button" class="result-card-icon result-summary-open"
+                        title="Open what this run said" aria-label="Open the summary of sale_custom">
+                  {% include "_summary_icon.svg" %}
+                </button>
+                <span class="result-when mono">2026-09-28 08:17</span>
+                <form class="result-reopen">
+                  <button type="button" class="result-card-icon"
+                          title="Put this module back in the queue" aria-label="Reopen sale_custom">
+                    {% include "_reopen_icon.svg" %}
+                  </button>
+                </form>
+              </div>
             </div>
           </li>
         </ul>
@@ -574,7 +652,7 @@ tools offered: exec, read_file, report, source</pre>
             <div class="result-card-main">
               <span class="name mono">stock_custom</span>
               <span class="badge waiting_for_human">waiting_for_human</span>
-              <p class="result-subtitle mono">sale_custom</p>
+              <p class="result-subtitle mono">needs sale_custom</p>
             </div>
           </li>
           <li class="result-card step-2 struck" data-module-id="3" data-result-corner="excluded">
@@ -590,7 +668,7 @@ tools offered: exec, read_file, report, source</pre>
             <div class="result-card-main">
               <span class="name mono">stock_custom</span>
               <span class="badge failed">failed</span>
-              <p class="result-subtitle mono">sale_custom</p>
+              <p class="result-subtitle mono">needs sale_custom</p>
             </div>
           </li>
         </ul>
@@ -696,6 +774,10 @@ tools offered: exec, read_file, report, source</pre>
           <p class="resource-honesty">2 of this app's containers running, 9 containers on this machine</p>
         </div>
         <div class="row-archive">
+          <button type="button" class="icon-danger"
+                  title="Reopen every finished module of Acme" aria-label="Reopen every finished module of Acme">
+            {% include "_reopen_icon.svg" %}
+          </button>
           <button type="button" class="icon-danger"
                   title="Archive Acme" aria-label="Archive Acme">
             <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

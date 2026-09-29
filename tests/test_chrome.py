@@ -4,7 +4,7 @@ import pytest
 
 PAGES = (
     ("/", "overview", "Migrations"),
-    ("/tree", "tree", "Module tree"),
+    ("/tree", "tree", "dependency graph"),
     ("/run", "pipeline", "Pipeline"),
     ("/sheller", "sheller", "Sheller"),
     ("/result", "result", "Result"),

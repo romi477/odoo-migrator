@@ -112,7 +112,12 @@ function fillResultCornerGlyph(glyph, kind) {
     if (!row) {
       return;
     }
-    const badge = row.querySelector(".badge");
+    /* A queue row's badge says which step the module is in, and the lamp
+       beside it says it is running. Rewritten with the status it read
+       "running" and the step was gone. */
+    const badge = row.classList.contains("pipeline-queue-item")
+      ? null
+      : row.querySelector(".badge");
     if (badge && data.status) {
       badge.className = "badge " + data.status;
       badge.textContent = data.status;
@@ -153,6 +158,12 @@ function fillResultCornerGlyph(glyph, kind) {
         row.classList.add("failed");
       } else {
         row.classList.remove("failed");
+      }
+      /* Sent with the module events that touch it; one that does not say
+         leaves the mark as it is. */
+      const review = row.querySelector("[data-result-review]");
+      if (review && typeof data.needs_review === "boolean") {
+        review.hidden = !data.needs_review;
       }
       const reopen = row.querySelector("[data-result-reopen]");
       if (reopen) {
@@ -221,7 +232,9 @@ function fillResultCornerGlyph(glyph, kind) {
       "title",
       data.state === "needs-attention"
         ? "A module is waiting. Open it."
-        : "Nothing needs attention."
+        : data.state === "running"
+          ? "A migration is running."
+          : "Nothing needs attention."
     );
   });
 

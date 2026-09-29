@@ -5,18 +5,14 @@
 {% endblock %}
 {% block screen %}
 <section class="screen">
-  <header class="screen-head">
-    <div>
-      <h1>Result</h1>
-      {% if board and board.progress.has_modules %}
-      <p>Modules grouped by dependency wave, with the outcome of each run.</p>
-      {% elif current %}
-      <p>Resolve the graph on Tree first; results appear here as modules finish.</p>
-      {% else %}
-      <p>Open a migration to see its results.</p>
-      {% endif %}
-    </div>
-  </header>
+  {# No heading: the bar says this is Result, and a board explains itself.
+     The notes are for a screen with nothing to show. #}
+  {% if board and board.progress.has_modules %}
+  {% elif current %}
+  <p class="screen-note">Resolve the graph on Tree first; results appear here as modules finish.</p>
+  {% else %}
+  <p class="screen-note">Open a migration to see its results.</p>
+  {% endif %}
 
   {% if error %}
   <p class="form-error">{{ error }}</p>
@@ -39,12 +35,6 @@
         <span class="counter failed"><span class="dot"></span>{{ board.progress.failed }} failed</span>
         {% endif %}
       </div>
-      {% if board.progress.reopenable %}
-      <form method="post" action="/result/reopen" class="result-reopen-all">
-        <button type="submit" aria-label="Reopen every finished module">Reopen finished</button>
-        <p class="field-hint">Puts passed, failed, and unknown modules back to queued. The old jobs stay on record. Files in the new project are left as they are.</p>
-      </form>
-      {% endif %}
     </article>
 
     <div class="result-columns-panel"
@@ -94,6 +84,21 @@
             {% endif %}
             <div class="result-card-main">
               <span class="name mono">{{ module.technical_name }}</span>
+              {# A module it depends on was reopened after it passed. Shown
+                 only when set; `sse.js` flips `hidden`. It is not a `.badge`,
+                 because the status handler rewrites the first badge it finds
+                 on a card. #}
+              {% if not module.struck_out %}
+              <span class="result-review" data-result-review{% if not module.needs_review %} hidden{% endif %}>
+                <span class="result-review-tag"
+                      title="A module this one depends on was reopened after it passed">review</span>
+                <form method="post" action="/result/modules/{{ module.id }}/keep" class="result-keep">
+                  <button type="submit" class="result-keep-button"
+                          title="Keep it as passed: it needs no other run"
+                          aria-label="Keep {{ module.technical_name }} as passed">keep</button>
+                </form>
+              </span>
+              {% endif %}
               {% if module.has_assumptions and not module.struck_out %}
               <span class="result-flag assumptions" title="Recorded assumptions">!</span>
               {% endif %}
@@ -104,22 +109,50 @@
               {% elif module.display_status == 'queued' and not module.struck_out %}
               <span class="badge queued">queued</span>
               {% endif %}
+              {# What the small line is: the modules this one depends on, the
+                 ones that have to pass before it can run. Unlabelled it read
+                 as a second, unrelated module name. #}
+              {% if module.struck_out %}
               <p class="result-subtitle mono">{{ module.subtitle }}</p>
-              {% if module.has_summary %}
-              <p class="result-when mono">
+              {% elif module.depends %}
+              <p class="result-subtitle mono" title="Depends on: {{ module.depends | join(', ') }}">needs {{ module.subtitle }}</p>
+              {% else %}
+              <p class="result-subtitle mono">no dependencies</p>
+              {% endif %}
+              {% set can_reopen = not module.struck_out and module.display_status in ['passed', 'failed', 'unknown'] %}
+              {% if module.has_summary or can_reopen %}
+              {# Two quiet icons, one in each corner, and the time between. The
+                 words they replaced were repeated on every card of a board of
+                 thirty. #}
+              <div class="result-card-foot">
+                {% if module.has_summary %}
+                <button type="button" class="result-card-icon result-summary-open"
+                        title="Open what this run said"
+                        aria-label="Open the summary of {{ module.technical_name }}"
+                        data-result-summary="{{ module.id }}"
+                        data-result-summary-name="{{ module.technical_name }}">
+                  {% include "_summary_icon.svg" %}
+                </button>
                 {# The instant travels whole; `stamp.js` rewrites it in the
                    reader's zone. Truncated on the server it lost the offset
                    and read as local time while it was UTC. #}
-                {% if module.finished_at %}<time data-stamp datetime="{{ module.finished_at }}">{{ module.finished_at }}</time>{% else %}not timed{% endif %}
-                · <button type="button" class="result-summary-open"
-                          data-result-summary="{{ module.id }}"
-                          data-result-summary-name="{{ module.technical_name }}">summary</button>
-              </p>
-              {% endif %}
-              {% if not module.struck_out and module.display_status in ['passed', 'failed', 'unknown'] %}
-              <form method="post" action="/result/modules/{{ module.id }}/reopen" class="result-reopen" data-result-reopen>
-                <button type="submit" aria-label="Reopen {{ module.technical_name }}">Reopen</button>
-              </form>
+                <span class="result-when mono">
+                  {% if module.finished_at %}<time data-stamp datetime="{{ module.finished_at }}">{{ module.finished_at }}</time>{% else %}not timed{% endif %}
+                </span>
+                {% endif %}
+                {% if can_reopen %}
+                <form method="post" action="/result/modules/{{ module.id }}/reopen" class="result-reopen" data-result-reopen
+                      data-confirm-title="Reopen {{ module.technical_name }}?"
+                      data-confirm-go="Reopen"
+                      data-confirm-text="The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and files already written to the new project are left as they are.{% if module.review_count %} {{ module.review_count }} module{% if module.review_count != 1 %}s{% endif %} that depend{% if module.review_count == 1 %}s{% endif %} on it will be marked for review.{% endif %}">
+                  <button type="submit" class="result-card-icon"
+                          title="Put this module back in the queue"
+                          aria-label="Reopen {{ module.technical_name }}">
+                    {% include "_reopen_icon.svg" %}
+                  </button>
+                </form>
+                {% endif %}
+              </div>
               {% endif %}
             </div>
           </li>
@@ -135,9 +168,15 @@
      long diagnosis does not push the board around. #}
   <div class="result-summary-panel" data-result-summary-panel hidden>
     <header class="result-summary-head">
-      <span class="mono" data-result-summary-title></span>
-      <button type="button" class="run-log-close" data-result-summary-close
-              title="Close this summary" aria-label="Close this summary">×</button>
+      <span class="mono result-summary-title" data-result-summary-title></span>
+      <div class="result-summary-actions">
+        <button type="button" class="copy-button" data-result-summary-copy
+                title="Copy this summary" aria-label="Copy this summary">
+          {% include "_copy_icon.svg" %}
+        </button>
+        <button type="button" class="run-log-close" data-result-summary-close
+                title="Close this summary" aria-label="Close this summary">×</button>
+      </div>
     </header>
     <div data-result-summary-body></div>
   </div>

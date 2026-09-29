@@ -190,6 +190,11 @@ def report_tool(step) -> ReportTool:
     return ReportTool(step)
 
 
+# Tools this process answers itself, on the host's disk. The daemon never
+# hears of them, so they belong to no Sheller session.
+HOST_TOOLS = frozenset({"read_file", "write_file"})
+
+
 def tools_for(step, ctx) -> list[BoundTool]:
     """The concrete callables for the tools this step declared."""
     bound = []
@@ -211,7 +216,9 @@ def _bind(name: str, step, ctx):
         # The session this command runs against, read before dispatch:
         # `reopen` replaces it, and a trace line recorded with the new id
         # would look for its body in a journal that never saw the command.
-        ran_in = ctx.sessions.get(side, "")
+        # The host's own file tools run in no session: stamping one on them
+        # made a run that read eight files look like eight daemon calls.
+        ran_in = "" if name in HOST_TOOLS else ctx.sessions.get(side, "")
         try:
             value = _dispatch(name, ctx, side, kwargs)
         except ToolRefused:

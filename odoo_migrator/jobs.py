@@ -74,10 +74,17 @@ def running_migration_count() -> int:
 
 
 def lamp_state() -> str:
+    """`needs-attention` beats `running`: a stall is what the lamp is for, and
+    a run somewhere else must not hide it."""
     with database.connection_context():
         waiting = Module.select().where(Module.status.in_(ATTENTION)).exists()
+        running = Module.select().where(Module.status == "running").exists()
 
-    return "needs-attention" if waiting else "idle"
+    if waiting:
+
+        return "needs-attention"
+
+    return "running" if running else "idle"
 
 
 def attention_target() -> dict | None:
@@ -145,6 +152,7 @@ def _emit(hub: EventHub, job: Job, module: Module) -> None:
             "migration_id": str(module.migration_id),
             "question": job.question,
             "has_assumptions": bool(module.has_assumptions),
+            "needs_review": bool(module.needs_review),
             "technical_name": module.technical_name,
             "current_session_id": job.current_session_id or "",
             # The ribbon paints itself from this. Rebuilding it from the
@@ -281,6 +289,7 @@ def start_job(
         # one, and nothing else ever cleared it: the badge would have stayed
         # on a module that came back clean.
         module.has_assumptions = False
+        module.needs_review = False
         module.save()
         _emit(hub, job, module)
         job.status = "running"
@@ -390,6 +399,7 @@ def _undo_start(
                 "migration_id": str(module.migration_id),
                 "question": None,
                 "has_assumptions": bool(module.has_assumptions),
+                "needs_review": bool(module.needs_review),
                 "technical_name": module.technical_name,
                 "current_session_id": "",
             },
@@ -718,6 +728,7 @@ def _publish_module(hub: EventHub | None, module: Module) -> None:
             "migration_id": str(module.migration_id),
             "question": "",
             "has_assumptions": bool(module.has_assumptions),
+            "needs_review": bool(module.needs_review),
             "technical_name": module.technical_name,
             "current_session_id": "",
         },
@@ -748,6 +759,54 @@ def reopen_module(module_id: int, migration_id: str, hub: EventHub | None = None
             raise ContractError("That module is still running.")
         module.status = "queued"
         module.has_assumptions = False
+        # It is about to run again, which is the review.
+        module.needs_review = False
+        module.save()
+        marked = _mark_dependents_for_review(module)
+    _publish_module(hub, module)
+    for dependent in marked:
+        _publish_module(hub, dependent)
+
+    return module
+
+
+def _mark_dependents_for_review(module: Module) -> list[Module]:
+    """Note, on every passed module downstream of this one, that it passed
+    against something that has since been reopened.
+
+    Transitive: a module that reaches this one through others has passed
+    against its result just the same. Only `passed` modules are marked — one
+    that failed or is queued has nothing left to be wrong about — and an
+    excluded one is not in the plan at all. The caller holds the connection.
+    """
+    from odoo_migrator.graph import dependents_by_name
+
+    rows = list(Module.select().where(Module.migration == module.migration_id))
+    listed = [
+        {"technical_name": row.technical_name, "depends": json.loads(row.depends or "[]")}
+        for row in rows
+    ]
+    below = dependents_by_name(listed).get(module.technical_name, set())
+    marked = []
+    for row in rows:
+        if row.technical_name not in below:
+            continue
+        if row.struck_out or row.status != "passed" or row.needs_review:
+            continue
+        row.needs_review = True
+        row.save()
+        marked.append(row)
+
+    return marked
+
+
+def keep_reviewed(module_id: int, migration_id: str, hub: EventHub | None = None) -> Module:
+    """A person looked and the module is fine as it is: drop the note."""
+    with database.connection_context():
+        module = Module.get_or_none(Module.id == module_id)
+        if module is None or str(module.migration_id) != migration_id:
+            raise ContractError("unknown module")
+        module.needs_review = False
         module.save()
     _publish_module(hub, module)
 
@@ -999,6 +1058,11 @@ def module_outcome(module_id: int) -> dict | None:
             "attempt": run.attempt,
             "ok": run.ok,
             "output": run.output or "",
+            "tokens": (
+                {"in": run.tokens_in, "out": run.tokens_out}
+                if run.tokens_in or run.tokens_out
+                else None
+            ),
         }
         for run in runs
     ]
@@ -1011,6 +1075,11 @@ def module_outcome(module_id: int) -> dict | None:
         "stage": job.current_stage or "",
         "finished_at": _stamp(finished),
         "steps": steps,
+        "tokens": {
+            "in": sum(run.tokens_in for run in runs),
+            "out": sum(run.tokens_out for run in runs),
+            "cached": sum(run.tokens_cached for run in runs),
+        },
         "sessions": _sessions(runs),
         "testing": _testing(runs),
         "messages": messages,
@@ -1070,8 +1139,14 @@ def _sessions(runs: list) -> list[dict]:
     a rewrite invalidates the session on the new container, and a checkpoint
     closes both. So these are listed, not folded into one per side.
 
-    Tools that never touch the daemon — `read_file`, `write_file`,
-    `list_tests` — carry no session and are not counted here.
+    What is counted is what became a command in that session's journal: a
+    call the daemon gave an id. The host's file tools never touch it, the
+    routes (`list_tests`, `journal`, `history`) are not commands, and a call
+    the daemon refused — `session_busy` — never became one. Counting every
+    row made a run that read eight files and wrote five show eighteen calls
+    beside a journal of five commands. Rows written before the runner stopped
+    stamping a session on the file tools carry one still, and are skipped by
+    the missing id all the same.
 
     Caller holds the connection.
     """
@@ -1088,7 +1163,7 @@ def _sessions(runs: list) -> list[dict]:
         .where(ToolCall.step_run.in_(ids))
         .order_by(ToolCall.id)
     ):
-        if not call.session_id:
+        if not call.session_id or not call.command_id:
             continue
         key = (call.side, call.session_id)
         row = seen.get(key)
