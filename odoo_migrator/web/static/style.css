@@ -3511,10 +3511,16 @@ a.ribbon-box:focus-visible {
   flex: none;
 }
 
+/* Grows to fill the window, never shrinks below its content. It used to
+   shrink: a checkpoint thousands of pixels tall under it squeezed it to
+   nothing, and the queue buttons were drawn over "No module is running". */
 .screen-pipeline > .workspace {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 0 auto;
   margin-bottom: 0;
+}
+
+.screen-pipeline > .checkpoint {
+  margin-top: 12px;
 }
 
 .screen-pipeline .run-log-panel {
@@ -3681,6 +3687,22 @@ a.ribbon-box:focus-visible {
 
 .pipeline-ask[hidden] {
   display: none;
+}
+
+/* The agent writes markdown, and a diagnosis is often a page of it: its
+   line breaks kept, and a box that scrolls rather than a wall of text. */
+.job-review .question,
+.job-review .diagnosis {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
 }
 
 .pipeline-ask .question {
