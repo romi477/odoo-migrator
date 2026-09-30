@@ -17,6 +17,9 @@ class RunningContainer:
     status: str
     labels: dict
     host_ports: list[int] = field(default_factory=list)
+    # Bind mounts only, as {"host", "container", "read_only"}. Volumes have
+    # no directory on this machine a person can open.
+    mounts: list[dict] = field(default_factory=list)
 
 
 class FakeComposeEngine:
@@ -37,6 +40,7 @@ class FakeComposeEngine:
         status: str,
         labels: dict,
         host_ports: list[int],
+        mounts: list[dict] | None = None,
     ) -> None:
         self.containers.append(
             RunningContainer(
@@ -45,6 +49,7 @@ class FakeComposeEngine:
                 status=status,
                 labels=labels,
                 host_ports=list(host_ports),
+                mounts=list(mounts or []),
             )
         )
 
@@ -99,6 +104,7 @@ class DockerComposeEngine:
                         status=container.status,
                         labels=dict(container.labels or {}),
                         host_ports=_host_ports(container),
+                        mounts=_bind_mounts(container),
                     )
                 )
         except Exception as exc:
@@ -136,6 +142,21 @@ class DockerComposeEngine:
                 ) from exc
 
         return self._docker
+
+
+def _bind_mounts(container) -> list[dict]:
+    found = []
+    for entry in container.attrs.get("Mounts") or []:
+        if entry.get("Type") != "bind":
+            continue
+        host = entry.get("Source") or ""
+        inside = entry.get("Destination") or ""
+        if host and inside:
+            found.append(
+                {"host": host, "container": inside, "read_only": not entry.get("RW", True)}
+            )
+
+    return found
 
 
 def _host_ports(container) -> list[int]:

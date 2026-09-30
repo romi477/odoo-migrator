@@ -1,8 +1,19 @@
-"""Container path to host path and back, from bind mounts. Pure: no Docker."""
+"""Container path to host path and back, from bind mounts. No Docker."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
-from odoo_migrator.mounts import covering, load, to_container, to_host, too_broad
+from odoo_migrator.mounts import (
+    container_mounts,
+    covering,
+    load,
+    to_container,
+    to_host,
+    too_broad,
+)
+from odoo_migrator.provision import FakeComposeEngine
+from odoo_migrator.provision.engine import _bind_mounts
+from odoo_migrator.provision.errors import DockerUnavailable
 
 MOUNTS = [
     {"host": "/opt/sources/project", "container": "/opt/project", "read_only": False},
@@ -61,3 +72,41 @@ def test_too_broad_refuses_the_disk_home_and_data_dir_parents():
     assert too_broad("/Users/someone/.odoo-migrator", home=home, data_dir=data)
     assert too_broad("/Users/someone/work/addons", home=home, data_dir=data) is None
     assert too_broad("/opt/sources/project", home=home, data_dir=data) is None
+
+
+def test_only_bind_mounts_are_reported():
+    container = SimpleNamespace(
+        attrs={
+            "Mounts": [
+                {"Type": "bind", "Source": "/opt/sources/project", "Destination": "/opt/project", "RW": True},
+                {"Type": "volume", "Source": "/var/lib/docker/volumes/x", "Destination": "/var/lib/odoo", "RW": True},
+                {"Type": "bind", "Source": "/opt/conf", "Destination": "/etc/odoo", "RW": False},
+            ]
+        }
+    )
+
+    assert _bind_mounts(container) == [
+        {"host": "/opt/sources/project", "container": "/opt/project", "read_only": False},
+        {"host": "/opt/conf", "container": "/etc/odoo", "read_only": True},
+    ]
+
+
+def test_container_mounts_reads_the_named_container():
+    engine = FakeComposeEngine()
+    engine.add_container(
+        name="odoo-old", image="odoo:17", status="running", labels={}, host_ports=[],
+        mounts=[{"host": "/opt/sources/project", "container": "/opt/project", "read_only": False}],
+    )
+
+    assert container_mounts(engine, "odoo-old") == [
+        {"host": "/opt/sources/project", "container": "/opt/project", "read_only": False}
+    ]
+    assert container_mounts(engine, "missing") is None
+
+
+def test_an_unreachable_engine_is_not_known_rather_than_empty():
+    class Down:
+        def list_containers(self):
+            raise DockerUnavailable("Docker Engine is not reachable: no socket")
+
+    assert container_mounts(Down(), "odoo-old") is None

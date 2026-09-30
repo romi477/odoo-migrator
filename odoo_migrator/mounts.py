@@ -3,7 +3,8 @@
 The only translation between a path inside a container and one on the host.
 Build graph, the file tools and the prompt all go through here, so a path
 from a traceback and a path on disk never disagree about which file they
-mean. Pure: nothing here touches the filesystem or Docker.
+mean. Nothing here touches the filesystem; only `container_mounts` asks
+the compose engine.
 """
 
 from __future__ import annotations
@@ -104,5 +105,22 @@ def too_broad(
     if path == data_dir or path in data_dir.parents:
 
         return "it holds this app's own data"
+
+    return None
+
+
+def container_mounts(engine, name: str) -> list[dict] | None:
+    """The bind mounts of container `name`, or None when that is not known."""
+    from odoo_migrator.provision.errors import DockerUnavailable
+
+    try:
+        containers = engine.list_containers()
+    except DockerUnavailable:
+
+        return None
+    for container in containers:
+        if container.name == name:
+
+            return [dict(mount) for mount in container.mounts]
 
     return None
