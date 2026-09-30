@@ -51,6 +51,10 @@
           {% endif %}
         </div>
         <p class="mono side-path">{{ expanded.old_project_path if side == "old" else expanded.new_project_path }}</p>
+        {% set found = addons_roots[side] %}
+        {% if found %}
+        <p class="field-hint side-addons">Addons found in <span class="mono">{{ found | join(", ") }}</span></p>
+        {% endif %}
         {% if status.detail %}
         <p class="field-hint">{{ status.detail }}</p>
         {% endif %}

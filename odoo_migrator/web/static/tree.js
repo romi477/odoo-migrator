@@ -181,6 +181,7 @@
         notes: row.notes || "",
         question: row.question || "",
         has_assumptions: row.has_assumptions,
+        path_problem: row.path_problem || "",
         step_color: colourForStep(row.step, "fill"),
         step_edge: colourForStep(row.step, "edge"),
       },
@@ -678,6 +679,10 @@
     if (statusEl) {
       statusEl.hidden = true;
     }
+    const pathEl = document.getElementById("node-card-path");
+    if (pathEl) {
+      pathEl.hidden = true;
+    }
     if (assumptionsEl) {
       assumptionsEl.hidden = true;
     }
@@ -721,6 +726,16 @@
       statusEl.hidden = false;
       statusEl.className = "badge " + display;
       statusEl.textContent = display;
+    }
+    /* Not a status: the module keeps its own. Says it cannot start until
+       its directory is mounted, and why. */
+    const pathEl = document.getElementById("node-card-path");
+    if (pathEl) {
+      const problem = node.data("path_problem");
+      pathEl.hidden = !problem;
+      pathEl.title = problem
+        ? "The app does not know where this module is on disk: " + problem
+        : "";
     }
     syncSelectionActions("one", [node]);
     if (skipEl) {

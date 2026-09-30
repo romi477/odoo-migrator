@@ -1143,6 +1143,13 @@ a.brand:hover .wordmark {
   color: color-mix(in oklch, var(--green) 80%, var(--muted));
 }
 
+/* Not a status: the module keeps its own. A quiet mark that it cannot
+   start until its directory is mounted. */
+.badge.path-unknown {
+  border-style: dashed;
+  color: var(--muted);
+}
+
 .badge.failed {
   background: var(--red-dark);
   color: var(--red);
@@ -3689,4 +3696,10 @@ a.ribbon-box:focus-visible {
   background: var(--panel-raised);
   color: inherit;
   font: inherit;
+}
+
+/* Where Build graph found this side's addons, under the project path. */
+.side-addons {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
 }

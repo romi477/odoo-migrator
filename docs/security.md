@@ -25,10 +25,18 @@ daemon that may not be ours.
 process, so it is already on the host. There is no second process to
 proxy for.
 
-**File tools stay inside the two project roots.** `read_file` and
-`write_file` resolve under the old or the new project path. A path that
-would leave that root is refused, not clipped back inside. Clamping
-`a/../b` into `b` is how an escape becomes a successful write.
+**File tools stay inside the plan's addons directories.** `read_file` and
+`write_file` take a path as the container names it and translate it with
+the bind mounts Build graph recorded. Only a mount that holds a module of
+the plan is a root: a mount of `odoo.conf`, `~/.ssh` or the filestore is
+on the container too, and is not reachable through these tools. A mount of
+`/`, the home directory or this app's data directory is never a root. The
+path is resolved — `..` and symlinks included — before it is checked, and
+one that leaves its root is refused, not clipped back inside. Clamping
+`a/../b` into `b` is how an escape becomes a successful write. With no
+mounts known, a path relative to the old or the new project path is the
+only form accepted, under the same rule. Writes land only inside the
+ported module's own directory on the new side.
 
 **Provider secrets are stored and never rendered.** A key is a
 `ProviderSetting` row. The settings page reports whether it is set. A
@@ -93,6 +101,6 @@ thread and the job becomes `unknown`, not `running`.
 
 ## What this does not claim
 
-`write_file` writes whatever the model sends, inside the project root.
+`write_file` writes whatever the model sends, inside the module's directory.
 There is no second review of the patch before it hits disk. The
 checkpoint diff is how a human sees what landed, after the fact.

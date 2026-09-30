@@ -16,6 +16,7 @@
     <span class="badge running">running</span>
     <span class="badge passed">passed</span>
     <span class="badge migrated">migrated</span>
+    <span class="badge path-unknown">path unknown</span>
     <span class="badge failed">failed</span>
     <span class="badge waiting_for_human">waiting_for_human</span>
     <span class="badge assumptions">assumptions</span>
@@ -595,6 +596,16 @@ tools offered: exec, read_file, report, source</pre>
   </form>
   <p>Versions are chosen, never typed. Target lists only what is newer than
   the source.</p>
+
+  <h2>Addons found</h2>
+  <div class="card container-side">
+    <p class="mono side-path">/opt/projects/acme/17</p>
+    <p class="field-hint side-addons">Addons found in <span class="mono">/opt/projects/acme/17/project, /opt/sources/external</span></p>
+  </div>
+  <p>Under each project path, after Build graph: the host directories the
+  file tools may reach. A module whose directory is not mounted keeps its
+  status and carries the dashed <span class="badge path-unknown">path unknown</span>
+  mark; it does not start.</p>
 
   <h2>Confirm dialog</h2>
   <dialog class="confirm-dialog is-specimen" open>

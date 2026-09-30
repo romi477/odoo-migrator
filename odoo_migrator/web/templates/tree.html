@@ -26,6 +26,9 @@
     <p class="tree-flash field-hint">Graph refreshed — leave-out choices kept.
       {% if migrated_marked %}{{ migrated_marked }} module{% if migrated_marked != 1 %}s{% endif %} already installed on the target, marked <span class="badge migrated">migrated</span>.{% endif %}
     </p>
+    {% if unplaced %}
+    <p class="tree-flash field-hint">{{ unplaced }} module{% if unplaced != 1 %}s have{% else %} has{% endif %} no known path on disk and will not start. The node card says why.</p>
+    {% endif %}
     {% if target_error %}
     <p class="tree-flash field-hint">Target not read: {{ target_error }}. Nothing was marked migrated.</p>
     {% endif %}
@@ -42,7 +45,9 @@
         <p><strong>Build graph</strong> re-reads the old Odoo. Click a module,
         then <strong>Exclude</strong> or <strong>Include</strong>.
         Step buttons select a wave. Drag onto another node for a batch group;
-        runs start on Pipeline.</p>
+        runs start on Pipeline. A changed compose file needs
+        <strong>Build graph</strong> again: the app reads where addons are
+        mounted only then.</p>
       </details>
     </div>
     <div class="tree-selection-bar">
@@ -59,6 +64,7 @@
                   <span class="graph-node-index" id="node-card-index">{% if selected %}#{{ selected.migration_rank }}/{{ selected.step }}{% endif %}</span>
                   <span class="name mono" id="node-card-name">{% if selected %}{{ selected.technical_name }}{% endif %}</span>
                   <span class="badge{% if selected %}{% if selected.struck_out %} excluded{% else %} {{ selected.status }}{% endif %}{% endif %}" id="node-card-status">{% if selected %}{% if selected.struck_out %}excluded{% else %}{{ selected.status }}{% endif %}{% endif %}</span>
+                  <span class="badge path-unknown" id="node-card-path"{% if not selected or not selected.path_problem %} hidden{% endif %}{% if selected and selected.path_problem %} title="The app does not know where this module is on disk: {{ selected.path_problem }}"{% endif %}>path unknown</span>
                   {% if selected and selected.has_assumptions %}
                   <span class="badge assumptions" id="node-card-assumptions">assumptions</span>
                   {% else %}

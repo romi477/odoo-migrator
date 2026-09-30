@@ -14,7 +14,7 @@ FastAPI app ── SQLite the source of truth: queue, batches,
  │              rules, notes, findings, the cartridge pin
  │
  ├─ native runner (one job, one thread) ── model provider
- │     tools call Sheller and write files under the project roots
+ │     tools call Sheller and write files under the mounted addons dirs
  │
  └─> Sheller daemon 127.0.0.1:8765 ──> old container / new container
 ```
@@ -105,8 +105,10 @@ one column per SDK. The settings page shows whether a secret is set and
 never renders the value. A blank save keeps the stored one.
 
 The tool catalog and its JSON schemas live in `runner/tools.py`. A
-provider translates them. `write_file` and `read_file` stay under the
-configured project root; a path that escapes it is refused, not clamped.
+provider translates them. `write_file` and `read_file` take container
+paths and stay under the bind mounts that hold the plan's modules
+(`mounts.py`, snapshot taken at Build graph); a path that escapes them is
+refused, not clamped.
 
 ## Diffs
 

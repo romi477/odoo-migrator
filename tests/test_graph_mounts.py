@@ -244,3 +244,35 @@ def test_an_excluded_unplaced_module_does_not_block(tmp_path):
         Module.update(struck_out=True).where(Module.technical_name == "baked_x").execute()
 
     assert path_problems_blocking(created["id"], [_module("baked_x").id]) is None
+
+
+def test_the_card_names_the_addons_directories_found(client, tmp_path):
+    client.post("/migrations", data={
+        "name": "Acme", "accent": "violet", "source_version": "17.0", "target_version": "18.0",
+        "old_project_path": "/tmp/Acme/old", "new_project_path": "/tmp/Acme/new",
+    }, follow_redirects=True)
+    with database.connection_context():
+        row = Migration.get(Migration.name == "Acme")
+    client.post(f"/migrations/{row.id}/open", follow_redirects=True)
+    save_side_container(row.id, "old", "odoo-old")
+    save_side_container(row.id, "new", "odoo-new")
+    engine = client.app.state.compose
+    engine.add_container(name="odoo-old", image="odoo:17", status="running", labels={}, host_ports=[],
+                         mounts=OLD_MOUNTS)
+    engine.add_container(name="odoo-new", image="odoo:18", status="running", labels={}, host_ports=[],
+                         mounts=NEW_MOUNTS)
+    client.app.state.sheller.graph_modules.append(
+        {"name": "baked_x", "depends": ["sale"], "state": "installed",
+         "addons_root": "/opt/odoo-sh/x", "path": "/opt/odoo-sh/x/baked_x",
+         "author": "Acme", "license": "OPL-1", "is_core": False}
+    )
+
+    tree = client.post("/tree/resolve", follow_redirects=True).text
+    card = client.get(f"/?settings={row.id}").text
+
+    # baked_x, and web_enterprise_helper from the default graph: it lives in
+    # /opt/enterprise, which these mounts do not cover.
+    assert "2 modules have no known path on disk" in tree
+    assert "Addons found in" in card
+    assert "/opt/sources/project" in card
+    assert "/opt/sources/project-18" in card

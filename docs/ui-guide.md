@@ -79,8 +79,8 @@ sits centered, with a cyan outline. It asks for:
 |---|---|
 | Name | The identity the switcher and the logs use |
 | Accent | A colour per migration so two concurrent ones stay distinguishable |
-| Source / Target | Same-version and downgrade are refused here, where they were typed |
-| Old / New project | The two roots `read_file` and `write_file` may touch. A path that escapes them is refused |
+| Source / Target | Chosen from the versions that have a rules file (16.0–20.0 today); target lists only newer ones. The server refuses anything else |
+| Old / New project | Where the compose file is. The file tools reach the addons directories the containers mount from here, not the whole project (see Tree) |
 
 There is no "start the pipeline" on this screen. Create, Open, then
 Settings and Tree.
@@ -102,6 +102,19 @@ skips it, it counts toward the green bar with its own "already in target"
 counter, and **Reopen** on Result puts it back to queued. A target that is
 not attached or does not answer is named above the canvas; the graph from
 the old side stands and nothing is marked.
+
+**Where the addons are.** Build graph also reads each container's bind
+mounts from Docker and keeps them until the next Build graph — a changed
+compose file needs one. Every module is placed from them: its directory on
+the host, and inside each container. A port goes into the target directory
+mounted at the same container path; failing that, under the new project's
+mount. The card on Overview names the directories found, under each
+project path ("Addons found in …"). A module that cannot be placed keeps
+its status, carries a dashed **path unknown** mark on the node card and
+does not start. The reason is one of: *not mounted* (its code is inside
+the image), *mount too broad* (the mount is `/`, the home directory or
+this app's data directory), *no target directory*. With Docker not
+reachable, paths come from the project directories as before.
 
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.

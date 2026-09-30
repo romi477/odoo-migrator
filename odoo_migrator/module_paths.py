@@ -273,3 +273,20 @@ def agent_path(migration, module, side: str) -> str:
         return stored
 
     return relative_to_root(migration, module, side)
+
+
+def addon_directories(migration_id: str) -> dict[str, list[str]]:
+    """What the card shows: the host directories the tools may reach."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Migration
+
+    with database.connection_context():
+        migration = Migration.get_or_none(Migration.id == migration_id)
+    if migration is None:
+
+        return {"old": [], "new": []}
+
+    return {
+        side: [mount["host"] for mount in allowed_roots(migration, side)]
+        for side in ("old", "new")
+    }

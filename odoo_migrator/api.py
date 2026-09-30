@@ -77,6 +77,7 @@ from odoo_migrator.migrations import (
     suggest_accent,
 )
 from odoo_migrator.models import ACCENTS
+from odoo_migrator.module_paths import addon_directories
 from odoo_migrator.paths import rules_dir as default_rules_dir
 from odoo_migrator.paths import static_dir, templates_dir
 from odoo_migrator.pipeline_queue import add_all_steps as queue_add_all_steps
@@ -312,6 +313,7 @@ def create_app(
                 "selected": selected,
                 "graph_updated": request.query_params.get("graph") == "updated",
                 "migrated_marked": _count_param(request, "migrated"),
+                "unplaced": _count_param(request, "unplaced"),
                 "target_error": request.query_params.get("target_error") or "",
             },
         )
@@ -429,15 +431,22 @@ def create_app(
         # uses this snapshot. A changed compose file needs Build graph again.
         snapshot_mounts(request.app.state.compose, current["id"])
         try:
-            resolve_graph(_sheller(request), current["id"])
+            rows = resolve_graph(_sheller(request), current["id"])
         except GraphError as refused:
 
             return _tree_page(request, error=str(refused))
+        unplaced = sum(
+            1 for row in rows if row.get("path_problem") and not row.get("struck_out")
+        )
         # A half-ported project: what the target already has installed is
         # marked, not queued again. A target that cannot be read is said on
         # the page; the graph from the source stands either way.
         target = mark_migrated_from_target(_sheller(request), current["id"])
-        query = {"graph": "updated", "migrated": target["marked"]}
+        query = {
+            "graph": "updated",
+            "migrated": target["marked"],
+            "unplaced": unplaced,
+        }
         if target["error"]:
             query["target_error"] = target["error"]
 
@@ -1319,6 +1328,11 @@ def create_app(
                 "creating": creating,
                 "typed": typed or {},
                 "versions": supported_versions(),
+                "addons_roots": (
+                    addon_directories(migration["id"])
+                    if migration
+                    else {"old": [], "new": []}
+                ),
                 "error": error,
             },
         )
