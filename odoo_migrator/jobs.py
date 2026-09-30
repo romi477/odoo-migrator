@@ -23,6 +23,7 @@ from odoo_migrator.graph import (
     earlier_steps_blocking,
     modules_in_batch_order,
     modules_in_step_order,
+    path_problems_blocking,
     steps_for_migration,
 )
 from odoo_migrator.models import (
@@ -215,6 +216,9 @@ def start_job(
                 f"{module_row.technical_name} is struck out. Bring it back first."
             )
         name = module_row.technical_name
+    unplaced = path_problems_blocking(migration_id, [module_id])
+    if unplaced:
+        raise ContractError(unplaced)
     step = steps_for_migration(migration_id).get(name)
     # A batch already passed the wave check to start. Re-checking here
     # stopped a mixed Group: stock (step 2) waited for every step-1
@@ -449,6 +453,9 @@ def start_batch(
         raise ContractError(
             "Every module here has already passed. Reopen one to run it again."
         )
+    unplaced = path_problems_blocking(migration_id, [row["id"] for row in ordered])
+    if unplaced:
+        raise ContractError(unplaced)
     # The guard reads the wave off everything selected, not off what is left
     # to do. Dropping a passed parent from the list would raise the wave and
     # block on an earlier step the batch was never waiting for.

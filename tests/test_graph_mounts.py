@@ -3,10 +3,21 @@ from the container directories they name."""
 
 import json
 
+import pytest
+
+from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database, init_db
-from odoo_migrator.graph import build_graph_snippet, resolve_graph, snapshot_mounts
+from odoo_migrator.events import EventHub
+from odoo_migrator.executor import StubExecutor
+from odoo_migrator.graph import (
+    build_graph_snippet,
+    path_problems_blocking,
+    resolve_graph,
+    snapshot_mounts,
+)
+from odoo_migrator.jobs import start_batch, start_job
 from odoo_migrator.migrations import create_migration, save_side_container
-from odoo_migrator.models import Migration, Module
+from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.provision import FakeComposeEngine
 from odoo_migrator.provision.errors import DockerUnavailable
 from odoo_migrator.sheller import FakeShellerClient
@@ -207,3 +218,29 @@ def test_a_second_build_graph_replaces_the_placement(tmp_path):
     baked = _module("baked_x")
     assert baked.path_problem == ""
     assert baked.new_path == "/opt/sources/connectors-18/baked_x"
+
+
+def test_a_step_with_an_unplaced_module_is_refused_whole(tmp_path):
+    created = _placed(tmp_path, _engine(), ("baked_x", "/opt/odoo-sh/connectors-extensions"))
+    baked = _module("baked_x")
+
+    message = path_problems_blocking(created["id"], [baked.id, _module("sale_custom").id])
+
+    assert "baked_x (not mounted)" in message
+    assert "sale_custom" not in message
+    with pytest.raises(ContractError, match="baked_x"):
+        start_batch(migration_id=created["id"], executor=StubExecutor(progress=lambda body: None, result=lambda body: None), hub=EventHub(),
+                    step=baked.batch_group)
+    with pytest.raises(ContractError, match="baked_x"):
+        start_job(migration_id=created["id"], module_id=baked.id,
+                  executor=StubExecutor(progress=lambda body: None, result=lambda body: None), hub=EventHub())
+    with database.connection_context():
+        assert Job.select().count() == 0
+
+
+def test_an_excluded_unplaced_module_does_not_block(tmp_path):
+    created = _placed(tmp_path, _engine(), ("baked_x", "/opt/odoo-sh/connectors-extensions"))
+    with database.connection_context():
+        Module.update(struck_out=True).where(Module.technical_name == "baked_x").execute()
+
+    assert path_problems_blocking(created["id"], [_module("baked_x").id]) is None

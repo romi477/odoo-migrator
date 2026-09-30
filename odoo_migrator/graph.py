@@ -792,6 +792,35 @@ def earlier_steps_blocking(migration_id: str, step: int | None) -> str | None:
     return f"Step {step} cannot start until step {earliest} is migrated."
 
 
+def path_problems_blocking(migration_id: str, module_ids: list[int]) -> str | None:
+    """Modules the app cannot find on disk do not start. Nothing starts partly."""
+    if not module_ids:
+
+        return None
+    with database.connection_context():
+        rows = list(
+            Module.select().where(
+                (Module.migration == migration_id)
+                & (Module.id.in_(module_ids))
+                & (Module.struck_out == False)
+                & (Module.path_problem != "")
+            )
+        )
+    if not rows:
+
+        return None
+    listed = ", ".join(
+        f"{row.technical_name} ({row.path_problem})"
+        for row in sorted(rows, key=lambda row: row.technical_name)
+    )
+
+    return (
+        f"The app does not know where these modules are on disk: {listed}. "
+        "Mount their directories in the compose file and press Build graph "
+        "again, or exclude them on Tree."
+    )
+
+
 def set_batch_group(module_id: int, batch_group: int | None) -> dict:
     with database.connection_context():
         module = Module.get_or_none(Module.id == module_id)
