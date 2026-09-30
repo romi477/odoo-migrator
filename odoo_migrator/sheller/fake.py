@@ -76,6 +76,9 @@ class FakeShellerClient:
             {"id": "ba9876543210", "name": "odoo-new", "image": "odoo:18", "status": "Up"},
         ]
         self.graph_modules = [dict(row) for row in DEFAULT_GRAPH]
+        # container name -> modules installed in its database. What the
+        # target's `ir.module.module` answers; empty is a fresh database.
+        self.installed_by_container: dict[str, list[str]] = {}
         self.opens: list[dict] = []
         self.execs: list[str] = []
         self._next_command = 0
@@ -241,6 +244,9 @@ class FakeShellerClient:
             result = repr(json.dumps({"text": "def action_confirm(self):\n    ...", "line": 1}))
         elif "ir.module.module" in code and "json.dumps(rows)" in code:
             result = repr(json.dumps(self.graph_modules))
+        elif "ir.module.module" in code and "installed_names" in code:
+            names = self.installed_by_container.get(session["container"], [])
+            result = repr(json.dumps(sorted(names)))
         answer = {
             "id": command_id,
             "stdout": "",

@@ -82,6 +82,12 @@ json.dumps(rows)
 """
 
 
+# Finished without further work from the queue. `migrated` is a module the
+# target already had installed when the graph was read: done, but not by this
+# app, so it is counted apart from `passed` wherever that matters to a person.
+DONE = ("passed", "migrated")
+
+
 class GraphError(Exception):
     """The module graph could not be resolved from the old container."""
 
@@ -206,7 +212,7 @@ def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> lis
     steps = []
     for wave in sorted(by_step):
         rows = by_step[wave]
-        pending = [row for row in rows if row["status"] != "passed"]
+        pending = [row for row in rows if row["status"] not in DONE]
         if pending_only and not pending:
             continue
         shown = pending if pending_only else rows
@@ -217,7 +223,7 @@ def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> lis
                 "pending": len(pending),
                 "modules": sorted(row["technical_name"] for row in shown),
                 "passed": sorted(
-                    row["technical_name"] for row in rows if row["status"] == "passed"
+                    row["technical_name"] for row in rows if row["status"] in DONE
                 ),
             }
         )
@@ -739,7 +745,8 @@ def earlier_steps_blocking(migration_id: str, step: int | None) -> str | None:
     """A later wave does not start while an earlier one is still unfinished.
 
     Struck modules are out of the plan. Failed, queued, running and
-    waiting_for_human on a previous step all block.
+    waiting_for_human on a previous step all block; passed and migrated do
+    not.
     """
     if step is None or step <= 1:
 
@@ -756,7 +763,7 @@ def earlier_steps_blocking(migration_id: str, step: int | None) -> str | None:
     blockers = [
         row
         for row in rows
-        if row.status != "passed" and ranks.get(row.technical_name, 1) < step
+        if row.status not in DONE and ranks.get(row.technical_name, 1) < step
     ]
     if not blockers:
 
@@ -805,13 +812,45 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         raise GraphError(str(exc)) from exc
     if not probed.get("ok") or not probed.get("db_name") or not probed.get("odoo_bin"):
         raise GraphError("the old container could not be probed")
+    try:
+        executed = _read_only_exec(
+            client,
+            container=old_container,
+            database=probed["db_name"],
+            odoo_bin=probed["odoo_bin"],
+            migration_id=migration_id,
+            code=build_graph_snippet(old_project_path),
+        )
+        rows = parse_graph_payload(executed)
+    except GraphError:
+        raise
+    except Exception as exc:
+        raise GraphError(str(exc)) from exc
+
+    return persist_graph(migration_id, rows)
+
+
+def _read_only_exec(
+    client,
+    *,
+    container: str,
+    database: str,
+    odoo_bin: str,
+    migration_id: str,
+    code: str,
+) -> dict:
+    """Run one read on a container in a session of its own, then drop it.
+
+    Opened without commit, rolled back and closed whatever happens: a read
+    leaves nothing behind on either side.
+    """
     opened = None
     write_key = None
     try:
         opened = client.open_session(
-            container=old_container,
-            database=probed["db_name"],
-            odoo_bin=probed["odoo_bin"],
+            container=container,
+            database=database,
+            odoo_bin=odoo_bin,
             owner={
                 "kind": "agent",
                 "label": "odoo-migrator",
@@ -820,18 +859,8 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
             allow_commit=False,
         )
         write_key = opened["write_key"]
-        executed = client.exec(
-            opened["id"],
-            build_graph_snippet(old_project_path),
-            write_key=write_key,
-        )
-        rows = parse_graph_payload(executed)
-    except GraphError:
-        raise
-    except ShellerError as exc:
-        raise GraphError(str(exc)) from exc
-    except Exception as exc:
-        raise GraphError(str(exc)) from exc
+
+        return client.exec(opened["id"], code, write_key=write_key)
     finally:
         if opened is not None and write_key:
             try:
@@ -843,4 +872,82 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
             except ShellerError:
                 pass
 
-    return persist_graph(migration_id, rows)
+
+INSTALLED_SNIPPET = """\
+import json
+installed_names = env['ir.module.module'].search(
+    [('state', 'in', ('installed', 'to upgrade'))]
+).mapped('name')
+json.dumps(sorted(installed_names))
+"""
+
+
+def _target_installed(client, migration: Migration) -> set[str]:
+    """Names of the modules installed in the target's database."""
+    probed = client.probe(migration.new_container)
+    if not probed.get("ok") or not probed.get("odoo_bin"):
+        raise GraphError("the target container could not be probed")
+    known = probed.get("databases") or []
+    # The card first, then the container's own odoo.conf, as a run does.
+    chosen = (migration.new_database or "").strip() or (probed.get("db_name") or "")
+    if not chosen:
+        raise GraphError("the target container names no database")
+    if known and chosen not in known:
+        raise GraphError(f"database {chosen!r} is not on the target container")
+    executed = _read_only_exec(
+        client,
+        container=migration.new_container,
+        database=chosen,
+        odoo_bin=probed["odoo_bin"],
+        migration_id=migration.id,
+        code=INSTALLED_SNIPPET,
+    )
+    names = parse_graph_payload(executed)
+
+    return {name for name in names if isinstance(name, str)}
+
+
+def mark_migrated_from_target(client, migration_id: str) -> dict:
+    """Mark the modules the target already has installed as `migrated`.
+
+    A project often arrives half-ported. Only modules the app has not
+    touched are marked: queued, in the plan, and with no job of ours. A
+    module that ran here keeps what its run said. Nothing is unmarked: a
+    module that has left the target stays `migrated` until a person
+    reopens it.
+
+    Returns ``{"marked": n, "error": reason or None}``. A target that is
+    missing or does not answer is reported, not raised: the graph from the
+    source is already stored and stays useful.
+    """
+    with database.connection_context():
+        migration = Migration.get_or_none(Migration.id == migration_id)
+    if migration is None:
+
+        return {"marked": 0, "error": "no open migration"}
+    if not migration.new_container:
+
+        return {"marked": 0, "error": "no target container is attached"}
+    try:
+        installed = _target_installed(client, migration)
+    except (GraphError, ShellerError) as exc:
+
+        return {"marked": 0, "error": str(exc) or type(exc).__name__}
+    if not installed:
+
+        return {"marked": 0, "error": None}
+    with database.connection_context():
+        ran = Job.select(Job.module).distinct()
+        marked = (
+            Module.update(status="migrated")
+            .where(
+                (Module.migration == migration_id)
+                & (Module.technical_name.in_(sorted(installed)))
+                & (Module.status == "queued")
+                & (Module.struck_out == False)
+                & (Module.id.not_in(ran))
+            )
+            .execute()
+        )
+
+    return {"marked": marked, "error": None}

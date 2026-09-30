@@ -170,7 +170,8 @@ function fillResultCornerGlyph(glyph, kind) {
         const finished =
           data.status === "passed" ||
           data.status === "failed" ||
-          data.status === "unknown";
+          data.status === "unknown" ||
+          data.status === "migrated";
         reopen.hidden = !finished;
       }
     } else if (data.status === "failed") {

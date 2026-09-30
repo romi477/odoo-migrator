@@ -42,6 +42,9 @@ def _progress(counts: dict | None) -> dict:
     counts = counts or {}
     total = counts.get("total", 0)
     passed = counts.get("passed", 0)
+    # Installed on the target before this app ran it: done, and on the green
+    # part of the bar, but counted apart so nobody reads it as checked here.
+    migrated = counts.get("migrated", 0)
     failed = counts.get("failed", 0)
     waiting = counts.get("waiting", 0)
 
@@ -52,10 +55,12 @@ def _progress(counts: dict | None) -> dict:
     return {
         "total": total,
         "passed": passed,
+        "migrated": migrated,
+        "done": passed + migrated,
         "failed": failed,
         "waiting": waiting,
         "reopenable": counts.get("reopenable", 0),
-        "pct_done": pct(passed),
+        "pct_done": pct(passed + migrated),
         "pct_bad": pct(failed),
         "has_modules": total > 0,
     }
@@ -76,11 +81,14 @@ def _module_counts() -> dict[str, dict]:
     )
     for row in query:
         bucket = counts.setdefault(
-            row.migration_id, {"total": 0, "passed": 0, "failed": 0, "waiting": 0}
+            row.migration_id,
+            {"total": 0, "passed": 0, "migrated": 0, "failed": 0, "waiting": 0},
         )
         bucket["total"] += row.n
         if row.status == "passed":
             bucket["passed"] += row.n
+        elif row.status == "migrated":
+            bucket["migrated"] += row.n
         elif row.status == "failed":
             bucket["failed"] += row.n
         elif row.status == "waiting_for_human":
@@ -186,6 +194,7 @@ def migration_results(migration_id: str) -> dict:
     counts = {
         "total": len(active),
         "passed": 0,
+        "migrated": 0,
         "failed": 0,
         "waiting": 0,
         "reopenable": 0,
@@ -193,11 +202,13 @@ def migration_results(migration_id: str) -> dict:
     for row in active:
         if row["status"] == "passed":
             counts["passed"] += 1
+        elif row["status"] == "migrated":
+            counts["migrated"] += 1
         elif row["status"] == "failed":
             counts["failed"] += 1
         elif row["status"] == "waiting_for_human":
             counts["waiting"] += 1
-        if row["status"] in ("passed", "failed", "unknown"):
+        if row["status"] in ("passed", "failed", "unknown", "migrated"):
             counts["reopenable"] += 1
     by_step: dict[int, list[dict]] = {}
     for row in listed:

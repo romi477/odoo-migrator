@@ -23,7 +23,12 @@
   {% if current %}
   <div class="tree-workbench">
     {% if graph_updated %}
-    <p class="tree-flash field-hint">Graph refreshed — leave-out choices kept.</p>
+    <p class="tree-flash field-hint">Graph refreshed — leave-out choices kept.
+      {% if migrated_marked %}{{ migrated_marked }} module{% if migrated_marked != 1 %}s{% endif %} already installed on the target, marked <span class="badge migrated">migrated</span>.{% endif %}
+    </p>
+    {% if target_error %}
+    <p class="tree-flash field-hint">Target not read: {{ target_error }}. Nothing was marked migrated.</p>
+    {% endif %}
     {% endif %}
     <div class="tree-workbench-row">
       <form method="post" action="/tree/resolve" class="tree-build-form">

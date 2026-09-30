@@ -8,7 +8,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import (
@@ -32,6 +32,7 @@ from odoo_migrator.graph import (
     leave_out_selection,
     list_modules,
     list_pipeline_steps,
+    mark_migrated_from_target,
     module_for_migration,
     resolve_graph,
     restore_selection,
@@ -122,6 +123,13 @@ class NoCacheStaticFiles(StaticFiles):
         )
 
         return response
+
+
+def _count_param(request: Request, name: str) -> int:
+    """A non-negative count from the query string; anything else is 0."""
+    raw = request.query_params.get(name) or ""
+
+    return int(raw) if raw.isdigit() else 0
 
 
 def _providers() -> list[dict]:
@@ -302,6 +310,8 @@ def create_app(
                 "error_settings": error_settings,
                 "selected": selected,
                 "graph_updated": request.query_params.get("graph") == "updated",
+                "migrated_marked": _count_param(request, "migrated"),
+                "target_error": request.query_params.get("target_error") or "",
             },
         )
 
@@ -419,8 +429,15 @@ def create_app(
         except GraphError as refused:
 
             return _tree_page(request, error=str(refused))
+        # A half-ported project: what the target already has installed is
+        # marked, not queued again. A target that cannot be read is said on
+        # the page; the graph from the source stands either way.
+        target = mark_migrated_from_target(_sheller(request), current["id"])
+        query = {"graph": "updated", "migrated": target["marked"]}
+        if target["error"]:
+            query["target_error"] = target["error"]
 
-        return RedirectResponse("/tree?graph=updated", status_code=303)
+        return RedirectResponse(f"/tree?{urlencode(query)}", status_code=303)
 
     @app.post("/tree/modules/restore")
     def tree_restore(

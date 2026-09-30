@@ -92,7 +92,17 @@ The dependency graph for the open migration. The canvas is the list.
 **Build graph** reads installed custom modules and `depends`
 from the old Odoo (through Sheller) and assigns **steps**: in-graph edges
 from a root, plus one — the same wave the canvas draws. A later step
-cannot start until every module on an earlier step is passed or struck.
+cannot start until every module on an earlier step is passed, migrated or
+struck.
+
+It then reads the new container, when one is attached. A module already
+installed in the target database, that this app has not run and that is
+still queued, is marked **migrated**: done, but not checked here. The queue
+skips it, it counts toward the green bar with its own "already in target"
+counter, and **Reopen** on Result puts it back to queued. A target that is
+not attached or does not answer is named above the canvas; the graph from
+the old side stands and nothing is marked.
+
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.
 

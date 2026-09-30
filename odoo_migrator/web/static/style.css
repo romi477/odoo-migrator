@@ -1136,6 +1136,13 @@ a.brand:hover .wordmark {
   color: var(--green);
 }
 
+/* Done, but not by this app: the target had it installed already. The
+   green of passed, without the fill that says "checked here". */
+.badge.migrated {
+  border-color: color-mix(in oklch, var(--green) 45%, transparent);
+  color: color-mix(in oklch, var(--green) 80%, var(--muted));
+}
+
 .badge.failed {
   background: var(--red-dark);
   color: var(--red);
@@ -1538,6 +1545,10 @@ h2 {
 
 .counter.failed {
   color: var(--red);
+}
+
+.counter.migrated {
+  color: color-mix(in oklch, var(--green) 80%, var(--muted));
 }
 
 /* The bin sits at the foot of the open card, to the right. */

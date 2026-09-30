@@ -62,7 +62,10 @@
               <i class="done" style="--x: {{ migration.progress.pct_done }}"></i>
               <i class="bad" style="--x: {{ migration.progress.pct_bad }}"></i>
             </span>
-            <span class="mono progress-count">{{ migration.progress.passed }} of {{ migration.progress.total }} modules</span>
+            <span class="mono progress-count">{{ migration.progress.done }} of {{ migration.progress.total }} modules</span>
+            {% if migration.progress.migrated %}
+            <span class="counter migrated" title="Installed on the target before this app ran them"><i class="dot" aria-hidden="true"></i>{{ migration.progress.migrated }} already in target</span>
+            {% endif %}
             {% if migration.progress.waiting %}
             <span class="counter waiting"><i class="dot" aria-hidden="true"></i>{{ migration.progress.waiting }} waiting for you</span>
             {% endif %}

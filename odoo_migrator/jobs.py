@@ -19,6 +19,7 @@ from odoo_migrator.contract import (
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
 from odoo_migrator.graph import (
+    DONE,
     earlier_steps_blocking,
     modules_in_batch_order,
     modules_in_step_order,
@@ -46,7 +47,7 @@ NON_TERMINAL = ("queued", "running")
 FINISHED = ("passed", "failed")
 # A recorded outcome the human can put back to queued. A parked question
 # is not one of these: that thread is still open.
-REOPENABLE = ("passed", "failed", "unknown")
+REOPENABLE = ("passed", "failed", "unknown", "migrated")
 # A module with a job in one of these already has an executor working on
 # its files.
 IN_FLIGHT = ("queued", "running", "waiting_for_human")
@@ -419,7 +420,7 @@ def _still_to_run(modules: list[dict]) -> list[dict]:
     again is what Reopen is for, and it is the human who asks.
     """
 
-    return [module for module in modules if module["status"] != "passed"]
+    return [module for module in modules if module["status"] not in DONE]
 
 
 def start_batch(

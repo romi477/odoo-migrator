@@ -5,11 +5,11 @@ from __future__ import annotations
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
-from odoo_migrator.graph import modules_in_step_order
+from odoo_migrator.graph import DONE, modules_in_step_order
 from odoo_migrator.jobs import continue_batch, live_run, start_batch
 from odoo_migrator.models import Batch, Job, PipelineQueueItem, PipelineQueueState
 
-FINISHED_OK = {"passed"}
+FINISHED_OK = set(DONE)
 
 
 def _state_row(migration_id: str) -> PipelineQueueState:
