@@ -630,6 +630,33 @@ tools offered: exec, read_file, report, source</pre>
   The retry lane an attempt ran sits under the pipeline. Any attempt can be
   read back; the latest follows the run live.</p>
 
+  <h2>Uncommitted changes</h2>
+  <div class="workspace-panel">
+    <div class="hand-edits">
+      <p class="hand-edits-lead">Run did not start: these modules have changes
+      that are not committed, and the agent did not leave them. Starting would
+      write over them.</p>
+      <section class="hand-edit">
+        <header class="name-line">
+          <span class="name mono">sale_custom</span>
+          <span class="badge failed">changed</span>
+        </header>
+        <p class="mono hand-edit-dir">/opt/projects/acme/18/project/sale_custom</p>
+        <ul class="hand-edit-files mono">
+          <li>M models/sale_order.py</li>
+          <li>?? tests/test_sale_order.py</li>
+        </ul>
+        <div class="hand-edit-actions">
+          <button type="button" class="primary">Keep and run</button>
+          <button type="button">Discard changes</button>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p>A Run refused over changes in a module's target directory that the agent
+  did not leave. Keep takes the files as they are; Discard puts the directory
+  back to its last commit, after a confirm. Both run the queue.</p>
+
   <h2>Confirm dialog</h2>
   <dialog class="confirm-dialog is-specimen" open>
     <h2>Reopen sale_custom?</h2>

@@ -3791,3 +3791,49 @@ a.ribbon-box:focus-visible {
   border-color: var(--cyan);
   color: var(--cyan);
 }
+
+/* A Run refused over uncommitted changes, on the run card: each module with
+   its files and the two ways out beside it. */
+.hand-edits {
+  display: grid;
+  gap: 12px;
+}
+
+.hand-edits-lead {
+  margin: 0;
+}
+
+.hand-edit {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel-raised);
+}
+
+.hand-edit-dir {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.hand-edit-files {
+  max-height: 24vh;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.hand-edit-files li {
+  white-space: pre;
+}
+
+.hand-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

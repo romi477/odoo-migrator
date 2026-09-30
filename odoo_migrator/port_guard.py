@@ -20,8 +20,9 @@ import hashlib
 import subprocess
 from pathlib import Path
 
+from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
-from odoo_migrator.models import Migration, Module
+from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.module_paths import module_root
 
 # Odoo imports a mounted module and leaves these beside the source. They
@@ -54,17 +55,23 @@ def fingerprint(directory: Path) -> str:
     return digest.hexdigest()
 
 
-def git_state(directory: Path) -> str:
-    """"clean", "dirty", "not_git" or "missing", for this directory only.
+def changed_files(directory: Path) -> list[str] | None:
+    """What git lists as changed in this directory only, as "XY path"
+    relative to it. None when it is not a git checkout.
 
     `git status --porcelain -- .` from inside it: the stable, script-facing
     format, limited to this path. Bytecode Odoo left behind is not a change.
     """
     root = Path(directory)
-    if not root.is_dir():
-
-        return "missing"
     try:
+        prefix = subprocess.run(
+            ["git", "rev-parse", "--show-prefix"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
         answer = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=all", "--", "."],
             cwd=root,
@@ -75,25 +82,52 @@ def git_state(directory: Path) -> str:
         )
     except (OSError, subprocess.TimeoutExpired):
 
-        return "not_git"
-    if answer.returncode != 0:
+        return None
+    if prefix.returncode != 0 or answer.returncode != 0:
 
-        return "not_git"
+        return None
+    # Porcelain paths are relative to the repository, whatever the cwd.
+    inside = prefix.stdout.strip()
+    changed = []
     for line in answer.stdout.splitlines():
         # "XY path", or "XY old -> new" for a rename.
         relative = line[3:].split(" -> ")[-1].strip().strip('"')
+        relative = relative.removeprefix(inside)
         if relative and not _noise(relative):
+            changed.append(f"{line[:2].strip()} {relative}")
 
-            return "dirty"
-
-    return "clean"
+    return changed
 
 
-def hand_edits_blocking(migration_id: str, module_ids: list[int]) -> str | None:
-    """Modules whose directory holds uncommitted work that is not the agent's."""
+def git_state(directory: Path) -> str:
+    """"clean", "dirty", "not_git" or "missing", for this directory only."""
+    root = Path(directory)
+    if not root.is_dir():
+
+        return "missing"
+    changed = changed_files(root)
+    if changed is None:
+
+        return "not_git"
+
+    return "dirty" if changed else "clean"
+
+
+class HandEdits(ContractError):
+    """A start refused over hand edits, with the modules it was refused over,
+    so the screen can offer a way out beside each one."""
+
+    def __init__(self, message: str, modules: list[dict]):
+        super().__init__(message)
+        self.modules = modules
+
+
+def hand_edits(migration_id: str, module_ids: list[int]) -> list[dict]:
+    """Modules whose directory holds uncommitted work that is not the agent's:
+    id, technical_name, directory, and the files git lists."""
     if not module_ids:
 
-        return None
+        return []
     with database.connection_context():
         migration = Migration.get_or_none(Migration.id == migration_id)
         modules = list(
@@ -105,7 +139,7 @@ def hand_edits_blocking(migration_id: str, module_ids: list[int]) -> str | None:
         )
     if migration is None:
 
-        return None
+        return []
     edited = []
     for module in sorted(modules, key=lambda row: row.technical_name):
         directory = module_root(migration, module, "new")
@@ -113,16 +147,98 @@ def hand_edits_blocking(migration_id: str, module_ids: list[int]) -> str | None:
             continue
         if module.port_fingerprint and fingerprint(directory) == module.port_fingerprint:
             continue
-        edited.append(f"{module.technical_name} ({directory})")
+        edited.append(
+            {
+                "id": module.id,
+                "technical_name": module.technical_name,
+                "directory": str(directory),
+                "files": changed_files(directory) or [],
+            }
+        )
+
+    return edited
+
+
+def hand_edits_blocking(migration_id: str, module_ids: list[int]) -> str | None:
+    """The sentence a refused start shows, or None."""
+    edited = hand_edits(migration_id, module_ids)
     if not edited:
 
         return None
+    named = ", ".join(f"{row['technical_name']} ({row['directory']})" for row in edited)
 
     return (
         "These modules were edited by hand since the agent last wrote them, "
-        f"and the changes are not committed: {', '.join(edited)}. Commit or "
+        f"and the changes are not committed: {named}. Commit or "
         "discard them first; starting again would write over them."
     )
+
+
+def raise_hand_edits(migration_id: str, module_ids: list[int]) -> None:
+    edited = hand_edits(migration_id, module_ids)
+    if edited:
+        raise HandEdits(hand_edits_blocking(migration_id, module_ids), edited)
+
+
+def _editable(migration_id: str, module_id: int) -> tuple[Module, Path]:
+    """The module and its target directory, when nothing is running it."""
+    with database.connection_context():
+        module = Module.get_or_none(
+            (Module.id == module_id) & (Module.migration == migration_id)
+        )
+        if module is None:
+            raise ContractError("unknown module")
+        busy = (
+            Job.select()
+            .where(
+                (Job.module == module)
+                & (Job.status.in_(("queued", "running", "waiting_for_human")))
+            )
+            .exists()
+        )
+        if busy:
+            raise ContractError(f"{module.technical_name} is running. Stop it first.")
+        directory = module_root(module.migration, module, "new")
+    if directory is None or not Path(directory).is_dir():
+        raise ContractError(f"{module.technical_name} has no target directory.")
+
+    return module, Path(directory)
+
+
+def discard_hand_edits(migration_id: str, module_id: int) -> None:
+    """Put the module's directory back to the last commit, and nothing else.
+
+    Both commands are limited to `.` from inside the module's directory, so
+    a module beside it keeps whatever it holds. `restore` covers what is
+    changed or staged; `clean` removes the files git does not know, which a
+    checkout alone leaves behind — and then the directory still reads as
+    edited. Ignored files stay.
+    """
+    module, directory = _editable(migration_id, module_id)
+    if changed_files(directory) is None:
+        raise ContractError(
+            f"{module.technical_name} is not in a git repository; there is no "
+            "commit to go back to."
+        )
+    for command in (
+        ["git", "restore", "--source=HEAD", "--staged", "--worktree", "--", "."],
+        ["git", "clean", "-fdq", "--", "."],
+    ):
+        answer = subprocess.run(
+            command, cwd=directory, capture_output=True, text=True, timeout=60, check=False
+        )
+        if answer.returncode != 0:
+            raise ContractError(
+                f"{' '.join(command[:2])} failed in {directory}: {answer.stderr.strip()}"
+            )
+
+
+def keep_hand_edits(migration_id: str, module_id: int) -> None:
+    """Take the directory as it is: the next run starts from these files."""
+    module, _directory = _editable(migration_id, module_id)
+    with database.connection_context():
+        record_fingerprint(module)
+        module.save()
 
 
 def record_fingerprint(module: Module) -> None:

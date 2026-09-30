@@ -185,3 +185,130 @@ def test_a_module_outside_git_starts_with_a_warning_in_its_log(tmp_path):
 
     texts = [line["text"] for line in lines(job.job_id)]
     assert any("not in a git repository" in text for text in texts)
+
+
+def test_a_blocked_start_names_the_module_and_its_files(migration, repo):
+    from odoo_migrator.port_guard import HandEdits
+
+    (repo / "sale_x" / "models.py").write_text("MINE = 1\n")
+    (repo / "sale_x" / "tests.py").write_text("NEW = 1\n")
+
+    with pytest.raises(HandEdits) as refused:
+        start_job(
+            migration_id=migration["id"], module_id=_module("sale_x").id,
+            executor=StubExecutor(progress=lambda body: None, result=lambda body: None),
+            hub=EventHub(),
+        )
+
+    [edited] = refused.value.modules
+    assert edited["technical_name"] == "sale_x"
+    assert edited["files"] == ["M models.py", "?? tests.py"]
+
+
+def test_discard_restores_the_module_and_leaves_its_neighbour(migration, repo):
+    from odoo_migrator.port_guard import discard_hand_edits
+
+    (repo / "sale_x" / "models.py").write_text("MINE = 1\n")
+    (repo / "sale_x" / "tests.py").write_text("NEW = 1\n")
+    _git(repo, "add", "sale_x/tests.py")
+    (repo / "stock_x" / "models.py").write_text("PORTED = 20\n")
+
+    discard_hand_edits(migration["id"], _module("sale_x").id)
+
+    assert (repo / "sale_x" / "models.py").read_text() == "OLD = 19\n"
+    assert not (repo / "sale_x" / "tests.py").exists()
+    assert git_state(repo / "sale_x") == "clean"
+    assert (repo / "stock_x" / "models.py").read_text() == "PORTED = 20\n"
+
+
+def test_discard_is_refused_outside_git_and_while_running(tmp_path, migration, repo):
+    from odoo_migrator.port_guard import discard_hand_edits
+
+    module = _module("sale_x")
+    with database.connection_context():
+        batch = Batch.create(migration=Migration.get_by_id(migration["id"]), status="running")
+        Job.create(batch=batch, module=module, status="running", job_id="job-busy")
+    with pytest.raises(ContractError, match="running"):
+        discard_hand_edits(migration["id"], module.id)
+    with database.connection_context():
+        Job.update(status="failed").where(Job.job_id == "job-busy").execute()
+        plain = tmp_path / "plain_x"
+        plain.mkdir()
+        Module.update(new_path=str(plain)).where(Module.id == module.id).execute()
+    with pytest.raises(ContractError, match="git"):
+        discard_hand_edits(migration["id"], module.id)
+    with pytest.raises(ContractError, match="unknown module"):
+        discard_hand_edits("another-migration", module.id)
+
+
+def test_keep_takes_the_files_as_they_are(migration, repo):
+    from odoo_migrator.port_guard import keep_hand_edits
+
+    (repo / "sale_x" / "models.py").write_text("PORTED = 20\n")
+
+    keep_hand_edits(migration["id"], _module("sale_x").id)
+
+    assert (repo / "sale_x" / "models.py").read_text() == "PORTED = 20\n"
+    assert hand_edits_blocking(migration["id"], [_module("sale_x").id]) is None
+
+
+def _dirty_sale_custom(client, tmp_path):
+    from test_batch import _prepared
+
+    row, sale = _prepared(client)
+    checkout = tmp_path / "checkout"
+    (checkout / "sale_custom").mkdir(parents=True)
+    (checkout / "sale_custom" / "models.py").write_text("OLD = 17\n")
+    _git(checkout, "init", "-q")
+    _git(checkout, "add", ".")
+    _git(checkout, "commit", "-qm", "old")
+    (checkout / "sale_custom" / "models.py").write_text("PORTED = 18\n")
+    with database.connection_context():
+        Module.update(new_path=str(checkout / "sale_custom"), path_problem="").where(
+            Module.id == sale["id"]
+        ).execute()
+    client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+
+    return row, sale, checkout
+
+
+def test_run_shows_hand_edits_in_the_workspace_with_both_ways_out(client, tmp_path):
+    _row, sale, _checkout = _dirty_sale_custom(client, tmp_path)
+
+    page = client.post("/run/queue/run", follow_redirects=True)
+
+    top = page.text[: page.text.index("pipeline-panels")]
+    assert "edited by hand" not in top
+    panel = page.text[page.text.index("data-hand-edits") :]
+    assert "sale_custom" in panel
+    assert "M models.py" in panel
+    assert f'action="/run/modules/{sale["id"]}/discard"' in panel
+    assert "data-confirm-title" in panel
+    assert f'action="/run/modules/{sale["id"]}/keep"' in panel
+
+
+def test_keep_and_run_starts_the_queue(client, tmp_path):
+    from odoo_migrator.pipeline_queue import run_state
+
+    row, sale, checkout = _dirty_sale_custom(client, tmp_path)
+    client.app.state.executor = type("Hold", (), {"start": lambda self, payload: None})()
+
+    page = client.post(f"/run/modules/{sale['id']}/keep", follow_redirects=True)
+
+    assert page.status_code == 200
+    assert "data-hand-edits" not in page.text
+    assert run_state(row.id) == "running"
+    assert (checkout / "sale_custom" / "models.py").read_text() == "PORTED = 18\n"
+
+
+def test_discard_and_run_starts_the_queue_on_the_committed_code(client, tmp_path):
+    from odoo_migrator.pipeline_queue import run_state
+
+    row, sale, checkout = _dirty_sale_custom(client, tmp_path)
+    client.app.state.executor = type("Hold", (), {"start": lambda self, payload: None})()
+
+    page = client.post(f"/run/modules/{sale['id']}/discard", follow_redirects=True)
+
+    assert page.status_code == 200
+    assert run_state(row.id) == "running"
+    assert (checkout / "sale_custom" / "models.py").read_text() == "OLD = 17\n"

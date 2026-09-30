@@ -88,6 +88,7 @@ from odoo_migrator.pipeline_queue import clear as queue_clear
 from odoo_migrator.pipeline_queue import queue_snapshot
 from odoo_migrator.pipeline_queue import start as queue_start
 from odoo_migrator.pipeline_queue import stop as queue_stop
+from odoo_migrator.port_guard import HandEdits, discard_hand_edits, keep_hand_edits
 from odoo_migrator.provision import (
     ComposeError,
     DockerComposeEngine,
@@ -940,7 +941,12 @@ def create_app(
             "job_id": "",
         }
 
-    def _run_page(request: Request, error: str | None = None, screen: str = "pipeline"):
+    def _run_page(
+        request: Request,
+        error: str | None = None,
+        screen: str = "pipeline",
+        hand_edits: list[dict] | None = None,
+    ):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
@@ -984,6 +990,7 @@ def create_app(
                 "sheller_web_url": _browsable(settings["sheller_base_url"], "/web"),
                 "versions": versions,
                 "error": error,
+                "hand_edits": hand_edits or [],
             },
         )
 
@@ -1066,23 +1073,62 @@ def create_app(
 
         return RedirectResponse("/run", status_code=303)
 
-    @app.post("/run/queue/run")
-    def run_queue_run(request: Request):
-        current = get_active(request.cookies.get(OPEN_COOKIE))
-        if current is None:
-
-            return RedirectResponse("/run", status_code=303)
+    def _start_queue(request: Request, current: dict):
         try:
             queue_start(
                 current["id"],
                 request.app.state.executor,
                 request.app.state.hub,
             )
+        except HandEdits as refused:
+            # Shown on the run card with a way out beside each module, not as
+            # a line over Selection that sends someone to their IDE.
+
+            return _run_page(request, hand_edits=refused.modules)
         except ContractError as refused:
 
             return _run_page(request, error=str(refused))
 
         return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/run")
+    def run_queue_run(request: Request):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+
+        return _start_queue(request, current)
+
+    @app.post("/run/modules/{module_id}/discard")
+    def run_discard(request: Request, module_id: int):
+        """Put the module's target directory back to its last commit, then Run."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        try:
+            discard_hand_edits(current["id"], module_id)
+        except ContractError as refused:
+
+            return _run_page(request, error=str(refused))
+
+        return _start_queue(request, current)
+
+    @app.post("/run/modules/{module_id}/keep")
+    def run_keep(request: Request, module_id: int):
+        """Take the module's files as they are, then Run."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        try:
+            keep_hand_edits(current["id"], module_id)
+        except ContractError as refused:
+
+            return _run_page(request, error=str(refused))
+
+        return _start_queue(request, current)
 
     @app.post("/run/queue/stop")
     def run_queue_stop(request: Request):

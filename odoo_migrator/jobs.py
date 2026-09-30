@@ -39,7 +39,7 @@ from odoo_migrator.models import (
     StepRun,
 )
 from odoo_migrator.module_paths import module_root
-from odoo_migrator.port_guard import git_state, hand_edits_blocking, record_fingerprint
+from odoo_migrator.port_guard import git_state, raise_hand_edits, record_fingerprint
 from odoo_migrator.rules import RulesError, append_finding
 
 # What a restart reconciles. A job parked on waiting_for_human is not a
@@ -274,9 +274,7 @@ def start_job(
     unplaced = path_problems_blocking(migration_id, [module_id])
     if unplaced:
         raise ContractError(unplaced)
-    edited = hand_edits_blocking(migration_id, [module_id])
-    if edited:
-        raise ContractError(edited)
+    raise_hand_edits(migration_id, [module_id])
     step = steps_for_migration(migration_id).get(name)
     # A batch already passed the wave check to start. Re-checking here
     # stopped a mixed Group: stock (step 2) waited for every step-1
@@ -528,9 +526,7 @@ def start_batch(
     unplaced = path_problems_blocking(migration_id, [row["id"] for row in ordered])
     if unplaced:
         raise ContractError(unplaced)
-    edited = hand_edits_blocking(migration_id, [row["id"] for row in ordered])
-    if edited:
-        raise ContractError(edited)
+    raise_hand_edits(migration_id, [row["id"] for row in ordered])
     # The guard reads the wave off everything selected, not off what is left
     # to do. Dropping a passed parent from the list would raise the wave and
     # block on an earlier step the batch was never waiting for.

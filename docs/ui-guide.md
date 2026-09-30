@@ -127,6 +127,12 @@ not count: each run fingerprints what it left. Only the module's own
 directory is checked. A directory outside git starts, with a warning in the
 run log that nothing can undo the port.
 
+When **Run** on Pipeline is refused this way, the run card lists each module
+with its changed files and two ways out: **Keep and run** takes the files as
+they are, and **Discard changes** — after a confirm — runs `git restore` and
+`git clean` in that module's directory only, back to its last commit. Both
+start the queue again.
+
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.
 

@@ -280,7 +280,46 @@
                   aria-label="Answer{% if live %} {{ live.module }}{% endif %}">Answer</button>
         </form>
       </div>
-      <p data-pipeline-empty{% if live %} hidden{% endif %}>No module is running.</p>
+      {# A start refused over uncommitted changes in a module's target
+         directory. The way out sits beside the module, so fixing it does not
+         mean a trip to the IDE to commit. #}
+      {% if hand_edits and not live %}
+      <div class="hand-edits" data-hand-edits>
+        <p class="hand-edits-lead">Run did not start: these modules have changes
+        that are not committed, and the agent did not leave them. Starting would
+        write over them.</p>
+        {% for module in hand_edits %}
+        <section class="hand-edit">
+          <header class="name-line">
+            <span class="name mono">{{ module.technical_name | breakable }}</span>
+            <span class="badge failed">changed</span>
+          </header>
+          <p class="mono hand-edit-dir">{{ module.directory | breakable }}</p>
+          <ul class="hand-edit-files mono">
+            {% for line in module.files %}
+            <li>{{ line }}</li>
+            {% endfor %}
+          </ul>
+          <div class="hand-edit-actions">
+            <form method="post" action="/run/modules/{{ module.id }}/keep">
+              <button type="submit" class="primary"
+                      title="Take these files as they are and run"
+                      aria-label="Keep the changes in {{ module.technical_name }} and run">Keep and run</button>
+            </form>
+            <form method="post" action="/run/modules/{{ module.id }}/discard"
+                  data-confirm-title="Discard the changes in {{ module.technical_name }}?"
+                  data-confirm-text="Every file listed goes back to its last commit, and files git does not track are deleted — in this module's directory only. This cannot be undone. Then the queue runs."
+                  data-confirm-go="Discard and run">
+              <button type="submit"
+                      title="git restore and git clean in this module's directory, then run"
+                      aria-label="Discard the changes in {{ module.technical_name }} and run">Discard changes</button>
+            </form>
+          </div>
+        </section>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <p data-pipeline-empty{% if live or hand_edits %} hidden{% endif %}>No module is running.</p>
     </article>
 
     {# The run log. A step's outcome used to be a badge with no sentence
