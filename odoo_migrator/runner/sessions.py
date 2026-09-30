@@ -37,6 +37,39 @@ def open_side(ctx, side: str) -> str:
     return opened["id"]
 
 
+# After a person's answer the containers are often still coming back — "I
+# restarted it" is a common answer. How long to keep trying before parking
+# the job again, and how often.
+REOPEN_WAIT = 180.0
+REOPEN_POLL = 5.0
+
+
+def open_sides_patiently(
+    ctx, *, wait: float = REOPEN_WAIT, poll: float = REOPEN_POLL, clock=time
+) -> str | None:
+    """Open every side not open yet, retrying until ``wait`` has passed.
+
+    Returns None when both are open, or the last reason when they are not.
+    Never raises for the daemon's answer: the caller decides what a person
+    is told.
+    """
+    deadline = clock.monotonic() + wait
+    reason = ""
+    while True:
+        try:
+            for side in ctx.session_targets:
+                if not ctx.sessions.get(side):
+                    open_side(ctx, side)
+
+            return None
+        except ShellerError as exc:
+            reason = str(exc) or type(exc).__name__
+        if clock.monotonic() >= deadline:
+
+            return reason
+        clock.sleep(poll)
+
+
 def close_side(ctx, side: str) -> None:
     """Close ``side`` if it is open. A session already gone is not a failure."""
     session_id = ctx.sessions.get(side)

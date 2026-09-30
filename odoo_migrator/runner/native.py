@@ -20,7 +20,12 @@ from odoo_migrator.runner.cartridge import load_cartridge
 from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.registry import resolve
-from odoo_migrator.runner.sessions import close_side, ensure_usable, open_side
+from odoo_migrator.runner.sessions import (
+    close_side,
+    ensure_usable,
+    open_side,
+    open_sides_patiently,
+)
 from odoo_migrator.runner.snapshot import diff as diff_snapshots
 from odoo_migrator.runner.snapshot import snapshot
 from odoo_migrator.sheller.errors import ShellerError
@@ -590,14 +595,8 @@ class NativeRunner:
                 },
             )
 
-        def wait_for_human(question: str) -> str:
-            """Park, and stop holding two Odoo processes while a person thinks.
-
-            A checkpoint can sit for a day. The sessions close here and open
-            again on the answer — the deliberate exception to one session for
-            the whole run, which holds for a job that is running, not one that
-            is waiting on a person.
-            """
+        def park(question: str) -> str:
+            """Close the sessions, hand the question to a person, wait."""
             event = threading.Event()
             with _GUARD:
                 _WAITERS[payload["job_id"]] = event
@@ -620,9 +619,41 @@ class NativeRunner:
                 _WAITERS.pop(payload["job_id"], None)
                 answer = _ANSWERS.pop(payload["job_id"], "")
             self._hold_target(ctx)
-            self._open_sessions(ctx)
 
             return answer
+
+        def wait_for_human(question: str) -> str:
+            """Park, and stop holding two Odoo processes while a person thinks.
+
+            A checkpoint can sit for a day. The sessions close here and open
+            again on the answer — the deliberate exception to one session for
+            the whole run, which holds for a job that is running, not one that
+            is waiting on a person.
+
+            The answer is often "I restarted the container", sent while it is
+            still coming back. Opening the sessions is retried for a while;
+            if they still do not open, the job parks again and says why,
+            rather than failing a run a person was in the middle of fixing.
+            Every answer given along the way reaches the next step.
+            """
+            answers = []
+            while True:
+                answers.append(park(question))
+                failure = open_sides_patiently(ctx)
+                if failure is None:
+
+                    return "\n\n".join(answer for answer in answers if answer)
+                self._log(
+                    payload["job_id"],
+                    "ask_human",
+                    f"the sessions did not open again after the answer: {failure}",
+                    level="warn",
+                )
+                question = (
+                    "The sessions could not be opened again after your answer: "
+                    f"{failure}. Check that both containers are up, then answer "
+                    "again; what you wrote before is kept."
+                )
 
         ctx = StepContext(
             job_id=payload["job_id"],

@@ -46,13 +46,17 @@ else:
 # `button_immediate_*` commits the states it marks before it rebuilds the
 # registry. When the rebuild fails they stay committed, and the next
 # upgrade — this module's or any other's — tries to install them again.
+# 19.0 dropped the three `button_*_cancel` for one `button_reset_state`.
 _RESET = """\
 Module = env['ir.module.module']
 stuck = Module.search([('state', 'in', ('to install', 'to upgrade', 'to remove'))])
 names = sorted(stuck.mapped('name'))
-stuck.filtered(lambda m: m.state == 'to install').button_install_cancel()
-stuck.filtered(lambda m: m.state == 'to upgrade').button_upgrade_cancel()
-stuck.filtered(lambda m: m.state == 'to remove').button_uninstall_cancel()
+if hasattr(Module, 'button_reset_state'):
+    Module.button_reset_state()
+else:
+    stuck.filtered(lambda m: m.state == 'to install').button_install_cancel()
+    stuck.filtered(lambda m: m.state == 'to upgrade').button_upgrade_cancel()
+    stuck.filtered(lambda m: m.state == 'to remove').button_uninstall_cancel()
 names
 """
 
