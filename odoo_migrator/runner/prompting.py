@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from odoo_migrator.module_paths import module_root, relative_to_root
+from odoo_migrator.module_paths import agent_path, module_root
 from odoo_migrator.rules import (
     RuleDoc,
     assemble_rules,
@@ -105,8 +105,8 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
         # The paths `read_file` and `write_file` take. A project that keeps
         # its addons in a subdirectory is the common shape, and a model told
         # only the module's name writes one level too high.
-        f"Its directory on the old side: {relative_to_root(ctx.migration, ctx.module, 'old')}\n"
-        f"Its directory on the new side: {relative_to_root(ctx.migration, ctx.module, 'new')}\n"
+        f"Its directory on the old side: {agent_path(ctx.migration, ctx.module, 'old')}\n"
+        f"Its directory on the new side: {agent_path(ctx.migration, ctx.module, 'new')}\n"
         f"Step: {step.id or step.kind}"
     )
 

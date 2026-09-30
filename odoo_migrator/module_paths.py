@@ -216,3 +216,60 @@ def _new_container_path(migration, new_mounts, old_mount, container_path, name) 
         relative = PurePosixPath(name)
 
     return str(PurePosixPath(root) / relative)
+
+
+def _side_mounts(migration, side: str) -> list[dict]:
+    # getattr: a migration read before these columns existed, or a stand-in
+    # in a test, has no mounts, which is "not known".
+
+    return load(getattr(migration, f"{side}_mounts", "[]"))
+
+
+def allowed_roots(migration, side: str) -> list[dict]:
+    """The mounts the file tools may reach on `side`.
+
+    Only the ones that hold a module of the plan. A mount of odoo.conf, the
+    filestore or the logs is on the container too, and none of it is the
+    agent's to read through a host tool.
+    """
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Module
+
+    mounts = _side_mounts(migration, side)
+    if not mounts:
+
+        return []
+    column = Module.old_container_path if side == "old" else Module.new_container_path
+    with database.connection_context():
+        paths = [
+            value
+            for (value,) in Module.select(column)
+            .where(
+                (Module.migration == migration.id)
+                & (Module.struck_out == False)
+                & (column != "")
+            )
+            .tuples()
+        ]
+    roots: list[dict] = []
+    for path in paths:
+        mount = covering(mounts, path)
+        if mount is None or too_broad(mount["host"]) or mount in roots:
+            continue
+        roots.append(mount)
+
+    return roots
+
+
+def agent_path(migration, module, side: str) -> str:
+    """The module's directory as the file tools take it on `side`.
+
+    A container path when that side's mounts are known — the path Odoo and
+    its tracebacks use — and the project-relative path otherwise.
+    """
+    stored = getattr(module, f"{side}_container_path", "")
+    if stored and _side_mounts(migration, side):
+
+        return stored
+
+    return relative_to_root(migration, module, side)

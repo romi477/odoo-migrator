@@ -14,19 +14,20 @@ step declared:
 - **new** — the target version. This is where the ported module has to
   install, upgrade and pass its tests.
 
-The module's source lives on the host, under each side's project root.
-`read_file` and `write_file` take paths relative to that root — never an
-absolute path, and never one that climbs out of the root.
+The module's source lives on the host and is mounted into each container.
+`read_file` and `write_file` take the path **as the container names it** —
+the directory given below under "This run", or a path from a traceback,
+exactly as Odoo printed it. A path outside the module's addons directories
+is refused. A path relative to the project root still works where no
+container path is given.
 
 **The module's own directory is given below, under "This run". Use it.** A
-project usually keeps its addons in a subdirectory, so the module is
-`project/<name>` or `addons/<name>` and almost never `<name>`. A port
-written one level up lands outside the directory the container mounts: the
+port written anywhere else lands outside what the new container loads: the
 files exist, nothing refuses them, and Odoo never sees a line of them.
 
-`source` is the other kind of path. It reads inside the container, where the
-addons are already on the path, so it takes `<name>/models/thing.py` or an
-absolute container path — not the host-relative path the file tools take.
+Odoo's own code and Enterprise are not on the host for you. Read them with
+`source`, which reads inside the container. When `read_file` refuses a
+path, `source` is how you read it.
 
 ## How you find things out
 

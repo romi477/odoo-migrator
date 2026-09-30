@@ -378,7 +378,47 @@ def _project_root(ctx, side: str) -> Path:
     return Path(raw).expanduser().resolve()
 
 
-def _inside(ctx, side: str, relative: str) -> Path:
+def _inside(ctx, side: str, given: str) -> Path:
+    """An absolute path is a container path; a relative one is under the
+    project directory, as before mounts were known."""
+    if given.startswith("/"):
+
+        return _inside_mounts(ctx, side, given)
+
+    return _inside_project(ctx, side, given)
+
+
+def _inside_mounts(ctx, side: str, given: str) -> Path:
+    """Translate a container path to the host, inside an allowed root, or refuse.
+
+    Resolved before the check, so `..` and a symlink cannot climb out of the
+    root they appear to be under.
+    """
+    from odoo_migrator.module_paths import allowed_roots
+    from odoo_migrator.mounts import covering, to_host
+
+    roots = allowed_roots(ctx.migration, side)
+    if not roots:
+        raise ToolRefused(
+            f"no addons directories are known on the {side} side, so {given} "
+            "cannot be read from disk. Read it with `source` from the container."
+        )
+    mount = covering(roots, given)
+    if mount is None:
+        listed = ", ".join(root["container"] for root in roots)
+        raise ToolRefused(
+            f"{given} is outside the addons directories of the {side} side "
+            f"({listed}). Read it with `source` from the container."
+        )
+    root = Path(mount["host"]).expanduser().resolve()
+    candidate = to_host([mount], given).resolve()
+    if not candidate.is_relative_to(root):
+        raise ToolRefused(f"path escapes its addons directory: {given}")
+
+    return candidate
+
+
+def _inside_project(ctx, side: str, relative: str) -> Path:
     """Resolve ``relative`` under the side's project root, or refuse it.
 
     A path that escapes is a refusal, not a clamp: the agent does not get
@@ -410,7 +450,7 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
     it, `upgrade` and `tests` ran on what was already installed, and the lap
     passed without touching anything the port had written.
     """
-    from odoo_migrator.module_paths import host_paths, module_root, relative_to_root
+    from odoo_migrator.module_paths import agent_path, host_paths, module_root
 
     # The directory recorded on the module, and the one the migration's
     # current root implies. They are the same in a live run; they differ when
@@ -427,7 +467,7 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
     if any(path.is_relative_to(one) for one in roots):
 
         return
-    wanted = relative_to_root(ctx.migration, ctx.module, "new")
+    wanted = agent_path(ctx.migration, ctx.module, "new")
     raise ToolRefused(
         f"{relative} is outside the module's directory. This module is "
         f"{wanted} on the new side: write {wanted}/{Path(relative).name}, "

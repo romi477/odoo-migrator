@@ -434,14 +434,28 @@ class NativeRunner:
         and was imported with the rest. Only a directory strictly inside the
         new project root, holding a manifest, is cleared.
         """
+        from odoo_migrator.module_paths import allowed_roots
+
         root = _module_root(ctx)
-        project = Path(ctx.migration.new_project_path or "").expanduser().resolve()
-        if root is None or not root.is_dir() or not str(ctx.migration.new_project_path or "").strip():
+        # The new side's addons directories when its mounts are known, and the
+        # new project otherwise. Strictly inside one of them, never the root.
+        roots = [
+            Path(mount["host"]).expanduser().resolve()
+            for mount in allowed_roots(ctx.migration, "new")
+        ]
+        if not roots and str(ctx.migration.new_project_path or "").strip():
+            roots = [Path(ctx.migration.new_project_path).expanduser().resolve()]
+        if root is None or not root.is_dir() or not roots:
 
             return
         resolved = root.resolve()
-        if resolved == project or not resolved.is_relative_to(project):
-            self._log(ctx.job_id, label, f"not clearing {root}: outside the new project", level="warn")
+        if not any(resolved != one and resolved.is_relative_to(one) for one in roots):
+            self._log(
+                ctx.job_id,
+                label,
+                f"not clearing {root}: outside the new addons directories",
+                level="warn",
+            )
 
             return
         # A migration created before the roots were checked against each
