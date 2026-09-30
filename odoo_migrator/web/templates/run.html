@@ -4,6 +4,7 @@
 {% if screen == 'pipeline' %}
 <script defer src="/static/pipeline.js"></script>
 <script defer src="/static/runlog.js"></script>
+<script defer src="/static/attempts.js"></script>
 {% endif %}
 {% endblock %}
 {% block screen %}
@@ -215,15 +216,40 @@
         </form>
         {% endif %}
         {% if ribbon %}
+        {# Which attempt the ribbon shows. A retry loops back part way, so
+           one attempt is not the whole run; each can be read back. #}
+        <nav class="attempt-picker" data-attempt-picker data-job="{{ ribbon.job_id }}"
+             data-attempts="{{ ribbon.attempts }}"{% if ribbon.attempts < 2 %} hidden{% endif %}
+             aria-label="Attempts of this run">
+          <span class="attempt-picker-label">attempt</span>
+          {% for n in range(1, ribbon.attempts + 1) %}
+          <button type="button" class="attempt-pick{% if n == ribbon.attempts %} is-active{% endif %}"
+                  data-attempt="{{ n }}"{% if n == ribbon.attempts %} aria-current="true"{% endif %}
+                  title="Show attempt {{ n }}">{{ n }}</button>
+          {% endfor %}
+        </nav>
         <ol class="ribbon" data-ribbon>
-          {% for node in ribbon %}
+          {% for node in ribbon.steps %}
           <li class="ribbon-node" data-step="{{ node.id }}" data-state="{{ node.state }}">
             {# The block names a step of the pinned cartridge, and Flow is
                where that step says what it does. Without the link the ribbon
                answered "where are we" and nothing else, and the screen that
                answers "what is this step" was two tabs away. #}
             <a class="ribbon-box" href="/flow#{{ node.id }}"
-               title="Read what {{ node.id }} does, on Flow">
+               title="{% if node.state == 'earlier' %}{{ node.id }}: done in attempt {{ node.attempt }}, not run again{% else %}Read what {{ node.id }} does, on Flow{% endif %}">
+              <span class="ribbon-led" aria-hidden="true"></span>
+              <span class="ribbon-name">{{ node.id }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ol>
+        {# The failure lane this attempt ran: diagnose, patch. Not the
+           pipeline, so a row of its own under it. #}
+        <ol class="ribbon ribbon-lane" data-ribbon-lane{% if not ribbon.lane %} hidden{% endif %}>
+          <li class="ribbon-lane-label">retry</li>
+          {% for node in ribbon.lane %}
+          <li class="ribbon-node" data-state="{{ node.state }}">
+            <a class="ribbon-box" href="/flow#{{ node.id }}" title="Read what {{ node.id }} does, on Flow">
               <span class="ribbon-led" aria-hidden="true"></span>
               <span class="ribbon-name">{{ node.id }}</span>
             </a>

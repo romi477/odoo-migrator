@@ -199,7 +199,13 @@ drive the sequential pipe (you can add steps while it runs; Stop finishes
 the current module first). **Clear** empties the list when the pipe is
 stopped and no module is still running. The active module pulses in the queue; passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
-cartridge's steps, with the current one marked. A parked question sits
+cartridge's steps, each with how it went in the attempt on screen: done,
+failed, running, not yet run, or — dashed green — passed in an earlier
+attempt and not run again, because a retry loops back part way (the stock
+flow returns to `lint`). The failure lane that attempt ran (diagnose,
+patch) is a smaller row under it. From a second attempt on, numbers above
+the ribbon read any attempt back; the latest one follows the run live. A
+parked question sits
 under the ribbon as a thread. Empty reads "No module is running." SSE
 fills the stage. When the batch reaches
 checkpoint a banner appears: *This batch has finished. Reload to review

@@ -607,6 +607,29 @@ tools offered: exec, read_file, report, source</pre>
   status and carries the dashed <span class="badge path-unknown">path unknown</span>
   mark; it does not start.</p>
 
+  <h2>Attempts of a run</h2>
+  <div class="workspace-panel">
+    <nav class="attempt-picker" aria-label="Attempts (specimen)">
+      <span class="attempt-picker-label">attempt</span>
+      <button type="button" class="attempt-pick">1</button>
+      <button type="button" class="attempt-pick is-active" aria-current="true">2</button>
+    </nav>
+    <ol class="ribbon">
+      <li class="ribbon-node" data-state="earlier"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">understand</span></span></li>
+      <li class="ribbon-node" data-state="done"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">lint</span></span></li>
+      <li class="ribbon-node" data-state="failed"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">tests</span></span></li>
+      <li class="ribbon-node" data-state="pending"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">verdict</span></span></li>
+    </ol>
+    <ol class="ribbon ribbon-lane">
+      <li class="ribbon-lane-label">retry</li>
+      <li class="ribbon-node" data-state="done"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">diagnose</span></span></li>
+      <li class="ribbon-node" data-state="running"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">patch</span></span></li>
+    </ol>
+  </div>
+  <p>A step passed in an earlier attempt and not run again is dashed green.
+  The retry lane an attempt ran sits under the pipeline. Any attempt can be
+  read back; the latest follows the run live.</p>
+
   <h2>Confirm dialog</h2>
   <dialog class="confirm-dialog is-specimen" open>
     <h2>Reopen sale_custom?</h2>

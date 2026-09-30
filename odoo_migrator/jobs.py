@@ -112,38 +112,88 @@ def attention_target() -> dict | None:
         }
 
 
-def ribbon_states(job: Job) -> list[dict]:
-    """Every pipeline step of this job's cartridge, with how this lap went.
+def _run_state(run: StepRun) -> str:
+    if run.finished_at is None:
+
+        return "running"
+
+    return "done" if run.ok else "failed"
+
+
+def ribbon_states(job: Job, attempt: int | None = None) -> list[dict]:
+    """Every pipeline step of this job's cartridge, with how one attempt went.
 
     The ribbon used to mark the current step and nothing else, so a
     highlighted `understand` said only "this is where the run is" — not
     whether it had failed, and the highlight's colour read as an alarm.
-    The failure lane is not here: its steps are not the pipeline, and the
-    line above the ribbon already names the one running.
+
+    A retry loops back into the pipeline part way (the stock flow returns to
+    `lint`), so the steps before that point do not run again. Shown as not
+    run, they read as never done; they are `earlier`, with the attempt that
+    passed them. The failure lane is not here: see `lane_states`.
 
     Caller holds the connection.
     """
     from odoo_migrator.cartridges import pinned_for
 
-    runs = {
-        (run.step_id or run.kind): run
-        for run in StepRun.select().where(
-            (StepRun.job == job) & (StepRun.attempt == job.attempt)
-        )
-    }
+    attempt = attempt or job.attempt
+    runs = list(
+        StepRun.select()
+        .where((StepRun.job == job) & (StepRun.attempt <= attempt))
+        .order_by(StepRun.id)
+    )
+    this = {(run.step_id or run.kind): run for run in runs if run.attempt == attempt}
+    passed_before: dict[str, int] = {}
+    for run in runs:
+        if run.attempt < attempt and run.finished_at is not None and run.ok:
+            passed_before[run.step_id or run.kind] = run.attempt
     states = []
     for step in pinned_for(job.module.migration).pipeline:
         name = step.id or step.kind
-        run = runs.get(name)
-        if run is None:
-            state = "pending"
-        elif run.finished_at is None:
-            state = "running"
+        run = this.get(name)
+        if run is not None:
+            states.append({"id": name, "state": _run_state(run)})
+        elif name in passed_before:
+            states.append({"id": name, "state": "earlier", "attempt": passed_before[name]})
         else:
-            state = "done" if run.ok else "failed"
-        states.append({"id": name, "state": state})
+            states.append({"id": name, "state": "pending"})
 
     return states
+
+
+def lane_states(job: Job, attempt: int | None = None) -> list[dict]:
+    """The steps one attempt ran outside the pipeline — the failure lane —
+    in the order they ran. Caller holds the connection."""
+    from odoo_migrator.cartridges import pinned_for
+
+    attempt = attempt or job.attempt
+    pipeline = {step.id or step.kind for step in pinned_for(job.module.migration).pipeline}
+
+    return [
+        {"id": run.step_id or run.kind, "state": _run_state(run)}
+        for run in StepRun.select()
+        .where((StepRun.job == job) & (StepRun.attempt == attempt))
+        .order_by(StepRun.id)
+        if (run.step_id or run.kind) not in pipeline
+    ]
+
+
+def attempt_view(job_id: str, attempt: int) -> dict | None:
+    """One attempt of a job, as the ribbon draws it. None when there is no
+    such job or attempt."""
+    with database.connection_context():
+        job = Job.get_or_none(Job.job_id == job_id)
+        if job is None or attempt < 1 or attempt > max(job.attempt, 1):
+
+            return None
+
+        return {
+            "job_id": job.job_id,
+            "attempt": attempt,
+            "attempts": max(job.attempt, 1),
+            "steps": ribbon_states(job, attempt),
+            "lane": lane_states(job, attempt),
+        }
 
 
 def _emit(hub: EventHub, job: Job, module: Module) -> None:
@@ -164,6 +214,8 @@ def _emit(hub: EventHub, job: Job, module: Module) -> None:
             # stage alone meant guessing that every earlier step passed,
             # which is the question the ribbon is there to answer.
             "steps": ribbon_states(job),
+            "lane": lane_states(job),
+            "job_id": job.job_id,
         },
     )
     hub.publish("running", {"count": running_migration_count()})

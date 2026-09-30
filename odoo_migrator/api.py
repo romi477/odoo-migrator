@@ -46,6 +46,7 @@ from odoo_migrator.jobs import (
     answer_job,
     apply_progress,
     apply_result,
+    attempt_view,
     attention_target,
     batch_is_checkpoint,
     checkpoint_thread,
@@ -801,6 +802,16 @@ def create_app(
 
         return _result_page(request)
 
+    @app.get("/api/jobs/{job_id}/attempts/{attempt}")
+    def job_attempt(job_id: str, attempt: int):
+        """One attempt's ribbon and retry lane, for the attempt picker."""
+        view = attempt_view(job_id, attempt)
+        if view is None:
+
+            return JSONResponse({"error": "no such attempt"}, status_code=404)
+
+        return JSONResponse(view)
+
     @app.get("/api/result/modules/{module_id}/summary")
     def result_module_summary(request: Request, module_id: int):
         """What the last run on this module did, opened from its card.
@@ -887,10 +898,10 @@ def create_app(
 
         return base + suffix
 
-    def _ribbon(current: dict, live: dict | None) -> list[dict]:
+    def _ribbon(current: dict, live: dict | None) -> dict:
         """The pipeline, each step with how this lap went. Same shape as SSE."""
         from odoo_migrator.cartridges import pinned_for
-        from odoo_migrator.jobs import IN_FLIGHT, ribbon_states
+        from odoo_migrator.jobs import IN_FLIGHT, lane_states, ribbon_states
         from odoo_migrator.models import Job, Migration
 
         with database.connection_context():
@@ -911,16 +922,26 @@ def create_app(
                 )
             if job is not None:
 
-                return ribbon_states(job)
+                return {
+                    "steps": ribbon_states(job),
+                    "lane": lane_states(job),
+                    "attempts": max(job.attempt, 1),
+                    "job_id": job.job_id,
+                }
             pipeline = pinned_for(migration).pipeline
 
-        return [{"id": step.id or step.kind, "state": "pending"} for step in pipeline]
+        return {
+            "steps": [{"id": step.id or step.kind, "state": "pending"} for step in pipeline],
+            "lane": [],
+            "attempts": 0,
+            "job_id": "",
+        }
 
     def _run_page(request: Request, error: str | None = None, screen: str = "pipeline"):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
-        ribbon = _ribbon(current, live) if current and live else []
+        ribbon = _ribbon(current, live) if current and live else None
         # The module this panel is showing, not the migration: the thread
         # used to carry every checkpoint ever written here, so a diagnosis of
         # the module before this one appeared under a run that had just

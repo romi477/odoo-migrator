@@ -3147,6 +3147,18 @@ a.ribbon-box:focus-visible {
   background: var(--green);
 }
 
+/* Passed in an earlier attempt and not run again: the retry looped back
+   past it. Green, quieter than a pass in the attempt on screen. */
+.ribbon-node[data-state="earlier"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--green) 40%, var(--border));
+  border-style: dashed;
+  color: color-mix(in oklch, var(--text) 70%, var(--muted));
+}
+
+.ribbon-node[data-state="earlier"] .ribbon-led {
+  background: color-mix(in oklch, var(--green) 55%, transparent);
+}
+
 .ribbon-node[data-state="failed"] .ribbon-box {
   border-color: var(--red);
   color: var(--red);
@@ -3707,4 +3719,53 @@ a.ribbon-box:focus-visible {
 .side-addons {
   margin-top: 2px;
   overflow-wrap: anywhere;
+}
+
+/* The failure lane one attempt ran — diagnose, patch — under the pipeline,
+   smaller, because it is not the pipeline. */
+.ribbon-lane {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.ribbon-lane .ribbon-box {
+  padding: 3px 8px;
+}
+
+.ribbon-lane-label {
+  margin-right: 8px;
+  color: var(--muted-low);
+  font-size: 11px;
+}
+
+/* Which attempt the ribbon shows. Quiet numbers; the one on screen in cyan. */
+.attempt-picker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.attempt-picker-label {
+  margin-right: 4px;
+  color: var(--muted-low);
+}
+
+.attempt-pick {
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+}
+
+.attempt-pick:hover {
+  color: var(--cyan);
+}
+
+.attempt-pick.is-active {
+  border-color: var(--cyan);
+  color: var(--cyan);
 }

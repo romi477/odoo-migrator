@@ -460,3 +460,69 @@ def test_a_cleared_log_says_so_rather_than_showing_a_blank_box(client, live_job)
 
     assert "log is empty" in page  # rendered, and hidden by the template
     assert "data-run-log-empty hidden" in page
+
+
+def _attempts(job_module_id):
+    """Attempt 1: understand, port, lint pass, upgrade fails, the lane runs.
+    Attempt 2: the lane loops back to lint; lint and upgrade pass, tests fail,
+    and patch is running."""
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Job, StepRun
+
+    now = datetime.now(UTC)
+    with database.connection_context():
+        job = Job.select().where(Job.module == job_module_id).order_by(Job.id.desc()).first()
+        for step, ok in (("understand", True), ("port", True), ("lint", True),
+                         ("upgrade", False), ("diagnose", True), ("patch", True)):
+            StepRun.create(job=job, attempt=1, step_id=step, kind="agent", ok=ok, finished_at=now)
+        for step, ok in (("lint", True), ("upgrade", True), ("tests", False), ("diagnose", True)):
+            StepRun.create(job=job, attempt=2, step_id=step, kind="agent", ok=ok, finished_at=now)
+        StepRun.create(job=job, attempt=2, step_id="patch", kind="agent")
+        job.attempt = 2
+        job.save()
+
+        return job.job_id
+
+
+def test_a_step_done_in_an_earlier_attempt_is_not_grey(client, live_job):
+    """understand and port ran once, in attempt 1; the retry loops back to
+    lint. Grey read as "never ran"."""
+    _attempts(live_job["id"])
+
+    page = client.get("/run").text
+
+    assert 'data-step="understand" data-state="earlier"' in page
+    assert "done in attempt 1" in page
+    assert 'data-step="lint" data-state="done"' in page
+    assert 'data-step="tests" data-state="failed"' in page
+    assert 'data-step="verdict" data-state="pending"' in page
+
+
+def test_an_attempt_can_be_read_back_with_its_retry_lane(client, live_job):
+    job_id = _attempts(live_job["id"])
+
+    first = client.get(f"/api/jobs/{job_id}/attempts/1").json()
+    second = client.get(f"/api/jobs/{job_id}/attempts/2").json()
+
+    assert first["attempt"] == 1 and first["attempts"] == 2
+    states = {node["id"]: node["state"] for node in first["steps"]}
+    assert states["upgrade"] == "failed"
+    assert states["tests"] == "pending"
+    assert [node["id"] for node in first["lane"]] == ["diagnose", "patch"]
+    assert second["lane"] == [
+        {"id": "diagnose", "state": "done"},
+        {"id": "patch", "state": "running"},
+    ]
+    assert client.get(f"/api/jobs/{job_id}/attempts/3").status_code == 404
+    assert client.get("/api/jobs/nope/attempts/1").status_code == 404
+
+
+def test_the_page_offers_every_attempt_of_the_live_run(client, live_job):
+    _attempts(live_job["id"])
+
+    page = client.get("/run").text
+
+    assert "data-attempt-picker" in page
+    assert 'data-attempt="1"' in page
+    assert 'data-attempt="2"' in page
+    assert "data-ribbon-lane" in page

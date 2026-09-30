@@ -77,19 +77,10 @@ function fillResultCornerGlyph(glyph, kind) {
         }
         /* The states come from the job's own step rows. Deriving them from
            the stage would mean assuming every earlier step passed, which is
-           the question the ribbon exists to answer. */
+           the question the ribbon exists to answer. attempts.js paints them,
+           and leaves them alone while someone is reading an older attempt. */
         if (data.steps && data.steps.length) {
-          const ribbon = pipe.querySelector("[data-ribbon]");
-          if (ribbon) {
-            data.steps.forEach(function (step) {
-              const node = ribbon.querySelector(
-                '[data-step="' + step.id + '"]'
-              );
-              if (node) {
-                node.setAttribute("data-state", step.state);
-              }
-            });
-          }
+          pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
         }
       }
     }
