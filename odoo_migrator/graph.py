@@ -6,7 +6,7 @@ from pathlib import Path
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
-from odoo_migrator.module_paths import host_paths
+from odoo_migrator.module_paths import place
 from odoo_migrator.mounts import load as load_mounts
 from odoo_migrator.sheller.errors import ShellerError
 
@@ -334,9 +334,12 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
             # Every dependency inside the kept set, not one arbitrary parent.
             depends = json.dumps([dep for dep in (row.get("depends") or []) if dep in names])
             stored = existing.get(name)
-            # Where the source is on this machine. `addons_root` above is the
-            # path inside the container and cannot be opened here.
-            old_path, new_path = host_paths(migration, name)
+            # Where the source is on this machine, and inside each container.
+            # The graph's `path` is the container's; the suite's graph double
+            # gives only `addons_root`.
+            addons_root = row.get("addons_root") or ""
+            container_path = row.get("path") or (f"{addons_root}/{name}" if addons_root else "")
+            placed = place(migration, name, container_path)
             if stored is None:
                 next_id += 1
                 Module.create(
@@ -344,8 +347,7 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
                     technical_name=name,
                     depends=depends,
                     addons_root=row.get("addons_root") or "",
-                    old_path=old_path,
-                    new_path=new_path,
+                    **placed,
                     author=row.get("author") or "",
                     license=row.get("license") or "",
                     position=position,
@@ -357,8 +359,8 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
                     stored.node_id = next_id
                 stored.depends = depends
                 stored.addons_root = row.get("addons_root") or ""
-                stored.old_path = old_path
-                stored.new_path = new_path
+                for field_name, value in placed.items():
+                    setattr(stored, field_name, value)
                 stored.author = row.get("author") or ""
                 stored.license = row.get("license") or ""
                 stored.position = position

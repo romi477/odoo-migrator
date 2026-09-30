@@ -14,7 +14,9 @@ about the bind mount on this machine.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+from odoo_migrator.mounts import covering, load, to_container, to_host, too_broad
 
 MANIFEST = "__manifest__.py"
 # A search deep enough for repo/addons/<mod> and repo/project/<mod>, and
@@ -99,6 +101,9 @@ def host_paths(migration, technical_name: str) -> tuple[str, str]:
 
 def module_root(migration, module, side: str) -> Path | None:
     """The one answer the runner, lint and the prompt all use."""
+    if getattr(module, "path_problem", ""):
+
+        return None
     stored = (module.old_path if side == "old" else module.new_path) or ""
     if stored:
 
@@ -127,3 +132,87 @@ def relative_to_root(migration, module, side: str) -> str:
     except ValueError:
 
         return module.technical_name
+
+
+def place(migration, name: str, container_path: str) -> dict:
+    """Where module `name` is on each side, on the host and in the container.
+
+    A side whose mounts are not known answers as `host_paths` does, and
+    raises no problem. A side whose mounts are known and do not place the
+    module sets `path_problem`, and that side's host path is left empty:
+    a guessed directory is where a port would be written and never loaded.
+    """
+    old_mounts = load(migration.old_mounts)
+    new_mounts = load(migration.new_mounts)
+    fallback_old, fallback_new = host_paths(migration, name)
+    placed = {
+        "old_path": fallback_old,
+        "new_path": fallback_new,
+        "old_container_path": "",
+        "new_container_path": "",
+        "path_problem": "",
+    }
+    old_mount = covering(old_mounts, container_path) if old_mounts and container_path else None
+    if old_mounts:
+        placed["old_container_path"] = container_path
+        if old_mount is None:
+            placed["old_path"] = ""
+            placed["path_problem"] = "not mounted"
+
+            return placed
+        if too_broad(old_mount["host"]):
+            placed["old_path"] = ""
+            placed["path_problem"] = "mount too broad"
+
+            return placed
+        placed["old_path"] = str(to_host(old_mounts, container_path))
+    if new_mounts:
+        target = _new_container_path(migration, new_mounts, old_mount, container_path, name)
+        new_mount = covering(new_mounts, target) if target else None
+        if new_mount is None:
+            placed["new_path"] = ""
+            placed["path_problem"] = "no target directory"
+
+            return placed
+        if too_broad(new_mount["host"]):
+            placed["new_path"] = ""
+            placed["path_problem"] = "mount too broad"
+
+            return placed
+        placed["new_container_path"] = target
+        placed["new_path"] = str(to_host(new_mounts, target))
+
+    return placed
+
+
+def _new_container_path(migration, new_mounts, old_mount, container_path, name) -> str:
+    """Where the port goes inside the target container.
+
+    An existing port under the new project wins. Then the same container
+    directory, when the target mounts it. Then the new project's own mount,
+    at the module's place relative to its old mount.
+    """
+    project = (migration.new_project_path or "").strip()
+    if project:
+        existing = find_module_dir(project, name)
+        if existing is not None:
+            inside = to_container(new_mounts, str(existing))
+            if inside:
+
+                return inside
+    if container_path and covering(new_mounts, container_path) is not None:
+
+        return container_path
+    if not project:
+
+        return ""
+    root = to_container(new_mounts, str(Path(project).expanduser()))
+    if root is None:
+
+        return ""
+    if old_mount is not None:
+        relative = PurePosixPath(container_path).relative_to(old_mount["container"])
+    else:
+        relative = PurePosixPath(name)
+
+    return str(PurePosixPath(root) / relative)
