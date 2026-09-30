@@ -298,7 +298,9 @@ class NativeRunner:
                 f"stopped by a person, before {where}",
                 level="warn",
             )
-            self._stopped(job_id, str(where))
+            self._stopped(
+                job_id, str(where), attempt=ctx.attempt if ctx is not None else 1
+            )
 
             return
         except Exception as exc:  # noqa: BLE001 - the job has to hear about every failure.
@@ -343,16 +345,24 @@ class NativeRunner:
         )
         self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
 
-    def _stopped(self, job_id: str, where: str) -> None:
-        """Tell the app a person ended this run, and say where it got to."""
-        with database.connection_context():
-            job = Job.get_or_none(Job.job_id == job_id)
-            if job is not None:
-                job.status = "stopped"
-                job.save()
-                module = job.module
-                module.status = "stopped"
-                module.save()
+    def _stopped(self, job_id: str, where: str, attempt: int = 1) -> None:
+        """Tell the app a person ended this run, and say where it got to.
+
+        Through the result, the way a failure is reported. Writing the status
+        straight onto the row left the batch `running` for ever — every later
+        Run was refused as "already running" — and the diff the run had
+        written reached no attempt.
+        """
+        with contextlib.suppress(Exception):
+            self._result(
+                {
+                    "job_id": job_id,
+                    "status": "stopped",
+                    "attempts": [
+                        {"iteration": attempt, "verdict": f"stopped before {where}"}
+                    ],
+                }
+            )
         self.hub.publish(
             "job_finished", {"job_id": job_id, "status": "stopped", "step": where}
         )

@@ -48,7 +48,7 @@ from odoo_migrator.rules import RulesError, append_finding
 NON_TERMINAL = ("queued", "running")
 # No further callback is expected after these. A progress that arrives
 # anyway is a retry or an out-of-order delivery, not news.
-FINISHED = ("passed", "failed")
+FINISHED = ("passed", "failed", "stopped")
 # A recorded outcome the human can put back to queued. A parked question
 # is not one of these: that thread is still open.
 REOPENABLE = ("passed", "failed", "unknown", "migrated")
@@ -641,7 +641,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         group = batch.batch_group
         wave = batch.step
         migration_id = str(batch.migration_id)
-        stopped = job.status == "failed"
+        stopped = job.status in ("failed", "stopped")
         waiting = job.status == "waiting_for_human"
         done = {row.module_id for row in Job.select().where(Job.batch == batch_id)}
     if waiting:

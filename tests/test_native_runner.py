@@ -347,6 +347,47 @@ def test_a_stopped_run_ends_at_its_next_step(client, tmp_path):
     assert reloaded(job).status != "failed"
 
 
+def test_a_stopped_run_closes_its_batch_and_keeps_its_diff(app, tmp_path):
+    """The stop used to write `stopped` on the job and nothing else. The
+    batch stayed `running` for ever, so Run refused every later start with
+    "A batch is already running", and the diff the run had written was on
+    disk but in no attempt anyone could read."""
+    from odoo_migrator.models import Attempt
+    from odoo_migrator.pipeline_queue import _batch_block_reason
+
+    job = _module(tmp_path)
+    with database.connection_context():
+        row = Job.get_by_id(job.id)
+        row.status = "running"
+        row.attempt = 1
+        row.file_diffs = '{"1": "--- a/models.py\\n+++ b/models.py\\n"}'
+        row.save()
+    runner = NativeRunner(sheller=None, hub=app.state.hub, result=app.state.on_result)
+
+    runner._stopped(job.job_id, "probe", attempt=1)
+
+    assert reloaded(job).status == "stopped"
+    with database.connection_context():
+        assert Module.get_by_id(job.module_id).status == "stopped"
+        assert Batch.get_by_id(job.batch_id).status == "checkpoint"
+        diffs = [attempt.diff for attempt in Attempt.select().where(Attempt.job == job.id)]
+    assert diffs == ["--- a/models.py\n+++ b/models.py\n"]
+    migration_id = str(job.module.migration_id)
+    assert _batch_block_reason(migration_id) == "Review the last batch before starting another."
+
+
+def test_a_late_progress_does_not_bring_a_stopped_job_back(app, tmp_path):
+    from odoo_migrator.jobs import apply_progress
+
+    job = _module(tmp_path)
+    with database.connection_context():
+        Job.update(status="stopped").where(Job.id == job.id).execute()
+
+    apply_progress({"job_id": job.job_id, "stage": "port", "attempt": 1}, app.state.hub)
+
+    assert reloaded(job).status == "stopped"
+
+
 def test_stopping_a_job_no_thread_is_running_does_not_pretend(client, tmp_path):
     """The same lie `answer_job` refuses: a restart took the thread with it."""
     from odoo_migrator.jobs import stop_job

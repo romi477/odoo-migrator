@@ -36,8 +36,9 @@ KNOWN_STAGES = (
 )
 # What a cartridge is allowed to end a job with. The app's own statuses —
 # queued, running, unknown — are not in here: a cartridge does not get to
-# say a job is queued.
-RESULT_STATUSES = ("passed", "failed", "waiting_for_human")
+# say a job is queued. `stopped` is the runner's own: a person ended the run,
+# and it reports that the way it reports a failure, so the batch closes.
+RESULT_STATUSES = ("passed", "failed", "waiting_for_human", "stopped")
 
 
 class ContractError(Exception):
