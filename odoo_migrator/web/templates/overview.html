@@ -145,8 +145,33 @@
         {% endfor %}
       </div>
     </fieldset>
-    <label>Source version <input class="mono" name="source_version" value="{{ typed.source_version or "17.0" }}" required></label>
-    <label>Target version <input class="mono" name="target_version" value="{{ typed.target_version or "18.0" }}" required></label>
+    {# Selects, not text: "17" and "17.0" are the same version to a person
+       and not to the rules stack. Target offers only what is newer than the
+       source; the server refuses the rest anyway. #}
+    {% set chosen_source = typed.source_version or "17.0" %}
+    {% set chosen_target = typed.target_version or "18.0" %}
+    <div class="version-pair"
+         x-data="{ source: '', target: '' }"
+         x-init="source = $refs.source.value; target = $refs.target.value">
+      <label>Source version
+        <select class="mono" name="source_version" x-ref="source" x-model="source"
+                @change="if (parseInt(target, 10) <= parseInt(source, 10)) { const next = Array.from($refs.target.options).find((o) => parseInt(o.value, 10) > parseInt(source, 10)); if (next) { target = next.value; } }"
+                required>
+          {% for version in versions[:-1] %}
+          <option value="{{ version }}"{% if version == chosen_source %} selected{% endif %}>{{ version }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Target version
+        <select class="mono" name="target_version" x-ref="target" x-model="target" required>
+          {% for version in versions[1:] %}
+          <option value="{{ version }}"{% if version == chosen_target %} selected{% endif %}
+                  :disabled="parseInt('{{ version }}', 10) <= parseInt(source, 10)"
+                  :hidden="parseInt('{{ version }}', 10) <= parseInt(source, 10)">{{ version }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
     <label>Source path <input class="mono" name="old_project_path" value="{{ typed.old_project_path or "" }}" required></label>
     <label>Target path <input class="mono" name="new_project_path" value="{{ typed.new_project_path or "" }}" required></label>
     <div class="row">

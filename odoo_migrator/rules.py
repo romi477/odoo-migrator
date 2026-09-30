@@ -118,13 +118,39 @@ def _role(index: int, last: int) -> str:
     return "intermediate"
 
 
+def supported_versions(rules_dir: Path | None = None) -> list[str]:
+    """The versions a migration can start or end on: the ones with a rules file.
+
+    Read through the same layers `assemble_rules` reads, so a version the
+    create form offers is one whose stack will assemble.
+    """
+    majors: set[int] = set()
+    for directory in _layers(rules_dir):
+        if not directory.is_dir():
+            continue
+        for path in directory.glob("*.0.md"):
+            major = path.name.split(".", 1)[0]
+            if major.isdigit():
+                majors.add(int(major))
+
+    return [f"{major}.0" for major in sorted(majors)]
+
+
 def check_versions(source: str, target: str) -> None:
     """Raise if this pair can never assemble. Called where a human types it.
 
     Refusing at assembly time only is too late: nothing would object until a
     job was built for the first module, long after the migration was created.
+    The shape is checked first, so `17.2` still gets the message that says
+    why a minor is refused.
     """
     _versions(source, target)
+    known = supported_versions()
+    for version in (source, target):
+        if known and version not in known:
+            raise RulesError(
+                f"{version} is not supported. Choose one of: {', '.join(known)}."
+            )
 
 
 def assemble_rules(

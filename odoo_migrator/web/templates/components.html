@@ -582,6 +582,20 @@ tools offered: exec, read_file, report, source</pre>
   <p>A file picker and the button that uses it are one act, so they share
   one outline and the title sits in a break of it.</p>
 
+  <h2>Version pair</h2>
+  <form class="create-migration">
+    <div class="version-pair">
+      <label>Source version
+        <select class="mono"><option>17.0</option></select>
+      </label>
+      <label>Target version
+        <select class="mono"><option>18.0</option></select>
+      </label>
+    </div>
+  </form>
+  <p>Versions are chosen, never typed. Target lists only what is newer than
+  the source.</p>
+
   <h2>Confirm dialog</h2>
   <dialog class="confirm-dialog is-specimen" open>
     <h2>Reopen sale_custom?</h2>

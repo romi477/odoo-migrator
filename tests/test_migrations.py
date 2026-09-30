@@ -2,6 +2,7 @@ import re
 
 from odoo_migrator.db import database
 from odoo_migrator.models import ACCENTS, Migration, Module
+from odoo_migrator.rules import supported_versions
 
 
 def _create(client, name, accent="violet", source="17.0", target="18.0"):
@@ -251,3 +252,34 @@ def test_a_refused_creation_keeps_the_form_open_with_what_was_typed(client):
     assert 'name="old_project_path" value="/opt/projects/sandbox/18"' in refused.text
     assert 'name="new_project_path" value="/opt/projects/sandbox/18-new"' in refused.text
     assert 'value="Same"' in refused.text
+
+
+def test_supported_versions_are_the_rules_files():
+    assert supported_versions() == ["16.0", "17.0", "18.0", "19.0", "20.0"]
+
+
+def test_the_create_form_offers_versions_as_selects(client):
+    html = client.get("/?create=1").text
+
+    assert '<select class="mono" name="source_version"' in html
+    assert '<select class="mono" name="target_version"' in html
+    assert 'name="source_version" value=' not in html
+    for version in supported_versions():
+        assert f'value="{version}"' in html
+
+
+def test_a_version_without_rules_is_refused_at_creation(client):
+    response = _create(client, "Acme", target="21.0")
+
+    assert response.status_code == 200
+    assert "21.0 is not supported" in response.text
+    with database.connection_context():
+        assert Migration.select().count() == 0
+
+
+def test_the_widest_supported_jump_is_accepted(client):
+    response = _create(client, "Wide", source="16.0", target="20.0")
+
+    assert response.status_code == 200
+    with database.connection_context():
+        assert Migration.get(Migration.name == "Wide").target_version == "20.0"

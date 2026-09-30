@@ -1782,6 +1782,19 @@ h2 {
   background: var(--panel-raised);
 }
 
+.version-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.create-migration select {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: var(--panel-raised);
+}
+
 .create-migration fieldset {
   border: 1px solid var(--border);
   border-radius: 8px;

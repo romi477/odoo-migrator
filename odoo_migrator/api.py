@@ -93,7 +93,7 @@ from odoo_migrator.provision import (
     describe_side_without_listing,
 )
 from odoo_migrator.provision.actions import attach, rebuild, restart, stop, up
-from odoo_migrator.rules import RulesError, stack_versions
+from odoo_migrator.rules import RulesError, stack_versions, supported_versions
 from odoo_migrator.runner.cartridge import CartridgeError
 from odoo_migrator.settings import get_app_settings, save_app_settings
 from odoo_migrator.sheller import HttpShellerClient
@@ -1314,6 +1314,7 @@ def create_app(
                 # two paths they pasted.
                 "creating": creating,
                 "typed": typed or {},
+                "versions": supported_versions(),
                 "error": error,
             },
         )
