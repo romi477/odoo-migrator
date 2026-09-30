@@ -227,6 +227,20 @@ def test_upgrade_runs_in_a_fresh_session(ctx_for, sheller):
     assert ctx.sessions["new"] in sheller.commits
 
 
+def test_upgrade_drops_the_old_versions_migration_scripts_first(ctx_for, tmp_path):
+    """Before Odoo reads the ported module: an old `migrations/17.0.*` would
+    run on the new framework."""
+    ctx = ctx_for()
+    old_script = tmp_path / "new" / "sale_custom" / "migrations" / "17.0.1.0.3" / "pre-migrate.py"
+    old_script.parent.mkdir(parents=True)
+    old_script.write_text("def migrate(cr, version):\n    pass\n")
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert not (tmp_path / "new" / "sale_custom" / "migrations").exists()
+    assert "migrations/17.0.1.0.3" in result.output
+
+
 def test_upgrade_does_not_commit_what_the_agent_left_pending(ctx_for, sheller):
     """Closing the old session is what discards it; the upgrade's own commit
     then has nothing of the agent's to carry."""

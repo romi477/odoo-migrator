@@ -153,6 +153,9 @@ def _render(item: str, ctx: StepContext) -> str:
     if item == "rules":
 
         return _rules(ctx)
+    if item == "project_notes":
+
+        return project_notes(ctx)
     if item == "module_source":
 
         return _module_source(ctx)
@@ -167,6 +170,77 @@ def _render(item: str, ctx: StepContext) -> str:
         return ctx.last_failure or "(none)"
 
     return ""
+
+
+# What a project says about itself, for the step that first reads a module.
+NOTE_NAMES = ("AGENTS.md", "CLAUDE.md", "README.md", "README.rst")
+MAX_NOTE_CHARS = 8000
+MAX_NOTES_CHARS = 24000
+
+
+def project_notes(ctx: StepContext) -> str:
+    """AGENTS.md, CLAUDE.md and READMEs on the old side, broad to narrow.
+
+    The project directory (where the compose file is), then every addons
+    directory the plan's modules are in, then the module's own directory.
+    Each file is clipped, and so is the whole: a README can be a book.
+    """
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Module
+
+    root_raw = (ctx.migration.old_project_path or "").strip()
+    root = Path(root_raw).expanduser() if root_raw else None
+    places: list[Path] = []
+    if root is not None:
+        places.append(root)
+    with database.connection_context():
+        paths = [
+            row.old_path
+            for row in Module.select(Module.old_path).where(
+                (Module.migration == ctx.migration.id)
+                & (Module.struck_out == False)
+                & (Module.old_path != "")
+            )
+        ]
+    places.extend(sorted({Path(path).parent for path in paths}))
+    module_dir = _old_root(ctx)
+    if module_dir is not None:
+        places.append(Path(module_dir))
+    seen: set[Path] = set()
+    sections: list[str] = []
+    total = 0
+    for place in places:
+        for name in NOTE_NAMES:
+            path = place / name
+            try:
+                resolved = path.resolve()
+            except OSError:
+                continue
+            if resolved in seen or not path.is_file():
+                continue
+            seen.add(resolved)
+            text = path.read_text(encoding="utf-8", errors="replace").strip()
+            if len(text) > MAX_NOTE_CHARS:
+                text = text[:MAX_NOTE_CHARS] + "\n… (clipped)"
+            if total + len(text) > MAX_NOTES_CHARS:
+                sections.append("… (further notes clipped)")
+
+                return "\n\n".join(sections)
+            total += len(text)
+            sections.append(f"--- {_note_label(path, root)} ---\n{text}\n--- end ---")
+
+    return "\n\n".join(sections) if sections else "(no project notes found)"
+
+
+def _note_label(path: Path, root: Path | None) -> str:
+    if root is not None:
+        try:
+
+            return path.relative_to(root).as_posix()
+        except ValueError:
+            pass
+
+    return str(path)
 
 
 def _rules(ctx: StepContext) -> str:

@@ -13,9 +13,10 @@ FAILURE_LANE = "lane:on_failure"
 # falls back to the kind, because its prompt is too long for a tooltip.
 _HINTS = {
     "understand": (
-        "Reads the module on the old Odoo through a live session. Describes "
-        "current behaviour and what will break, then builds a fixture recipe "
-        "and rolls it back. Later steps replay that recipe."
+        "Reads the project's own notes (AGENTS.md, READMEs), then the module "
+        "on the old Odoo through a live session. Describes current behaviour "
+        "and what will break, then builds a fixture recipe and rolls it back. "
+        "Later steps replay that recipe."
     ),
     "port": (
         "Writes the ported module into the new project. Both sessions stay "
@@ -27,8 +28,10 @@ _HINTS = {
         "parses, and its manifest is a dict with name and depends."
     ),
     "upgrade": (
-        "Installs the module on the new container, or upgrades it if it is "
-        "already installed, then commits. The old container is never committed."
+        "Drops the old version's migrations/ and upgrades/ scripts from the "
+        "port, keeping the target series'. Then installs the module on the new "
+        "container, or upgrades it if it is already installed, and commits. "
+        "The old container is never committed."
     ),
     "tests": (
         "Runs the module's own test classes on the new container. No classes "

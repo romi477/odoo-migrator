@@ -8,6 +8,7 @@ import time
 
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.prune import prune_old_migrations
 from odoo_migrator.runner.sessions import reopen_side, wait_ready
 from odoo_migrator.runner.steps.verdict import note_log_errors
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
@@ -64,6 +65,26 @@ stuck = Module.search_count([('state', 'in', ('to install', 'to upgrade', 'to re
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
+    """Drop the old version's migration scripts, then upgrade.
+
+    Here, and not in a step of its own: this is the moment the ported module
+    is read by Odoo, and it runs again after every patch.
+    """
+    from odoo_migrator.module_paths import module_root
+
+    directory = module_root(ctx.migration, ctx.module, "new")
+    removed = []
+    if directory is not None:
+        removed = prune_old_migrations(directory, ctx.migration.target_version)
+    result = _upgrade(step, ctx)
+    if removed:
+        note = "removed old migration scripts: " + ", ".join(removed)
+        result.output = f"{note}\n{result.output}" if result.output else note
+
+    return result
+
+
+def _upgrade(step: Step, ctx: StepContext) -> StepResult:
     """Always in a fresh process, which also drops what the agent left pending.
 
     The session open since the job started imported the module's Python as

@@ -18,6 +18,7 @@ BUILTIN_FLAGS = {"no_tests": "tests", "tests_failed": "tests", "lint_failed": "l
 BUILTIN_READS = {"behaviour_differs": "verdict"}
 CONTEXT_ITEMS = (
     "rules",
+    "project_notes",
     "module_source",
     "prior_answers",
     "previous_diff",

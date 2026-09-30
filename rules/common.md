@@ -58,3 +58,7 @@ version file is the instruction.
 - Upgrade scripts live in `migrations/<version>/`. Prefer that layout
   unless the target version's own modules use another directory; check
   with `source` before inventing `upgrades/`.
+  Scripts from the old series do not travel: the upgrade step deletes
+  every `migrations/` and `upgrades/` directory not named for the target
+  series before Odoo reads the port. A script this migration needs goes
+  under the target version (`18.0.1.0.0/`), with the full version.
