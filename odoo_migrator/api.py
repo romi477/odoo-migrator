@@ -38,6 +38,7 @@ from odoo_migrator.graph import (
     restore_selection,
     set_batch_group,
     skip_subtree,
+    snapshot_mounts,
 )
 from odoo_migrator.jobs import (
     advance_batch,
@@ -424,6 +425,9 @@ def create_app(
                 return _tree_page(
                     request, error=unlinked, error_settings=current["id"]
                 )
+        # Where each container mounts its addons from. Read now, once; a run
+        # uses this snapshot. A changed compose file needs Build graph again.
+        snapshot_mounts(request.app.state.compose, current["id"])
         try:
             resolve_graph(_sheller(request), current["id"])
         except GraphError as refused:

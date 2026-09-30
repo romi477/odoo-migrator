@@ -95,6 +95,11 @@ class Migration(BaseModel):
     # without `db_name` is ordinary, so this cannot only be probed.
     old_database = CharField(default="")
     new_database = CharField(default="")
+    # Bind mounts of each side's container at the last Build graph, as JSON
+    # [{"host", "container", "read_only"}]. "[]" is "not known": Docker was
+    # not reachable or the side had no container. See mounts.py.
+    old_mounts = TextField(default="[]")
+    new_mounts = TextField(default="[]")
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)
     model_webhook_path = TextField(default="")
@@ -114,6 +119,14 @@ class Module(BaseModel):
     technical_name = CharField()
     old_path = TextField(default="")
     new_path = TextField(default="")
+    # The module's directory inside each container, as Odoo and a traceback
+    # name it. Empty when that side's mounts are not known.
+    old_container_path = TextField(default="")
+    new_container_path = TextField(default="")
+    # Why the app does not know where this module is on disk: "not mounted",
+    # "mount too broad" or "no target directory". A module with one does not
+    # start.
+    path_problem = CharField(default="")
     status = CharField(default="queued")
     struck_out = BooleanField(default=False)
     has_assumptions = BooleanField(default=False)

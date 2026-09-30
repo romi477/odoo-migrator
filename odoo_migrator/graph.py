@@ -7,6 +7,7 @@ from pathlib import Path
 from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.module_paths import host_paths
+from odoo_migrator.mounts import load as load_mounts
 from odoo_migrator.sheller.errors import ShellerError
 
 
@@ -26,15 +27,21 @@ def project_addons_roots(project_path: str) -> list[str]:
     return list(dict.fromkeys(roots))
 
 
-def build_graph_snippet(project_path: str) -> str:
+def build_graph_snippet(project_path: str, container_roots: list[str] | None = None) -> str:
     """Odoo code that returns the module graph as a JSON string.
 
     Installed modules are always included. Uninstalled rows are kept only
-    when their path sits under the migration's old project tree — so a
+    when their path sits under the project's own addons directories — so a
     Resolve after copying addons in picks them up once Apps is updated,
-    without flooding the tree with every uninstalled core module.
+    without flooding the tree with every uninstalled core module. Those
+    directories are the container directories of the old side's bind mounts
+    when they are known — compared against paths inside the container, where
+    they mean something — and the host project roots otherwise. A root that
+    contains, or is inside, Odoo's own tree is dropped: keeping it would list
+    every uninstalled core module.
     """
-    roots_literal = json.dumps(project_addons_roots(project_path))
+    roots = container_roots if container_roots else project_addons_roots(project_path)
+    roots_literal = json.dumps(roots)
 
     return f"""\
 import json, os, odoo
@@ -46,7 +53,16 @@ from odoo.modules.module import get_module_path
 # None here because odoo is a namespace package, hence __path__.
 _pkg = list(getattr(odoo, '__path__', []) or [])
 install_root = os.path.dirname(_pkg[0]) if _pkg else ''
-project_roots = {roots_literal}
+def _overlaps_install(root):
+    if not install_root:
+        return False
+    return (
+        root == install_root
+        or root.startswith(install_root + os.sep)
+        or install_root.startswith(root + os.sep)
+    )
+
+project_roots = [root for root in {roots_literal} if not _overlaps_install(root)]
 
 def _under_project(path):
     if not path or not project_roots:
@@ -130,6 +146,7 @@ def _module_row(module: Module, question: str | None = None) -> dict:
         "status": module.status,
         "has_assumptions": bool(module.has_assumptions),
         "needs_review": bool(module.needs_review),
+        "path_problem": module.path_problem or "",
         "notes": module.notes or "",
         "question": question,
         "position": module.position,
@@ -795,6 +812,32 @@ def module_for_migration(migration_id: str, module_id: int) -> dict:
         return _module_row(module)
 
 
+def snapshot_mounts(engine, migration_id: str) -> dict[str, list[dict]]:
+    """Record where each side's container mounts its directories from.
+
+    Taken at Build graph and nowhere else: a run reads this snapshot and
+    does not call Docker for paths. A side with no container, or an Engine
+    that does not answer, is stored as "[]" — not known — and that side
+    keeps today's project-directory paths.
+    """
+    from odoo_migrator.mounts import container_mounts
+
+    with database.connection_context():
+        migration = Migration.get_by_id(migration_id)
+        containers = {"old": migration.old_container, "new": migration.new_container}
+    snapshot = {}
+    for side, name in containers.items():
+        found = container_mounts(engine, name) if name else None
+        snapshot[side] = found or []
+    with database.connection_context():
+        Migration.update(
+            old_mounts=json.dumps(snapshot["old"]),
+            new_mounts=json.dumps(snapshot["new"]),
+        ).where(Migration.id == migration_id).execute()
+
+    return snapshot
+
+
 def resolve_graph(client, migration_id: str) -> list[dict]:
     with database.connection_context():
         migration = Migration.get_or_none(
@@ -804,6 +847,7 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
             raise GraphError("no open migration")
         old_container = migration.old_container
         old_project_path = migration.old_project_path or ""
+        old_mounts = load_mounts(migration.old_mounts)
     if not old_container:
         raise GraphError("Attach the old container first.")
     try:
@@ -819,7 +863,10 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
             database=probed["db_name"],
             odoo_bin=probed["odoo_bin"],
             migration_id=migration_id,
-            code=build_graph_snippet(old_project_path),
+            code=build_graph_snippet(
+                old_project_path,
+                container_roots=[mount["container"] for mount in old_mounts],
+            ),
         )
         rows = parse_graph_payload(executed)
     except GraphError:
