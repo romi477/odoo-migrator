@@ -79,6 +79,9 @@ class FakeShellerClient:
         # container name -> modules installed in its database. What the
         # target's `ir.module.module` answers; empty is a fresh database.
         self.installed_by_container: dict[str, list[str]] = {}
+        # container name -> `odoo.addons.__path__` there. Unset is a stock
+        # layout: Odoo's own trees and the project.
+        self.addons_path_by_container: dict[str, list[str]] = {}
         self.opens: list[dict] = []
         self.execs: list[str] = []
         self._next_command = 0
@@ -246,7 +249,13 @@ class FakeShellerClient:
             result = repr(json.dumps(self.graph_modules))
         elif "ir.module.module" in code and "installed_names" in code:
             names = self.installed_by_container.get(session["container"], [])
-            result = repr(json.dumps(sorted(names)))
+            addons_path = self.addons_path_by_container.get(
+                session["container"],
+                ["/opt/odoo/odoo/addons", "/opt/odoo/addons", PROJECT],
+            )
+            result = repr(
+                json.dumps({"installed": sorted(names), "addons_path": addons_path})
+            )
         answer = {
             "id": command_id,
             "stdout": "",

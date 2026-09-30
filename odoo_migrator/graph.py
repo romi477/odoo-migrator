@@ -3,7 +3,7 @@
 import ast
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
@@ -995,17 +995,22 @@ def _read_only_exec(
                 pass
 
 
+# `odoo.addons.__path__` is where this Odoo looks for modules: the addons_path
+# from its config, resolved, and the same on every version.
 INSTALLED_SNIPPET = """\
-import json
+import json, odoo
 installed_names = env['ir.module.module'].search(
     [('state', 'in', ('installed', 'to upgrade'))]
 ).mapped('name')
-json.dumps(sorted(installed_names))
+json.dumps({
+    'installed': sorted(installed_names),
+    'addons_path': [str(path) for path in odoo.addons.__path__],
+})
 """
 
 
-def _target_installed(client, migration: Migration) -> set[str]:
-    """Names of the modules installed in the target's database."""
+def _read_target(client, migration: Migration) -> dict:
+    """The target's installed module names and its addons_path."""
     probed = client.probe(migration.new_container)
     if not probed.get("ok") or not probed.get("odoo_bin"):
         raise GraphError("the target container could not be probed")
@@ -1024,9 +1029,63 @@ def _target_installed(client, migration: Migration) -> set[str]:
         migration_id=migration.id,
         code=INSTALLED_SNIPPET,
     )
-    names = parse_graph_payload(executed)
+    value = _parse_target_payload(executed)
+    installed = {name for name in value.get("installed") or [] if isinstance(name, str)}
+    addons_path = [path for path in value.get("addons_path") or [] if isinstance(path, str)]
 
-    return {name for name in names if isinstance(name, str)}
+    return {"installed": installed, "addons_path": addons_path}
+
+
+def _parse_target_payload(executed: dict) -> dict:
+    failure = executed.get("error")
+    if failure:
+        message = failure["message"] if isinstance(failure, dict) else str(failure)
+        raise GraphError(f"the target did not answer: {message}")
+    raw = executed.get("result")
+    try:
+        value = ast.literal_eval(raw) if isinstance(raw, str) else raw
+        if isinstance(value, str):
+            value = json.loads(value)
+    except (ValueError, SyntaxError, json.JSONDecodeError) as exc:
+        raise GraphError("the target returned nothing readable") from exc
+    if not isinstance(value, dict):
+        raise GraphError("the target returned nothing readable")
+
+    return value
+
+
+OFF_PATH = "not on the target's addons_path"
+
+
+def _mark_off_path(migration_id: str, addons_path: list[str]) -> int:
+    """A module whose target directory Odoo does not load cannot be ported.
+
+    The port would be written where the target mounts it and never read:
+    upgrade answers "uninstallable", and an agent left to it once copied the
+    module into a directory that is loaded, through exec, where two copies
+    then drifted apart. Only modules placed from mounts are judged. The
+    caller holds nothing.
+    """
+    loaded = {str(PurePosixPath(path)) for path in addons_path}
+    if not loaded:
+
+        return 0
+    marked = 0
+    with database.connection_context():
+        for module in Module.select().where(
+            (Module.migration == migration_id)
+            & (Module.struck_out == False)
+            & (Module.new_container_path != "")
+            & (Module.path_problem == "")
+        ):
+            directory = str(PurePosixPath(module.new_container_path).parent)
+            if directory in loaded:
+                continue
+            module.path_problem = OFF_PATH
+            module.save()
+            marked += 1
+
+    return marked
 
 
 def mark_migrated_from_target(client, migration_id: str) -> dict:
@@ -1038,26 +1097,32 @@ def mark_migrated_from_target(client, migration_id: str) -> dict:
     module that has left the target stays `migrated` until a person
     reopens it.
 
-    Returns ``{"marked": n, "error": reason or None}``. A target that is
-    missing or does not answer is reported, not raised: the graph from the
-    source is already stored and stays useful.
+    The same read checks where the target looks for modules: a module placed
+    in a directory the target does not load gets `path_problem` (see
+    `_mark_off_path`).
+
+    Returns ``{"marked": n, "error": reason or None, "off_path": n}``. A
+    target that is missing or does not answer is reported, not raised: the
+    graph from the source is already stored and stays useful.
     """
     with database.connection_context():
         migration = Migration.get_or_none(Migration.id == migration_id)
     if migration is None:
 
-        return {"marked": 0, "error": "no open migration"}
+        return {"marked": 0, "error": "no open migration", "off_path": 0}
     if not migration.new_container:
 
-        return {"marked": 0, "error": "no target container is attached"}
+        return {"marked": 0, "error": "no target container is attached", "off_path": 0}
     try:
-        installed = _target_installed(client, migration)
+        target = _read_target(client, migration)
     except (GraphError, ShellerError) as exc:
 
-        return {"marked": 0, "error": str(exc) or type(exc).__name__}
+        return {"marked": 0, "error": str(exc) or type(exc).__name__, "off_path": 0}
+    off_path = _mark_off_path(migration_id, target["addons_path"])
+    installed = target["installed"]
     if not installed:
 
-        return {"marked": 0, "error": None}
+        return {"marked": 0, "error": None, "off_path": off_path}
     with database.connection_context():
         ran = Job.select(Job.module).distinct()
         marked = (
@@ -1072,4 +1137,4 @@ def mark_migrated_from_target(client, migration_id: str) -> dict:
             .execute()
         )
 
-    return {"marked": marked, "error": None}
+    return {"marked": marked, "error": None, "off_path": off_path}

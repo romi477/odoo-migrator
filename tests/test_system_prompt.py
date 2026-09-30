@@ -224,3 +224,14 @@ def test_the_system_prompt_carries_the_shell_notes():
     # The standing instruction and this run's facts are still around it.
     assert "Call `report` exactly once" in text
     assert "Step: port" in text
+
+
+def test_the_system_prompt_forbids_moving_modules_through_exec():
+    """A live job copied a module into /opt/project with exec when the target
+    did not load its directory; the port and the copy then drifted apart."""
+    from odoo_migrator.rules import load_system_prompt
+
+    text = load_system_prompt()
+
+    assert "only through `write_file`" in text
+    assert "needs_human" in text

@@ -29,6 +29,15 @@ Odoo's own code and Enterprise are not on the host for you. Read them with
 `source`, which reads inside the container. When `read_file` refuses a
 path, `source` is how you read it.
 
+The module's files change only through `write_file`. Do not copy, move or
+symlink a module, and do not write files with `exec`: a second copy is
+what Odoo then loads, and the port drifts away from it unseen. If the new
+Odoo does not find the module where it was written — it is not on the
+addons path, or the upgrade calls it uninstallable while its manifest is
+fine — that is the container's configuration, which a person owns. Say
+which directory is missing from the addons path and stop working around
+it; a step allowed to raise `needs_human` raises it.
+
 ## How you find things out
 
 You cannot see anything you did not fetch. Source you were not given, a

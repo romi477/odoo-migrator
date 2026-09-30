@@ -446,17 +446,20 @@ def create_app(
         # uses this snapshot. A changed compose file needs Build graph again.
         snapshot_mounts(request.app.state.compose, current["id"])
         try:
-            rows = resolve_graph(_sheller(request), current["id"])
+            resolve_graph(_sheller(request), current["id"])
         except GraphError as refused:
 
             return _tree_page(request, error=str(refused))
-        unplaced = sum(
-            1 for row in rows if row.get("path_problem") and not row.get("struck_out")
-        )
         # A half-ported project: what the target already has installed is
-        # marked, not queued again. A target that cannot be read is said on
-        # the page; the graph from the source stands either way.
+        # marked, not queued again. The same read finds modules the target
+        # would not load. A target that cannot be read is said on the page;
+        # the graph from the source stands either way.
         target = mark_migrated_from_target(_sheller(request), current["id"])
+        unplaced = sum(
+            1
+            for row in list_modules(current["id"])
+            if row.get("path_problem") and not row.get("struck_out")
+        )
         query = {
             "graph": "updated",
             "migrated": target["marked"],

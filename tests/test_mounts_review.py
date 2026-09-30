@@ -180,3 +180,41 @@ def test_the_card_names_addons_directories_not_mount_points(tmp_path):
     assert "/opt/int/19/odoo-sh" not in found["old"]
     assert "/opt/sandbox/17/project" in found["old"]
     assert "/opt/int/20/odoo-sh/connectors-extensions" in found["new"]
+
+
+def test_a_module_the_target_does_not_load_is_stopped_at_build_graph(tmp_path):
+    """Two jobs met this live: the port was written where the target mounts
+    it, but that directory is not on the target's addons_path. One agent
+    asked; the other copied the module into /opt/project through exec, and
+    the two copies drifted apart. It is found here now, before any job."""
+    from odoo_migrator.graph import mark_migrated_from_target
+
+    aggregate_17 = {"host": "/opt/int/19/odoo-sh", "container": "/opt/odoo-sh", "read_only": False}
+    aggregate_18 = {"host": "/opt/int/20/odoo-sh", "container": "/opt/odoo-sh", "read_only": False}
+    created = _migration(tmp_path, [PROJECT_17, aggregate_17], [PROJECT_18, aggregate_18])
+    fake = _with(FakeShellerClient(), ("conn_x", "/opt/odoo-sh/connectors-extensions", {}))
+    fake.addons_path_by_container["odoo-new"] = ["/opt/odoo/addons", "/opt/project"]
+    resolve_graph(fake, created["id"])
+
+    outcome = mark_migrated_from_target(fake, created["id"])
+
+    connector = _module("conn_x")
+    assert connector.path_problem == "not on the target's addons_path"
+    assert _module("sale_custom").path_problem == ""
+    assert outcome["off_path"] == 1
+
+
+def test_a_target_that_loads_the_directory_raises_nothing(tmp_path):
+    from odoo_migrator.graph import mark_migrated_from_target
+
+    aggregate_17 = {"host": "/opt/int/19/odoo-sh", "container": "/opt/odoo-sh", "read_only": False}
+    aggregate_18 = {"host": "/opt/int/20/odoo-sh", "container": "/opt/odoo-sh", "read_only": False}
+    created = _migration(tmp_path, [PROJECT_17, aggregate_17], [PROJECT_18, aggregate_18])
+    fake = _with(FakeShellerClient(), ("conn_x", "/opt/odoo-sh/connectors-extensions", {}))
+    fake.addons_path_by_container["odoo-new"] = [
+        "/opt/odoo/addons", "/opt/project", "/opt/odoo-sh/connectors-extensions",
+    ]
+    resolve_graph(fake, created["id"])
+
+    assert mark_migrated_from_target(fake, created["id"])["off_path"] == 0
+    assert _module("conn_x").path_problem == ""

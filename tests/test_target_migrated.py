@@ -54,7 +54,7 @@ def test_a_module_installed_on_the_target_is_marked_migrated(tmp_path):
 
     outcome = mark_migrated_from_target(fake, created["id"])
 
-    assert outcome == {"marked": 1, "error": None}
+    assert outcome == {"marked": 1, "error": None, "off_path": 0}
     statuses = _statuses(created["id"])
     assert statuses["sale_custom"] == "migrated"
     assert statuses["stock_custom"] == "queued"
