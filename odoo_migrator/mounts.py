@@ -93,9 +93,11 @@ def too_broad(
     """
     from odoo_migrator.paths import user_dir
 
-    home = home or Path.home()
-    data_dir = data_dir or user_dir()
-    path = Path(os.path.normpath(host))
+    # Real paths on all three: a host directory that is a symlink to the
+    # home directory is the home directory once the tools resolve it.
+    home = Path(os.path.realpath(home or Path.home()))
+    data_dir = Path(os.path.realpath(data_dir or user_dir()))
+    path = Path(os.path.realpath(host))
     if path == Path("/"):
 
         return "it mounts the whole disk"

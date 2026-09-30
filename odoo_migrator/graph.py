@@ -2,11 +2,13 @@
 
 import ast
 import json
+import os
 from pathlib import Path
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.module_paths import place
+from odoo_migrator.mounts import covering
 from odoo_migrator.mounts import load as load_mounts
 from odoo_migrator.sheller.errors import ShellerError
 
@@ -324,6 +326,7 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
     names = {row["name"] for row in kept}
     with database.connection_context():
         migration = Migration.get_by_id(migration_id)
+        framework = _framework_mounts(migration, rows)
         existing = {
             row.technical_name: row
             for row in Module.select().where(Module.migration == migration_id)
@@ -337,9 +340,8 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
             # Where the source is on this machine, and inside each container.
             # The graph's `path` is the container's; the suite's graph double
             # gives only `addons_root`.
-            addons_root = row.get("addons_root") or ""
-            container_path = row.get("path") or (f"{addons_root}/{name}" if addons_root else "")
-            placed = place(migration, name, container_path)
+            container_path = _container_path(row)
+            placed = place(migration, name, container_path, framework)
             if stored is None:
                 next_id += 1
                 Module.create(
@@ -397,6 +399,47 @@ def persist_graph(migration_id: str, rows: list[dict], *, keep_core: bool = Fals
                     row.save()
 
     return list_modules(migration_id)
+
+
+def _container_path(row: dict) -> str:
+    addons_root = row.get("addons_root") or ""
+
+    return row.get("path") or (f"{addons_root}/{row['name']}" if addons_root else "")
+
+
+def _framework_mounts(migration: Migration, rows: list[dict]) -> frozenset[str]:
+    """Old-side mount points that hold any of Odoo's own modules."""
+    old_mounts = load_mounts(migration.old_mounts)
+    found = set()
+    for row in rows:
+        if not row.get("name") or not is_odoos_own(row):
+            continue
+        mount = covering(old_mounts, _container_path(row))
+        if mount is not None:
+            found.add(mount["container"])
+
+    return frozenset(found)
+
+
+def _project_mount_points(migration: Migration) -> list[str]:
+    """Old-side mount points inside the old project directory.
+
+    Where the graph keeps uninstalled modules. A mounted OCA or Enterprise
+    checkout holds dozens nobody installed, and listing them put each in
+    the plan.
+    """
+    project = (migration.old_project_path or "").strip()
+    if not project:
+
+        return []
+    root = Path(os.path.realpath(Path(project).expanduser()))
+    points = []
+    for mount in load_mounts(migration.old_mounts):
+        host = Path(os.path.realpath(mount["host"]))
+        if host == root or root in host.parents:
+            points.append(mount["container"])
+
+    return points
 
 
 def set_struck(module_id: int, struck: bool | None = None) -> dict:
@@ -879,6 +922,7 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         old_container = migration.old_container
         old_project_path = migration.old_project_path or ""
         old_mounts = load_mounts(migration.old_mounts)
+        project_points = _project_mount_points(migration)
     if not old_container:
         raise GraphError("Attach the old container first.")
     try:
@@ -896,7 +940,7 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
             migration_id=migration_id,
             code=build_graph_snippet(
                 old_project_path,
-                container_roots=[mount["container"] for mount in old_mounts],
+                container_roots=project_points if old_mounts else None,
             ),
         )
         rows = parse_graph_payload(executed)

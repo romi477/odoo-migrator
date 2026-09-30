@@ -14,6 +14,7 @@ about the bind mount on this machine.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path, PurePosixPath
 
 from odoo_migrator.mounts import covering, load, to_container, to_host, too_broad
@@ -134,8 +135,15 @@ def relative_to_root(migration, module, side: str) -> str:
         return module.technical_name
 
 
-def place(migration, name: str, container_path: str) -> dict:
+def place(
+    migration, name: str, container_path: str, framework: frozenset[str] = frozenset()
+) -> dict:
     """Where module `name` is on each side, on the host and in the container.
+
+    `framework` holds the old side's mount points that carry Odoo's own code
+    (Enterprise, a mounted Odoo). A module kept from one of them is never
+    ported into the same mount on the target — that is Odoo's checkout for
+    the new version — but into the new project.
 
     A side whose mounts are not known answers as `host_paths` does, and
     raises no problem. A side whose mounts are known and do not place the
@@ -167,7 +175,10 @@ def place(migration, name: str, container_path: str) -> dict:
             return placed
         placed["old_path"] = str(to_host(old_mounts, container_path))
     if new_mounts:
-        target = _new_container_path(migration, new_mounts, old_mount, container_path, name)
+        reuse = old_mount is None or old_mount["container"] not in framework
+        target = _new_container_path(
+            migration, new_mounts, old_mount, container_path, name, reuse=reuse
+        )
         new_mount = covering(new_mounts, target) if target else None
         if new_mount is None:
             placed["new_path"] = ""
@@ -179,13 +190,60 @@ def place(migration, name: str, container_path: str) -> dict:
             placed["path_problem"] = "mount too broad"
 
             return placed
+        new_path = str(to_host(new_mounts, target))
+        # One checkout mounted by both containers: porting "into the target"
+        # would rewrite the source the old side runs, and a start-over would
+        # empty it first.
+        if placed["old_path"] and _overlap(placed["old_path"], new_path):
+            placed["new_path"] = ""
+            placed["path_problem"] = "shared with the old side"
+
+            return placed
         placed["new_container_path"] = target
-        placed["new_path"] = str(to_host(new_mounts, target))
+        placed["new_path"] = new_path
 
     return placed
 
 
-def _new_container_path(migration, new_mounts, old_mount, container_path, name) -> str:
+def _project_point(mounts: list[dict], project: str) -> str | None:
+    """Where the new project's addons are inside the target container.
+
+    The project directory holds the compose file, and the addons are usually
+    a directory under it (`./project:/opt/project`), so a mount *inside* the
+    project counts; the one directly on it, or above it, too.
+    """
+    root = Path(os.path.realpath(Path(project).expanduser()))
+    # Real paths on both sides: /tmp is /private/tmp on macOS, and a mount
+    # typed one way would not match a project typed the other.
+    mounts = [{**mount, "host": os.path.realpath(mount["host"])} for mount in mounts]
+    above = to_container(mounts, str(root))
+    if above is not None:
+
+        return above
+    inside = [
+        mount
+        for mount in mounts
+        if root in Path(os.path.realpath(mount["host"])).parents
+    ]
+    if not inside:
+
+        return None
+    # The shallowest one: `project/` rather than `project/vendor/`.
+    inside.sort(key=lambda mount: len(Path(mount["host"]).parts))
+
+    return inside[0]["container"]
+
+
+def _overlap(one: str, other: str) -> bool:
+    first = Path(os.path.realpath(one))
+    second = Path(os.path.realpath(other))
+
+    return first == second or first in second.parents or second in first.parents
+
+
+def _new_container_path(
+    migration, new_mounts, old_mount, container_path, name, *, reuse: bool = True
+) -> str:
     """Where the port goes inside the target container.
 
     An existing port under the new project wins. Then the same container
@@ -200,13 +258,13 @@ def _new_container_path(migration, new_mounts, old_mount, container_path, name) 
             if inside:
 
                 return inside
-    if container_path and covering(new_mounts, container_path) is not None:
+    if reuse and container_path and covering(new_mounts, container_path) is not None:
 
         return container_path
     if not project:
 
         return ""
-    root = to_container(new_mounts, str(Path(project).expanduser()))
+    root = _project_point(new_mounts, project)
     if root is None:
 
         return ""

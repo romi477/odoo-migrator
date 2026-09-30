@@ -85,16 +85,22 @@ def test_an_unreachable_engine_stores_not_known(tmp_path):
 
 
 def test_the_graph_snippet_reads_container_roots_when_mounts_are_known(tmp_path):
+    """Only the mounts inside the old project: an external checkout holds
+    dozens of uninstalled modules nobody asked for."""
     created = _migration(tmp_path)
+    with database.connection_context():
+        Migration.update(old_project_path="/opt/sources/project").where(
+            Migration.id == created["id"]
+        ).execute()
     snapshot_mounts(_engine(), created["id"])
     fake = FakeShellerClient()
 
     resolve_graph(fake, created["id"])
 
     snippet = fake.execs[-1]
-    assert '"/opt/project"' in snippet
-    assert '"/opt/external-addons"' in snippet
-    assert "/tmp/old" not in snippet
+    assert '["/opt/project"]' in snippet
+    assert "/opt/external-addons" not in snippet
+    assert "/opt/sources/project" not in snippet
 
 
 def test_the_snippet_drops_a_root_that_overlaps_the_odoo_install():

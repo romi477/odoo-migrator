@@ -458,6 +458,22 @@ class NativeRunner:
             )
 
             return
+        # A directory the old container mounts is the source it runs, even
+        # when the new one mounts it too. Emptying it would delete the 17.0
+        # code the port is read from.
+        from odoo_migrator.mounts import load as load_mounts
+
+        for mount in load_mounts(getattr(ctx.migration, "old_mounts", "[]")):
+            old_host = Path(mount["host"]).expanduser().resolve()
+            if resolved == old_host or resolved.is_relative_to(old_host) or old_host.is_relative_to(resolved):
+                self._log(
+                    ctx.job_id,
+                    label,
+                    f"not clearing {root}: the old container mounts {old_host}",
+                    level="error",
+                )
+
+                return
         # A migration created before the roots were checked against each
         # other can still have them overlap, and the directory found under
         # the new root is then the old module itself.

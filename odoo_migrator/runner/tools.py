@@ -118,8 +118,16 @@ TOOL_DESCRIPTIONS = {
     "interrupt": "Stop the command this side's session is running.",
     "rollback": "Discard everything this side's session holds uncommitted.",
     "reopen": "Open a fresh session on this side; do it after changing Python files.",
-    "read_file": "Read a file, by a path relative to this side's project root.",
-    "write_file": "Write a file, by a path relative to the new project's root.",
+    "read_file": (
+        "Read a file on the host, by its path inside this side's container "
+        "(as a traceback names it). A path relative to the project root works "
+        "where no container path was given."
+    ),
+    "write_file": (
+        "Write a file inside the module's directory, by its path inside the "
+        "new container. A path relative to the new project's root works where "
+        "no container path was given."
+    ),
 }
 _SIDE_ONLY = {
     "type": "object",
@@ -450,18 +458,31 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
     it, `upgrade` and `tests` ran on what was already installed, and the lap
     passed without touching anything the port had written.
     """
-    from odoo_migrator.module_paths import agent_path, host_paths, module_root
+    from odoo_migrator.module_paths import (
+        agent_path,
+        allowed_roots,
+        host_paths,
+        module_root,
+    )
 
     # The directory recorded on the module, and the one the migration's
     # current root implies. They are the same in a live run; they differ when
     # the root was changed after the tree was read, and a write that is right
     # by either of them is not the mistake this guards against.
-    allowed = [
-        module_root(ctx.migration, ctx.module, "new"),
-        host_paths(ctx.migration, ctx.module.technical_name)[1] or None,
-    ]
+    # With the new side's mounts known, the placed directory is the only
+    # answer: the project-root guess is where a port lands and is never
+    # loaded. With none placed, nothing is writable.
+    mounted = bool(allowed_roots(ctx.migration, "new"))
+    allowed = [module_root(ctx.migration, ctx.module, "new")]
+    if not mounted:
+        allowed.append(host_paths(ctx.migration, ctx.module.technical_name)[1] or None)
     roots = [Path(one).expanduser().resolve() for one in allowed if one]
     if not roots:
+        if mounted:
+            raise ToolRefused(
+                f"{relative}: the app does not know where this module is on the "
+                "new side, so nothing is written for it."
+            )
 
         return
     if any(path.is_relative_to(one) for one in roots):
