@@ -247,8 +247,8 @@ def _new_container_path(
     """Where the port goes inside the target container.
 
     An existing port under the new project wins. Then the same container
-    directory, when the target mounts it. Then the new project's own mount,
-    at the module's place relative to its old mount.
+    directory, when the target mounts it. Then directly inside the new
+    project's own mount.
     """
     project = (migration.new_project_path or "").strip()
     if project:
@@ -268,12 +268,12 @@ def _new_container_path(
     if root is None:
 
         return ""
-    if old_mount is not None:
-        relative = PurePosixPath(container_path).relative_to(old_mount["container"])
-    else:
-        relative = PurePosixPath(name)
+    # Straight under the project's addons directory. Addons directories are
+    # flat: a module sits directly inside an addons_path entry, so keeping an
+    # intermediate directory from the old side (integration-queue/) would put
+    # the port where no entry reaches it.
 
-    return str(PurePosixPath(root) / relative)
+    return str(PurePosixPath(root) / name)
 
 
 def _side_mounts(migration, side: str) -> list[dict]:
@@ -334,17 +334,38 @@ def agent_path(migration, module, side: str) -> str:
 
 
 def addon_directories(migration_id: str) -> dict[str, list[str]]:
-    """What the card shows: the host directories the tools may reach."""
+    """What the card shows: the addons directories the plan's modules are in.
+
+    The directory holding each module, which is an addons_path entry — not
+    the mount it came through. A mount can aggregate several of them
+    (`odoo-sh/` holding `connectors-extensions/`), and naming the mount
+    read as though the modules were there.
+    """
     from odoo_migrator.db import database
-    from odoo_migrator.models import Migration
+    from odoo_migrator.models import Migration, Module
 
     with database.connection_context():
         migration = Migration.get_or_none(Migration.id == migration_id)
-    if migration is None:
+        if migration is None:
 
-        return {"old": [], "new": []}
+            return {"old": [], "new": []}
+        modules = list(
+            Module.select().where(
+                (Module.migration == migration_id) & (Module.struck_out == False)
+            )
+        )
+    found: dict[str, list[str]] = {}
+    for side in ("old", "new"):
+        if not _side_mounts(migration, side):
+            found[side] = []
+            continue
+        parents = {
+            str(Path(path).parent)
+            for path in (
+                module.old_path if side == "old" else module.new_path for module in modules
+            )
+            if path
+        }
+        found[side] = sorted(parents)
 
-    return {
-        side: [mount["host"] for mount in allowed_roots(migration, side)]
-        for side in ("old", "new")
-    }
+    return found

@@ -86,7 +86,7 @@
             </span>
             {% endif %}
             <div class="result-card-main">
-              <span class="name mono">{{ module.technical_name }}</span>
+              <span class="name mono">{{ module.technical_name | breakable }}</span>
               {# A module it depends on was reopened after it passed. Shown
                  only when set; `sse.js` flips `hidden`. It is not a `.badge`,
                  because the status handler rewrites the first badge it finds
@@ -118,9 +118,9 @@
                  ones that have to pass before it can run. Unlabelled it read
                  as a second, unrelated module name. #}
               {% if module.struck_out %}
-              <p class="result-subtitle mono">{{ module.subtitle }}</p>
+              <p class="result-subtitle mono">{{ module.subtitle | breakable }}</p>
               {% elif module.depends %}
-              <p class="result-subtitle mono" title="Depends on: {{ module.depends | join(', ') }}">needs {{ module.subtitle }}</p>
+              <p class="result-subtitle mono" title="Depends on: {{ module.depends | join(', ') }}">needs {{ module.subtitle | breakable }}</p>
               {% else %}
               <p class="result-subtitle mono">no dependencies</p>
               {% endif %}

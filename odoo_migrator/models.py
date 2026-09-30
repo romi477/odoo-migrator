@@ -127,6 +127,9 @@ class Module(BaseModel):
     # "mount too broad" or "no target directory". A module with one does not
     # start.
     path_problem = CharField(default="")
+    # A hash of the module's new-side directory as the last run left it. Tells
+    # the agent's own uncommitted port from a person's edit (port_guard.py).
+    port_fingerprint = CharField(default="")
     status = CharField(default="queued")
     struck_out = BooleanField(default=False)
     has_assumptions = BooleanField(default=False)

@@ -108,13 +108,24 @@ mounts from Docker and keeps them until the next Build graph — a changed
 compose file needs one. Every module is placed from them: its directory on
 the host, and inside each container. A port goes into the target directory
 mounted at the same container path; failing that, under the new project's
-mount. The card on Overview names the directories found, under each
-project path ("Addons found in …"). A module that cannot be placed keeps
+mount. The card on Overview names the addons directories the plan's modules
+are in, under each project path ("Addons found in …") — the addons_path
+entries, not the mounts they come through. A module that cannot be placed keeps
 its status, carries a dashed **path unknown** mark on the node card and
 does not start. The reason is one of: *not mounted* (its code is inside
 the image), *mount too broad* (the mount is `/`, the home directory or
 this app's data directory), *no target directory*. With Docker not
 reachable, paths come from the project directories as before.
+
+**Ports are written in place.** A target that is a git checkout of the new
+branch, still holding the old code, gets each module overwritten where it
+is, and git is the review and the undo. A module whose directory holds
+uncommitted changes that the agent did not make — a person edited it since
+the last run — does not start until they are committed or discarded. The
+agent's own uncommitted port from an earlier run of the same module does
+not count: each run fingerprints what it left. Only the module's own
+directory is checked. A directory outside git starts, with a warning in the
+run log that nothing can undo the port.
 
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.

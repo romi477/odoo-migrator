@@ -144,3 +144,39 @@ def test_a_symlink_to_the_home_directory_is_too_broad(tmp_path):
     os.symlink(Path.home(), link)
 
     assert too_broad(str(link)) is not None
+
+
+def test_a_module_deeper_than_its_mount_goes_straight_into_the_new_project(tmp_path):
+    """/opt/external-addons/integration-queue is an addons_path entry of its
+    own. Keeping `integration-queue/` under the new project put the port
+    where no addons_path entry reaches."""
+    external = {"host": "/opt/sources/external", "container": "/opt/external-addons", "read_only": True}
+    created = _migration(tmp_path, [PROJECT_17, external], [PROJECT_18])
+
+    resolve_graph(
+        _with(FakeShellerClient(), ("q_x", "/opt/external-addons/integration-queue", {})),
+        created["id"],
+    )
+
+    queued = _module("q_x")
+    assert queued.new_container_path == "/opt/project/q_x"
+    assert queued.new_path == "/opt/sandbox/18/project/q_x"
+
+
+def test_the_card_names_addons_directories_not_mount_points(tmp_path):
+    from odoo_migrator.module_paths import addon_directories
+
+    aggregate_17 = {"host": "/opt/int/19/odoo-sh", "container": "/opt/odoo-sh", "read_only": False}
+    aggregate_18 = {"host": "/opt/int/20/odoo-sh", "container": "/opt/odoo-sh", "read_only": False}
+    created = _migration(tmp_path, [PROJECT_17, aggregate_17], [PROJECT_18, aggregate_18])
+    resolve_graph(
+        _with(FakeShellerClient(), ("conn_x", "/opt/odoo-sh/connectors-extensions", {})),
+        created["id"],
+    )
+
+    found = addon_directories(created["id"])
+
+    assert "/opt/int/19/odoo-sh/connectors-extensions" in found["old"]
+    assert "/opt/int/19/odoo-sh" not in found["old"]
+    assert "/opt/sandbox/17/project" in found["old"]
+    assert "/opt/int/20/odoo-sh/connectors-extensions" in found["new"]

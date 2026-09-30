@@ -71,7 +71,7 @@ def test_struck_modules_show_excluded_not_queued(client):
 
     page = client.get("/result").text
 
-    assert "sale_custom" in page
+    assert "sale_<wbr>custom" in page
     assert 'result-corner-badge excluded' in page
     assert "excluded — skipped on Tree" in page
 
@@ -523,3 +523,22 @@ def test_the_reopen_dialog_says_how_many_modules_it_will_mark(client):
     assert "1 module that depends on it will be marked for review." in page
     assert page.count("will be marked for review.") == 2
     assert f'action="/result/modules/{ids["side"]}/reopen"' in page
+
+
+def test_a_long_module_name_breaks_at_underscores_not_out_of_its_card(client):
+    """A name as wide as the card ran out of it. It may wrap, but only
+    between words, and copying it still gives the name: <wbr> adds no text."""
+    migration_id = _open(client)
+    with database.connection_context():
+        Module.create(
+            migration=migration_id,
+            technical_name="integration_shopify_payouts",
+            status="queued",
+            depends='["integration_shopify"]',
+        )
+        Module.create(migration=migration_id, technical_name="integration_shopify", status="passed")
+
+    page = client.get("/result").text
+
+    assert "integration_<wbr>shopify_<wbr>payouts" in page
+    assert "needs integration_<wbr>shopify" in page

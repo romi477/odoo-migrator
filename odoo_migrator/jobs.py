@@ -9,6 +9,7 @@ from datetime import UTC
 
 from peewee import fn
 
+from odoo_migrator import runlog
 from odoo_migrator.contract import (
     ContractError,
     ProgressPayload,
@@ -37,6 +38,8 @@ from odoo_migrator.models import (
     Module,
     StepRun,
 )
+from odoo_migrator.module_paths import module_root
+from odoo_migrator.port_guard import git_state, hand_edits_blocking, record_fingerprint
 from odoo_migrator.rules import RulesError, append_finding
 
 # What a restart reconciles. A job parked on waiting_for_human is not a
@@ -219,6 +222,9 @@ def start_job(
     unplaced = path_problems_blocking(migration_id, [module_id])
     if unplaced:
         raise ContractError(unplaced)
+    edited = hand_edits_blocking(migration_id, [module_id])
+    if edited:
+        raise ContractError(edited)
     step = steps_for_migration(migration_id).get(name)
     # A batch already passed the wave check to start. Re-checking here
     # stopped a mixed Group: stock (step 2) waited for every step-1
@@ -302,6 +308,20 @@ def start_job(
         module.status = "running"
         module.save()
         _emit(hub, job, module)
+        target_dir = module_root(migration, module, "new")
+    # A port is written in place, and git is its undo. Without it, say so
+    # where the run is read; it is not a reason to refuse.
+    if target_dir is not None and git_state(target_dir) == "not_git":
+        runlog.write(
+            job_id,
+            source="runner",
+            text=(
+                f"{target_dir} is not in a git repository: nothing can undo "
+                "what this run writes there."
+            ),
+            level="warn",
+            hub=hub,
+        )
 
     try:
         executor.start(payload)
@@ -456,6 +476,9 @@ def start_batch(
     unplaced = path_problems_blocking(migration_id, [row["id"] for row in ordered])
     if unplaced:
         raise ContractError(unplaced)
+    edited = hand_edits_blocking(migration_id, [row["id"] for row in ordered])
+    if edited:
+        raise ContractError(edited)
     # The guard reads the wave off everything selected, not off what is left
     # to do. Dropping a passed parent from the list would raise the wave and
     # block on an earlier step the batch was never waiting for.
@@ -684,6 +707,9 @@ def apply_result(body, hub: EventHub) -> str | None:
             # batch_defer: the module may still be green. The flag is how
             # the checkpoint knows it carried an unreviewed call.
             module.has_assumptions = True
+        # What this run left, so the next start can tell its own uncommitted
+        # port from a person's edit.
+        record_fingerprint(module)
         module.save()
         # A batch of three would have flipped to passed after the first job
         # and hidden a later fail. The runner stamps checkpoint when it stops.

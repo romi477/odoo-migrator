@@ -656,6 +656,10 @@ pre,
 .result-card-main .name {
   display: inline;
   margin-right: 6px;
+  /* Names wrap after an underscore (`breakable` puts <wbr> there). One
+     unbroken segment longer than the card still breaks rather than
+     running out of it. */
+  overflow-wrap: anywhere;
 }
 
 .result-card .badge {
@@ -666,6 +670,7 @@ pre,
 
 .result-subtitle {
   margin: 4px 0 0;
+  overflow-wrap: anywhere;
   color: var(--muted-low);
   font-size: 11px;
   line-height: 1.35;

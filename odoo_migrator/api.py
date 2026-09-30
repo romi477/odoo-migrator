@@ -19,6 +19,7 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 
 from odoo_migrator.cartridges import install_from_text, list_installs, smoke_run
 from odoo_migrator.contract import ContractError
@@ -102,6 +103,19 @@ from odoo_migrator.sheller import HttpShellerClient
 
 STATIC = static_dir()
 TEMPLATES = Jinja2Templates(directory=templates_dir())
+
+
+def breakable(name) -> Markup:
+    """A technical name that may wrap after each underscore, and nowhere else.
+
+    `<wbr>` offers a line break without adding a character, so a copied name
+    is still the name. Escaped first: the name reaches here as data.
+    """
+
+    return Markup("_<wbr>").join(escape(part) for part in str(name).split("_"))
+
+
+TEMPLATES.env.filters["breakable"] = breakable
 NO_STORE = {"Cache-Control": "no-store"}
 OPEN_COOKIE = "open_migration"
 SSE_RETRY_MS = 3000
