@@ -315,6 +315,8 @@ class FakeShellerClient:
             "skipped": 0,
             "success": True,
         }
+        if test_method is None:
+            outcome.update(self._class_outcome(module, test))
         outcome.update(self.test_outcomes.get(test, {}))
         stderr = list(outcome.pop("stderr", []))
 
@@ -330,6 +332,27 @@ class FakeShellerClient:
             "stderr_truncated": False,
             "discarded_pending": discarded,
         }
+
+    def _class_outcome(self, module: str, class_spec: str) -> dict:
+        """A class runs every method in it, as the daemon's runner does: the
+        count is theirs, and one red method makes the class red."""
+        methods = []
+        for item in self._catalogues.get(module, []):
+            if item.get("spec") == class_spec:
+                methods = [method["spec"] for method in item.get("methods") or []]
+        if not methods:
+
+            return {}
+        merged = {"tests_run": 0, "failures": 0, "errors": 0, "success": True, "stderr": []}
+        for spec in methods:
+            one = self.test_outcomes.get(spec, {})
+            merged["tests_run"] += one.get("tests_run", 1)
+            merged["failures"] += one.get("failures", 0)
+            merged["errors"] += one.get("errors", 0)
+            merged["success"] = merged["success"] and one.get("success", True)
+            merged["stderr"].extend(one.get("stderr", []))
+
+        return merged
 
     def kill(self, session_id: str) -> None:
         """The process died: every call answers 410 until it is closed."""

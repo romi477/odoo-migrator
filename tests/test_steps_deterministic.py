@@ -128,12 +128,79 @@ def test_a_module_with_tests_runs_the_specs_the_daemon_gave(step_context, shelle
 
     ran = [row["test"] for row in sheller_fake.tests_run]
 
-    assert ran == [
-        "sale_custom.TestSaleCustom.test_one",
-        "sale_custom.TestSaleCustom.test_two",
-    ]
+    assert ran == ["sale_custom.TestSaleCustom"]
     assert all("{" not in spec for spec in ran)
     assert result.ok is True
+    assert "sale_custom.TestSaleCustom" in result.output
+
+
+def test_a_green_class_is_one_run_not_one_per_method(step_context, sheller_fake):
+    """One run per method set the class up again for every test: seventy
+    methods of seven seconds each, ten minutes with nothing in the log."""
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue(
+            "sale_custom",
+            {"TestA": ["test_one", "test_two", "test_three"], "TestB": ["test_four"]},
+        ),
+    )
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert [row["test"] for row in sheller_fake.tests_run] == [
+        "sale_custom.TestA",
+        "sale_custom.TestB",
+    ]
+    assert result.ok is True
+
+
+def test_a_red_class_is_run_again_by_method_to_name_the_failing_test(
+    step_context, sheller_fake
+):
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue(
+            "sale_custom", {"TestA": ["test_one", "test_two"], "TestB": ["test_three"]}
+        ),
+    )
+    sheller_fake.test_outcomes["sale_custom.TestA.test_two"] = {
+        "success": False,
+        "failures": 1,
+        "stderr": ["AssertionError: 1 != 2"],
+    }
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert [row["test"] for row in sheller_fake.tests_run] == [
+        "sale_custom.TestA",
+        "sale_custom.TestA.test_one",
+        "sale_custom.TestA.test_two",
+        "sale_custom.TestB",
+    ]
+    assert result.ok is False
+    assert "sale_custom.TestA.test_two: 1 failure(s)" in result.output
+    assert "sale_custom.TestA.test_one" not in result.output
+
+
+def test_each_run_is_a_line_in_the_run_log(step_context, sheller_fake):
+    """A tests step said nothing between "started" and its end, so a long
+    one read as a hang."""
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue("sale_custom", {"TestA": ["test_one"], "TestB": ["test_two"]}),
+    )
+    recorded = []
+    ctx = step_context()
+    ctx.record_tool = lambda *args: recorded.append(args)
+
+    tests.run(Step(kind="tests"), ctx)
+
+    assert [(call[0], call[1], call[5]) for call in recorded] == [
+        ("run_test", "new", True),
+        ("run_test", "new", True),
+    ]
+    assert recorded[0][6].startswith("1/2 sale_custom.TestA")
+    assert recorded[1][6].startswith("2/2 sale_custom.TestB")
 
 
 def test_a_class_with_no_methods_runs_as_the_class(step_context, sheller_fake):

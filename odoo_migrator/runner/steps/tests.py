@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import time
+
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.runner.sessions import reopen_side
+from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError
 
 # Seconds one spec may run. Past the daemon's default of 300: a module's own
@@ -13,6 +16,7 @@ TEST_TIMEOUT = 1800.0
 # The end of the log is where the traceback and the summary are. `diagnose`
 # reads this as `last_failure`; "1 failure" alone gives it nothing to work on.
 _LOG_TAIL = 60
+
 
 def run(step: Step, ctx: StepContext) -> StepResult:
     name = ctx.module.technical_name
@@ -40,22 +44,32 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if not classes:
 
         return StepResult(ok=True, flags={"no_tests"}, output=f"{name} declares no tests")
+    # One run per class, not per method. Every run sets its class up again
+    # — the integration, its crons, its users — and per method that was
+    # seventy runs of seven seconds, ten minutes for a green module. A red
+    # class is run again by method, so the failure still names its test.
+    plan = _plan(name, classes)
     failed: list[str] = []
-    ran: list[str] = []
-    specs = _specs(name, classes)
-    for spec in specs:
-        ran.append(spec)
-        try:
-            report = ctx.sheller.run_test(
-                session_id, spec, write_key=write_key, timeout=TEST_TIMEOUT
-            )
-        except ShellerError as exc:
-            failed.append(f"{spec}: {exc}")
+    covered: list[str] = []
+    for index, (class_spec, methods) in enumerate(plan, start=1):
+        where = f"{index}/{len(plan)}"
+        report, problem = _run_one(ctx, session_id, write_key, class_spec, where)
+        if not problem:
+            covered.append(f"{class_spec} ({_count(report)})")
             continue
-        _note_log_errors(ctx, report)
-        problem = report_failure(report)
-        if problem:
-            failed.append(f"{spec}: {problem}{_tail(report)}")
+        if len(methods) < 2:
+            failed.append(f"{methods[0] if methods else class_spec}: {problem}{_tail(report)}")
+            continue
+        named = False
+        for method_spec in methods:
+            report, problem = _run_one(ctx, session_id, write_key, method_spec, where)
+            if problem:
+                named = True
+                failed.append(f"{method_spec}: {problem}{_tail(report)}")
+        if not named:
+            # Red as a class, green one by one: an order the methods depend
+            # on, or a set-up that breaks only when they share it.
+            failed.append(f"{class_spec}: red as a class, green method by method")
     if failed:
 
         return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(failed))
@@ -66,8 +80,39 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
     return StepResult(
         ok=True,
-        output=f"{len(ran)} test(s) passed: {', '.join(ran)}" if ran else "nothing to run",
+        output=f"{len(covered)} test class(es) passed: {', '.join(covered)}"
+        if covered
+        else "nothing to run",
     )
+
+
+def _run_one(ctx: StepContext, session_id: str, write_key: str, spec: str, where: str):
+    """Run one spec, and put it in the run log as it ends: a step that said
+    nothing between "started" and its end read as a hang."""
+    started = time.perf_counter()
+    try:
+        report = ctx.sheller.run_test(
+            session_id, spec, write_key=write_key, timeout=TEST_TIMEOUT
+        )
+    except ShellerError as exc:
+        report, problem = {}, str(exc)
+    else:
+        _note_log_errors(ctx, report)
+        problem = report_failure(report)
+    said = f"{_count(report)} passed" if not problem else problem
+    _record(
+        ctx, "run_test", "new", session_id, str(report.get("id") or ""),
+        _elapsed(started), not problem, f"{where} {spec} · {said}",
+    )
+
+    return report, problem
+
+
+def _count(report: dict) -> str:
+    outcome = report.get("test") if isinstance(report.get("test"), dict) else {}
+    ran = outcome.get("tests_run") or 0
+
+    return f"{ran} test{'s' if ran != 1 else ''}"
 
 
 def report_failure(report: dict) -> str:
@@ -121,8 +166,9 @@ def _note_log_errors(ctx: StepContext, report: dict) -> None:
     note_log_errors(ctx, report.get("stderr") or [])
 
 
-def _specs(module: str, classes: list) -> list[str]:
-    """The specs the daemon already composed, not ones rebuilt from names.
+def _plan(module: str, classes: list) -> list[tuple[str, list[str]]]:
+    """Each class's spec with its methods' specs: the ones the daemon composed,
+    not ones rebuilt from names.
 
     `list_tests` gives every class and every method a ready `spec`. This
     used to ignore them and interpolate `f"{module}.{class}.{method}"`,
@@ -131,22 +177,20 @@ def _specs(module: str, classes: list) -> list[str]:
     answered 400 `invalid_test_spec`. Every module with tests failed that
     way, and the run blamed the module.
     """
-    specs: list[str] = []
+    plan: list[tuple[str, list[str]]] = []
     for item in classes:
         if isinstance(item, str):
-            specs.append(item if "." in item else f"{module}.{item}")
+            plan.append((item if "." in item else f"{module}.{item}", []))
             continue
         class_spec = _spec_of(item) or f"{module}.{item.get('name') or item.get('class') or ''}"
-        methods = item.get("methods") or []
-        if not methods:
-            specs.append(class_spec)
-            continue
-        for method in methods:
-            found = _method_spec(class_spec, method)
-            if found:
-                specs.append(found)
+        methods = [
+            found
+            for found in (_method_spec(class_spec, method) for method in item.get("methods") or [])
+            if found
+        ]
+        plan.append((class_spec, methods))
 
-    return specs
+    return plan
 
 
 def _spec_of(item) -> str:

@@ -224,7 +224,9 @@ Stock is two frames. **Pipeline** is the lap: `understand` (old session,
 behaviour and a fixture recipe), `port` (writes the new project, both
 sessions), `lint` (Python, XML, manifest — no container), `upgrade`
 (install or upgrade on the new container, then commit), `tests` (the
-module's own classes; no classes raises `no_tests` and is not a failure),
+module's own classes, one run per class, and a red class again by method to
+name the failing test; each run is a line in the run log; no classes raises
+`no_tests` and is not a failure),
 `probe` and `write_test` only when `no_tests`, then `verdict`.
 **On failure** is entered when any pipeline step fails. `diagnose` raises
 `needs_human`, `reexamine_old`, `small_fix`, or `start_over`, and only the

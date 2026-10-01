@@ -1281,5 +1281,4 @@ def test_a_green_run_says_which_specs_it_covered(ctx_for, sheller):
     result = tests.run(Step(kind="tests"), ctx)
 
     assert result.ok is True
-    assert f"{name}.TestThing.test_one" in result.output
-    assert f"{name}.TestThing.test_two" in result.output
+    assert f"{name}.TestThing (2 tests)" in result.output
