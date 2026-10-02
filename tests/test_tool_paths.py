@@ -133,3 +133,22 @@ def test_first_and_last_read_a_part_of_a_file(ctx, tmp_path):
 
     assert {"first", "last"} <= set(tool.input_schema["properties"])
     assert tool(side="old", path="/opt/project/sale_x/lines.py", first=9) == "L9\nL10\n"
+
+
+def test_a_migration_with_no_new_project_writes_nothing(tmp_path, monkeypatch):
+    """A blank project field resolved to the server's working directory, and
+    with no directory known for the module, nothing stopped a write there."""
+    init_db(tmp_path / "blank.sqlite")
+    monkeypatch.chdir(tmp_path)
+    created = create_migration(
+        name="Blank", accent="violet", source_version="17.0", target_version="18.0",
+        old_project_path=str(tmp_path / "old"), new_project_path="",
+    )
+    with database.connection_context():
+        migration = Migration.get_by_id(created["id"])
+        module = Module.create(migration=migration, technical_name="sale_x")
+
+    with pytest.raises(ToolRefused):
+        _write_file(Ctx(migration, module), "new", "sale_x/models.py", "X = 1\n")
+
+    assert not (tmp_path / "sale_x").exists()

@@ -403,11 +403,14 @@ def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:
 
 def _project_root(ctx, side: str) -> Path:
     migration = ctx.migration
-    raw = migration.old_project_path if side == "old" else migration.new_project_path
+    raw = (migration.old_project_path if side == "old" else migration.new_project_path) or ""
+    if not raw.strip():
+        # `Path("")` is the server's working directory, which is no project.
+        raise ToolRefused(f"this migration names no {side} project directory")
 
     # `~` as typed on the card. `module_paths` expands it, so without this
     # the prompt named one directory and the tools wrote under `./~`.
-    return Path(raw).expanduser().resolve()
+    return Path(raw.strip()).expanduser().resolve()
 
 
 def _inside(ctx, side: str, given: str) -> Path:
@@ -529,13 +532,12 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
         allowed.append(host_paths(ctx.migration, ctx.module.technical_name)[1] or None)
     roots = [Path(one).expanduser().resolve() for one in allowed if one]
     if not roots:
-        if mounted:
-            raise ToolRefused(
-                f"{relative}: the app does not know where this module is on the "
-                "new side, so nothing is written for it."
-            )
-
-        return
+        # Mounted or not: with no directory to hold the write to, the write
+        # used to go wherever the path said.
+        raise ToolRefused(
+            f"{relative}: the app does not know where this module is on the "
+            "new side, so nothing is written for it."
+        )
     if any(path.is_relative_to(one) for one in roots):
 
         return
