@@ -122,13 +122,3 @@ def provider_setting(provider: str, key: str) -> str:
             return legacy.anthropic_api_key if legacy is not None else ""
 
         return ""
-
-
-def anthropic_api_key() -> str:
-    """The stored key. Callers that talk to the model read it here."""
-    with database.connection_context():
-        row = AppSettings.select().first()
-        if row is None:
-            return ""
-
-        return row.anthropic_api_key

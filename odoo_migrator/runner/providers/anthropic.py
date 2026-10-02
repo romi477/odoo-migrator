@@ -126,15 +126,10 @@ class AnthropicProvider:
 
 
 def _key() -> str:
+    """The stored key. `provider_setting` falls back to the old column itself."""
     from odoo_migrator.settings import provider_setting
 
-    stored = provider_setting("anthropic", "api_key")
-    if stored:
-
-        return stored
-    from odoo_migrator.settings import anthropic_api_key
-
-    return anthropic_api_key()
+    return provider_setting("anthropic", "api_key")
 
 
 def _as_beta(beta_tool, tool: BoundTool):

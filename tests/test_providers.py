@@ -410,3 +410,24 @@ def test_anthropic_does_not_end_the_step_on_a_contradictory_report():
     assert captured == {}
     assert submit(answer="done", small_fix=True) == "reported"
     assert captured == {"answer": "done", "small_fix": True}
+
+
+def test_anthropic_reads_a_key_saved_in_either_place(tmp_path):
+    """Keys used to live in a column on the app settings. A key saved there
+    before `ProviderSetting` existed still has to be the one a step uses."""
+    from odoo_migrator.db import database, init_db
+    from odoo_migrator.models import AppSettings
+    from odoo_migrator.runner.providers.anthropic import _key
+    from odoo_migrator.settings import save_app_settings
+
+    init_db(tmp_path / "keys.sqlite")
+    with database.connection_context():
+        AppSettings.create(anthropic_api_key="sk-legacy")
+
+    assert _key() == "sk-legacy"
+
+    save_app_settings(
+        sheller_base_url="", sheller_image_tag="", provider_values={"anthropic__api_key": "sk-new"}
+    )
+
+    assert _key() == "sk-new"
