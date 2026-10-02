@@ -98,3 +98,38 @@ def test_without_mounts_the_prompt_keeps_the_relative_path(ctx):
         ctx.migration = Migration.get_by_id(ctx.migration.id)
 
     assert agent_path(ctx.migration, ctx.module, "old") == "sale_x"
+
+
+def test_a_long_file_comes_back_clipped_with_the_way_to_read_on(ctx, tmp_path):
+    """A data file of megabytes went into the conversation whole: the step's
+    token budget at once, or past the model's window and a provider error."""
+    from odoo_migrator.runner.tools import READ_FILE_CHARS
+
+    line = "<record id='x' model='res.partner'/>\n"
+    big = tmp_path / "old-src" / "sale_x" / "data.xml"
+    big.write_text(line * (READ_FILE_CHARS // len(line) * 3))
+
+    answer = _read_file(ctx, "old", "/opt/project/sale_x/data.xml")
+
+    assert len(answer) < READ_FILE_CHARS + 500
+    assert "first" in answer and "last" in answer
+
+
+def test_first_and_last_read_a_part_of_a_file(ctx, tmp_path):
+    from odoo_migrator.runner.cartridge import Step
+    from odoo_migrator.runner.tools import tools_for
+
+    (tmp_path / "old-src" / "sale_x" / "lines.py").write_text(
+        "".join(f"L{number}\n" for number in range(1, 11))
+    )
+
+    assert _read_file(ctx, "old", "/opt/project/sale_x/lines.py", first=3, last=5) == (
+        "L3\nL4\nL5\n"
+    )
+
+    ctx.sessions, ctx.write_keys, ctx.sheller = {}, {}, None
+    step = Step(kind="agent", id="read", sessions=["old"], tools=["read_file"], prompt="x")
+    (tool,) = tools_for(step, ctx)
+
+    assert {"first", "last"} <= set(tool.input_schema["properties"])
+    assert tool(side="old", path="/opt/project/sale_x/lines.py", first=9) == "L9\nL10\n"

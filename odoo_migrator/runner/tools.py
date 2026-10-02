@@ -19,6 +19,10 @@ from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
 # One `search([])` over a large table is the realistic way a step hangs. The
 # daemon cannot cap it, so the client does, and the command is interrupted.
 COMMAND_TIMEOUT = 300.0
+# How much of a file `read_file` hands back at once: the module source the
+# prompt carries is clipped at the same size. A data file of megabytes went
+# into the conversation whole, and spent the step's budget in one answer.
+READ_FILE_CHARS = 120_000
 
 TOOL_SIDES = {
     "exec": ("old", "new"),
@@ -77,7 +81,12 @@ TOOL_SCHEMAS = {
     },
     "read_file": {
         "type": "object",
-        "properties": {"side": {"type": "string"}, "path": {"type": "string"}},
+        "properties": {
+            "side": {"type": "string"},
+            "path": {"type": "string"},
+            "first": {"type": "integer"},
+            "last": {"type": "integer"},
+        },
         "required": ["side", "path"],
     },
     "write_file": {
@@ -121,7 +130,8 @@ TOOL_DESCRIPTIONS = {
     "read_file": (
         "Read a file on the host, by its path inside this side's container "
         "(as a traceback names it). A path relative to the project root works "
-        "where no container path was given."
+        "where no container path was given. `first`/`last` (1-based lines) "
+        "read a part; a long file comes back clipped."
     ),
     "write_file": (
         "Write a file inside the module's directory, by its path inside the "
@@ -329,7 +339,9 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
     if name == "reopen":
         return _reopen(ctx, side, session_id, write_key)
     if name == "read_file":
-        return _read_file(ctx, side, kwargs.get("path", ""))
+        return _read_file(
+            ctx, side, kwargs.get("path", ""), kwargs.get("first"), kwargs.get("last")
+        )
     if name == "write_file":
         return _write_file(ctx, side, kwargs.get("path", ""), kwargs.get("content", ""))
 
@@ -452,12 +464,39 @@ def _inside_project(ctx, side: str, relative: str) -> Path:
     return candidate
 
 
-def _read_file(ctx, side: str, relative: str) -> str:
+def _read_file(
+    ctx, side: str, relative: str, first: int | None = None, last: int | None = None
+) -> str:
+    """The file, or lines `first` to `last` of it, clipped to READ_FILE_CHARS."""
     path = _inside(ctx, side, relative)
     if not path.is_file():
         raise ToolRefused(f"not a file: {relative}")
+    text = path.read_text(encoding="utf-8")
+    start = (_line_number(first, "first") or 1) - 1
+    end = _line_number(last, "last")
+    if start or end is not None:
+        text = "".join(text.splitlines(keepends=True)[start:end])
+    if len(text) <= READ_FILE_CHARS:
 
-    return path.read_text(encoding="utf-8")
+        return text
+    shown = text[:READ_FILE_CHARS]
+    reached = start + shown.count("\n")
+
+    return (
+        f"{shown}\n\n(clipped at {READ_FILE_CHARS} of {len(text)} characters, after "
+        f"line {reached}; read on with first={reached + 1} and last)"
+    )
+
+
+def _line_number(value, name: str) -> int | None:
+    if value in (None, ""):
+
+        return None
+    try:
+
+        return max(int(value), 1)
+    except (TypeError, ValueError):
+        raise ToolRefused(f"{name} is a line number, not {value!r}") from None
 
 
 def _inside_module(ctx, path: Path, relative: str) -> None:
