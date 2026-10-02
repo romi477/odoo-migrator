@@ -540,3 +540,26 @@ def test_the_runner_forgets_old_finished_jobs():
     assert len(kept) == _KEPT_FINISHED
     assert kept[-1] == f"job-{_KEPT_FINISHED + 4}"
     assert set(runner._errors) == set(kept)
+
+
+def test_an_answer_does_not_undo_what_the_resumed_run_already_recorded(client, abandoned_job):
+    """The answer woke the runner, then wrote `running` on the job. A run
+    that finished in between — or parked again — went back to `running`,
+    with nothing left to send it a result."""
+    from odoo_migrator.jobs import apply_result
+
+    hub = client.app.state.hub
+
+    def resume_and_finish(job_id, answer):
+        del answer
+        apply_result({"job_id": job_id, "status": "passed"}, hub)
+
+        return True
+
+    answer_job(
+        module_id=abandoned_job.module_id, answer="drop it", hub=hub, resume=resume_and_finish
+    )
+
+    assert reloaded(abandoned_job).status == "passed"
+    with database.connection_context():
+        assert Module.get_by_id(abandoned_job.module_id).status == "passed"

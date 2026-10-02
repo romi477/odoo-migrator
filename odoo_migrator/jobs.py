@@ -994,7 +994,14 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Jo
         if job is None:
             raise ContractError("That module is not waiting for an answer.")
         job.answer = text
+        # `running` before the runner is woken, not after. Woken first, it
+        # could finish, or park again, before this wrote `running` over what
+        # it had just recorded, and nothing was left to send a result.
+        job.status = "running"
         job.save()
+        module = job.module
+        module.status = "running"
+        module.save()
         CheckpointMessage.create(job=job, author="human", text=text)
         job_id = job.job_id
     # Only the executor knows whether it can carry this job on. The native
@@ -1003,12 +1010,12 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Jo
     resumed = bool(resume(job_id, text)) if callable(resume) else False
     with database.connection_context():
         job = Job.get(Job.job_id == job_id)
-        job.status = "running" if resumed else "unknown"
-        job.save()
         module = job.module
-        module.status = job.status
-        module.save()
-        if not resumed:
+        if not resumed and job.status == "running":
+            job.status = "unknown"
+            job.save()
+            module.status = "unknown"
+            module.save()
             # Nothing is left to finish this batch. `reconcile_jobs` leaves a
             # batch `running` while one of its jobs is parked, because a
             # person still owes it an answer; this is where that stops being
