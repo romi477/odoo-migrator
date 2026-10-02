@@ -414,3 +414,81 @@ def test_a_result_is_recorded_whole_or_not_at_all(client, monkeypatch):
     with database.connection_context():
         assert Job.get_by_id(job.id).status == "running"
         assert Module.get_by_id(sale["id"]).status == "running"
+
+
+def test_two_starts_at_once_make_one_job(client, monkeypatch):
+    """Two presses of Migrate are two requests on two threads. Both passed
+    the in-flight check before either had written its job, and two
+    executors ported the same directory; the last answer decided."""
+    import threading
+
+    from odoo_migrator import jobs as jobs_module
+    from odoo_migrator.jobs import AlreadyRunning, start_job
+
+    class Silent:
+        def start(self, payload):
+            pass
+
+    row, sale = _prepared(client)
+    both = threading.Barrier(2, timeout=5)
+    real = jobs_module.build_trigger
+
+    def side_by_side(**fields):
+        # Both requests are past the early checks before either writes.
+        both.wait()
+
+        return real(**fields)
+
+    monkeypatch.setattr(jobs_module, "build_trigger", side_by_side)
+    outcomes = []
+
+    def press():
+        try:
+            start_job(
+                migration_id=str(row.id),
+                module_id=sale["id"],
+                executor=Silent(),
+                hub=client.app.state.hub,
+            )
+            outcomes.append("started")
+        except AlreadyRunning:
+            outcomes.append("refused")
+
+    presses = [threading.Thread(target=press) for _ in range(2)]
+    for one in presses:
+        one.start()
+    for one in presses:
+        one.join(10)
+
+    assert sorted(outcomes) == ["refused", "started"]
+    with database.connection_context():
+        assert Job.select().where(Job.module == sale["id"]).count() == 1
+
+
+def test_a_batch_whose_first_module_cannot_start_leaves_no_batch(client, monkeypatch):
+    """A smoke-run still on the module: start_batch wrote its batch, then
+    start_job refused the module. The batch stayed `running` with no job in
+    it, and every later Run answered that a batch was already running."""
+    from odoo_migrator import cartridges
+    from odoo_migrator.contract import ContractError
+    from odoo_migrator.jobs import start_batch
+
+    row, sale = _prepared(client)
+    monkeypatch.setattr(cartridges, "smoke_allows_batch", lambda _migration: True)
+    with database.connection_context():
+        smoke = Batch.create(migration=row.id, status="smoke")
+        Job.create(batch=smoke, module=sale["id"], status="running", job_id="smoke-1")
+    step = _named(row.id, "sale_custom")["step"]
+
+    with pytest.raises(ContractError, match="already being migrated"):
+        start_batch(
+            migration_id=str(row.id),
+            executor=OutcomeExecutor({}, client.app),
+            hub=client.app.state.hub,
+            step=step,
+        )
+
+    with database.connection_context():
+        assert not Batch.select().where(
+            (Batch.migration == row.id) & (Batch.status == "running")
+        ).exists()

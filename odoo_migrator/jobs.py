@@ -285,22 +285,6 @@ def start_job(
         blocked = earlier_steps_blocking(migration_id, step)
     if blocked:
         raise ContractError(blocked)
-    with database.connection_context():
-        # Two presses of Migrate used to mean two executors rewriting the same
-        # files, and whichever answered last decided the module's fate.
-        busy = (
-            Job.select()
-            .where((Job.module == module_id) & (Job.status.in_(IN_FLIGHT)))
-            .exists()
-        )
-        if busy:
-            raise AlreadyRunning(
-                f"{name} is already being migrated."
-            )
-        if batch_id is None and Batch.select().where(
-            (Batch.migration == migration_id) & (Batch.status == "checkpoint")
-        ).exists():
-            raise ContractError("Review the last batch before starting another.")
     job_id = str(uuid.uuid4())
     payload = build_trigger(
         migration_id=migration_id,
@@ -309,55 +293,66 @@ def start_job(
     )
     with database.connection_context():
         migration = Migration.get_by_id(migration_id)
-        module = Module.get_by_id(module_id)
-        owns_batch = batch_id is None
-        if owns_batch:
-            batch = Batch.create(
-                migration=migration,
-                # A smoke-run is not a batch to review, and its verdict has
-                # to be written when its result lands rather than read back
-                # a millisecond after the trigger left.
-                status="smoke" if smoke else "running",
-                cartridge_id=migration.cartridge_id or "stock",
-                cartridge_version=migration.cartridge_version or "1.0.0",
-                model_webhook_url=(
-                    migration.model_webhook_path or "migrate-module"
-                ).strip("/"),
-            )
-            batch_id = batch.id
-        else:
-            batch = Batch.get_by_id(batch_id)
-        webhook_path = (
-            batch.model_webhook_url or migration.model_webhook_path or "migrate-module"
-        ).strip("/")
-        payload["webhook_path"] = webhook_path
         pinned = _pinned_identity(migration, cartridge)
         provider, model_name = recorded_pair(migration)
-        job = Job.create(
-            job_id=job_id,
-            batch=batch,
-            module=module,
-            status="queued",
-            rules_hash=stack_hash(payload["rules"]),
-            cartridge_id=pinned[0],
-            cartridge_version=pinned[1],
-            cartridge_sha256=pinned[2],
-            provider=provider,
-            model_name=model_name,
-        )
-        was = module.status
-        module.status = "queued"
-        # A flag from an earlier run of this module says nothing about this
-        # one, and nothing else ever cleared it: the badge would have stayed
-        # on a module that came back clean.
-        module.has_assumptions = False
-        module.needs_review = False
-        module.save()
-        _emit(hub, job, module)
-        job.status = "running"
-        job.save()
-        module.status = "running"
-        module.save()
+        # The check and the writes under one write lock, taken up front. Two
+        # presses of Migrate are two requests on two threads: checked apart
+        # from the write, both passed, two executors rewrote the same files,
+        # and whichever answered last decided the module's fate.
+        with database.atomic("IMMEDIATE"):
+            busy = (
+                Job.select()
+                .where((Job.module == module_id) & (Job.status.in_(IN_FLIGHT)))
+                .exists()
+            )
+            if busy:
+                raise AlreadyRunning(f"{name} is already being migrated.")
+            if batch_id is None and Batch.select().where(
+                (Batch.migration == migration_id) & (Batch.status == "checkpoint")
+            ).exists():
+                raise ContractError("Review the last batch before starting another.")
+            module = Module.get_by_id(module_id)
+            owns_batch = batch_id is None
+            if owns_batch:
+                batch = Batch.create(
+                    migration=migration,
+                    # A smoke-run is not a batch to review, and its verdict
+                    # has to be written when its result lands rather than
+                    # read back a millisecond after the trigger left.
+                    status="smoke" if smoke else "running",
+                    cartridge_id=migration.cartridge_id or "stock",
+                    cartridge_version=migration.cartridge_version or "1.0.0",
+                    model_webhook_url=(
+                        migration.model_webhook_path or "migrate-module"
+                    ).strip("/"),
+                )
+                batch_id = batch.id
+            else:
+                batch = Batch.get_by_id(batch_id)
+            webhook_path = (
+                batch.model_webhook_url or migration.model_webhook_path or "migrate-module"
+            ).strip("/")
+            payload["webhook_path"] = webhook_path
+            job = Job.create(
+                job_id=job_id,
+                batch=batch,
+                module=module,
+                status="running",
+                rules_hash=stack_hash(payload["rules"]),
+                cartridge_id=pinned[0],
+                cartridge_version=pinned[1],
+                cartridge_sha256=pinned[2],
+                provider=provider,
+                model_name=model_name,
+            )
+            was = module.status
+            module.status = "running"
+            # A flag from an earlier run of this module says nothing about
+            # this one, and nothing else ever cleared it: the badge would
+            # have stayed on a module that came back clean.
+            module.has_assumptions = False
+            module.needs_review = False
+            module.save()
         _emit(hub, job, module)
         target_dir = module_root(migration, module, "new")
     # A port is written in place, and git is its undo. Without it, say so
@@ -462,9 +457,7 @@ def _undo_start(
         if job is not None:
             job.delete_instance()
         if batch_id is not None:
-            batch = Batch.get_or_none(Batch.id == batch_id)
-            if batch is not None and not batch.jobs.exists():
-                batch.delete_instance()
+            _drop_empty_batch(batch_id)
         hub.publish(
             "module",
             {
@@ -482,6 +475,13 @@ def _undo_start(
         )
         hub.publish("running", {"count": running_migration_count()})
         hub.publish("lamp", {"state": lamp_state()})
+
+
+def _drop_empty_batch(batch_id: int) -> None:
+    with database.connection_context():
+        batch = Batch.get_or_none(Batch.id == batch_id)
+        if batch is not None and not batch.jobs.exists():
+            batch.delete_instance()
 
 
 def _still_to_run(modules: list[dict]) -> list[dict]:
@@ -537,6 +537,14 @@ def start_batch(
     if blocked:
         raise ContractError(blocked)
     with database.connection_context():
+        migration = Migration.get_by_id(migration_id)
+    from odoo_migrator.cartridges import smoke_allows_batch
+
+    if not smoke_allows_batch(migration):
+        raise ContractError("A smoke-run must pass before a batch.")
+    # Checked and written under one write lock: two presses of Run both
+    # found no batch running, and both started one.
+    with database.connection_context(), database.atomic("IMMEDIATE"):
         busy = (
             Batch.select()
             .where((Batch.migration == migration_id) & (Batch.status == "running"))
@@ -548,12 +556,6 @@ def start_batch(
             (Batch.migration == migration_id) & (Batch.status == "checkpoint")
         ).exists():
             raise ContractError("Review the last batch before starting another.")
-        migration = Migration.get_by_id(migration_id)
-    from odoo_migrator.cartridges import smoke_allows_batch
-
-    if not smoke_allows_batch(migration):
-        raise ContractError("A smoke-run must pass before a batch.")
-    with database.connection_context():
         batch = Batch.create(
             migration=migration,
             status="running",
@@ -573,13 +575,21 @@ def start_batch(
     # here only looked sequential because the stub answers inline: a real
     # executor takes the trigger and returns, so the loop fired every
     # module at once and never saw a stop status.
-    start_job(
-        migration_id=migration_id,
-        module_id=ordered[0]["id"],
-        executor=executor,
-        hub=hub,
-        batch_id=batch_id,
-    )
+    try:
+        start_job(
+            migration_id=migration_id,
+            module_id=ordered[0]["id"],
+            executor=executor,
+            hub=hub,
+            batch_id=batch_id,
+        )
+    except ContractError:
+        # Refused before anything ran: a smoke-run or a Migrate on Tree
+        # still on the module, a hand edit since the check above. A batch
+        # with no job in it stayed `running`, and every later Run answered
+        # that one already was.
+        _drop_empty_batch(batch_id)
+        raise
     with database.connection_context():
 
         return Batch.get_by_id(batch_id)
