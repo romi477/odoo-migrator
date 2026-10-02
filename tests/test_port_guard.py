@@ -279,6 +279,22 @@ def test_a_blocked_start_names_the_module_and_its_files(migration, repo):
     assert edited["files"] == ["M models.py", "?? tests.py"]
 
 
+def test_changed_files_are_named_as_they_are_on_disk(repo):
+    """Porcelain quotes and escapes a name that is not plain ASCII, and a
+    rename is "old -> new". The card listed `"donn\\303\\251es.xml"`."""
+    from odoo_migrator.port_guard import changed_files
+
+    (repo / "sale_x" / "données.xml").write_text("<odoo/>\n")
+    (repo / "sale_x" / "with space.py").write_text("X = 1\n")
+    _git(repo, "mv", "sale_x/models.py", "sale_x/renamed.py")
+
+    assert sorted(changed_files(repo / "sale_x")) == [
+        "?? données.xml",
+        "?? with space.py",
+        "R renamed.py",
+    ]
+
+
 def test_discard_restores_the_module_and_leaves_its_neighbour(migration, repo):
     from odoo_migrator.port_guard import discard_hand_edits
 

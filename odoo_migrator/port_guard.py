@@ -71,8 +71,10 @@ def changed_files(directory: Path) -> list[str] | None:
     """What git lists as changed in this directory only, as "XY path"
     relative to it. None when it is not a git checkout.
 
-    `git status --porcelain -- .` from inside it: the stable, script-facing
-    format, limited to this path. Bytecode Odoo left behind is not a change.
+    `git status --porcelain -z -- .` from inside it: the stable,
+    script-facing format, limited to this path. `-z` because without it a
+    name that is not plain ASCII comes back quoted and escaped, and a rename
+    as "old -> new". Bytecode Odoo left behind is not a change.
     """
     root = Path(directory)
     try:
@@ -80,15 +82,17 @@ def changed_files(directory: Path) -> list[str] | None:
             ["git", "rev-parse", "--show-prefix"],
             cwd=root,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=20,
             check=False,
         )
         answer = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=all", "--", "."],
+            ["git", "status", "--porcelain", "-z", "--untracked-files=all", "--", "."],
             cwd=root,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=20,
             check=False,
         )
@@ -99,14 +103,19 @@ def changed_files(directory: Path) -> list[str] | None:
 
         return None
     # Porcelain paths are relative to the repository, whatever the cwd.
-    inside = prefix.stdout.strip()
+    inside = prefix.stdout.rstrip("\n")
     changed = []
-    for line in answer.stdout.splitlines():
-        # "XY path", or "XY old -> new" for a rename.
-        relative = line[3:].split(" -> ")[-1].strip().strip('"')
+    fields = iter(answer.stdout.split("\0"))
+    for entry in fields:
+        if len(entry) < 4:
+            continue
+        # "XY path"; a rename or a copy is followed by the path it came from.
+        status, relative = entry[:2], entry[3:]
+        if "R" in status or "C" in status:
+            next(fields, None)
         relative = relative.removeprefix(inside)
         if relative and not _noise(relative):
-            changed.append(f"{line[:2].strip()} {relative}")
+            changed.append(f"{status.strip()} {relative}")
 
     return changed
 
