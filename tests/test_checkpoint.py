@@ -165,7 +165,7 @@ def test_promote_without_a_version_is_refused(tmp_path, compose, fake_sheller):
         sheller=fake_sheller,
         rules_dir=rules,
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     _failed_checkpoint(client)
     with database.connection_context():
         finding = Finding.select().get()
@@ -201,7 +201,7 @@ def test_promote_writes_the_file_the_human_picked_not_the_target(
         sheller=fake_sheller,
         rules_dir=rules,
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     _failed_checkpoint(client)
     with database.connection_context():
         finding = Finding.select().get()
@@ -235,7 +235,7 @@ def test_promote_to_eighteen_writes_rules_eighteen(tmp_path, compose, fake_shell
         sheller=fake_sheller,
         rules_dir=rules,
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     _failed_checkpoint(client)
     with database.connection_context():
         finding = Finding.select().get()
@@ -277,7 +277,7 @@ def _rules_app(tmp_path, compose, fake_sheller):
         rules_dir=rules,
     )
 
-    return TestClient(app), rules
+    return TestClient(app, base_url="http://127.0.0.1"), rules
 
 
 def test_a_promotion_says_where_it_came_from(tmp_path, compose, fake_sheller):

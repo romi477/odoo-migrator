@@ -387,7 +387,7 @@ def _save(client, **extra):
 
 def test_settings_remember_the_screen_they_were_opened_from(client):
     """Save and Close goes back where the person was, not to a fixed page."""
-    page = client.get("/settings", headers={"referer": "http://testserver/result"}).text
+    page = client.get("/settings", headers={"referer": "http://127.0.0.1/result"}).text
 
     assert 'name="back" value="/result"' in page
     assert "Save and Close" in page
@@ -398,7 +398,7 @@ def test_settings_fall_back_to_overview_when_nothing_says_where_from(client):
     # A page of some other site is not a screen of this one.
     foreign = client.get("/settings", headers={"referer": "https://evil.example/result"}).text
     # Settings coming from settings is not where to return to.
-    itself = client.get("/settings", headers={"referer": "http://testserver/settings"}).text
+    itself = client.get("/settings", headers={"referer": "http://127.0.0.1/settings"}).text
 
     for page in (plain, foreign, itself):
         assert 'name="back" value="/"' in page

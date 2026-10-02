@@ -62,7 +62,8 @@ This pipeline executes arbitrary code as `SUPERUSER_ID` against real
 databases, and edits source files on the host.
 
 - The pages have **no authentication**. The app binds **loopback**. There
-  is no flag that widens it.
+  is no flag that widens it. A request from another site in the browser,
+  or under a Host name that is not this machine, is refused.
 - The daemon publishes to `127.0.0.1` only. This process is the only
   client. Never read `admin.key`, never touch `~/.odoo-sheller/`, never
   call the daemon's admin endpoints.

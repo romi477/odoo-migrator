@@ -102,6 +102,7 @@ from odoo_migrator.rules import RulesError, stack_versions, supported_versions
 from odoo_migrator.runner.cartridge import CartridgeError
 from odoo_migrator.settings import get_app_settings, save_app_settings
 from odoo_migrator.sheller import HttpShellerClient
+from odoo_migrator.web_guard import LocalOnly
 
 STATIC = static_dir()
 TEMPLATES = Jinja2Templates(directory=templates_dir())
@@ -221,6 +222,8 @@ def create_app(
         docs_url=None,
         lifespan=lifespan,
     )
+    # Loopback keeps other machines out; this keeps other pages out.
+    app.add_middleware(LocalOnly)
     app.state.compose = compose if compose is not None else DockerComposeEngine()
     app.state.sheller = sheller
     app.state.hub = hub if hub is not None else EventHub()

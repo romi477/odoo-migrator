@@ -33,7 +33,8 @@ def app(tmp_path, compose, fake_sheller):
 @pytest.fixture
 def client(app):
 
-    return TestClient(app)
+    # A loopback name: the app refuses any Host that is not this machine.
+    return TestClient(app, base_url="http://127.0.0.1")
 
 
 @pytest.fixture

@@ -25,6 +25,17 @@ daemon that may not be ours.
 process, so it is already on the host. There is no second process to
 proxy for.
 
+**Other pages in the browser cannot drive the app.** Loopback keeps other
+machines out, not other sites: any page the operator has open can submit
+a form to `http://127.0.0.1:8000`, and without a login nothing would tell
+that form from a click on Settings. Every request must name this machine
+in `Host` (`127.0.0.1`, `localhost` or `[::1]`), which refuses a name
+rebound to 127.0.0.1 after its page loaded. A request that changes
+something must come from a page of this origin, as the browser reports
+it in `Sec-Fetch-Site`, or else in `Origin`; a page cannot forge either.
+A client that sends neither header — curl, a script — is not a browser
+and is let through.
+
 **File tools stay inside the plan's addons directories.** `read_file` and
 `write_file` take a path as the container names it and translate it with
 the bind mounts Build graph recorded. Only a mount that holds a module of
@@ -62,7 +73,9 @@ whole run; one session opened at the start stays valid.
 
 **The pages have no authentication.** Overview, Tree, Pipeline, Flow,
 Sheller, Result and Settings are a local UI. The app binds
-`127.0.0.1` only. There is no flag that widens it.
+`127.0.0.1` only. There is no flag that widens it. Anything running as
+the operator on this machine can use it; only other sites in the browser
+are refused (see above).
 
 **There is no guard that a compose project "looks like production".**
 The operator pointed the migration at two project paths. Guessing would

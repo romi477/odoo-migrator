@@ -156,8 +156,10 @@ Inherited, not incidental: this pipeline executes arbitrary code as
 host.
 
 - Never publish `8765` beyond loopback. The app binds `127.0.0.1` only.
-  There is no flag that widens it. The pages are not protected by
-  anything.
+  There is no flag that widens it. The pages have no login; what they
+  have is `web_guard`: a Host that is not a loopback name, or a change
+  sent from another site's page, is refused. Tests talk to
+  `http://127.0.0.1`, not Starlette's `testserver`.
 - `read_file` and `write_file` stay under the configured old and new
   project roots. A path that escapes them is refused, not clamped.
 - Provider secrets are `ProviderSetting` rows. The settings page reports

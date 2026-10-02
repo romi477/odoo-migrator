@@ -123,12 +123,12 @@ def test_notes_survive_a_restart(tmp_path, compose, fake_sheller):
 
     db = tmp_path / "notes.sqlite"
     first = create_app(db, compose=compose, sheller=fake_sheller)
-    client = TestClient(first)
+    client = TestClient(first, base_url="http://127.0.0.1")
     _row, sale = _prepared(client)
     client.post(f"/tree/modules/{sale['id']}/notes", data={"notes": ANSWER})
 
     second = create_app(db, compose=compose, sheller=fake_sheller)
-    again = TestClient(second)
+    again = TestClient(second, base_url="http://127.0.0.1")
     again.post(f"/migrations/{_row.id}/open", follow_redirects=True)
 
     assert ANSWER in again.get("/tree").text

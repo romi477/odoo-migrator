@@ -168,7 +168,7 @@ def test_a_body_is_read_through_the_resolved_client(tmp_path):
 
     assert app.state.sheller is None
 
-    with TestClient(app) as client:
+    with TestClient(app, base_url="http://127.0.0.1") as client:
         # The session id is invented, so a daemon answers 404 and no daemon is
         # unreachable. Both are the same answer to a reader, and neither is a
         # crash — which is what this used to be.

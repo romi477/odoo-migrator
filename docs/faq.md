@@ -162,7 +162,8 @@ gets the answer.
 
 ## Security, briefly
 
-The pages have no login. The app binds `127.0.0.1` only. Provider keys
+The pages have no login. The app binds `127.0.0.1` only, and refuses a
+request sent from another site in the browser. Provider keys
 are stored and never shown back. Sheller's admin key is never read.
 
 Full reasoning: [security.md](security.md).
