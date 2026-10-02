@@ -337,6 +337,36 @@ def test_sse_stream_stays_open_heartbeats_and_reconnects_promptly(client, monkey
     assert retry_ms <= 10_000
 
 
+def test_the_stream_reads_the_database_off_the_event_loop(client, monkeypatch):
+    """The hello's two queries ran on the event loop itself, so a slow or
+    locked database stalled every open page and request, not just this one."""
+    import asyncio
+
+    on_loop = []
+
+    def watched(name, real):
+        def call():
+            try:
+                asyncio.get_running_loop()
+                on_loop.append(name)
+            except RuntimeError:
+                pass
+
+            return real()
+
+        return call
+
+    monkeypatch.setattr(api, "SSE_HEARTBEAT_SECONDS", 0.02)
+    monkeypatch.setattr(api, "SSE_MAX_SECONDS", 0.05)
+    monkeypatch.setattr(
+        api, "running_migration_count", watched("count", api.running_migration_count)
+    )
+    monkeypatch.setattr(api, "lamp_state", watched("lamp", api.lamp_state))
+
+    assert "event: lamp" in client.get("/sse").text
+    assert on_loop == []
+
+
 def test_sse_window_is_bounded_in_production_defaults():
     """An endless generator only ends when it is cancelled, which makes both
     shutdown and the test suite hang on whatever sleep it was in."""

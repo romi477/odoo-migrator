@@ -1589,8 +1589,9 @@ def create_app(
 
         ``async def`` on purpose, and the one endpoint that must be: a sync
         handler is run in the threadpool, so every open page would hold a
-        thread for as long as it is open. Nothing here touches Peewee, so the
-        rule about connections and threads does not apply.
+        thread for as long as it is open. What it reads from the database —
+        the hello — runs in a worker thread with its own connection: on the
+        loop, a slow or locked database stalled every page at once.
 
         The stream stays open and sends a comment heartbeat rather than
         closing between events. A closed stream plus a long ``retry`` would
@@ -1610,8 +1611,11 @@ def create_app(
                 # Hello with the current state, not a fixed zero: the stream
                 # closes on its own every few minutes, and anything that
                 # happened during the reconnect would otherwise be lost.
-                yield f'event: running\ndata: {{"count": {running_migration_count()}}}\n\n'
-                yield f'event: lamp\ndata: {{"state": "{lamp_state()}"}}\n\n'
+                count, lamp = await asyncio.to_thread(
+                    lambda: (running_migration_count(), lamp_state())
+                )
+                yield f'event: running\ndata: {{"count": {count}}}\n\n'
+                yield f'event: lamp\ndata: {{"state": "{lamp}"}}\n\n'
                 deadline = time.monotonic() + SSE_MAX_SECONDS
                 hub = request.app.state.hub
                 while time.monotonic() < deadline and not hub.closed:
