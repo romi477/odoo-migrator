@@ -121,8 +121,23 @@ def resume_waiter(job_id: str, answer: str) -> bool:
 class NativeRunner:
     """``start`` returns at once. The job runs on its own thread."""
 
-    def __init__(self, *, sheller, hub: EventHub, progress=None, result=None, provider=None):
+    def __init__(
+        self,
+        *,
+        sheller,
+        hub: EventHub,
+        progress=None,
+        result=None,
+        provider=None,
+        sheller_for_job=None,
+    ):
+        # The daemon a job talks to. A test hands one in. The live app hands
+        # `sheller_for_job`, asked as each job starts: a client built once at
+        # startup kept the old URL after Settings saved a new one, and the
+        # screens and the run talked to two daemons. A job keeps the one it
+        # started with, because its sessions live there.
         self.sheller = sheller
+        self._sheller_for_job = sheller_for_job
         self.hub = hub
         self._progress = progress or (lambda body: apply_progress(body, hub))
         self._result = result or (lambda body: apply_result(body, hub))
@@ -147,6 +162,14 @@ class NativeRunner:
             self._forget_finished()
             self._threads[job_id] = thread
         thread.start()
+
+    def job_sheller(self):
+        """The Sheller client for a job starting now."""
+        if self._sheller_for_job is not None:
+
+            return self._sheller_for_job()
+
+        return self.sheller
 
     def stop(self, job_id: str) -> bool:
         """Ask a running job to end at its next step. True when it is ours.
@@ -289,7 +312,7 @@ class NativeRunner:
             # sat queued until a restart called it unknown.
             self._log(job_id, "runner", "job started")
             cartridge = self._cartridge(payload)
-            ctx = self._context(payload, cartridge)
+            ctx = self._context(payload, cartridge, self.job_sheller())
             self._log(
                 job_id,
                 "runner",
@@ -634,12 +657,12 @@ class NativeRunner:
 
         return pinned_for(migration)
 
-    def _context(self, payload: dict, cartridge) -> StepContext:
+    def _context(self, payload: dict, cartridge, sheller) -> StepContext:
         with database.connection_context():
             job = Job.get(Job.job_id == payload["job_id"])
             module = Module.get_by_id(job.module_id)
             migration = Migration.get_by_id(module.migration_id)
-        targets = self._targets(migration)
+        targets = self._targets(migration, sheller)
 
         def record(tool, side, session_id, command_id, duration_ms, ok, preview):
             # The skeleton row first: the log line points at it, and that
@@ -754,7 +777,7 @@ class NativeRunner:
             migration=migration,
             module=module,
             cartridge=cartridge,
-            sheller=self.sheller,
+            sheller=sheller,
             sessions={},
             write_keys={},
             session_targets=targets,
@@ -767,7 +790,7 @@ class NativeRunner:
 
         return ctx
 
-    def _targets(self, migration) -> dict[str, dict]:
+    def _targets(self, migration, sheller=None) -> dict[str, dict]:
         """Where each side runs, as ``open_session`` wants it.
 
         ``odoo_bin`` and the database name come from the daemon's probe, which
@@ -783,7 +806,7 @@ class NativeRunner:
         ):
             if not container:
                 raise RuntimeError(f"the {side} container of this migration is not up")
-            probed = self.sheller.probe(container)
+            probed = (sheller or self.sheller).probe(container)
             known = probed.get("databases") or []
             # The card first, then the container's own odoo.conf. A config
             # without `db_name` is ordinary and one Postgres commonly holds

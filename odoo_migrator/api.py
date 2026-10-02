@@ -184,17 +184,21 @@ def _choose_executor(*, sheller, hub, progress, result):
     if os.environ.get("ODOO_MIGRATOR_RUNNER") == "native":
         from odoo_migrator.runner.native import NativeRunner
 
-        # The pages build a client per request. The runner is chosen once,
-        # at startup, and used to be handed None — the first probe then
-        # died with AttributeError before a session existed.
-        if sheller is None:
-            sheller = HttpShellerClient(get_app_settings()["sheller_base_url"])
+        # The pages build a client per request, from the URL Settings has
+        # now. The runner does the same per job: handed None it died on the
+        # first probe, and handed one client at startup it never saw a URL
+        # saved after.
+
+        def current_sheller():
+
+            return HttpShellerClient(get_app_settings()["sheller_base_url"])
 
         return NativeRunner(
             sheller=sheller,
             hub=hub,
             progress=progress,
             result=result,
+            sheller_for_job=None if sheller is not None else current_sheller,
         )
 
     return StubExecutor(progress=progress, result=result)

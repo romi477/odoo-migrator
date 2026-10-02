@@ -186,7 +186,25 @@ def test_the_live_app_hands_the_runner_a_sheller_client(tmp_path, monkeypatch):
     app = create_app(tmp_path / "native.sqlite")
 
     assert isinstance(app.state.executor, NativeRunner)
-    assert isinstance(app.state.executor.sheller, HttpShellerClient)
+    assert isinstance(app.state.executor.job_sheller(), HttpShellerClient)
+
+
+def test_a_sheller_url_saved_in_settings_reaches_the_next_job(tmp_path, monkeypatch):
+    """The runner built its client once, at startup. The pages followed a
+    URL changed in Settings and the runner did not, so the screens and the
+    run talked to two different daemons until a restart. A job keeps one
+    daemon for its whole life: its sessions live there."""
+    from odoo_migrator.api import create_app
+    from odoo_migrator.settings import save_app_settings
+
+    monkeypatch.setenv("ODOO_MIGRATOR_RUNNER", "native")
+    app = create_app(tmp_path / "native.sqlite")
+
+    save_app_settings(sheller_base_url="http://127.0.0.1:9876", sheller_image_tag="")
+
+    assert str(app.state.executor.job_sheller()._http.base_url).startswith(
+        "http://127.0.0.1:9876"
+    )
 
 
 def test_an_answer_to_a_job_whose_runner_is_gone_does_not_pretend(client, abandoned_job):
