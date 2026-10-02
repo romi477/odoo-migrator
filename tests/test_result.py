@@ -129,6 +129,33 @@ def test_reopen_puts_a_finished_module_back_to_queued(client):
         assert Job.get(Job.job_id == "job-kept").status == "passed"
 
 
+def test_a_stopped_module_can_be_reopened(client):
+    """A person's Stop leaves the module `stopped`, which is an outcome like
+    any other. It was missing from the reopenable statuses: no Reopen on
+    Result, a refusal from the route, and Reopen finished skipped it."""
+    migration_id = _open(client)
+    with database.connection_context():
+        module = Module.create(
+            migration=migration_id, technical_name="sale_custom", status="stopped"
+        )
+        module_id = module.id
+
+    page = client.get("/result").text
+
+    assert 'aria-label="Reopen sale_custom"' in page
+
+    client.post(f"/result/modules/{module_id}/reopen", follow_redirects=True)
+
+    with database.connection_context():
+        assert Module.get_by_id(module_id).status == "queued"
+        Module.update(status="stopped").where(Module.id == module_id).execute()
+
+    client.post(f"/migrations/{migration_id}/reopen", follow_redirects=True)
+
+    with database.connection_context():
+        assert Module.get_by_id(module_id).status == "queued"
+
+
 def test_reopen_finished_clears_every_recorded_outcome(client):
     migration_id = _open(client)
     with database.connection_context():

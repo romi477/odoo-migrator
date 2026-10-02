@@ -259,8 +259,8 @@ modules keep a small inline badge instead. Subtitle is `depends` or
 *excluded — skipped on Tree*. Skipped modules stay in their wave, name
 struck through. SSE
 updates badges while this screen is open. **Reopen** on a finished card,
-or **Reopen finished modules…** in the migration's settings on Overview (behind a confirmation), puts `passed`, `failed`, and
-`unknown` modules back to `queued` so Selection can queue them again.
+or **Reopen finished modules…** in the migration's settings on Overview (behind a confirmation), puts `passed`, `failed`,
+`stopped` and `unknown` modules back to `queued` so Selection can queue them again.
 The old jobs stay. Files in the new project are not touched. With no
 graph yet, the page points you at Tree → Resolve.
 

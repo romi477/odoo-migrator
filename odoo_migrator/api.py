@@ -42,6 +42,7 @@ from odoo_migrator.graph import (
     snapshot_mounts,
 )
 from odoo_migrator.jobs import (
+    REOPENABLE,
     advance_batch,
     answer_job,
     apply_progress,
@@ -119,6 +120,8 @@ def breakable(name) -> Markup:
 
 
 TEMPLATES.env.filters["breakable"] = breakable
+# One list of what Reopen takes, for the route and the button alike.
+TEMPLATES.env.globals["reopenable"] = REOPENABLE
 NO_STORE = {"Cache-Control": "no-store"}
 OPEN_COOKIE = "open_migration"
 SSE_RETRY_MS = 3000

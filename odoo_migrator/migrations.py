@@ -176,7 +176,7 @@ RESULT_STEPS_PER_PAGE = 4
 def migration_results(migration_id: str) -> dict:
     """Tallies and step columns for the Result dashboard."""
     from odoo_migrator.graph import dependents_by_name, list_modules
-    from odoo_migrator.jobs import outcomes_for
+    from odoo_migrator.jobs import REOPENABLE, outcomes_for
 
     listed = list_modules(migration_id)
     # For the reopen question: how many passed modules downstream would be
@@ -208,7 +208,7 @@ def migration_results(migration_id: str) -> dict:
             counts["failed"] += 1
         elif row["status"] == "waiting_for_human":
             counts["waiting"] += 1
-        if row["status"] in ("passed", "failed", "unknown", "migrated"):
+        if row["status"] in REOPENABLE:
             counts["reopenable"] += 1
     by_step: dict[int, list[dict]] = {}
     for row in listed:

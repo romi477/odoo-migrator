@@ -124,7 +124,7 @@
               {% else %}
               <p class="result-subtitle mono">no dependencies</p>
               {% endif %}
-              {% set can_reopen = not module.struck_out and module.display_status in ['passed', 'failed', 'unknown', 'migrated'] %}
+              {% set can_reopen = not module.struck_out and module.display_status in reopenable %}
               {% if module.has_summary or can_reopen %}
               {# Two quiet icons, one in each corner, and the time between. The
                  words they replaced were repeated on every card of a board of

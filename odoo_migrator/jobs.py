@@ -50,8 +50,9 @@ NON_TERMINAL = ("queued", "running")
 # anyway is a retry or an out-of-order delivery, not news.
 FINISHED = ("passed", "failed", "stopped")
 # A recorded outcome the human can put back to queued. A parked question
-# is not one of these: that thread is still open.
-REOPENABLE = ("passed", "failed", "unknown", "migrated")
+# is not one of these: that thread is still open. `stopped` is: a person
+# ended the run, and running it again is what they come back for.
+REOPENABLE = ("passed", "failed", "unknown", "migrated", "stopped")
 # A module with a job in one of these already has an executor working on
 # its files.
 IN_FLIGHT = ("queued", "running", "waiting_for_human")
