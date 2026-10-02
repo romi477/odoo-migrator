@@ -511,3 +511,36 @@ def test_live_session_round_trip():
         client.rollback(session_id, write_key=write_key)
     finally:
         client.close(session_id, write_key=write_key)
+
+
+def _answering(route: str, body: str) -> HttpShellerClient:
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get(route)
+    def answer(session_id: str):
+        del session_id
+
+        return PlainTextResponse(body)
+
+    return HttpShellerClient("http://testserver", http=TestClient(app))
+
+
+def test_a_journal_line_cut_short_does_not_lose_the_rest():
+    """The journal is appended to while it is read, so its last line can be
+    half written. One such line raised ValueError past the tool's error
+    handling, and a read of the journal failed the whole step."""
+    client = _answering("/api/journals/{session_id}", '{"id": 1, "kind": "exec"}\n{"id": 2, "ki')
+
+    assert client.journal("s1") == {"records": [{"id": 1, "kind": "exec"}]}
+
+
+def test_an_answer_that_is_not_json_is_a_sheller_error():
+    """A proxy's error page, or a daemon mid-restart, answered 200 with HTML.
+    `response.json()` raised ValueError, which nothing on the way up
+    expected from a Sheller call."""
+    client = _answering("/api/sessions/{session_id}", "<html>Bad gateway</html>")
+
+    with pytest.raises(ShellerError, match="not JSON"):
+        client.get_session("s1")

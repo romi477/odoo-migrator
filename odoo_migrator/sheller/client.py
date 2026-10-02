@@ -249,11 +249,8 @@ class HttpShellerClient:
             ) from exc
         if response.status_code >= 400:
             _raise_http(response)
-        records = [
-            json.loads(line) for line in response.text.splitlines() if line.strip()
-        ]
 
-        return {"records": records}
+        return {"records": _records(response.text)}
 
     def feed(
         self, session_id: str, *, logs: bool = False, log_tail: int | None = None
@@ -305,8 +302,31 @@ class HttpShellerClient:
         if not response.content:
 
             return {}
+        try:
 
-        return response.json()
+            return response.json()
+        except ValueError:
+            # A proxy's error page, a daemon half-way through a restart.
+            raise ShellerError(
+                f"Sheller answered {path} with something that is not JSON: "
+                f"{response.text[:200]}",
+                status=response.status_code,
+            ) from None
+
+
+def _records(text: str) -> list:
+    """A journal's lines. One cut short — the journal is appended to while
+    it is read — is left out rather than losing the rest with it."""
+    records = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line))
+        except ValueError:
+            continue
+
+    return records
 
 
 def _session_dead_message(detail) -> str:
