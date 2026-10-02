@@ -6,6 +6,9 @@ to fail the whole job; the runner now keeps trying for a while, and says
 why when it gives up.
 """
 
+import pytest
+
+from odoo_migrator.runner.context import Stopped
 from odoo_migrator.runner.sessions import open_sides_patiently
 from odoo_migrator.sheller.errors import ShellerSessionDead
 from odoo_migrator.sheller.fake import FakeShellerClient
@@ -68,6 +71,18 @@ def test_one_that_does_not_is_named_not_raised():
 
     assert "session_dead" in failure
     assert clock.now >= 60
+
+
+def test_a_stop_ends_the_wait_for_the_sessions():
+    """Three minutes of retries is a long time to make a Stop wait."""
+    clock = Clock()
+    ctx = Ctx(Restarting(fails=10_000))
+    ctx.stop_asked = lambda: clock.now >= 10
+
+    with pytest.raises(Stopped, match="opening the sessions"):
+        open_sides_patiently(ctx, wait=180, poll=5, clock=clock)
+
+    assert clock.now == 10
 
 
 def test_the_module_state_reset_works_on_every_version():

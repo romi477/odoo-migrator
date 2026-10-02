@@ -230,3 +230,21 @@ def test_the_double_refuses_a_shape_the_daemon_never_returns(sheller_fake):
                 }
             ],
         )
+
+
+def test_a_stop_ends_the_tests_between_two_runs(step_context, sheller_fake):
+    """A red class of seventy methods is seventy more runs. Stop was read
+    before each step only, so it waited for every one of them."""
+    from odoo_migrator.runner.context import Stopped
+
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue("sale_custom", {"TestA": ["test_one"], "TestB": ["test_two"]}),
+    )
+    ctx = step_context()
+    ctx.stop_asked = lambda: len(sheller_fake.tests_run) >= 1
+
+    with pytest.raises(Stopped, match="during tests"):
+        tests.run(Step(kind="tests"), ctx)
+
+    assert [row["test"] for row in sheller_fake.tests_run] == ["sale_custom.TestA"]

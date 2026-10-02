@@ -364,7 +364,7 @@ def test_a_stopped_run_closes_its_batch_and_keeps_its_diff(app, tmp_path):
         row.save()
     runner = NativeRunner(sheller=None, hub=app.state.hub, result=app.state.on_result)
 
-    runner._stopped(job.job_id, "probe", attempt=1)
+    runner._stopped(job.job_id, "before probe", attempt=1)
 
     assert reloaded(job).status == "stopped"
     with database.connection_context():
@@ -417,3 +417,48 @@ def test_stopping_a_module_that_is_not_running_is_refused(client, tmp_path):
 
     with pytest.raises(ContractError, match="not running"):
         stop_job(module_id=job.module_id, hub=EventHub(), stop=lambda _id: True)
+
+
+def test_stop_reaches_a_job_parked_on_a_person(client, parked_job):
+    """A parked thread waits for an answer with no timeout. Stop set a flag
+    it never read: the job stayed parked until someone answered it, and only
+    then did the next step see the stop."""
+    del client
+    job, runner = parked_job
+    assert reloaded(job).status == "waiting_for_human"
+
+    assert runner.stop(job.job_id) is True
+    runner.wait(job.job_id, timeout=5)
+
+    assert reloaded(job).status == "stopped"
+    with database.connection_context():
+        verdicts = [row.verdict for row in Job.get_by_id(job.id).attempts]
+    assert verdicts == ["stopped while waiting for an answer"]
+
+
+def test_stop_reaches_a_job_waiting_for_its_database(app, fake_sheller, tmp_path):
+    """Another job migrating on the same database holds it, and this one
+    waited for the lock with no end. Stop had to wait for that other job."""
+    from odoo_migrator import runlog
+    from odoo_migrator.runner import native
+
+    job = _module(tmp_path)
+    held = native._target_lock_for("odoo-new", "acme_17")
+    held.acquire()
+    try:
+        model = ModelDouble(turns=[{"name": "report", "input": {"answer": "ported"}}])
+        runner = NativeRunner(
+            sheller=fake_sheller, hub=app.state.hub, provider=ScriptedProvider(model)
+        )
+        runner.start({"job_id": job.job_id, "cartridge_text": _CARTRIDGE})
+        for _ in range(300):
+            if any("another job is migrating" in line["text"] for line in runlog.lines(job.job_id)):
+                break
+            time.sleep(0.01)
+
+        runner.stop(job.job_id)
+        runner.wait(job.job_id, timeout=5)
+    finally:
+        held.release()
+
+    assert reloaded(job).status == "stopped"

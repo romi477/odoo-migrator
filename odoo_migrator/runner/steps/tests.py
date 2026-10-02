@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 
 from odoo_migrator.runner.cartridge import Step
-from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.context import StepContext, StepResult, check_stop
 from odoo_migrator.runner.sessions import reopen_side
 from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError
@@ -88,7 +88,12 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
 def _run_one(ctx: StepContext, session_id: str, write_key: str, spec: str, where: str):
     """Run one spec, and put it in the run log as it ends: a step that said
-    nothing between "started" and its end read as a hang."""
+    nothing between "started" and its end read as a hang.
+
+    A Stop is heard here, between two runs. Read before each step only, it
+    waited for every method of a red class to run again.
+    """
+    check_stop(ctx, "during tests")
     started = time.perf_counter()
     try:
         report = ctx.sheller.run_test(

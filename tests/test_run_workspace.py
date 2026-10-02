@@ -526,3 +526,16 @@ def test_the_page_offers_every_attempt_of_the_live_run(client, live_job):
     assert 'data-attempt="1"' in page
     assert 'data-attempt="2"' in page
     assert "data-ribbon-lane" in page
+
+
+def test_a_run_parked_on_a_question_can_be_stopped(client):
+    """Stop reaches a parked run now, so the card offers it there too.
+    It showed only while the run was `running`: a question nobody meant to
+    answer left the module in flight, with no way to end it from here."""
+    _row, sale = _prepared(client)
+    client.app.state.executor = SessionExecutor(client.app)
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+
+    page = client.get("/run").text
+
+    assert f'action="/run/modules/{sale["id"]}/stop"' in page

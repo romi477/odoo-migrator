@@ -212,7 +212,9 @@ flow returns to `lint`). The failure lane that attempt ran (diagnose,
 patch) is a smaller row under it. From a second attempt on, numbers above
 the ribbon read any attempt back; the latest one follows the run live. A
 parked question sits
-under the ribbon as a thread. Empty reads "No module is running." SSE
+under the ribbon as a thread. **Stop this run** ends the module at its
+next step — between two test runs inside `tests` — and a parked one at
+once, withdrawing the question. Empty reads "No module is running." SSE
 fills the stage. When the batch reaches
 checkpoint a banner appears: *This batch has finished. Reload to review
 it.* The screen does not swap itself for the review while you are

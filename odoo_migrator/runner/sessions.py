@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import time
 
+from odoo_migrator.runner.context import check_stop
 from odoo_migrator.sheller.errors import ShellerError
 
 # How often to ask whether a busy session is free again, and for how long
@@ -51,7 +52,7 @@ def open_sides_patiently(
 
     Returns None when both are open, or the last reason when they are not.
     Never raises for the daemon's answer: the caller decides what a person
-    is told.
+    is told. A Stop pressed meanwhile ends the wait (`Stopped`).
     """
     deadline = clock.monotonic() + wait
     reason = ""
@@ -67,6 +68,7 @@ def open_sides_patiently(
         if clock.monotonic() >= deadline:
 
             return reason
+        check_stop(ctx, "while opening the sessions again")
         clock.sleep(poll)
 
 

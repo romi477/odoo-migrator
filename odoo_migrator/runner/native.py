@@ -17,7 +17,7 @@ from odoo_migrator.jobs import apply_progress, apply_result, lamp_state
 from odoo_migrator.models import CheckpointMessage, Job, Migration, Module, StepRun, ToolCall
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.cartridge import load_cartridge
-from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.context import StepContext, StepResult, Stopped, check_stop
 from odoo_migrator.runner.loop import run_job
 from odoo_migrator.runner.registry import resolve
 from odoo_migrator.runner.sessions import (
@@ -53,14 +53,23 @@ _TARGETS: dict[tuple[str, str], threading.Lock] = {}
 # row would be left open on a thread that is still writing to it.
 _STOPPING: set[str] = set()
 
-
-class Stopped(Exception):
-    """A person stopped this run. Not a failure of the module."""
+# How often a job waiting for a database another job holds looks up to see
+# whether it was stopped meanwhile.
+_TARGET_POLL = 0.25
 
 
 def ask_to_stop(job_id: str) -> None:
+    """Flag the run, and wake it if it is parked on a person.
+
+    A parked thread waits for an answer with no end of its own. Without the
+    wake the flag sat unread until someone answered the question, which is
+    the opposite of what pressing Stop on a parked job asks for.
+    """
     with _GUARD:
         _STOPPING.add(job_id)
+        parked = _WAITERS.get(job_id)
+    if parked is not None:
+        parked.set()
 
 
 def stopping(job_id: str) -> bool:
@@ -79,10 +88,14 @@ def _target_lock(ctx) -> threading.Lock | None:
     if not target:
 
         return None
-    key = (target["container"], target["database"])
+
+    return _target_lock_for(target["container"], target["database"])
+
+
+def _target_lock_for(container: str, database_name: str) -> threading.Lock:
     with _GUARD:
 
-        return _TARGETS.setdefault(key, threading.Lock())
+        return _TARGETS.setdefault((container, database_name), threading.Lock())
 
 
 def resume_waiter(job_id: str, answer: str) -> bool:
@@ -186,10 +199,9 @@ class NativeRunner:
 
             def wrapped(step, current):
                 nonlocal seen_attempt
-                if stopping(job_id):
-                    # Before the step is opened, so nothing is left running
-                    # in the trace and no session is asked for more work.
-                    raise Stopped(step.id or step.kind)
+                # Before the step is opened, so nothing is left running in
+                # the trace and no session is asked for more work.
+                check_stop(current, f"before {step.id or step.kind}")
                 if current.attempt != seen_attempt:
                     seen_attempt = current.attempt
                     self.hub.publish(
@@ -295,7 +307,7 @@ class NativeRunner:
             self._log(
                 job_id,
                 "runner",
-                f"stopped by a person, before {where}",
+                f"stopped by a person, {where}",
                 level="warn",
             )
             self._stopped(
@@ -351,20 +363,19 @@ class NativeRunner:
         Through the result, the way a failure is reported. Writing the status
         straight onto the row left the batch `running` for ever — every later
         Run was refused as "already running" — and the diff the run had
-        written reached no attempt.
+        written reached no attempt. ``where`` is the `Stopped` message:
+        "before lint", "during tests".
         """
         with contextlib.suppress(Exception):
             self._result(
                 {
                     "job_id": job_id,
                     "status": "stopped",
-                    "attempts": [
-                        {"iteration": attempt, "verdict": f"stopped before {where}"}
-                    ],
+                    "attempts": [{"iteration": attempt, "verdict": f"stopped {where}"}],
                 }
             )
         self.hub.publish(
-            "job_finished", {"job_id": job_id, "status": "stopped", "step": where}
+            "job_finished", {"job_id": job_id, "status": "stopped", "where": where}
         )
         self.hub.publish("lamp", {"state": lamp_state()})
 
@@ -523,14 +534,17 @@ class NativeRunner:
             return
         if not lock.acquire(blocking=False):
             target = ctx.session_targets["new"]
+            where = f"{target['container']}/{target['database']}"
             self._log(
                 ctx.job_id,
                 "runner",
-                f"waiting for {target['container']}/{target['database']}: "
-                "another job is migrating on it",
+                f"waiting for {where}: another job is migrating on it",
                 level="warn",
             )
-            lock.acquire()
+            # In short waits, not one: the other job can take an hour, and a
+            # Stop pressed meanwhile has to reach this one.
+            while not lock.acquire(timeout=_TARGET_POLL):
+                check_stop(ctx, f"while waiting for {where}")
         ctx.target_held = True
 
     def _release_target(self, ctx: StepContext) -> None:
@@ -606,10 +620,18 @@ class NativeRunner:
             )
 
         def park(question: str) -> str:
-            """Close the sessions, hand the question to a person, wait."""
+            """Close the sessions, hand the question to a person, wait.
+
+            Stop wakes the wait as an answer does; the stop wins.
+            """
             event = threading.Event()
             with _GUARD:
                 _WAITERS[payload["job_id"]] = event
+                # A Stop that came before the waiter existed had no one to
+                # wake. Under the same lock, so it is either seen here or
+                # sees the waiter.
+                if payload["job_id"] in _STOPPING:
+                    event.set()
             with database.connection_context():
                 parked = Job.get(Job.job_id == payload["job_id"])
                 CheckpointMessage.create(job=parked, author="agent", text=question)
@@ -628,6 +650,7 @@ class NativeRunner:
             with _GUARD:
                 _WAITERS.pop(payload["job_id"], None)
                 answer = _ANSWERS.pop(payload["job_id"], "")
+            check_stop(ctx, "while waiting for an answer")
             self._hold_target(ctx)
 
             return answer
@@ -679,6 +702,7 @@ class NativeRunner:
             provider=self.provider,
             record_tool=record,
             wait_for_human=wait_for_human,
+            stop_asked=lambda: stopping(payload["job_id"]),
         )
 
         return ctx

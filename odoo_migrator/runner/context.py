@@ -9,6 +9,26 @@ from odoo_migrator.models import Migration, Module
 from odoo_migrator.runner.cartridge import Cartridge
 
 
+class Stopped(Exception):
+    """A person stopped this run. Not a failure of the module.
+
+    The message says where the run was when it heard: "before lint",
+    "during tests", "while waiting for an answer".
+    """
+
+
+def check_stop(ctx, where: str) -> None:
+    """Raise `Stopped` if a person has asked this run to end.
+
+    The runner asks before every step. A step or a wait that can outlast a
+    person's patience asks again inside: between two test runs, or while it
+    waits for an answer or for a database another job holds.
+    """
+    asked = getattr(ctx, "stop_asked", None)
+    if callable(asked) and asked():
+        raise Stopped(where)
+
+
 @dataclass
 class StepContext:
     job_id: str
@@ -64,6 +84,8 @@ class StepContext:
     # The lock on the target database this job holds while it runs.
     target_lock: object = None
     target_held: bool = False
+    # Whether a person has asked this run to stop. Read through `check_stop`.
+    stop_asked: Callable[[], bool] | None = None
 
 
 @dataclass

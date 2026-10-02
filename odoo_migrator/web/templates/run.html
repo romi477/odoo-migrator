@@ -209,10 +209,14 @@
         <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
         {# The queue's Stop lets the module finish, which is not what someone
            watching a run spend tokens is asking for. #}
-        {% if live and live.status == 'running' %}
+        {% if live and live.status in ('running', 'waiting_for_human') %}
         <form method="post" action="/run/modules/{{ live.module_id }}/stop" class="pipeline-stop">
           <button type="submit" aria-label="Stop this run at its next step">Stop this run</button>
+          {% if live.status == 'waiting_for_human' %}
+          <span class="field-hint">Nothing is running: the question is withdrawn and the run ends now.</span>
+          {% else %}
           <span class="field-hint">The step running now finishes — a model turn cannot be called back — and the run ends there.</span>
+          {% endif %}
         </form>
         {% endif %}
         {% if ribbon %}
