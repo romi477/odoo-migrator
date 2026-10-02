@@ -6,9 +6,9 @@ import time
 
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
-from odoo_migrator.runner.sessions import reopen_side
+from odoo_migrator.runner.sessions import ensure_usable, reopen_side
 from odoo_migrator.runner.tools import _elapsed, _record
-from odoo_migrator.sheller.errors import ShellerError
+from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
 
 # Seconds one spec may run. Past the daemon's default of 300: a module's own
 # test class on a real database is not a unit test.
@@ -33,10 +33,10 @@ def run(step: Step, ctx: StepContext) -> StepResult:
         except ShellerError as exc:
 
             return StepResult(ok=False, output=f"could not reopen the target session: {exc}")
-    session_id = ctx.sessions["new"]
-    write_key = ctx.write_keys.get("new", "")
     try:
-        catalogue = ctx.sheller.list_tests(session_id, module=name, write_key=write_key)
+        catalogue = ctx.sheller.list_tests(
+            ctx.sessions["new"], module=name, write_key=ctx.write_keys.get("new", "")
+        )
     except ShellerError as exc:
 
         return StepResult(ok=False, flags={"tests_failed"}, output=str(exc))
@@ -53,19 +53,25 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     covered: list[str] = []
     for index, (class_spec, methods) in enumerate(plan, start=1):
         where = f"{index}/{len(plan)}"
-        report, problem = _run_one(ctx, session_id, write_key, class_spec, where)
+        report, problem, outlived = _run_one(ctx, class_spec, where)
         if not problem:
             covered.append(f"{class_spec} ({_count(report)})")
+            continue
+        if outlived:
+            # Not again method by method: each of those can take as long.
+            failed.append(f"{class_spec}: {problem}")
             continue
         if len(methods) < 2:
             failed.append(f"{methods[0] if methods else class_spec}: {problem}{_tail(report)}")
             continue
         named = False
         for method_spec in methods:
-            report, problem = _run_one(ctx, session_id, write_key, method_spec, where)
+            report, problem, outlived = _run_one(ctx, method_spec, where)
             if problem:
                 named = True
                 failed.append(f"{method_spec}: {problem}{_tail(report)}")
+            if outlived:
+                break
         if not named:
             # Red as a class, green one by one: an order the methods depend
             # on, or a set-up that breaks only when they share it.
@@ -86,19 +92,27 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     )
 
 
-def _run_one(ctx: StepContext, session_id: str, write_key: str, spec: str, where: str):
+def _run_one(ctx: StepContext, spec: str, where: str) -> tuple[dict, str, bool]:
     """Run one spec, and put it in the run log as it ends: a step that said
     nothing between "started" and its end read as a hang.
 
-    A Stop is heard here, between two runs. Read before each step only, it
-    waited for every method of a red class to run again.
+    Returns the report, why it is red ("" when green), and whether the run
+    outlived the call. A Stop is heard here, between two runs. Read before
+    each step only, it waited for every method of a red class to run again.
     """
     check_stop(ctx, "during tests")
+    # Read for every run: freeing a session after a timeout can open a new one.
+    session_id = ctx.sessions.get("new", "")
+    write_key = ctx.write_keys.get("new", "")
     started = time.perf_counter()
+    outlived = False
     try:
         report = ctx.sheller.run_test(
             session_id, spec, write_key=write_key, timeout=TEST_TIMEOUT
         )
+    except ShellerTimeout:
+        report, outlived = {}, True
+        problem = f"ran past {TEST_TIMEOUT:.0f}s" + _free(ctx)
     except ShellerError as exc:
         report, problem = {}, str(exc)
     else:
@@ -110,7 +124,20 @@ def _run_one(ctx: StepContext, session_id: str, write_key: str, spec: str, where
         _elapsed(started), not problem, f"{where} {spec} · {said}",
     )
 
-    return report, problem
+    return report, problem, outlived
+
+
+def _free(ctx: StepContext) -> str:
+    """A run past the call is still going in the session. Interrupt it, or
+    open a fresh one, before the next run: left alone, every run after it
+    answered `session_busy`, and the step blamed the tests for each."""
+    try:
+        done = ensure_usable(ctx, "new")
+    except ShellerError as exc:
+
+        return f"; the session could not be freed: {exc}"
+
+    return f"; {done}" if done else ""
 
 
 def _count(report: dict) -> str:

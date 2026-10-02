@@ -378,3 +378,21 @@ def test_a_project_kept_under_a_skipped_name_is_still_read(tmp_path):
     (root / ".git" / "config").write_text("[core]\n", encoding="utf-8")
 
     assert snapshot(root) == {"models.py": "x = 1\n"}
+
+
+def test_a_test_run_that_outlives_its_call_is_interrupted(app, tmp_path):
+    """`exec` interrupted its own timeout; `run_test` did not, and the agent's
+    next command on that side answered `session_busy`."""
+    sheller = FakeShellerClient()
+    sheller.tests_for("sale_custom", sheller.catalogue("sale_custom", {"TestSlow": ["test_a"]}))
+    sheller.test_hangs.add("sale_custom.TestSlow")
+    ctx = _ctx(tmp_path, sheller)
+    step = Step(kind="agent", id="probe", sessions=["new"], tools=["run_test", "exec"], prompt="x")
+    bound = {tool.name: tool for tool in tools_for(step, ctx)}
+
+    answer = bound["run_test"](side="new", test="sale_custom.TestSlow")
+
+    assert "interrupted" in answer
+    assert sheller.interrupts
+    after = bound["exec"](side="new", code="1")
+    assert not after.startswith("error:"), after

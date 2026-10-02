@@ -248,3 +248,62 @@ def test_a_stop_ends_the_tests_between_two_runs(step_context, sheller_fake):
         tests.run(Step(kind="tests"), ctx)
 
     assert [row["test"] for row in sheller_fake.tests_run] == ["sale_custom.TestA"]
+
+
+def _with_target(ctx):
+    # What the runner records, so a session can be freed or opened again.
+    ctx.session_targets = {
+        "new": {
+            "container": "odoo-new",
+            "database": "acme",
+            "odoo_bin": "/opt/odoo/odoo-bin",
+            "owner": {"kind": "agent"},
+        }
+    }
+
+    return ctx
+
+
+def test_a_run_that_outlives_the_call_does_not_leave_the_rest_busy(step_context, sheller_fake):
+    """A class past the timeout kept running in the session, and every run
+    after it answered `session_busy`: a page of lines blamed on the tests,
+    and `diagnose` worked on those."""
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue(
+            "sale_custom", {"TestSlow": ["test_a", "test_b"], "TestFast": ["test_c"]}
+        ),
+    )
+    sheller_fake.test_hangs.add("sale_custom.TestSlow")
+
+    result = tests.run(Step(kind="tests"), _with_target(step_context()))
+
+    assert result.ok is False
+    assert "sale_custom.TestSlow: ran past" in result.output
+    assert "session_busy" not in result.output
+    assert sheller_fake.interrupts
+    # Not again method by method: each of those can take as long.
+    assert [row["test"] for row in sheller_fake.tests_run] == [
+        "sale_custom.TestSlow",
+        "sale_custom.TestFast",
+    ]
+
+
+def test_a_method_that_outlives_the_call_ends_the_reruns_of_its_class(
+    step_context, sheller_fake
+):
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue("sale_custom", {"TestA": ["test_one", "test_two"]}),
+    )
+    sheller_fake.test_outcomes["sale_custom.TestA"] = {"success": False, "failures": 1}
+    sheller_fake.test_hangs.add("sale_custom.TestA.test_one")
+
+    result = tests.run(Step(kind="tests"), _with_target(step_context()))
+
+    assert result.ok is False
+    assert "sale_custom.TestA.test_one: ran past" in result.output
+    assert [row["test"] for row in sheller_fake.tests_run] == [
+        "sale_custom.TestA",
+        "sale_custom.TestA.test_one",
+    ]

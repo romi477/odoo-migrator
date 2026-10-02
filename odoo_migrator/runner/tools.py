@@ -316,11 +316,7 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
             write_key=write_key,
         )
     if name == "run_test":
-        result = sheller.run_test(
-            session_id,
-            test=kwargs.get("test", ""),
-            write_key=write_key,
-        )
+        result = _run_test(ctx, session_id, write_key, kwargs.get("test", ""))
         ctx.last_test = result if isinstance(result, dict) else {"raw": result}
 
         return ctx.last_test
@@ -358,6 +354,22 @@ def _exec(ctx, session_id: str, write_key: str, code: str):
 
         raise ShellerTimeout(
             f"the command ran longer than {limit:.0f}s and was interrupted"
+        ) from None
+
+
+def _run_test(ctx, session_id: str, write_key: str, test: str):
+    """A run past the call is interrupted, as an `exec` is: left running, it
+    kept the session busy, and the agent's next command on that side
+    answered `session_busy`."""
+    try:
+
+        return ctx.sheller.run_test(session_id, test=test, write_key=write_key)
+    except ShellerTimeout:
+        with contextlib.suppress(ShellerError):
+            ctx.sheller.interrupt(session_id, write_key=write_key)
+
+        raise ShellerTimeout(
+            f"the test {test} outlived the call and was interrupted"
         ) from None
 
 

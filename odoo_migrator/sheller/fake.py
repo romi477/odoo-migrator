@@ -101,6 +101,10 @@ class FakeShellerClient:
         self.exec_answers: dict[str, dict] = {}
         # spec -> fields merged into that run's `test` block.
         self.test_outcomes: dict[str, dict] = {}
+        # Specs whose run outlives the call: `run_test` raises ShellerTimeout
+        # and the run stays busy in the session until interrupted, as a
+        # command in `hangs_on` does.
+        self.test_hangs: set[str] = set()
         self.rollbacks: list[str] = []
 
     def health(self) -> dict:
@@ -301,6 +305,14 @@ class FakeShellerClient:
                 },
             )
         self.tests_run.append({"test": test, "session_id": session_id, "timeout": timeout})
+        if test in self.test_hangs:
+            self._next_command += 1
+            session["commands"].append(
+                {"kind": "run_test", "id": self._next_command, "test": test, "status": "running"}
+            )
+            session["hung_polls"] = 0
+
+            raise ShellerTimeout(f"no answer within the timeout for {session_id}")
         # Odoo's runner rolls back whatever the session held before testing.
         discarded = session["pending_commands"] > 0
         session["pending_commands"] = 0
