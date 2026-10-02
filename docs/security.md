@@ -106,7 +106,10 @@ key is the one that can, and this process does not have it.
 Probe, opening sessions, loading the cartridge and a missing model key
 all happen inside the run. If any of them raises, the job is `failed`
 and the screen hears it. A thread that died before that used to leave
-the row `running` with nobody told.
+the row `running` with nobody told. The same holds at the other end: a
+result that cannot be recorded leaves the job `unknown`, and its batch
+too when nothing else of it is in flight, with the reason in the run
+log.
 
 An answer for a parked job resumes the thread that is still waiting. If
 that thread is gone — a restart — the answer is kept on the checkpoint

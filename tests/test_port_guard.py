@@ -210,6 +210,22 @@ def test_our_own_port_in_a_module_that_is_its_own_repository(tmp_path):
     assert hand_edits_blocking(created["id"], [module.id]) is None
 
 
+def test_a_file_the_app_cannot_read_still_fingerprints(repo):
+    """The container can leave a file this user cannot read. Fingerprinting
+    raised, and that took the whole result down with it."""
+    import os
+
+    secret = repo / "sale_x" / "data.bin"
+    secret.write_bytes(b"\x01")
+    secret.chmod(0)
+    try:
+        if os.access(secret, os.R_OK):
+            pytest.skip("this user reads everything")
+        assert fingerprint(repo / "sale_x")
+    finally:
+        secret.chmod(0o600)
+
+
 def test_bytecode_odoo_left_in_the_checkout_is_not_a_change(repo):
     """The target imports the mounted module and leaves __pycache__ behind.
     Unless the repository ignores it, git lists it as untracked."""

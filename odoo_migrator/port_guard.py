@@ -55,8 +55,14 @@ def fingerprint(directory: Path) -> str:
         relative = path.relative_to(root).as_posix()
         if _noise(relative):
             continue
+        try:
+            content = path.read_bytes()
+        except OSError:
+            # The container can leave a file this user cannot read. It is
+            # still there, and raising here failed the result it was for.
+            content = b"(unreadable)"
         digest.update(relative.encode("utf-8") + b"\0")
-        digest.update(path.read_bytes() + b"\0")
+        digest.update(content + b"\0")
 
     return digest.hexdigest()
 

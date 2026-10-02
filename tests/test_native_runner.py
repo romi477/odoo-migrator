@@ -462,3 +462,81 @@ def test_stop_reaches_a_job_waiting_for_its_database(app, fake_sheller, tmp_path
         held.release()
 
     assert reloaded(job).status == "stopped"
+
+
+def test_a_result_that_cannot_be_recorded_does_not_strand_its_batch(app, fake_sheller, tmp_path):
+    """The result path writes the outcome, advances the batch and can start
+    the next module, all in this thread. An exception there ended the thread
+    with nothing said: no closing line, no `job_finished`, and a batch left
+    `running` that refused every later Run. It ends the way a restart leaves
+    a job instead: `unknown`, and said so."""
+    from odoo_migrator import runlog
+    from odoo_migrator.models import Module
+
+    job = _module(tmp_path)
+
+    def unrecordable(body):
+        raise RuntimeError("database is locked")
+
+    model = ModelDouble(turns=[{"name": "report", "input": {"answer": "ported"}}])
+    hub = app.state.hub
+    heard = hub.subscribe()
+    runner = NativeRunner(
+        sheller=fake_sheller, hub=hub, provider=ScriptedProvider(model), result=unrecordable
+    )
+    runner.start({"job_id": job.job_id, "cartridge_text": _CARTRIDGE})
+
+    with pytest.raises(RuntimeError, match="database is locked"):
+        runner.wait(job.job_id)
+
+    assert reloaded(job).status == "unknown"
+    with database.connection_context():
+        assert Module.get_by_id(job.module_id).status == "unknown"
+        assert Batch.get_by_id(job.batch_id).status == "unknown"
+    texts = [line["text"] for line in runlog.lines(job.job_id)]
+    assert any("could not be recorded" in text for text in texts)
+    events = []
+    while not heard.empty():
+        events.append(heard.get_nowait())
+    assert any(name == "job_finished" for name, _data in events)
+
+
+def test_stopping_a_job_whose_thread_has_ended_does_not_pretend(client, tmp_path):
+    """A thread that died is still in the runner's table. Stop said
+    "stopping" about it, and the row stayed in flight for ever."""
+    from odoo_migrator.jobs import stop_job
+
+    del client
+    job = _module(tmp_path)
+    runner = NativeRunner(sheller=None, hub=EventHub())
+    ended = threading.Thread(target=lambda: None)
+    ended.start()
+    ended.join()
+    runner._threads[job.job_id] = ended
+
+    asked = stop_job(module_id=job.module_id, hub=runner.hub, stop=runner.stop)
+
+    assert asked is False
+    assert reloaded(job).status == "unknown"
+
+
+def test_the_runner_forgets_old_finished_jobs():
+    """Every job's thread and error stayed for the life of the process, and
+    an error keeps the frames of the step that raised it — the context with
+    the module's whole source among them."""
+    from odoo_migrator.runner.native import _KEPT_FINISHED
+
+    runner = NativeRunner(sheller=None, hub=EventHub())
+    for number in range(_KEPT_FINISHED + 5):
+        ended = threading.Thread(target=lambda: None)
+        ended.start()
+        ended.join()
+        runner._threads[f"job-{number}"] = ended
+        runner._errors[f"job-{number}"] = RuntimeError("x")
+
+    runner._forget_finished()
+
+    kept = list(runner._threads)
+    assert len(kept) == _KEPT_FINISHED
+    assert kept[-1] == f"job-{_KEPT_FINISHED + 4}"
+    assert set(runner._errors) == set(kept)

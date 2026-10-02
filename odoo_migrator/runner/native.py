@@ -13,7 +13,7 @@ from pathlib import Path
 from odoo_migrator import runlog
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
-from odoo_migrator.jobs import apply_progress, apply_result, lamp_state
+from odoo_migrator.jobs import abandon_job, apply_progress, apply_result, lamp_state
 from odoo_migrator.models import CheckpointMessage, Job, Migration, Module, StepRun, ToolCall
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.cartridge import load_cartridge
@@ -56,6 +56,9 @@ _STOPPING: set[str] = set()
 # How often a job waiting for a database another job holds looks up to see
 # whether it was stopped meanwhile.
 _TARGET_POLL = 0.25
+
+# Finished jobs whose thread and error `wait` can still be asked about.
+_KEPT_FINISHED = 16
 
 
 def ask_to_stop(job_id: str) -> None:
@@ -128,6 +131,9 @@ class NativeRunner:
         self.provider = provider
         self._threads: dict[str, threading.Thread] = {}
         self._errors: dict[str, BaseException] = {}
+        # `start` is called from requests and from the thread of the job
+        # before, when its result starts the next module.
+        self._table = threading.Lock()
 
     def start(self, payload: dict) -> None:
         job_id = payload["job_id"]
@@ -137,7 +143,9 @@ class NativeRunner:
             name=f"migrate-{job_id}",
             daemon=True,
         )
-        self._threads[job_id] = thread
+        with self._table:
+            self._forget_finished()
+            self._threads[job_id] = thread
         thread.start()
 
     def stop(self, job_id: str) -> bool:
@@ -145,9 +153,11 @@ class NativeRunner:
 
         The step in flight finishes: an agent turn cannot be taken back, and
         cutting the thread would leave a step row open and a session holding
-        a command nobody is waiting for.
+        a command nobody is waiting for. A thread that has ended is not ours
+        to stop, whatever its row says.
         """
-        if job_id not in self._threads:
+        thread = self._threads.get(job_id)
+        if thread is None or not thread.is_alive():
 
             return False
         ask_to_stop(job_id)
@@ -158,6 +168,18 @@ class NativeRunner:
         """True when this process still has the thread that parked the job."""
 
         return resume_waiter(job_id, answer)
+
+    def _forget_finished(self) -> None:
+        """Drop all but the last few finished jobs. The caller holds the table.
+
+        Every thread and error stayed for the life of the process, and an
+        error keeps the frames of the step that raised it: the step context,
+        with the module's whole source in it.
+        """
+        finished = [job_id for job_id, thread in self._threads.items() if not thread.is_alive()]
+        for job_id in finished[:-_KEPT_FINISHED]:
+            self._threads.pop(job_id, None)
+            self._errors.pop(job_id, None)
 
     def wait(self, job_id: str, timeout: float = 10) -> None:
         thread = self._threads[job_id]
@@ -333,29 +355,59 @@ class NativeRunner:
             # the daemon answers and this swallows.
             if ctx is not None:
                 self._close_sessions(ctx)
-        if outcome != "waiting_for_human":
-            self._result(
-                {
-                    "job_id": job_id,
-                    "status": outcome if outcome in ("passed", "failed") else "failed",
-                    "attempts": [
-                        {
-                            "iteration": ctx.attempt,
-                            "diff": ctx.previous_diff,
-                            "verdict": outcome,
-                        }
-                    ],
-                    "findings": list(ctx.findings),
-                }
-            )
+        recorded = outcome == "waiting_for_human" or self._report(
+            job_id,
+            {
+                "job_id": job_id,
+                "status": outcome if outcome in ("passed", "failed") else "failed",
+                "attempts": [
+                    {
+                        "iteration": ctx.attempt,
+                        "diff": ctx.previous_diff,
+                        "verdict": outcome,
+                    }
+                ],
+                "findings": list(ctx.findings),
+            },
+        )
         self._log(
             job_id,
             "runner",
-            f"job {outcome}",
+            f"job {outcome}" if recorded else f"job {outcome}, but unknown to the app",
             detail=ctx.last_failure,
-            level="error" if outcome == "failed" else "info",
+            level="error" if outcome == "failed" or not recorded else "info",
         )
-        self.hub.publish("job_finished", {"job_id": job_id, "status": outcome})
+        self.hub.publish(
+            "job_finished", {"job_id": job_id, "status": outcome if recorded else "unknown"}
+        )
+
+    def _report(self, job_id: str, body: dict) -> bool:
+        """Hand the outcome to the app. False when that failed.
+
+        The result path does more than write a row: it advances the batch and
+        can start the next module, in this thread. An exception there ended
+        the thread with nothing said — no closing line, no `job_finished` —
+        and the batch stayed `running`, refusing every later Run. Now the job
+        is left the way a restart leaves one, `unknown`, and the run log says
+        why.
+        """
+        try:
+            self._result(body)
+        except Exception as exc:  # noqa: BLE001 - nothing else in the process can say it.
+            self._errors[job_id] = exc
+            self._log(
+                job_id,
+                "runner",
+                f"the result could not be recorded: {type(exc).__name__}: {exc}",
+                detail="".join(traceback.format_exception(exc)),
+                level="error",
+            )
+            with contextlib.suppress(Exception):
+                abandon_job(job_id, self.hub)
+
+            return False
+
+        return True
 
     def _stopped(self, job_id: str, where: str, attempt: int = 1) -> None:
         """Tell the app a person ended this run, and say where it got to.
@@ -366,18 +418,19 @@ class NativeRunner:
         written reached no attempt. ``where`` is the `Stopped` message:
         "before lint", "during tests".
         """
-        with contextlib.suppress(Exception):
-            self._result(
-                {
-                    "job_id": job_id,
-                    "status": "stopped",
-                    "attempts": [{"iteration": attempt, "verdict": f"stopped {where}"}],
-                }
-            )
+        self._report(
+            job_id,
+            {
+                "job_id": job_id,
+                "status": "stopped",
+                "attempts": [{"iteration": attempt, "verdict": f"stopped {where}"}],
+            },
+        )
         self.hub.publish(
             "job_finished", {"job_id": job_id, "status": "stopped", "where": where}
         )
-        self.hub.publish("lamp", {"state": lamp_state()})
+        with contextlib.suppress(Exception):
+            self.hub.publish("lamp", {"state": lamp_state()})
 
     def _fail(self, job_id: str, exc: BaseException, attempt: int = 1) -> None:
         """Tell the app the job failed, then say so on the stream.
@@ -385,16 +438,16 @@ class NativeRunner:
         Publishing the event without the result left the row running while
         the screen said it had stopped.
         """
-        with contextlib.suppress(Exception):
-            self._result(
-                {
-                    "job_id": job_id,
-                    "status": "failed",
-                    "attempts": [
-                        {"iteration": attempt, "verdict": f"{type(exc).__name__}: {exc}"}
-                    ],
-                }
-            )
+        self._report(
+            job_id,
+            {
+                "job_id": job_id,
+                "status": "failed",
+                "attempts": [
+                    {"iteration": attempt, "verdict": f"{type(exc).__name__}: {exc}"}
+                ],
+            },
+        )
         self.hub.publish(
             "job_finished",
             {"job_id": job_id, "status": "failed", "error": str(exc)},

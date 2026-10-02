@@ -741,59 +741,98 @@ def apply_result(body, hub: EventHub) -> str | None:
             # second time.
 
             return None
-        job.status = payload.status
-        if payload.current_session_id:
-            job.current_session_id = payload.current_session_id
-        if payload.resume_webhook_url and not job.resume_webhook_url:
-            job.resume_webhook_url = payload.resume_webhook_url
-        if payload.question:
-            job.question = payload.question
-        job.save()
         module = job.module
-        module.status = payload.status
-        if payload.assumptions:
-            # batch_defer: the module may still be green. The flag is how
-            # the checkpoint knows it carried an unreviewed call.
-            module.has_assumptions = True
         # What this run left, so the next start can tell its own uncommitted
-        # port from a person's edit.
+        # port from a person's edit. Before the transaction: it reads every
+        # file of the module, and every other writer waits while one is open.
         record_fingerprint(module)
-        module.save()
-        # A batch of three would have flipped to passed after the first job
-        # and hidden a later fail. The runner stamps checkpoint when it stops.
-        logged = json.loads(job.file_diffs or "{}")
-        for attempt in payload.attempts:
-            Attempt.create(
-                job=job,
-                iteration=attempt.iteration,
-                diff=attempt.diff or logged.get(str(attempt.iteration), ""),
-                test_output=attempt.test_output,
-                verdict=attempt.verdict,
-                diagnosis=attempt.diagnosis,
-            )
-        # A cartridge that reports no attempt still rewrote the module, and
-        # we watched it do it through the File API. Without this the diff of
-        # a module that passed first time — the outcome most worth reading —
-        # is recorded and then shown to nobody.
-        reported = {str(attempt.iteration) for attempt in payload.attempts}
-        for iteration in sorted(set(logged) - reported, key=lambda one: int(one)):
-            Attempt.create(
-                job=job,
-                iteration=int(iteration),
-                diff=logged[iteration],
-                verdict=payload.status,
-            )
-        for finding in payload.findings:
-            Finding.create(job=job, text=finding.text, source=finding.source)
-        for assumption in payload.assumptions:
-            Assumption.create(
-                job=job,
-                question=assumption.question,
-                assumption=assumption.assumption,
-            )
+        # Whole or not at all. A failure half-way left the job `passed` and
+        # its module `running`, a run the lamp showed and nobody was running.
+        with database.atomic():
+            _record_result(job, module, payload)
         _emit(hub, job, module)
 
     return payload.job_id
+
+
+def _record_result(job: Job, module: Module, payload: ResultPayload) -> None:
+    job.status = payload.status
+    if payload.current_session_id:
+        job.current_session_id = payload.current_session_id
+    if payload.resume_webhook_url and not job.resume_webhook_url:
+        job.resume_webhook_url = payload.resume_webhook_url
+    if payload.question:
+        job.question = payload.question
+    job.save()
+    module.status = payload.status
+    if payload.assumptions:
+        # batch_defer: the module may still be green. The flag is how
+        # the checkpoint knows it carried an unreviewed call.
+        module.has_assumptions = True
+    module.save()
+    # A batch of three would have flipped to passed after the first job
+    # and hidden a later fail. The runner stamps checkpoint when it stops.
+    logged = json.loads(job.file_diffs or "{}")
+    for attempt in payload.attempts:
+        Attempt.create(
+            job=job,
+            iteration=attempt.iteration,
+            diff=attempt.diff or logged.get(str(attempt.iteration), ""),
+            test_output=attempt.test_output,
+            verdict=attempt.verdict,
+            diagnosis=attempt.diagnosis,
+        )
+    # A cartridge that reports no attempt still rewrote the module, and
+    # we watched it do it through the File API. Without this the diff of
+    # a module that passed first time — the outcome most worth reading —
+    # is recorded and then shown to nobody.
+    reported = {str(attempt.iteration) for attempt in payload.attempts}
+    for iteration in sorted(set(logged) - reported, key=lambda one: int(one)):
+        Attempt.create(
+            job=job,
+            iteration=int(iteration),
+            diff=logged[iteration],
+            verdict=payload.status,
+        )
+    for finding in payload.findings:
+        Finding.create(job=job, text=finding.text, source=finding.source)
+    for assumption in payload.assumptions:
+        Assumption.create(
+            job=job,
+            question=assumption.question,
+            assumption=assumption.assumption,
+        )
+
+
+def abandon_job(job_id: str, hub: EventHub | None = None) -> None:
+    """What a restart does, for one job whose runner could not report.
+
+    Its result never landed, or landed and the batch could not move on from
+    it. Nothing else is going to: the job is `unknown` if it was still in
+    flight, and so is its batch when nothing else of it is.
+    """
+    with database.connection_context():
+        job = Job.get_or_none(Job.job_id == job_id)
+        if job is None:
+
+            return
+        module = job.module
+        if job.status in NON_TERMINAL:
+            job.status = "unknown"
+            job.save()
+            module.status = "unknown"
+            module.save()
+        busy = (
+            Job.select()
+            .where((Job.batch == job.batch_id) & (Job.status.in_(IN_FLIGHT)))
+            .exists()
+        )
+        if not busy:
+            Batch.update(status="unknown").where(
+                (Batch.id == job.batch_id) & (Batch.status == "running")
+            ).execute()
+        if hub is not None:
+            _emit(hub, job, module)
 
 
 def _publish_module(hub: EventHub | None, module: Module) -> None:

@@ -1,5 +1,6 @@
 """Sequential batch runner, stop rules, global attention. Task 10."""
 
+import pytest
 from test_tree import _open
 
 from odoo_migrator.db import database
@@ -379,3 +380,37 @@ def test_a_step_batch_runs_its_wave_and_not_the_group_with_the_same_number(clien
 
     assert batch.step == 1
     assert batch.batch_group is None
+
+
+def test_a_result_is_recorded_whole_or_not_at_all(client, monkeypatch):
+    """A failure half-way through left the job `passed` and its module
+    `running`: the lamp lit for a run nobody was running."""
+    from odoo_migrator.jobs import apply_result, start_job
+    from odoo_migrator.models import Attempt
+
+    class Silent:
+        def start(self, payload):
+            pass
+
+    row, sale = _prepared(client)
+    job = start_job(
+        migration_id=str(row.id), module_id=sale["id"], executor=Silent(), hub=client.app.state.hub
+    )
+
+    def broken(**_fields):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(Attempt, "create", broken)
+    with pytest.raises(RuntimeError, match="disk full"):
+        apply_result(
+            {
+                "job_id": job.job_id,
+                "status": "passed",
+                "attempts": [{"iteration": 1, "diff": "", "verdict": "pass"}],
+            },
+            client.app.state.hub,
+        )
+
+    with database.connection_context():
+        assert Job.get_by_id(job.id).status == "running"
+        assert Module.get_by_id(sale["id"]).status == "running"
