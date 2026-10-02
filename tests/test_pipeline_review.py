@@ -752,6 +752,40 @@ def test_a_fresh_step_starts_from_an_empty_module(ctx_for, sheller):
     assert list(root.iterdir()) == []
 
 
+def test_a_fresh_step_keeps_the_repository_the_module_is(ctx_for, sheller):
+    """A module that is its own repository — or a submodule, whose `.git`
+    is a file — lost its history to a start-over, and with it the undo the
+    hand-edit guard sends people to. Odoo loads nothing hidden, so nothing
+    hidden belongs to the attempt being cleared."""
+    from pathlib import Path
+
+    ctx = ctx_for()
+    root = Path(ctx.module.new_path)
+    (root / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    (root / ".git").mkdir()
+    (root / ".git" / "HEAD").write_text("ref: refs/heads/18.0\n", encoding="utf-8")
+    (root / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+    (root / "models.py").write_text("x = 1\n", encoding="utf-8")
+
+    _runner(sheller)._clear_module(ctx, "rewrite")
+
+    assert sorted(child.name for child in root.iterdir()) == [".git", ".gitignore"]
+    assert (root / ".git" / "HEAD").is_file()
+
+
+def test_a_fresh_step_keeps_a_submodule_link(ctx_for, sheller):
+    from pathlib import Path
+
+    ctx = ctx_for()
+    root = Path(ctx.module.new_path)
+    (root / "__manifest__.py").write_text("{'name': 'x', 'depends': []}", encoding="utf-8")
+    (root / ".git").write_text("gitdir: ../.git/modules/sale_custom\n", encoding="utf-8")
+
+    _runner(sheller)._clear_module(ctx, "rewrite")
+
+    assert [child.name for child in root.iterdir()] == [".git"]
+
+
 def test_a_fresh_step_never_clears_the_project_root(ctx_for, sheller):
     from pathlib import Path
 

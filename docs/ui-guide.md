@@ -234,7 +234,8 @@ name the failing test; each run is a line in the run log; no classes raises
 `needs_human`, `reexamine_old`, `small_fix`, or `start_over`, and only the
 block for that flag runs: `ask_human` parks the job, `reprobe` returns to
 the old version, `patch` edits the previous diff, `rewrite` starts the
-port again without the previous attempt. The lane then resumes once, at
+port again without the previous attempt (the module's directory is
+emptied first; hidden entries such as `.git` stay). The lane then resumes once, at
 `lint`. Orange blocks are a model turn; quiet blocks are the app; a dashed
 border is a flag; the cut rectangle is `ask_human`. The canvas is the
 whole screen: a run's tool calls are the run log on Pipeline, and reading

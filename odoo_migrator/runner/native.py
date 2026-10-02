@@ -458,7 +458,8 @@ class NativeRunner:
         `rewrite` is told not to reconstruct the previous attempt, and then
         found it on disk: whatever it did not overwrite stayed in the module
         and was imported with the rest. Only a directory strictly inside the
-        new project root, holding a manifest, is cleared.
+        new project root, holding a manifest, is cleared, and what is hidden
+        in it stays.
         """
         from odoo_migrator.module_paths import allowed_roots
 
@@ -520,6 +521,12 @@ class NativeRunner:
             return
         removed = 0
         for child in sorted(resolved.iterdir()):
+            # Hidden entries stay. Odoo loads none of them, so none is part
+            # of the attempt being thrown away — and one can be the module's
+            # own repository (`.git`, a directory or a submodule's file),
+            # the undo for everything a run writes here.
+            if child.name.startswith("."):
+                continue
             if child.is_dir() and not child.is_symlink():
                 shutil.rmtree(child)
             else:
