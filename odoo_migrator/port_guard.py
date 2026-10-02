@@ -24,6 +24,7 @@ from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.module_paths import module_root
+from odoo_migrator.runner.snapshot import module_files
 
 # Odoo imports a mounted module and leaves these beside the source. They
 # are not anyone's work, and a repository that does not ignore them would
@@ -39,15 +40,20 @@ def _noise(relative: str) -> bool:
 
 
 def fingerprint(directory: Path) -> str:
-    """A hash of every file under `directory`, by relative path and content."""
+    """A hash of every file under `directory`, by relative path and content.
+
+    Not the repository a module can hold (`.git`): every git command run
+    there rewrites something in it, and the agent's own port read as a hand
+    edit after the first `git status`.
+    """
     digest = hashlib.sha256()
     root = Path(directory)
     if not root.is_dir():
 
         return ""
-    for path in sorted(root.rglob("*")):
+    for path in module_files(root):
         relative = path.relative_to(root).as_posix()
-        if not path.is_file() or _noise(relative):
+        if _noise(relative):
             continue
         digest.update(relative.encode("utf-8") + b"\0")
         digest.update(path.read_bytes() + b"\0")

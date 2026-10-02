@@ -8,6 +8,7 @@ previous attempt — is handed nothing.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from odoo_migrator.diffs import unified
@@ -18,15 +19,31 @@ MAX_FILE_BYTES = 512 * 1024
 SKIP_PARTS = {"__pycache__", ".git", "node_modules"}
 
 
+def module_files(root: Path) -> list[Path]:
+    """Every file under ``root``, sorted, without the directories above.
+
+    Pruned, not filtered: a `.git` inside the module holds thousands of
+    objects, and walking each one to drop it cost more than the module. The
+    names are matched below ``root`` only; matched against the whole path, a
+    project kept under a directory called `node_modules` had no files at all.
+    """
+    found: list[Path] = []
+    for directory, subdirectories, files in os.walk(root):
+        subdirectories[:] = [name for name in subdirectories if name not in SKIP_PARTS]
+        found.extend(
+            path for path in (Path(directory) / name for name in files) if path.is_file()
+        )
+
+    return sorted(found)
+
+
 def snapshot(root: Path | None) -> dict[str, str]:
     """Every readable text file under ``root``, keyed by its relative path."""
     if root is None or not root.is_dir():
 
         return {}
     taken: dict[str, str] = {}
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or SKIP_PARTS & set(path.parts):
-            continue
+    for path in module_files(root):
         try:
             if path.stat().st_size > MAX_FILE_BYTES:
                 continue

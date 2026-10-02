@@ -365,3 +365,16 @@ def test_a_session_opened_before_a_failed_open_is_still_closed(app, tmp_path, fa
 
     assert opened
     assert opened[0] in fake_sheller.closes
+
+
+def test_a_project_kept_under_a_skipped_name_is_still_read(tmp_path):
+    """The skip list was checked against the whole path, so a project kept
+    anywhere under a directory called `node_modules` snapshot as empty, and
+    every diff of it was blank."""
+    root = tmp_path / "node_modules" / "project" / "sale_custom"
+    root.mkdir(parents=True)
+    (root / "models.py").write_text("x = 1\n", encoding="utf-8")
+    (root / ".git").mkdir()
+    (root / ".git" / "config").write_text("[core]\n", encoding="utf-8")
+
+    assert snapshot(root) == {"models.py": "x = 1\n"}

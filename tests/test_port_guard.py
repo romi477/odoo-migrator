@@ -152,6 +152,64 @@ def test_fingerprint_ignores_bytecode(repo):
     assert fingerprint(repo / "sale_x") == before
 
 
+def test_a_fingerprint_already_recorded_still_matches(repo):
+    """The walk changed; what it hashes for an ordinary module did not.
+    Every module whose uncommitted port was fingerprinted before would
+    otherwise read as edited by hand on its next start."""
+    import hashlib
+    from pathlib import Path
+
+    root = repo / "sale_x"
+    (root / "views").mkdir()
+    (root / "views" / "sale.xml").write_text("<odoo/>\n")
+    (root / "__pycache__").mkdir()
+    (root / "__pycache__" / "models.cpython-312.pyc").write_bytes(b"\x00")
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        noise = "__pycache__" in Path(relative).parts or relative.endswith((".pyc", ".pyo"))
+        if not path.is_file() or noise:
+            continue
+        digest.update(relative.encode("utf-8") + b"\0")
+        digest.update(path.read_bytes() + b"\0")
+
+    assert fingerprint(root) == digest.hexdigest()
+
+
+def test_our_own_port_in_a_module_that_is_its_own_repository(tmp_path):
+    """The repository inside the module was hashed with it. Any git command
+    there — a fetch, the index `git status` refreshes — changed the
+    fingerprint, and the agent's own uncommitted port was refused as a hand
+    edit on every start after."""
+    from odoo_migrator.port_guard import record_fingerprint
+
+    init_db(tmp_path / "own.sqlite")
+    root = tmp_path / "new"
+    module_dir = root / "sale_own"
+    module_dir.mkdir(parents=True)
+    (module_dir / "__manifest__.py").write_text("{'name': 'sale_own'}\n")
+    _git(module_dir, "init", "-q")
+    _git(module_dir, "add", ".")
+    _git(module_dir, "commit", "-qm", "19.0 code")
+    created = create_migration(
+        name="Acme", accent="violet", source_version="19.0", target_version="20.0",
+        old_project_path=str(tmp_path / "old"), new_project_path=str(root),
+    )
+    with database.connection_context():
+        module = Module.create(
+            migration=created["id"], technical_name="sale_own", new_path=str(module_dir)
+        )
+    (module_dir / "models.py").write_text("NEW = 20\n")
+    with database.connection_context():
+        module = Module.get_by_id(module.id)
+        record_fingerprint(module)
+        module.save()
+
+    (module_dir / ".git" / "FETCH_HEAD").write_text("0" * 40 + "\tbranch '20.0'\n")
+
+    assert hand_edits_blocking(created["id"], [module.id]) is None
+
+
 def test_bytecode_odoo_left_in_the_checkout_is_not_a_change(repo):
     """The target imports the mounted module and leaves __pycache__ behind.
     Unless the repository ignores it, git lists it as untracked."""
