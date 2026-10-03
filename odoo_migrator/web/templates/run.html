@@ -284,14 +284,15 @@
                   aria-label="Answer{% if live %} {{ live.module }}{% endif %}">Answer</button>
         </form>
       </div>
-      {# A start refused over uncommitted changes in a module's target
-         directory. The way out sits beside the module, so fixing it does not
-         mean a trip to the IDE to commit. #}
+      {# A start refused over changes in a module's target directory that the
+         agent did not make: uncommitted, or committed by a person since its
+         last port. The way out sits beside the module, so fixing it does not
+         mean a trip to the IDE. #}
       {% if hand_edits and not live %}
       <div class="hand-edits" data-hand-edits>
         <p class="hand-edits-lead">Run did not start: these modules have changes
-        that are not committed, and the agent did not leave them. Starting would
-        write over them.</p>
+        the agent did not make — not committed, or committed by a person since
+        its last port. Starting would write over them.</p>
         {% for module in hand_edits %}
         <section class="hand-edit">
           <header class="name-line">
@@ -299,17 +300,27 @@
             <span class="badge failed">changed</span>
           </header>
           <p class="mono hand-edit-dir">{{ module.directory | breakable }}</p>
+          {% if module.files %}
           <ul class="hand-edit-files mono">
             {% for line in module.files %}
             <li>{{ line }}</li>
             {% endfor %}
           </ul>
+          {% endif %}
+          {% if module.commits %}
+          <ul class="hand-edit-files mono" aria-label="Commits by a person since the last port">
+            {% for commit in module.commits %}
+            <li>{{ commit.short }} {{ commit.author }} — {{ commit.subject }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
           <div class="hand-edit-actions">
             <form method="post" action="/run/modules/{{ module.id }}/keep">
               <button type="submit" class="primary"
-                      title="Take these files as they are and run"
+                      title="Run with these changes; the agent is given the commits to carry into the port"
                       aria-label="Keep the changes in {{ module.technical_name }} and run">Keep and run</button>
             </form>
+            {% if module.files %}
             <form method="post" action="/run/modules/{{ module.id }}/discard"
                   data-confirm-title="Discard the changes in {{ module.technical_name }}?"
                   data-confirm-text="Every file listed goes back to its last commit, and files git does not track are deleted — in this module's directory only. This cannot be undone. Then the queue runs."
@@ -318,6 +329,7 @@
                       title="git restore and git clean in this module's directory, then run"
                       aria-label="Discard the changes in {{ module.technical_name }} and run">Discard changes</button>
             </form>
+            {% endif %}
           </div>
         </section>
         {% endfor %}

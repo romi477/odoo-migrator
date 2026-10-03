@@ -130,6 +130,9 @@ class Module(BaseModel):
     # A hash of the module's new-side directory as the last run left it. Tells
     # the agent's own uncommitted port from a person's edit (port_guard.py).
     port_fingerprint = CharField(default="")
+    # The newest commit by a person that someone chose to run over (Keep and
+    # run). A commit after it stops the module again (target_git.py).
+    kept_commit = CharField(default="")
     status = CharField(default="queued")
     struck_out = BooleanField(default=False)
     has_assumptions = BooleanField(default=False)

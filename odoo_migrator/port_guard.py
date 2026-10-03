@@ -25,6 +25,7 @@ from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.snapshot import module_files
+from odoo_migrator.target_git import person_commits
 
 # Odoo imports a mounted module and leaves these beside the source. They
 # are not anyone's work, and a repository that does not ignore them would
@@ -144,8 +145,13 @@ class HandEdits(ContractError):
 
 
 def hand_edits(migration_id: str, module_ids: list[int]) -> list[dict]:
-    """Modules whose directory holds uncommitted work that is not the agent's:
-    id, technical_name, directory, and the files git lists."""
+    """Modules whose directory holds work that is not the agent's: id,
+    technical_name, directory, the uncommitted files git lists, and the
+    commits a person made there since the agent's last one.
+
+    A commit leaves the directory clean, and a clean directory used to pass:
+    a re-run then wrote a person's committed fix out of the working copy.
+    """
     if not module_ids:
 
         return []
@@ -164,16 +170,25 @@ def hand_edits(migration_id: str, module_ids: list[int]) -> list[dict]:
     edited = []
     for module in sorted(modules, key=lambda row: row.technical_name):
         directory = module_root(migration, module, "new")
-        if directory is None or git_state(directory) != "dirty":
+        if directory is None:
             continue
-        if module.port_fingerprint and fingerprint(directory) == module.port_fingerprint:
+        files: list[str] = []
+        if git_state(directory) == "dirty" and not (
+            module.port_fingerprint and fingerprint(directory) == module.port_fingerprint
+        ):
+            files = changed_files(directory) or []
+        commits = person_commits(directory)
+        if commits and commits[0]["sha"] == module.kept_commit:
+            commits = []
+        if not files and not commits:
             continue
         edited.append(
             {
                 "id": module.id,
                 "technical_name": module.technical_name,
                 "directory": str(directory),
-                "files": changed_files(directory) or [],
+                "files": files,
+                "commits": commits,
             }
         )
 
@@ -186,13 +201,28 @@ def hand_edits_blocking(migration_id: str, module_ids: list[int]) -> str | None:
     if not edited:
 
         return None
-    named = ", ".join(f"{row['technical_name']} ({row['directory']})" for row in edited)
+    sentences = []
+    changed = [row for row in edited if row["files"]]
+    if changed:
+        named = ", ".join(f"{row['technical_name']} ({row['directory']})" for row in changed)
+        sentences.append(
+            "These modules were edited by hand since the agent last wrote them, "
+            f"and the changes are not committed: {named}. Commit or "
+            "discard them first; starting again would write over them."
+        )
+    committed = [row for row in edited if row["commits"]]
+    if committed:
+        named = ", ".join(
+            f"{row['technical_name']} ({', '.join(c['short'] for c in row['commits'])})"
+            for row in committed
+        )
+        sentences.append(
+            "These modules were committed by hand since the agent last ported "
+            f"them: {named}. A new port is written from the old version; keep "
+            "the commits to run anyway, and the agent is given them to carry."
+        )
 
-    return (
-        "These modules were edited by hand since the agent last wrote them, "
-        f"and the changes are not committed: {named}. Commit or "
-        "discard them first; starting again would write over them."
-    )
+    return " ".join(sentences)
 
 
 def raise_hand_edits(migration_id: str, module_ids: list[int]) -> None:
@@ -255,10 +285,13 @@ def discard_hand_edits(migration_id: str, module_id: int) -> None:
 
 
 def keep_hand_edits(migration_id: str, module_id: int) -> None:
-    """Take the directory as it is: the next run starts from these files."""
-    module, _directory = _editable(migration_id, module_id)
+    """Take the directory as it is: the next run starts from these files,
+    and is handed what a person committed since the last port."""
+    module, directory = _editable(migration_id, module_id)
+    commits = person_commits(directory)
     with database.connection_context():
         record_fingerprint(module)
+        module.kept_commit = commits[0]["sha"] if commits else module.kept_commit
         module.save()
 
 

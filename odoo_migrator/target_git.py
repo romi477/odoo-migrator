@@ -174,3 +174,66 @@ def _why(exc: Exception) -> str:
     stderr = getattr(exc, "stderr", "") or ""
 
     return stderr.strip() or str(exc)
+
+
+def _last_port(directory: Path) -> str:
+    """The newest commit of the app's in this directory: a port, or the
+    baseline. "" when there is none."""
+    answer = _git(
+        directory, "log", "-1", "--format=%H", f"--author={AUTHOR[1]}", "--", ".", check=False
+    )
+
+    return answer.stdout.strip() if answer.returncode == 0 else ""
+
+
+def person_commits(directory: Path) -> list[dict]:
+    """Commits by a person in this directory since the app's last one,
+    newest first: sha, short, author, subject.
+
+    Empty when the app has no commit here at all: a repository someone
+    brought has people's commits all the way down, and none of them came
+    after a port.
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+
+        return []
+    try:
+        last = _last_port(directory)
+        if not last:
+
+            return []
+        answer = _git(
+            directory, "log", "--format=%H%x00%h%x00%an%x00%s", f"{last}..HEAD", "--", ".",
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+
+        return []
+    commits = []
+    for line in answer.stdout.splitlines():
+        sha, short, author, subject = (line.split("\0", 3) + ["", "", ""])[:4]
+        if sha and author != AUTHOR[0]:
+            commits.append({"sha": sha, "short": short, "author": author, "subject": subject})
+
+    return commits
+
+
+def person_changes(directory: Path) -> str:
+    """What people committed in this directory since the app's last commit:
+    the commits, then their diff. "" when there is none."""
+    commits = person_commits(directory)
+    if not commits:
+
+        return ""
+    directory = Path(directory)
+    try:
+        diff = _git(directory, "diff", f"{_last_port(directory)}..HEAD", "--", ".").stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        diff = f"(the diff could not be read: {_why(exc)})"
+    listed = "\n".join(
+        f"{row['short']} {row['author']}: {row['subject']}" for row in commits
+    )
+
+    return f"{listed}\n\n{diff.strip()}"
+

@@ -202,3 +202,137 @@ def test_a_module_that_fails_is_left_uncommitted(plain):
 
     assert len(_log(root)) == 1
     assert git_state(root / "sale_x") == "dirty"
+
+
+def _person_commits(root, name, text, subject="fix by hand"):
+    (root / name / "models.py").write_text(text)
+    subprocess.run(
+        ["git", "-c", "user.name=Ann", "-c", "user.email=ann@example.com",
+         "commit", "-qam", subject],
+        cwd=root, check=True, capture_output=True,
+    )
+
+
+def _ported(created, root, name="sale_x"):
+    ensure_repository(created["id"])
+    (root / name / "models.py").write_text("NEW = 18\n")
+    commit_module(_module(name), job_id="job-1")
+
+
+def test_a_persons_commit_after_the_port_is_listed(plain):
+    from odoo_migrator.target_git import person_commits
+
+    created, root = plain
+    _ported(created, root)
+    _person_commits(root, "sale_x", "NEW = 18\nFIXED = 1\n")
+    _person_commits(root, "stock_x", "ELSEWHERE = 1\n", subject="not this module")
+
+    listed = person_commits(root / "sale_x")
+
+    assert [(row["author"], row["subject"]) for row in listed] == [("Ann", "fix by hand")]
+    assert len(listed[0]["short"]) >= 7
+
+
+def test_commits_before_any_port_are_somebody_elses_history(tmp_path):
+    """A repository the person brought has commits by people all the way
+    down. With no commit of the app's in this directory, there is no port
+    for them to come after."""
+    from odoo_migrator.target_git import person_commits
+
+    root = tmp_path / "checkout"
+    (root / "sale_x").mkdir(parents=True)
+    (root / "sale_x" / "models.py").write_text("OLD = 17\n")
+    _git(root, "init", "-q")
+    subprocess.run(
+        ["git", "-c", "user.name=Ann", "-c", "user.email=ann@example.com", "add", "."],
+        cwd=root, check=True,
+    )
+    subprocess.run(
+        ["git", "-c", "user.name=Ann", "-c", "user.email=ann@example.com",
+         "commit", "-qm", "theirs"],
+        cwd=root, check=True, capture_output=True,
+    )
+
+    assert person_commits(root / "sale_x") == []
+
+
+def test_a_rerun_over_a_persons_commit_does_not_start(plain):
+    """The directory is clean, so the uncommitted-changes check let it
+    through, and a re-run wrote the fix out of the working copy."""
+    from odoo_migrator.port_guard import HandEdits
+
+    created, root = plain
+    _ported(created, root)
+    _person_commits(root, "sale_x", "NEW = 18\nFIXED = 1\n")
+
+    with pytest.raises(HandEdits, match="committed by hand") as refused:
+        start_job(
+            migration_id=created["id"], module_id=_module("sale_x").id,
+            executor=_stub(), hub=EventHub(),
+        )
+
+    (entry,) = refused.value.modules
+    assert entry["files"] == []
+    assert [row["subject"] for row in entry["commits"]] == ["fix by hand"]
+
+
+def test_keep_lets_the_rerun_start_until_the_next_commit(plain):
+    from odoo_migrator.port_guard import hand_edits_blocking, keep_hand_edits
+
+    created, root = plain
+    _ported(created, root)
+    _person_commits(root, "sale_x", "NEW = 18\nFIXED = 1\n")
+    module_id = _module("sale_x").id
+
+    keep_hand_edits(created["id"], module_id)
+
+    assert hand_edits_blocking(created["id"], [module_id]) is None
+    _person_commits(root, "sale_x", "NEW = 18\nFIXED = 2\n", subject="another fix")
+    assert "committed by hand" in hand_edits_blocking(created["id"], [module_id])
+
+
+def test_the_port_is_given_what_a_person_committed_since_the_last_one(plain):
+    from odoo_migrator.paths import cartridges_dir
+    from odoo_migrator.runner.cartridge import Step, load_cartridge_file
+    from odoo_migrator.runner.context import StepContext
+    from odoo_migrator.runner.prompting import build_context
+
+    created, root = plain
+    _ported(created, root)
+    _person_commits(root, "sale_x", "NEW = 18\nFIXED = 1\n")
+    with database.connection_context():
+        migration = Migration.get_by_id(created["id"])
+    ctx = StepContext(
+        job_id="job-2", attempt=1, migration=migration, module=_module("sale_x"),
+        cartridge=load_cartridge_file(cartridges_dir() / "stock.yaml"),
+        sheller=None, sessions={}, emit=lambda _event: None,
+    )
+    step = Step(step="agent", id="port", context=["hand_changes"])
+
+    rendered = build_context(step, ctx)
+
+    assert "fix by hand" in rendered and "Ann" in rendered
+    assert "+FIXED = 1" in rendered
+    _person_commits(root, "stock_x", "ELSEWHERE = 1\n", subject="not this module")
+    assert "ELSEWHERE" not in build_context(step, ctx)
+
+
+def test_without_a_persons_commit_the_port_is_told_there_is_none(plain):
+    from odoo_migrator.target_git import person_changes
+
+    created, root = plain
+    _ported(created, root)
+
+    assert person_changes(root / "sale_x") == ""
+
+
+def test_the_stock_port_and_rewrite_carry_a_persons_changes():
+    from odoo_migrator.paths import cartridges_dir
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(cartridges_dir() / "stock.yaml")
+
+    for step_id in ("port", "rewrite"):
+        step = stock.step_by_id(step_id)
+        assert "hand_changes" in step.context
+        assert "carry them" in " ".join(step.prompt.split())

@@ -140,12 +140,23 @@ home directory or above gets none. Both steps say what they did in the run
 log. A module directory outside the project, or a machine without git,
 starts with a warning there that nothing can undo the port.
 
+**A person's commits stop a re-run too.** A fix committed in a module's
+directory after the agent's last commit there (a port, or the baseline)
+leaves it clean, and a new port is written from the old version, which
+does not have the fix. So the module does not start while such commits
+are there and nobody has chosen to run over them. In a repository you
+brought, commits made before the agent's first commit in that directory
+are its history, not edits after a port, and stop nothing. A run that
+goes ahead hands `port` and `rewrite` those commits and their diff
+(`hand_changes`) to carry into the new port.
+
 When **Run** on Pipeline is refused this way, the run card lists each module
-with its changed files and two ways out: **Keep and run** takes the files as
-they are, and **Discard changes** — after a confirm — runs `git restore` and
-`git clean` in that module's directory only, back to its last commit —
-the last port of it that passed, or the baseline. Both start the queue
-again.
+with its changed files, its commits by a person, or both, and the ways out:
+**Keep and run** takes the files as they are and runs over the commits
+listed — a later commit stops it again — and, when there are uncommitted
+files, **Discard changes** — after a confirm — runs `git restore` and
+`git clean` in that module's directory only, back to its last commit.
+Committed changes have nothing to discard. Both start the queue again.
 
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.

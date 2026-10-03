@@ -22,6 +22,7 @@ CONTEXT_ITEMS = (
     "module_source",
     "prior_answers",
     "previous_diff",
+    "hand_changes",
     "last_failure",
 )
 SCHEMA_VERSION = 1

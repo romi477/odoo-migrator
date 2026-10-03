@@ -166,6 +166,9 @@ def _render(item: str, ctx: StepContext) -> str:
     if item == "previous_diff":
 
         return _clipped(ctx.previous_diff, MAX_DIFF_CHARS) or "(none)"
+    if item == "hand_changes":
+
+        return _hand_changes(ctx)
     if item == "last_failure":
 
         return ctx.last_failure or "(none)"
@@ -397,6 +400,21 @@ def _source_rank(relative: str, notes: set[str]) -> int:
         return 2
 
     return 3
+
+
+def _hand_changes(ctx: StepContext) -> str:
+    """What a person committed in the target since the agent's last port.
+
+    A re-run writes the module again from the old version, and a fix someone
+    committed after the last port is not in the old version: without this it
+    was written out of the working copy.
+    """
+    from odoo_migrator.target_git import person_changes
+
+    directory = module_root(ctx.migration, ctx.module, "new")
+    text = person_changes(directory) if directory is not None else ""
+
+    return _clipped(text, MAX_DIFF_CHARS) or "(none)"
 
 
 def _clipped(text: str, limit: int) -> str:

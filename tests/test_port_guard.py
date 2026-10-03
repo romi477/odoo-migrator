@@ -406,3 +406,40 @@ def test_discard_and_run_starts_the_queue_on_the_committed_code(client, tmp_path
     assert page.status_code == 200
     assert run_state(row.id) == "running"
     assert (checkout / "sale_custom" / "models.py").read_text() == "OLD = 17\n"
+
+
+def test_run_shows_a_persons_commits_and_only_the_way_that_keeps_them(client, tmp_path):
+    """Committed changes have nothing to discard: the card lists the commits
+    and offers to run with them, the agent carrying them into the port."""
+    from test_batch import _prepared
+
+    _row, sale = _prepared(client)
+    checkout = tmp_path / "checkout"
+    (checkout / "sale_custom").mkdir(parents=True)
+    (checkout / "sale_custom" / "models.py").write_text("PORTED = 18\n")
+    subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+    for author, text, subject in (
+        ("odoo-migrator <odoo-migrator@localhost>", None, "odoo-migrator: port sale_custom"),
+        ("Ann <ann@example.com>", "PORTED = 18\nFIXED = 1\n", "keep the shop margin"),
+    ):
+        if text:
+            (checkout / "sale_custom" / "models.py").write_text(text)
+        name, email = author[:-1].split(" <")
+        _git(checkout, "add", ".")
+        subprocess.run(
+            ["git", "-c", f"user.name={name}", "-c", f"user.email={email}",
+             "commit", "-qm", subject],
+            cwd=checkout, check=True, capture_output=True,
+        )
+    with database.connection_context():
+        Module.update(new_path=str(checkout / "sale_custom"), path_problem="").where(
+            Module.id == sale["id"]
+        ).execute()
+    client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+
+    page = client.post("/run/queue/run", follow_redirects=True)
+
+    panel = page.text[page.text.index("data-hand-edits") :]
+    assert "keep the shop margin" in panel and "Ann" in panel
+    assert f'action="/run/modules/{sale["id"]}/keep"' in panel
+    assert f'action="/run/modules/{sale["id"]}/discard"' not in panel

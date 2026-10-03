@@ -366,6 +366,7 @@ cartridge author selects from a list, never writes an expression.
 | `module_source` | the module as it exists on the old version |
 | `prior_answers` | what earlier agent steps in this job answered |
 | `previous_diff` | everything written to the module since the job began: the module now, against the module as the job found it |
+| `hand_changes` | what a person committed in the module's target directory since the app's last commit there, as the commits and their diff; `(none)` when nothing |
 | `last_failure` | the output of the step that failed: test report, traceback, lint findings |
 
 This is where `patch` and `rewrite` stop being a distinction hidden in code:
@@ -421,11 +422,16 @@ pipeline:
     id: port
     sessions: [old, new]
     tools: [exec, source, read_file, write_file]
-    context: [rules, module_source, prior_answers]
+    context: [rules, module_source, prior_answers, hand_changes]
     prompt: |
       Port the module to the target version. Write files into the new
       project. The old container's session stays open — use it whenever
       you need to check what the original actually does.
+
+      Hand changes are what a person committed in the new project since
+      the last port of this module. They are not in the old version:
+      carry them into this port, unless the rules make one of them wrong —
+      then say which, and why.
 
   - step: lint
   - step: upgrade
@@ -525,11 +531,12 @@ on_failure:
       fresh: true
       sessions: [old, new]
       tools: [exec, source, read_file, write_file, reopen]
-      context: [rules, module_source, prior_answers]
+      context: [rules, module_source, prior_answers, hand_changes]
       prompt: |
         The previous port was judged unsound, for the reason in the
         diagnosis. Write the module again from the old version. You are
-        not given the previous attempt; do not reconstruct it.
+        not given the previous attempt; do not reconstruct it. Hand
+        changes are a person's, not the previous attempt: carry them.
 
   retry:
     resume_at: lint
