@@ -13,8 +13,9 @@ FAILURE_LANE = "lane:on_failure"
 # falls back to the kind, because its prompt is too long for a tooltip.
 _HINTS = {
     "understand": (
-        "Reads the project's own notes (AGENTS.md, READMEs, the module's readme/ and docs/), then the module "
-        "on the old Odoo through a live session. Describes current behaviour "
+        "Reads the project's own notes (AGENTS.md, READMEs, the module's "
+        "readme/ and docs/), then the module on the old Odoo through a live "
+        "session. Describes current behaviour "
         "and what will break, then builds a fixture recipe and rolls it back. "
         "Later steps replay that recipe."
     ),

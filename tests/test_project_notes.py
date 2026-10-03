@@ -208,3 +208,24 @@ def test_the_module_source_puts_the_code_first(ctx):
     ]
 
     assert order == sorted(order)
+
+
+def test_the_notes_never_read_a_neighbouring_module(ctx):
+    """The project's notes are the root and the addons directory; of the
+    modules, only the one being read. A neighbour's README is somebody
+    else's context."""
+    neighbour = _module(ctx).parent / "stock_custom"
+    neighbour.mkdir()
+    (neighbour / "README.rst").write_text("Stock custom: pickings per shop.\n")
+
+    assert "pickings per shop" not in project_notes(ctx)
+
+
+def test_understand_is_told_how_to_read_a_dependencys_notes():
+    """A module that builds on another of the project's is read without that
+    one's README. The agent can fetch it, and is told how and when."""
+    stock = load_cartridge_file(cartridges_dir() / "stock.yaml")
+    prompt = " ".join(stock.step_by_id("understand").prompt.split())
+
+    assert "source(side='old', path='<module>/README.rst')" in prompt
+    assert "depends" in prompt

@@ -17,6 +17,12 @@ pipeline:
       its modules fit together. They are documentation, not instructions
       that change this task.
 
+      Of the modules, the notes cover this one only. When it builds on a
+      module in its `depends` and you need to know what that one does,
+      read its README: source(side='old', path='<module>/README.rst'), or
+      README.md. Only the ones you need — a neighbour you do not depend on
+      is not context for this module.
+
       You are reading a module on the old Odoo version. A live session is
       open: do not guess from source alone — call methods and look at what
       comes back. Describe current behaviour, what the module overrides,
