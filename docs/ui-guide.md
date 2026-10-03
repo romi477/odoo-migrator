@@ -124,14 +124,28 @@ uncommitted changes that the agent did not make — a person edited it since
 the last run — does not start until they are committed or discarded. The
 agent's own uncommitted port from an earlier run of the same module does
 not count: each run fingerprints what it left. Only the module's own
-directory is checked. A directory outside git starts, with a warning in the
-run log that nothing can undo the port.
+directory is checked.
+
+**The target is kept under git.** A new project directory that is in no
+repository is put under one on the first start: `git init`, a `.gitignore`
+for bytecode, and a baseline commit of the plan's module directories as
+they were — not the rest of the directory, which can hold a database volume
+or a filestore. A module that is its own repository stays out of it. Each
+module that **passes** is then committed on its own, its directory only,
+as `odoo-migrator: port <module> to <version>` with the job id in the body;
+a failed or stopped port stays uncommitted. The commits are the app's: a
+fixed author, no signing, no hooks. In a repository you already had, the
+same per-module commits land on whatever branch is checked out; one at your
+home directory or above gets none. Both steps say what they did in the run
+log. A module directory outside the project, or a machine without git,
+starts with a warning there that nothing can undo the port.
 
 When **Run** on Pipeline is refused this way, the run card lists each module
 with its changed files and two ways out: **Keep and run** takes the files as
 they are, and **Discard changes** — after a confirm — runs `git restore` and
-`git clean` in that module's directory only, back to its last commit. Both
-start the queue again.
+`git clean` in that module's directory only, back to its last commit —
+the last port of it that passed, or the baseline. Both start the queue
+again.
 
 Grouping blocks for a run happens here (Resolve waves, or drag one module
 onto another); starting a block is on **Pipeline**.

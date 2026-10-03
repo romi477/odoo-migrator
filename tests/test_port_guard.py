@@ -237,18 +237,22 @@ def test_bytecode_odoo_left_in_the_checkout_is_not_a_change(repo):
 
 
 def test_a_module_outside_git_starts_with_a_warning_in_its_log(tmp_path):
+    """The project directory is put under git on the first start. A module
+    kept outside it is not, and nothing can undo a port written there."""
     from odoo_migrator.runlog import lines
 
     init_db(tmp_path / "plain.sqlite")
     plain = tmp_path / "plain"
-    (plain / "sale_x").mkdir(parents=True)
+    plain.mkdir()
+    elsewhere = tmp_path / "elsewhere" / "sale_x"
+    elsewhere.mkdir(parents=True)
     created = create_migration(
         name="Plain", accent="violet", source_version="19.0", target_version="20.0",
         old_project_path=str(tmp_path / "old"), new_project_path=str(plain),
     )
     with database.connection_context():
         module = Module.create(
-            migration=created["id"], technical_name="sale_x", new_path=str(plain / "sale_x"),
+            migration=created["id"], technical_name="sale_x", new_path=str(elsewhere),
         )
 
     job = start_job(

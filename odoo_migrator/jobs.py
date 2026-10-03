@@ -41,6 +41,7 @@ from odoo_migrator.models import (
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.port_guard import git_state, raise_hand_edits, record_fingerprint
 from odoo_migrator.rules import RulesError, append_finding
+from odoo_migrator.target_git import commit_module, ensure_repository
 
 # What a restart reconciles. A job parked on waiting_for_human is not a
 # casualty of the restart — the human still owes it an answer — so it is
@@ -275,6 +276,9 @@ def start_job(
     unplaced = path_problems_blocking(migration_id, [module_id])
     if unplaced:
         raise ContractError(unplaced)
+    # Before the guard, which reads git: a target outside it is put under it
+    # with a baseline, so the hand-edit check has something to read.
+    put_under_git = ensure_repository(migration_id)
     raise_hand_edits(migration_id, [module_id])
     step = steps_for_migration(migration_id).get(name)
     # A batch already passed the wave check to start. Re-checking here
@@ -355,7 +359,10 @@ def start_job(
             module.save()
         _emit(hub, job, module)
         target_dir = module_root(migration, module, "new")
-    # A port is written in place, and git is its undo. Without it, say so
+    if put_under_git:
+        runlog.write(job_id, source="runner", text=put_under_git, hub=hub)
+    # A port is written in place, and git is its undo. Without it — no git
+    # on this machine, or a module directory outside the project — say so
     # where the run is read; it is not a reason to refuse.
     if target_dir is not None and git_state(target_dir) == "not_git":
         runlog.write(
@@ -762,6 +769,13 @@ def apply_result(body, hub: EventHub) -> str | None:
         with database.atomic():
             _record_result(job, module, payload)
         _emit(hub, job, module)
+    if payload.status == "passed":
+        # One module, one commit. A failed port stays uncommitted: the
+        # fingerprint still tells the next run it is the agent's.
+        committed = commit_module(module, job_id=payload.job_id)
+        if committed:
+            level = "info" if committed.startswith("committed") else "warn"
+            runlog.write(payload.job_id, source="runner", text=committed, level=level, hub=hub)
 
     return payload.job_id
 
