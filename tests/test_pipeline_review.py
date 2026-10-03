@@ -1317,3 +1317,20 @@ def test_a_green_run_says_which_specs_it_covered(ctx_for, sheller):
 
     assert result.ok is True
     assert f"{name} (2 tests) passed" in result.output
+
+
+def test_the_failure_lane_can_run_the_test_that_failed():
+    """`diagnose` and `patch` had no `run_test`: the diagnosis read a log tail
+    and could not run the failing spec again, and a fix waited a whole lap —
+    lint, upgrade, every test — to learn whether it worked."""
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+    diagnose = stock.step_by_id("diagnose")
+    patch = stock.step_by_id("patch")
+
+    assert {"run_test", "list_tests"} <= set(diagnose.tools)
+    assert {"run_test", "reopen"} <= set(patch.tools)
+    assert "run the spec that failed" in " ".join(patch.prompt.split())

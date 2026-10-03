@@ -474,14 +474,16 @@ on_failure:
     - step: agent
       id: diagnose
       sessions: [new]
-      tools: [exec, source, journal, history, read_file]
+      tools: [exec, source, journal, history, read_file, run_test, list_tests]
       context: [rules, previous_diff, last_failure, prior_answers]
       raises: [needs_human, reexamine_old, small_fix, start_over]
       prompt: |
         Work out why it failed. Logs, the journal, source and a live
-        session are all available. Decide whether a targeted fix is
-        enough or the port should be started over, whether you need to
-        look at the old version again, and whether this needs a human.
+        session are all available. When a test failed and its log does not
+        say why, run that one spec again on its own — not the module.
+        Decide whether a targeted fix is enough or the port should be
+        started over, whether you need to look at the old version again,
+        and whether this needs a human.
 
     - step: ask_human
       when: needs_human
@@ -500,11 +502,16 @@ on_failure:
       id: patch
       when: small_fix
       sessions: [new]
-      tools: [exec, source, read_file, write_file, reopen]
+      tools: [exec, source, read_file, write_file, reopen, run_test]
       context: [rules, previous_diff, last_failure, prior_answers]
       prompt: |
         Apply the fix the diagnosis named. You have the previous diff —
         change what is wrong, leave the rest alone.
+
+        When a test failed, reopen after the fix and run the spec that
+        failed, to see it pass before you finish. Not the whole module:
+        the tests step runs that again after you, and its outcome is the
+        one recorded.
 
     - step: agent
       id: rewrite
