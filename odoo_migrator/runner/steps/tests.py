@@ -1,4 +1,4 @@
-"""Run the module's own test classes. No classes is a flag, not a failure."""
+"""Run the module's own tests. No test classes is a flag, not a failure."""
 
 from __future__ import annotations
 
@@ -13,6 +13,13 @@ from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
 # Seconds one spec may run. Past the daemon's default of 300: a module's own
 # test class on a real database is not a unit test.
 TEST_TIMEOUT = 1800.0
+# A whole module: the most the daemon allows.
+MODULE_TEST_TIMEOUT = 3600.0
+# Failed tests run again one by one, for the log that says why. Each sets its
+# class up again; past this many the rest are named and left to the agent.
+RERUN_LIMIT = 10
+# The first Sheller that runs a bare module and lists what failed.
+MODULE_RUNS_SINCE = (1, 8, 3)
 # The end of the log is where the traceback and the summary are. `diagnose`
 # reads this as `last_failure`; "1 failure" alone gives it nothing to work on.
 _LOG_TAIL = 60
@@ -44,6 +51,78 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if not classes:
 
         return StepResult(ok=True, flags={"no_tests"}, output=f"{name} declares no tests")
+    if _runs_modules(ctx):
+        result = _by_module(ctx, name)
+        if result is not None:
+
+            return result
+
+    return _by_class(ctx, name, classes)
+
+
+def _runs_modules(ctx: StepContext) -> bool:
+    """Whether this daemon takes a bare module. One before 1.8.3 answers
+    `invalid_test_spec`, and lists nothing as `failed`."""
+    try:
+        version = str(ctx.sheller.health().get("version") or "")
+    except ShellerError:
+
+        return False
+
+    return tuple(int(piece) for piece in version.split(".") if piece.isdigit()) >= MODULE_RUNS_SINCE
+
+
+def _by_module(ctx: StepContext, name: str) -> StepResult | None:
+    """One run of the module's standard tests, then each failed spec alone.
+
+    A module run is one registry load and one set-up per class, and it
+    answers with `failed`: every failing test as a spec. Run alone, a spec
+    answers with its log tail, which is where `diagnose` finds the reason.
+    None when the run found no tests: a module run leaves out `-standard`
+    and `external` classes, and when those are all a module has, its
+    classes on disk are still its tests.
+    """
+    report, problem, outlived = _run_one(ctx, name, "", timeout=MODULE_TEST_TIMEOUT)
+    outcome = report.get("test") if isinstance(report.get("test"), dict) else {}
+    if not report.get("error") and outcome and not outcome.get("tests_run"):
+
+        return None
+    if not problem:
+
+        return StepResult(ok=True, output=f"{name} ({_count(report)}) passed")
+    listed = [
+        entry for entry in report.get("failed") or []
+        if isinstance(entry, dict) and entry.get("test")
+    ]
+    if outlived or not listed:
+
+        return StepResult(
+            ok=False, flags={"tests_failed"}, output=f"{name}: {problem}{_tail(report)}"
+        )
+    failed: list[str] = []
+    reruns = [entry for entry in listed if entry["test"] != name]
+    if len(reruns) < len(listed):
+        # setUpModule: no tag names a file, and the module would fail again.
+        failed.append(f"{name}: a test file failed to set up{_tail(report)}")
+    stopped = False
+    for index, entry in enumerate(reruns, start=1):
+        spec, kind = str(entry["test"]), entry.get("kind") or "failure"
+        if stopped or index > RERUN_LIMIT:
+            failed.append(f"{spec}: {kind} in the module run, not run again")
+            continue
+        report, problem, outlived = _run_one(ctx, spec, f"{index}/{len(reruns)}")
+        if problem:
+            failed.append(f"{spec}: {problem}{_tail(report)}")
+        else:
+            failed.append(f"{spec}: red in the module run, green alone")
+        # Each of the rest can take as long.
+        stopped = outlived
+
+    return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(failed))
+
+
+def _by_class(ctx: StepContext, name: str, classes: list) -> StepResult:
+    """A daemon before 1.8.3, or a module with no standard tests."""
     # One run per class, not per method. Every run sets its class up again
     # — the integration, its crons, its users — and per method that was
     # seventy runs of seven seconds, ten minutes for a green module. A red
@@ -92,7 +171,9 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     )
 
 
-def _run_one(ctx: StepContext, spec: str, where: str) -> tuple[dict, str, bool]:
+def _run_one(
+    ctx: StepContext, spec: str, where: str, *, timeout: float = TEST_TIMEOUT
+) -> tuple[dict, str, bool]:
     """Run one spec, and put it in the run log as it ends: a step that said
     nothing between "started" and its end read as a hang.
 
@@ -107,12 +188,10 @@ def _run_one(ctx: StepContext, spec: str, where: str) -> tuple[dict, str, bool]:
     started = time.perf_counter()
     outlived = False
     try:
-        report = ctx.sheller.run_test(
-            session_id, spec, write_key=write_key, timeout=TEST_TIMEOUT
-        )
+        report = ctx.sheller.run_test(session_id, spec, write_key=write_key, timeout=timeout)
     except ShellerTimeout:
         report, outlived = {}, True
-        problem = f"ran past {TEST_TIMEOUT:.0f}s" + _free(ctx)
+        problem = f"ran past {timeout:.0f}s" + _free(ctx)
     except ShellerError as exc:
         report, problem = {}, str(exc)
     else:
@@ -121,7 +200,7 @@ def _run_one(ctx: StepContext, spec: str, where: str) -> tuple[dict, str, bool]:
     said = f"{_count(report)} passed" if not problem else problem
     _record(
         ctx, "run_test", "new", session_id, str(report.get("id") or ""),
-        _elapsed(started), not problem, f"{where} {spec} · {said}",
+        _elapsed(started), not problem, f"{where} {spec} · {said}".lstrip(),
     )
 
     return report, problem, outlived

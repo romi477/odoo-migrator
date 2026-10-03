@@ -1305,7 +1305,8 @@ def test_a_source_read_can_be_opened_in_the_journal(ctx_for, sheller):
 
 def test_a_green_run_says_which_specs_it_covered(ctx_for, sheller):
     """"1 test class(es) passed" is the same sentence whether the run covered
-    the module's own case or a class that came in with a dependency."""
+    the module's own case or a class that came in with a dependency. A
+    module run names the module and the count."""
     ctx = ctx_for()
     name = ctx.module.technical_name
     sheller.tests_for(
@@ -1315,4 +1316,4 @@ def test_a_green_run_says_which_specs_it_covered(ctx_for, sheller):
     result = tests.run(Step(kind="tests"), ctx)
 
     assert result.ok is True
-    assert f"{name}.TestThing (2 tests)" in result.output
+    assert f"{name} (2 tests) passed" in result.output

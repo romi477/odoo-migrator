@@ -53,16 +53,25 @@ DEFAULT_GRAPH = [
 # double that is looser than the daemon is how a bad spec reached
 # production in the first place.
 TEST_SPEC_RE = re.compile(r"^(\w+)\.(\w+)(?:\.(\w+))?$")
+# Sheller 1.8.3 takes a bare module as well, and lists what failed.
+MODULE_SPEC_RE = re.compile(r"^(\w+)(?:\.(\w+)(?:\.(\w+))?)?$")
+MODULE_RUNS_SINCE = (1, 8, 3)
+
+
+def _version(text: str) -> tuple[int, ...]:
+
+    return tuple(int(piece) for piece in text.split(".") if piece.isdigit())
 
 class FakeShellerClient:
     def __init__(
         self,
         *,
-        version: str = "1.7.0",
+        version: str = "1.8.3",
         container: bool = False,
         mcp: dict | None = None,
     ):
         self._version = version
+        self._module_runs = _version(version) >= MODULE_RUNS_SINCE
         self._container = container
         self._mcp = mcp
         self._sessions: dict[str, dict] = {}
@@ -287,21 +296,28 @@ class FakeShellerClient:
     ) -> dict:
         """Refuse a malformed spec, and answer a run the way the daemon does.
 
-        The spec rule is `module.TestClass` or `module.TestClass.test_method`
-        — a looser double let `module.Class.{'name': ...}` through. The
-        answer is the daemon's too: a red run is `error: None` with
-        `test.success` false. It used to be `{"ok": True}`, and the step that
-        read it counted every failing test as a pass.
+        The spec rule is `module.TestClass` or `module.TestClass.test_method`,
+        and from 1.8.3 a bare `module` too — a looser double let
+        `module.Class.{'name': ...}` through. The answer is the daemon's: a
+        red run is `error: None` with `test.success` false. It used to be
+        `{"ok": True}`, and the step that read it counted every failing test
+        as a pass. From 1.8.3 every answer carries `failed`, one spec per
+        failing test, ready to run again.
         """
         session = self._require(session_id, write_key)
-        if not TEST_SPEC_RE.match(test or ""):
+        rule = MODULE_SPEC_RE if self._module_runs else TEST_SPEC_RE
+        if not rule.match(test or ""):
             raise ShellerError(
                 "invalid_test_spec",
                 status=400,
                 detail={
                     "error": "invalid_test_spec",
                     "test": test,
-                    "recovery": "use 'module.TestClass' or 'module.TestClass.test_method'",
+                    "recovery": (
+                        "use 'module', 'module.TestClass' or 'module.TestClass.test_method'"
+                        if self._module_runs
+                        else "use 'module.TestClass' or 'module.TestClass.test_method'"
+                    ),
                 },
             )
         self.tests_run.append({"test": test, "session_id": session_id, "timeout": timeout})
@@ -316,23 +332,17 @@ class FakeShellerClient:
         # Odoo's runner rolls back whatever the session held before testing.
         discarded = session["pending_commands"] > 0
         session["pending_commands"] = 0
-        module, test_class, test_method = TEST_SPEC_RE.match(test).groups()
+        module, test_class, test_method = rule.match(test).groups()
         outcome = {
             "module": module,
             "test_class": test_class,
             "test_method": test_method,
-            "tests_run": 1,
-            "failures": 0,
-            "errors": 0,
             "skipped": 0,
-            "success": True,
+            **self._outcome(module, test),
         }
-        if test_method is None:
-            outcome.update(self._class_outcome(module, test))
-        outcome.update(self.test_outcomes.get(test, {}))
         stderr = list(outcome.pop("stderr", []))
-
-        return {
+        failed = outcome.pop("failed")
+        answer = {
             "stdout": "",
             "stdout_truncated": False,
             "result": None,
@@ -344,25 +354,47 @@ class FakeShellerClient:
             "stderr_truncated": False,
             "discarded_pending": discarded,
         }
+        if self._module_runs:
+            answer["failed"] = failed
 
-    def _class_outcome(self, module: str, class_spec: str) -> dict:
-        """A class runs every method in it, as the daemon's runner does: the
-        count is theirs, and one red method makes the class red."""
-        methods = []
-        for item in self._catalogues.get(module, []):
-            if item.get("spec") == class_spec:
-                methods = [method["spec"] for method in item.get("methods") or []]
-        if not methods:
+        return answer
 
-            return {}
-        merged = {"tests_run": 0, "failures": 0, "errors": 0, "success": True, "stderr": []}
-        for spec in methods:
-            one = self.test_outcomes.get(spec, {})
-            merged["tests_run"] += one.get("tests_run", 1)
-            merged["failures"] += one.get("failures", 0)
-            merged["errors"] += one.get("errors", 0)
-            merged["success"] = merged["success"] and one.get("success", True)
-            merged["stderr"].extend(one.get("stderr", []))
+    def _outcome(self, module: str, spec: str) -> dict:
+        """A spec's counts and what in it failed, as the daemon's runner sees
+        them: a class runs every method in it and a module every class, the
+        counts are theirs, and one red test makes the whole run red.
+
+        `test_outcomes[spec]` is laid over the result, `failed` included —
+        how a test makes a fixture fail outside any test method.
+        """
+        parts = spec.count(".")
+        if parts == 0:
+            children = [item.get("spec") for item in self._catalogues.get(module, [])]
+        elif parts == 1:
+            children = []
+            for item in self._catalogues.get(module, []):
+                if item.get("spec") == spec:
+                    children = [method["spec"] for method in item.get("methods") or []]
+        else:
+            children = []
+        merged = {"tests_run": 1, "failures": 0, "errors": 0, "success": True, "stderr": []}
+        failed: list[dict] = []
+        if children:
+            merged["tests_run"] = 0
+            for child in children:
+                one = self._outcome(module, child)
+                merged["tests_run"] += one.get("tests_run", 1)
+                merged["failures"] += one.get("failures", 0)
+                merged["errors"] += one.get("errors", 0)
+                merged["success"] = merged["success"] and one.get("success", True)
+                merged["stderr"].extend(one.get("stderr", []))
+                failed.extend(one["failed"])
+        merged.update(self.test_outcomes.get(spec, {}))
+        if "failed" not in self.test_outcomes.get(spec, {}):
+            if not merged["success"] and not failed:
+                kind = "error" if merged.get("errors") else "failure"
+                failed = [{"test": spec, "kind": kind}]
+            merged["failed"] = failed
 
         return merged
 
