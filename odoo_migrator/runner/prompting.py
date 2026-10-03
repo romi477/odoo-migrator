@@ -17,6 +17,7 @@ from odoo_migrator.rules import (
 )
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.snapshot import module_files
 
 # The ceiling a cartridge cannot raise. "A cartridge may narrow, never widen"
 # is the one rule that keeps an uploaded file from granting itself something,
@@ -173,17 +174,31 @@ def _render(item: str, ctx: StepContext) -> str:
 
 
 # What a project says about itself, for the step that first reads a module.
-NOTE_NAMES = ("AGENTS.md", "CLAUDE.md", "README.md", "README.rst")
+# Matched without regard to case: `README.md` found `readme.md` on a Mac and
+# not on Linux. In this order, within one directory.
+NOTE_NAMES = ("agents.md", "claude.md", "readme.md", "readme.rst", "readme.txt", "readme")
+# A module's own documentation directories. `readme/` is OCA's: README.rst is
+# built from it, and not every checkout has the built one.
+NOTE_DIRS = ("readme", "docs", "doc")
+NOTE_SUFFIXES = (".md", ".rst", ".txt")
+# The `readme/` fragments that say what a module does, in reading order.
+# CONTRIBUTORS, CREDITS and HISTORY name people and releases, not behaviour.
+OCA_FRAGMENTS = ("description", "context", "usage", "configure", "install", "roadmap")
 MAX_NOTE_CHARS = 8000
 MAX_NOTES_CHARS = 24000
+# The module's own notes have a budget of their own. Under one budget, broad
+# to narrow, a project's long READMEs used it up and the notes about this
+# module were the ones cut.
+MAX_MODULE_NOTES_CHARS = 24000
 
 
 def project_notes(ctx: StepContext) -> str:
     """AGENTS.md, CLAUDE.md and READMEs on the old side, broad to narrow.
 
     The project directory (where the compose file is), then every addons
-    directory the plan's modules are in, then the module's own directory.
-    Each file is clipped, and so is the whole: a README can be a book.
+    directory the plan's modules are in, then the module's own directory with
+    its `readme/`, `docs/` or `doc/`. Each file is clipped, and so is each
+    of the two groups: a README can be a book.
     """
     from odoo_migrator.db import database
     from odoo_migrator.models import Module
@@ -203,33 +218,84 @@ def project_notes(ctx: StepContext) -> str:
             )
         ]
     places.extend(sorted({Path(path).parent for path in paths}))
-    module_dir = _old_root(ctx)
-    if module_dir is not None:
-        places.append(Path(module_dir))
     seen: set[Path] = set()
     sections: list[str] = []
-    total = 0
-    for place in places:
-        for name in NOTE_NAMES:
-            path = place / name
-            try:
-                resolved = path.resolve()
-            except OSError:
-                continue
-            if resolved in seen or not path.is_file():
-                continue
-            seen.add(resolved)
-            text = path.read_text(encoding="utf-8", errors="replace").strip()
-            if len(text) > MAX_NOTE_CHARS:
-                text = text[:MAX_NOTE_CHARS] + "\n… (clipped)"
-            if total + len(text) > MAX_NOTES_CHARS:
-                sections.append("… (further notes clipped)")
-
-                return "\n\n".join(sections)
-            total += len(text)
-            sections.append(f"--- {_note_label(path, root)} ---\n{text}\n--- end ---")
+    broad = [path for place in places for path in _note_files(place)]
+    _collect(broad, root, seen, sections, MAX_NOTES_CHARS)
+    module_dir = _old_root(ctx)
+    if module_dir is not None:
+        _collect(module_notes(Path(module_dir)), root, seen, sections, MAX_MODULE_NOTES_CHARS)
 
     return "\n\n".join(sections) if sections else "(no project notes found)"
+
+
+def _note_files(place: Path) -> list[Path]:
+    """The note files directly in `place`, in NOTE_NAMES order."""
+    try:
+        entries = [entry for entry in place.iterdir() if entry.name.lower() in NOTE_NAMES]
+    except OSError:
+
+        return []
+    found = [entry for entry in entries if entry.is_file()]
+
+    return sorted(found, key=lambda entry: (NOTE_NAMES.index(entry.name.lower()), entry.name))
+
+
+def module_notes(module_dir: Path) -> list[Path]:
+    """A module's own notes: its README and the like, then its `readme/`
+    fragments, then whatever `docs/` or `doc/` holds as text."""
+    found = _note_files(module_dir)
+    try:
+        directories = [
+            entry
+            for entry in module_dir.iterdir()
+            if entry.name.lower() in NOTE_DIRS and entry.is_dir()
+        ]
+    except OSError:
+
+        return found
+    for directory in sorted(directories, key=lambda entry: NOTE_DIRS.index(entry.name.lower())):
+        texts = [
+            path
+            for path in module_files(directory)
+            if path.suffix.lower() in NOTE_SUFFIXES
+        ]
+        if directory.name.lower() == "readme":
+            texts = sorted(
+                (path for path in texts if path.stem.lower() in OCA_FRAGMENTS),
+                key=lambda path: OCA_FRAGMENTS.index(path.stem.lower()),
+            )
+        found.extend(texts)
+
+    return found
+
+
+def _collect(
+    paths: list[Path], root: Path | None, seen: set[Path], sections: list[str], limit: int
+) -> None:
+    total = 0
+    for path in paths:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+        if not text:
+            continue
+        if len(text) > MAX_NOTE_CHARS:
+            text = text[:MAX_NOTE_CHARS] + "\n… (clipped)"
+        if total + len(text) > limit:
+            sections.append("… (further notes clipped)")
+
+            return
+        total += len(text)
+        sections.append(f"--- {_note_label(path, root)} ---\n{text}\n--- end ---")
 
 
 def _note_label(path: Path, root: Path | None) -> str:
@@ -278,24 +344,59 @@ _ROLES = {
 }
 
 
+# Translations: a .po file is tens of thousands of lines nobody ports, and
+# `i18n/` sorts before `models/`, so a few of them used the whole budget.
+SOURCE_SKIPPED_SUFFIXES = (".po", ".pot")
+
+
 def _module_source(ctx: StepContext) -> str:
+    """The module's text files, the code first.
+
+    Alphabetical, the code came after `data/` and `i18n/`, and a module with
+    a large data file was clipped before the model saw a single model. The
+    manifest, Python, XML, the rest, the module's own notes, then `static/`.
+    """
     root = _old_root(ctx)
     if root is None or not root.is_dir():
 
         return "(no module source)"
-    chunks = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or "__pycache__" in path.parts:
+    notes = {path.relative_to(root).as_posix() for path in module_notes(root)}
+    files = []
+    for path in module_files(root):
+        if path.suffix.lower() in SOURCE_SKIPPED_SUFFIXES:
             continue
         relative = path.relative_to(root).as_posix()
+        files.append((_source_rank(relative, notes), relative, path))
+    chunks = []
+    for _rank, relative, path in sorted(files):
         try:
             text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (OSError, UnicodeDecodeError):
             continue
         chunks.append(f"### {relative}\n{text}")
     rendered = "\n\n".join(chunks) or "(empty)"
 
     return _clipped(rendered, MAX_SOURCE_CHARS)
+
+
+def _source_rank(relative: str, notes: set[str]) -> int:
+    if relative == "__manifest__.py":
+
+        return 0
+    if relative.split("/", 1)[0] == "static":
+
+        return 5
+    if relative in notes:
+
+        return 4
+    if relative.endswith(".py"):
+
+        return 1
+    if relative.endswith(".xml"):
+
+        return 2
+
+    return 3
 
 
 def _clipped(text: str, limit: int) -> str:

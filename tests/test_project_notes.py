@@ -90,3 +90,121 @@ def test_the_stock_understand_step_reads_them_first():
 
     assert "project_notes" in understand.context
     assert "project notes" in understand.prompt.lower()
+
+
+def _module(ctx):
+    from pathlib import Path
+
+    return Path(ctx.module.old_path)
+
+
+def test_a_readme_is_found_whatever_its_case_and_suffix(ctx):
+    """`README.md` was looked up by that exact name. On a Mac that finds
+    `readme.md` too, and on Linux it does not; `README` and `README.txt`
+    were never looked for."""
+    module = _module(ctx)
+    (module / "README.rst").unlink()
+    (module / "readme.md").write_text("Lower-case readme.\n")
+    (module / "README").write_text("No suffix at all.\n")
+    (module / "README.txt").write_text("Plain text readme.\n")
+
+    notes = project_notes(ctx)
+
+    assert "sale_custom/readme.md" in notes and "Lower-case readme." in notes
+    assert "No suffix at all." in notes
+    assert "Plain text readme." in notes
+
+
+def test_an_oca_readme_directory_is_read(ctx):
+    """OCA modules keep their description in `readme/`; README.rst is built
+    from it, and not every checkout has the built one."""
+    readme = _module(ctx) / "readme"
+    readme.mkdir()
+    (readme / "USAGE.rst").write_text("Open a shop, set its margin.\n")
+    (readme / "DESCRIPTION.md").write_text("Margins per shop, on sale orders.\n")
+    (readme / "CONTRIBUTORS.md").write_text("* Somebody <somebody@example.com>\n")
+
+    notes = project_notes(ctx)
+
+    assert "sale_custom/readme/DESCRIPTION.md" in notes
+    assert notes.index("Margins per shop") < notes.index("Open a shop")
+    assert "Somebody" not in notes
+
+
+def test_a_docs_directory_is_read(ctx):
+    docs = _module(ctx) / "docs"
+    (docs / "guide").mkdir(parents=True)
+    (docs / "index.rst").write_text("How the margins are computed.\n")
+    (docs / "guide" / "setup.md").write_text("Set the margin on the shop.\n")
+    (docs / "diagram.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\xff")
+
+    notes = project_notes(ctx)
+
+    assert "How the margins are computed." in notes
+    assert "Set the margin on the shop." in notes
+    assert "PNG" not in notes
+
+
+def test_the_project_does_not_crowd_out_the_modules_own_notes(ctx):
+    """Broad to narrow under one budget: three long project files used it up,
+    and the module's own README — the one about this module — was cut."""
+    from pathlib import Path
+
+    old = Path(ctx.migration.old_project_path)
+    for name in ("AGENTS.md", "CLAUDE.md", "README.md"):
+        (old / name).write_text("p" * MAX_NOTE_CHARS)
+
+    notes = project_notes(ctx)
+
+    assert "margins per shop" in notes
+
+
+def _source(ctx) -> str:
+
+    return build_context(Step(step="agent", id="port", context=["module_source"]), ctx)
+
+
+def test_translations_are_left_out_of_the_module_source(ctx):
+    """`i18n/` sorts before `models/`. A module with a few .po files spent the
+    whole source budget on translations and the model never saw its code."""
+    module = _module(ctx)
+    (module / "i18n").mkdir()
+    (module / "i18n" / "fr.po").write_text('msgid "Margin"\nmsgstr "Marge"\n' * 10000)
+    (module / "i18n" / "sale_custom.pot").write_text('msgid "Margin"\n')
+    (module / "models").mkdir()
+    (module / "models" / "shop.py").write_text("class Shop: margin = 1\n")
+
+    source = _source(ctx)
+
+    assert "class Shop: margin = 1" in source
+    assert "msgstr" not in source and "sale_custom.pot" not in source
+
+
+def test_the_module_source_puts_the_code_first(ctx):
+    module = _module(ctx)
+    for relative, text in {
+        "static/src/js/shop.js": "// js",
+        "data/shops.csv": "id,name",
+        "views/shop.xml": "<odoo/>",
+        "models/shop.py": "class Shop: pass",
+        "__init__.py": "from . import models",
+    }.items():
+        path = module / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    source = _source(ctx)
+    order = [
+        source.index(f"### {name}")
+        for name in (
+            "__manifest__.py",
+            "__init__.py",
+            "models/shop.py",
+            "views/shop.xml",
+            "data/shops.csv",
+            "README.rst",
+            "static/src/js/shop.js",
+        )
+    ]
+
+    assert order == sorted(order)
