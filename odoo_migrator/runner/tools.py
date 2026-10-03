@@ -23,6 +23,9 @@ COMMAND_TIMEOUT = 300.0
 # prompt carries is clipped at the same size. A data file of megabytes went
 # into the conversation whole, and spent the step's budget in one answer.
 READ_FILE_CHARS = 120_000
+# A whole module's run, as Sheller's own tool times one. A class or a method
+# keeps the daemon's default.
+MODULE_TEST_TIMEOUT = 1800.0
 
 TOOL_SIDES = {
     "exec": ("old", "new"),
@@ -121,7 +124,11 @@ TOOL_DESCRIPTIONS = {
     ),
     "journal": "The session's journal: every command it ran and what came back.",
     "history": "The session's command history.",
-    "run_test": "Run one test spec: 'module.TestClass' or 'module.TestClass.test_method'.",
+    "run_test": (
+        "Run tests: 'module' (its standard tests), 'module.TestClass' or "
+        "'module.TestClass.test_method'. `failed` lists each failing test as "
+        "a spec to run again on its own, which answers with its log."
+    ),
     "list_tests": "The test classes a module declares, each with a ready spec.",
     "test_result": "The report of the last run_test.",
     "interrupt": "Stop the command this side's session is running.",
@@ -372,10 +379,16 @@ def _exec(ctx, session_id: str, write_key: str, code: str):
 def _run_test(ctx, session_id: str, write_key: str, test: str):
     """A run past the call is interrupted, as an `exec` is: left running, it
     kept the session busy, and the agent's next command on that side
-    answered `session_busy`."""
-    try:
+    answered `session_busy`.
 
-        return ctx.sheller.run_test(session_id, test=test, write_key=write_key)
+    A whole module answers with the count of its log lines, not the lines:
+    thousands of them, in the conversation, for an answer `failed` already
+    gives. They stay in the journal, as Sheller's own tool leaves them.
+    """
+    whole = "." not in test
+    extra = {"timeout": MODULE_TEST_TIMEOUT} if whole else {}
+    try:
+        report = ctx.sheller.run_test(session_id, test=test, write_key=write_key, **extra)
     except ShellerTimeout:
         with contextlib.suppress(ShellerError):
             ctx.sheller.interrupt(session_id, write_key=write_key)
@@ -383,6 +396,11 @@ def _run_test(ctx, session_id: str, write_key: str, test: str):
         raise ShellerTimeout(
             f"the test {test} outlived the call and was interrupted"
         ) from None
+    if whole and isinstance(report, dict) and "stderr" in report:
+        report = dict(report)
+        report["stderr_lines"] = len(report.pop("stderr") or [])
+
+    return report
 
 
 def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:
@@ -577,10 +595,17 @@ def _preview(name: str, value, text: str) -> str:
             ran = outcome.get("tests_run") or 0
             verdict = "passed" if outcome.get("success") and ran else "failed"
 
+            failed = [
+                str(entry.get("test"))
+                for entry in value.get("failed") or []
+                if isinstance(entry, dict) and entry.get("test")
+            ]
+            named = f" · failed: {', '.join(failed)}" if failed else ""
+
             return (
                 f"{verdict}: {ran} test(s), "
                 f"{outcome.get('failures') or 0} failure(s), "
-                f"{outcome.get('errors') or 0} error(s)"
+                f"{outcome.get('errors') or 0} error(s){named}"
             )
     if name == "list_tests":
         classes = value.get("classes")

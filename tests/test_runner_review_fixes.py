@@ -6,6 +6,7 @@ wrong, and most of them were wrong in the same way — a double that answered
 more helpfully than the daemon, or an invariant nobody asserted.
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -396,3 +397,59 @@ def test_a_test_run_that_outlives_its_call_is_interrupted(app, tmp_path):
     assert sheller.interrupts
     after = bound["exec"](side="new", code="1")
     assert not after.startswith("error:"), after
+
+
+def _bound_run_test(tmp_path, sheller, seen=None):
+    sheller.tests_for(
+        "sale_custom",
+        sheller.catalogue("sale_custom", {"TestA": ["test_one", "test_two"]}),
+    )
+    ctx = _ctx(tmp_path, sheller)
+    if seen is not None:
+        ctx.record_tool = lambda *args: seen.append(args)
+    step = Step(kind="agent", id="patch", sessions=["new"], tools=["run_test"], prompt="x")
+
+    return {tool.name: tool for tool in tools_for(step, ctx)}["run_test"]
+
+
+def test_the_agent_can_run_a_whole_module(app, tmp_path):
+    """Sheller 1.8.3 takes a bare module. A module is not a class: it gets
+    the ceiling the daemon gives one, not the 300 seconds of a class."""
+    sheller = FakeShellerClient()
+    run_test = _bound_run_test(tmp_path, sheller)
+
+    answer = json.loads(run_test(side="new", test="sale_custom"))
+
+    assert answer["test"]["tests_run"] == 2
+    assert sheller.tests_run[-1]["timeout"] == 1800.0
+
+
+def test_a_module_run_hands_the_agent_a_count_of_log_lines(app, tmp_path):
+    """A whole module logs thousands of lines. The agent gets their count and
+    `failed`; the log stays in the journal, as Sheller's own tool does it."""
+    sheller = FakeShellerClient()
+    run_test = _bound_run_test(tmp_path, sheller)
+    sheller.test_outcomes["sale_custom.TestA.test_two"] = {
+        "success": False,
+        "failures": 1,
+        "stderr": ["line"] * 500,
+    }
+
+    answer = json.loads(run_test(side="new", test="sale_custom"))
+
+    assert "stderr" not in answer
+    assert answer["stderr_lines"] == 500
+    assert answer["failed"] == [{"test": "sale_custom.TestA.test_two", "kind": "failure"}]
+    one = json.loads(run_test(side="new", test="sale_custom.TestA.test_two"))
+    assert one["stderr"] == ["line"] * 500
+
+
+def test_the_run_log_names_what_failed(app, tmp_path):
+    sheller = FakeShellerClient()
+    seen = []
+    run_test = _bound_run_test(tmp_path, sheller, seen)
+    sheller.test_outcomes["sale_custom.TestA.test_two"] = {"success": False, "failures": 1}
+
+    run_test(side="new", test="sale_custom")
+
+    assert seen[-1][6].endswith("failed: sale_custom.TestA.test_two")

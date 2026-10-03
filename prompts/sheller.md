@@ -14,7 +14,8 @@ the runner does all of that, and you never see it.
 "Running a test" below is rewritten rather than copied. Theirs describes an
 MCP tool that opens a session of its own per run and hands back a job to
 poll; this app calls the daemon's route directly, in the session the step
-already holds, and waits.
+already holds, and waits. The spec forms, `failed` and the module's log
+count are theirs, as of Sheller 1.8.3.
 
 ## What you must not attempt
 
@@ -151,8 +152,10 @@ including whatever a response clipped and including a traceback Odoo logged
 rather than raised. Never install a logging handler of your own to capture
 the log; it is collected for you either way.
 
-`run_test` returns its `stderr` without being asked, because with a test run
-the log *is* the answer — which test failed and why.
+`run_test` on a class or a method returns its `stderr` without being asked,
+because there the log *is* the answer — which test failed and why. A whole
+module answers with `stderr_lines` instead and leaves its log in the
+journal.
 
 ## Reading a record
 
@@ -220,10 +223,34 @@ A recordset you already hold still has the old context: call
 
 ## Running a test
 
-`run_test(side, test)` runs one Odoo test class or one method:
-`module.TestClass` or `module.TestClass.test_method`. Nothing else is a
-valid spec, and the daemon refuses anything that is not that shape with
-`invalid_test_spec`.
+`run_test(side, test)` takes three forms:
+
+- `module` — every standard test in that module, at_install and
+  post_install, the set `--test-tags /module` runs. Tests tagged `-standard`
+  or `external` are left out: name their class to run one of those.
+- `module.TestClass` — one class.
+- `module.TestClass.test_method` — one method.
+
+Nothing else is a valid spec, and the daemon refuses anything that is not
+one of those shapes with `invalid_test_spec`.
+
+Every answer carries `failed`: one entry per failing test, `{"test": spec,
+"kind": "failure" | "error"}`, where `test` is ready to pass straight back to
+`run_test`. A failed subtest is listed as its method, a class whose
+setUpClass failed as the class, and a test file whose setUpModule failed as
+the whole module — no tag can name a file. To find out why one failed, run
+that spec on its own: a class or a method answers with its log tail in
+`stderr`.
+
+A whole module answers with counts and `failed` only. Its log is thousands
+of lines, so it comes back as `stderr_lines`, a count, and stays in the
+journal — `journal` has every line if you really need it. Do not rerun a
+module to see its log; rerun the failed specs.
+
+Pick the narrowest run that answers your question. To check that a module
+holds up, run the module, once — not class by class. To check one fix, run
+the spec that failed. Take a single method only when that method is the
+point.
 
 Do not compose a spec out of names you guessed. `list_tests(side)` answers
 with the classes this module declares on disk and hands back each one's spec
@@ -236,7 +263,8 @@ module ships no tests.
 the module's `tests` package when it opened, and writing a new file does not
 re-import it. Write the file, call `reopen`, then `run_test`. Without the
 reopen the run finds the old set of tests and says nothing about the one you
-added — or finds no class by that name at all.
+added — or finds no class by that name at all. The same holds after you
+change the module's Python: reopen before you run its tests again.
 
 **The run happens in this side's session, not a fresh one.** Odoo's own test
 runner rolls back whatever transaction that session is holding before it
@@ -247,14 +275,11 @@ same session and you will be testing an empty database: the test must make
 its own data, which is what a real Odoo test does anyway.
 
 The call waits for the run to finish — there is nothing to poll and nothing
-to close afterwards. `test_result(side)` re-reads the report of the last run
-in this step; it does not start one and does not wait for anything.
+to close afterwards. A module may take up to 30 minutes, a class or a method
+5; a run past that is interrupted and answers with an error. `test_result(side)`
+re-reads the report of the last run in this step; it does not start one and
+does not wait for anything.
 
 What comes back is the daemon's shape, not a pass/fail flag: `test` holds
-`success`, `tests_run`, `failures` and `errors`, and `stderr` is the log the
-run produced, which is where the reason lives. A run of zero tests is not a
-pass — it means the spec matched nothing.
-
-Run one class per call, in turn. A class is usually the right unit: one
-call, one registry load. Take a single method only when that method is the
-point.
+`success`, `tests_run`, `failures` and `errors`. A run of zero tests is not
+a pass — it means the spec matched nothing.

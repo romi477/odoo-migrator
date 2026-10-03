@@ -22,11 +22,11 @@ VENDORED = {
     "limits": "988d9939e69331431ecacf8239e1ae24a74fbce63287dc6a8a3664d9a872e5bd",
     "orm": "29ce479be88e26e3c260c056cc2e71c2001be5069a1de0e8c6ef308a4aefd031",
     "code": "9695582a4342042586018028a87e617a9adffe8333083f67a3b4326914a14638",
-    "log": "43c3218353d967e7acfe5def9db2fd771a990a930e348f865ba90b9188d2525c",
+    "log": "25be6d6b541c96978a501be05720c193444cdda9b29671724676c2673184b1a3",
     "records": "5b2c65b96dd3ba9f796619631e74644d1be58469e92cb2db1c8085c56db054a5",
     "modules": "0955570535534c2d4e6279884172dab9a8452c3fcab5dfcdd753f10856eecbca",
     "jobs": "c853c98be14913bfc4e739cbcaae82491f034aa509f136a30954ed6d5580f37f",
-    "tests": "34e478ea86ebc128aea2692c1805962d30b67dcea80a5936d57635b8459aa782",
+    "tests": "0f72f6a5f0f4c900fe1df6d659be247ec2425ffceafff1288e10ebdade7f8ea1",
 }
 # Left out on purpose: the runner opens, closes, owns and commits the
 # sessions, so an agent told how to ask for commit rights would be told to do
@@ -111,3 +111,15 @@ def test_the_test_section_describes_our_transport_and_not_the_mcp_tool():
     # A test written this step is invisible until the process re-imports.
     assert "call `reopen`, then `run_test`" in text
     assert "invalid_test_spec" in text
+
+
+def test_the_test_section_offers_a_module_and_what_failed():
+    """Sheller 1.8.3: a bare module runs its standard tests, and every answer
+    lists what failed as specs to run again. The notes said one class per
+    call, in turn, and the agent ran a module class by class."""
+    text = load_shell_notes()
+
+    assert "`run_test(side, test)` takes three forms" in text
+    assert "`failed`" in text
+    assert "stderr_lines" in text
+    assert "Run one class per call, in turn." not in text
