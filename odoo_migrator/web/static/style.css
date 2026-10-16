@@ -3718,6 +3718,19 @@ a.ribbon-box:focus-visible {
   display: none;
 }
 
+/* Answer waits uncoloured under the box, centred; it lights up as the
+   other primaries do only under the pointer. */
+.pipeline-ask button.primary {
+  justify-self: center;
+  border-color: var(--border);
+  color: inherit;
+}
+
+.pipeline-ask button.primary:hover:not(:disabled) {
+  border-color: var(--cyan);
+  color: var(--amber);
+}
+
 /* The agent writes markdown, and a diagnosis is often a page of it: its
    line breaks kept, and a box that scrolls rather than a wall of text. */
 .job-review .question,
