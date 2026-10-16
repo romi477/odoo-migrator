@@ -438,3 +438,28 @@ def test_anthropic_takes_both_sonnets_a_cartridge_may_name():
 
     assert provider.accepts_model("claude-sonnet-5-5")
     assert provider.accepts_model("claude-sonnet-4-6")
+
+
+def test_scripted_hears_a_stop_between_two_actions():
+    """As a live provider does: the double that skipped the check would let
+    a test pass on a loop that never stops."""
+    from odoo_migrator.runner.context import Stopped
+
+    client = ModelDouble(always_calls="exec")
+
+    def stop_check():
+        if client.calls >= 2:
+            raise Stopped("during port")
+
+    with pytest.raises(Stopped):
+        ScriptedProvider(client).run_step(
+            system="",
+            prompt="x",
+            tools=[BoundTool("exec", lambda **_kwargs: "ok")],
+            report=report_tool(_step()),
+            model="claude-opus-5",
+            budget=Budget(tool_calls=10),
+            stop_check=stop_check,
+        )
+
+    assert client.calls == 2

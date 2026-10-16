@@ -5,6 +5,7 @@ with tool calls. A model there costs nothing per token, which is what makes
 it the one to debug the pipeline with.
 """
 
+import pytest
 from doubles.openai_server import OpenAIServer, reply, tool_call
 
 from odoo_migrator.runner.cartridge import Budget, Step
@@ -216,3 +217,30 @@ def test_the_server_url_is_a_setting_shown_as_written(client):
     settings = client.get("/settings").text
     assert f'value="{URL}"' in settings
     assert get("local").name == "local"
+
+
+def test_a_stop_ends_the_step_between_two_turns():
+    from odoo_migrator.runner.context import Stopped
+
+    calls = [reply(tool_call("exec", {"side": "new", "code": "1"}, f"c{n}")) for n in range(3)]
+    server = OpenAIServer(calls)
+    asked = []
+
+    def stop_check():
+        asked.append(True)
+        if len(server.requests) >= 1:
+            raise Stopped("during port")
+
+    provider = LocalProvider(transport=server.transport(), base_url=URL)
+    with pytest.raises(Stopped):
+        provider.run_step(
+            system="",
+            prompt="x",
+            tools=[BoundTool("exec", lambda **_kw: "ok")],
+            report=report_tool(_step()),
+            model=MODEL,
+            budget=Budget(),
+            stop_check=stop_check,
+        )
+
+    assert len(server.requests) == 1

@@ -37,8 +37,8 @@ class StepScript:
 
         return None
 
-    def run_step(self, *, system, prompt, tools, report, model, budget) -> StepResult:
-        del prompt, model, budget
+    def run_step(self, *, system, prompt, tools, report, model, budget, stop_check=None) -> StepResult:
+        del prompt, model, budget, stop_check
         step = system.rsplit("Step: ", 1)[1].strip()
         self.ran.append(step)
         if step in self.fails_once:

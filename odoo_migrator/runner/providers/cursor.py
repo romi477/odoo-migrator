@@ -8,6 +8,7 @@ does not start an MCP server. Built-in tools stay off: ``tools=[]``.
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import parse_qsl
 
@@ -97,7 +98,11 @@ class CursorProvider:
         report: ReportTool,
         model: str,
         budget: Budget,
+        stop_check: Callable[[], None] | None = None,
     ) -> StepResult:
+        # One `send(...).wait()` runs every turn inside the SDK; there is no
+        # point between two of them to stop at. Stop waits for the step.
+        del stop_check
         self.ensure_ready()
         from cursor_sdk import (
             AgentOptions,

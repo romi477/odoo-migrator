@@ -16,7 +16,7 @@ from odoo_migrator.rules import (
     load_system_prompt,
 )
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
-from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.context import StepContext, StepResult, check_stop
 from odoo_migrator.runner.snapshot import module_files
 
 # The ceiling a cartridge cannot raise. "A cartridge may narrow, never widen"
@@ -135,6 +135,7 @@ def run_agent_step(step: Step, ctx: StepContext) -> StepResult:
         report=report_tool(step),
         model=resolve_model(step, ctx),
         budget=budget_for(step, ctx),
+        stop_check=lambda: check_stop(ctx, f"during {step.id or step.kind}"),
     )
     if step.id and result.answer:
         ctx.prior_answers[step.id] = result.answer

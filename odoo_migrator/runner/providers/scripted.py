@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from odoo_migrator.runner.cartridge import Budget
 from odoo_migrator.runner.context import StepResult
 from odoo_migrator.runner.providers.base import SettingField
@@ -36,11 +38,14 @@ class ScriptedProvider:
         report: ReportTool,
         model: str,
         budget: Budget,
+        stop_check: Callable[[], None] | None = None,
     ) -> StepResult:
         del system, prompt, model
         by_name = {tool.name: tool for tool in tools}
         limit = budget.tool_calls
         while True:
+            if stop_check is not None and self._client.calls:
+                stop_check()
             if limit is not None and self._client.calls >= limit:
 
                 return StepResult(ok=False, output="stopped at the tool-call budget")

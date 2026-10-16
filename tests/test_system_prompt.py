@@ -235,3 +235,31 @@ def test_the_system_prompt_forbids_moving_modules_through_exec():
 
     assert "only through `write_file`" in text
     assert "needs_human" in text
+
+
+def test_an_agent_step_hands_its_provider_a_stop_that_names_the_step(monkeypatch):
+    """Stop is checked between steps, and an agent step can run for an
+    hour on a local model. The provider is given a check it calls between
+    turns, which raises the same `Stopped` the runner raises itself."""
+    from odoo_migrator.runner.context import Stopped
+
+    seen = {}
+
+    class Recorder:
+        name = "anthropic"
+
+        def ensure_ready(self):
+
+            return None
+
+        def run_step(self, **kwargs):
+            seen.update(kwargs)
+            kwargs["stop_check"]()
+            raise AssertionError("the check did not raise")
+
+    monkeypatch.setattr("odoo_migrator.runner.providers.get", lambda _name: Recorder())
+
+    with pytest.raises(Stopped) as stopped:
+        run_agent_step(_step(), _ctx(stop_asked=lambda: True))
+
+    assert str(stopped.value) == "during port"

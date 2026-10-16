@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -43,6 +44,7 @@ class Provider(Protocol):
         report: ReportTool,
         model: str,
         budget: Budget,
+        stop_check: Callable[[], None] | None = None,
     ) -> StepResult:
         """Run one turn. The step ends when the model calls ``report``.
 
@@ -51,4 +53,9 @@ class Provider(Protocol):
         anything, and that a step ends with ``report``. A provider whose
         SDK has no system field prepends it to ``prompt`` rather than
         dropping it.
+
+        ``stop_check`` raises `Stopped` when a person has pressed Stop. A
+        provider that owns its loop calls it between model turns: the run
+        otherwise heard Stop only when the step ended, which on a local
+        model was the better part of an hour away.
         """

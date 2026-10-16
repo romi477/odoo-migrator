@@ -8,6 +8,7 @@ loop: there is no SDK runner to hand the tools to.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 import httpx2
 
@@ -77,6 +78,7 @@ class LocalProvider:
         report: ReportTool,
         model: str,
         budget: Budget,
+        stop_check: Callable[[], None] | None = None,
     ) -> StepResult:
         if not self._url():
 
@@ -94,6 +96,10 @@ class LocalProvider:
         said = ""
         with self._client(_TIMEOUT) as client:
             while True:
+                # Before each turn, after the tools of the last one ran: what
+                # they wrote is on disk and in the trace, as when a step ends.
+                if stop_check is not None and turns:
+                    stop_check()
                 if budget.tokens is not None and usage["in"] + usage["out"] > budget.tokens:
 
                     return _failed("stopped at the token budget", usage, turns, said, tools)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from odoo_migrator.runner.cartridge import Budget
 from odoo_migrator.runner.context import StepResult
 from odoo_migrator.runner.providers.base import SettingField
@@ -48,6 +50,7 @@ class AnthropicProvider:
         report: ReportTool,
         model: str,
         budget: Budget,
+        stop_check: Callable[[], None] | None = None,
     ) -> StepResult:
         import anthropic
         from anthropic import beta_tool
@@ -103,6 +106,10 @@ class AnthropicProvider:
                 if budget.tokens is not None and _spent(usage) > budget.tokens:
                     overspent = True
                     break
+                # The runner calls the tools of this turn before the next
+                # one is asked for, so stopping here leaves nothing half run.
+                if stop_check is not None:
+                    stop_check()
         except anthropic.APIError as exc:
             account = _account(turns, said, tools)
             if captured:
