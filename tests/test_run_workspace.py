@@ -569,3 +569,24 @@ def test_the_open_question_is_shown_once_in_its_answer_form(client):
     panel = page.split("data-pipeline-ask", 1)[0].split("data-pipeline", 1)[1]
     assert QUESTION not in panel
     assert page.count(QUESTION) >= 1
+
+
+def test_an_answered_question_folds_into_one_line(client):
+    """Answered, the question stopped being the answer form's text and came
+    back as the thread: the agent's whole diagnosis, open down the card, as
+    if it were still waiting. It folds to the answer; a click reads it."""
+    from test_hitl import AskingExecutor
+
+    _row, sale = _prepared(client)
+    client.app.state.executor = AskingExecutor(client.app)
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+    client.post(
+        f"/run/modules/{sale['id']}/answer", data={"answer": "use the new one"},
+        follow_redirects=True,
+    )
+
+    page = client.get("/run").text
+
+    assert '<details class="checkpoint-past"' in page
+    assert "Answered: use the new one" in page
+    assert "<details class=\"checkpoint-past\" open" not in page

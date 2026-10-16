@@ -3244,6 +3244,29 @@ a.ribbon-box:focus-visible {
   white-space: pre-wrap;
 }
 
+/* An answered exchange, folded to its answer: one muted line under the
+   ribbon, the whole thread a click away. */
+.checkpoint-past {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.checkpoint-past summary {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.checkpoint-past summary:hover {
+  color: var(--cyan);
+}
+
+.checkpoint-past[open] summary {
+  white-space: normal;
+}
+
 /* A result card says when its last run ended, and opens what that run
    said. The checkpoint thread used to be one flat list above the board. */
 .result-when {

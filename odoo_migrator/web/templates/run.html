@@ -267,7 +267,20 @@
            well, it read twice down the card. #}
         {% set asking = live.question if live and live.status == "waiting_for_human" else "" %}
         {% set shown = thread | rejectattr("text", "equalto", asking) | list if asking else thread %}
-        {% if shown %}
+        {# Once answered, the exchange folds to the answer. Open, the agent's
+           whole diagnosis stayed down the card after the reply, and read as
+           a question still waiting. #}
+        {% set answers = shown | selectattr("author", "equalto", "human") | list %}
+        {% if shown and answers %}
+        <details class="checkpoint-past">
+          <summary>Answered: {{ answers[-1].text | replace("\n", " ") | truncate(120) }}</summary>
+          <ol class="checkpoint-thread">
+            {% for message in shown %}
+            <li class="{{ message.author }}">{{ message.text }}</li>
+            {% endfor %}
+          </ol>
+        </details>
+        {% elif shown %}
         <ol class="checkpoint-thread">
           {% for message in shown %}
           <li class="{{ message.author }}">{{ message.text }}</li>
