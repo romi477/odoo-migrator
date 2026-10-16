@@ -956,10 +956,11 @@ a.attention-lamp:hover {
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
-/* Work is going on and nothing is stuck. Green, and the same slow pulse as
-   the amber one so the two read as one lamp with two meanings. */
+/* Work is going on and nothing is stuck. Amber, the colour of the module in
+   work on Pipeline — its card edge and the queue row's equalizer — with the
+   same slow pulse. The run count beside it stays its own colour. */
 .attention-lamp.running .lamp-dot {
-  background: var(--green);
+  background: var(--amber);
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
