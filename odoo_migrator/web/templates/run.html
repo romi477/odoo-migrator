@@ -81,8 +81,6 @@
             {% endfor %}
           </select>
         </label>
-        <p class="pipeline-step-modules mono" x-text="moduleLine()"></p>
-        <p class="form-error" id="pipeline-start-error" hidden></p>
         <div class="pipeline-start-actions">
           <button type="submit"
                   title="Add this step to the pipeline queue"
@@ -93,6 +91,8 @@
                   title="Add every dependency step to the pipeline queue"
                   aria-label="Add all dependency steps to the queue">Add all steps to queue</button>
         </div>
+        <p class="pipeline-step-modules mono" x-text="moduleLine()"></p>
+        <p class="form-error" id="pipeline-start-error" hidden></p>
       </form>
       {% else %}
       <p class="field-hint">Resolve on Tree to draw dependency steps.</p>
