@@ -35,6 +35,18 @@ class ShellerNotOwner(ShellerError):
     """Wrong or missing X-OS-Session-Key. Never retry this with an admin key."""
 
 
+class ShellerNeedsHuman(ShellerError):
+    """HTTP 403 `needs_a_human`: the act is a person's, not a wrong key.
+
+    Since Sheller 1.8.3 an agent's session that opens with `allow_commit:
+    true` is refused unless a person has switched its container on for
+    agents (1.11.0, *agents may commit*). This used to come back as
+    `not_owner`, like every 403, and a person was told about a key when the
+    fix was a switch on Sheller's container card. The message is the
+    daemon's own: what was refused and what to do about it.
+    """
+
+
 class ShellerSessionDead(ShellerError):
     """HTTP 410: the session's process is gone.
 

@@ -11,6 +11,7 @@ from odoo_migrator.sheller import (
     FakeShellerClient,
     HttpShellerClient,
     ShellerError,
+    ShellerNeedsHuman,
     ShellerNotOwner,
     ShellerSessionDead,
     ShellerTimeout,
@@ -544,3 +545,54 @@ def test_an_answer_that_is_not_json_is_a_sheller_error():
 
     with pytest.raises(ShellerError, match="not JSON"):
         client.get_session("s1")
+
+
+# What Sheller 1.11.0 answers an agent's open with `allow_commit: true` on a
+# container nobody switched on, word for word.
+NEEDS_A_HUMAN = {
+    "detail": {
+        "error": "needs_a_human",
+        "act": "open an agent's session with commit already granted",
+        "recovery": (
+            "open it without allow_commit; a human grants the right later, from the "
+            "UI — or turns on 'agents may commit' for this container, and its "
+            "sessions open with it"
+        ),
+    }
+}
+
+
+def test_a_refusal_that_needs_a_person_is_not_a_wrong_key():
+    """Every 403 used to read `not_owner`. The runner's target side was
+    refused this way from Sheller 1.8.3 on, and the person was told about a
+    key when what they had to do was turn a switch on."""
+    client = HttpShellerClient(
+        "http://127.0.0.1:8765",
+        transport=httpx2.MockTransport(lambda request: httpx2.Response(403, json=NEEDS_A_HUMAN)),
+    )
+
+    with pytest.raises(ShellerNeedsHuman) as refused:
+        client.open_session(
+            container="mig18",
+            database="d",
+            odoo_bin="/odoo/odoo-bin",
+            owner={"kind": "agent"},
+            allow_commit=True,
+        )
+
+    assert not isinstance(refused.value, ShellerNotOwner)
+    assert refused.value.status == 403
+    assert "commit already granted" in str(refused.value)
+    assert "agents may commit" in str(refused.value)
+
+
+def test_a_wrong_key_is_still_not_owner():
+    client = HttpShellerClient(
+        "http://127.0.0.1:8765",
+        transport=httpx2.MockTransport(
+            lambda request: httpx2.Response(403, json={"detail": {"error": "not_owner"}})
+        ),
+    )
+
+    with pytest.raises(ShellerNotOwner):
+        client.exec("abc", "1", write_key="someone-elses-key")

@@ -8,6 +8,7 @@ import httpx2
 from odoo_migrator.sheller.errors import (
     ShellerBusy,
     ShellerError,
+    ShellerNeedsHuman,
     ShellerNotOwner,
     ShellerSessionDead,
     ShellerTimeout,
@@ -352,12 +353,24 @@ def _session_dead_message(detail) -> str:
     return "session_dead"
 
 
+def _needs_a_human_message(refusal: dict) -> str:
+    """The daemon's ``act`` and ``recovery``, which is what a person acts on."""
+    parts = [f"needs_a_human: {refusal.get('act') or 'this needs a person'}"]
+    if refusal.get("recovery"):
+        parts.append(str(refusal["recovery"]))
+
+    return " — ".join(parts)
+
+
 def _raise_http(response: httpx2.Response) -> None:
     try:
         detail = response.json()
     except ValueError:
         detail = response.text
     if response.status_code == 403:
+        refusal = detail.get("detail") if isinstance(detail, dict) else None
+        if isinstance(refusal, dict) and refusal.get("error") == "needs_a_human":
+            raise ShellerNeedsHuman(_needs_a_human_message(refusal), status=403, detail=detail)
         raise ShellerNotOwner("not_owner", status=403, detail=detail)
     if response.status_code == 409:
         raise ShellerBusy(
