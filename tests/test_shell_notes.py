@@ -18,15 +18,20 @@ _SHELLER_MCP = Path("/opt/projects/odoo-sheller/odoo_sheller/mcp.py")
 # The topics taken, as they read when they were taken. A changed hash is not
 # a failure of this app: it means someone improved the guidance next door and
 # a person should read the new version before copying it over.
+#
+# Read at Sheller 1.10.0: `limits` gained Odoo 13 and 14, taken. `tests`
+# gained `params` and headless Hoot runs, not taken: the `run_test` tool here
+# passes a spec and nothing else, so an agent told about `params` would be
+# told about an argument it cannot send.
 VENDORED = {
-    "limits": "988d9939e69331431ecacf8239e1ae24a74fbce63287dc6a8a3664d9a872e5bd",
+    "limits": "2ed02929ffd28b600388968a63ffd8f1da64708b055117d424e448b832b78076",
     "orm": "29ce479be88e26e3c260c056cc2e71c2001be5069a1de0e8c6ef308a4aefd031",
     "code": "9695582a4342042586018028a87e617a9adffe8333083f67a3b4326914a14638",
     "log": "25be6d6b541c96978a501be05720c193444cdda9b29671724676c2673184b1a3",
     "records": "5b2c65b96dd3ba9f796619631e74644d1be58469e92cb2db1c8085c56db054a5",
     "modules": "0955570535534c2d4e6279884172dab9a8452c3fcab5dfcdd753f10856eecbca",
     "jobs": "c853c98be14913bfc4e739cbcaae82491f034aa509f136a30954ed6d5580f37f",
-    "tests": "0f72f6a5f0f4c900fe1df6d659be247ec2425ffceafff1288e10ebdade7f8ea1",
+    "tests": "dbc75f9072633d899e88e53adc3a3647a8b6addbb15343878bd02a1860d945c7",
 }
 # Left out on purpose: the runner opens, closes, owns and commits the
 # sessions, so an agent told how to ask for commit rights would be told to do

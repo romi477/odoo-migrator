@@ -15,7 +15,9 @@ the runner does all of that, and you never see it.
 MCP tool that opens a session of its own per run and hands back a job to
 poll; this app calls the daemon's route directly, in the session the step
 already holds, and waits. The spec forms, `failed` and the module's log
-count are theirs, as of Sheller 1.8.3.
+count are theirs, as of Sheller 1.8.3. What 1.10.0 added to that topic is
+left out: `params`, and the JS (Hoot) runs they drive. `run_test` here takes
+a spec and nothing else.
 
 ## What you must not attempt
 
@@ -23,6 +25,9 @@ count are theirs, as of Sheller 1.8.3.
 - Take a session you were not handed, or use a key you were not given.
 - Read or write `~/.odoo-sheller/` directly. Everything you need is in the
   tools you were given.
+- Count on Odoo 13 or 14. They open, with a warning, but are not fully
+  tested: sessions, `exec`, commit, rollback and interrupt should work;
+  `run_test` does not on 13 and says so.
 
 These are not enforced by anything you hold. They are the terms of using
 this tool at all.
