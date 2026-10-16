@@ -581,3 +581,65 @@ def test_an_answer_does_not_undo_what_the_resumed_run_already_recorded(client, a
     assert reloaded(abandoned_job).status == "passed"
     with database.connection_context():
         assert Module.get_by_id(abandoned_job.module_id).status == "passed"
+
+
+def _start_waiting_on_the_switch(app, sheller, tmp_path):
+    job = _module(tmp_path)
+    model = ModelDouble(turns=[{"name": "report", "input": {"answer": "ported"}}])
+    runner = NativeRunner(sheller=sheller, hub=app.state.hub, provider=ScriptedProvider(model))
+    runner.start({"job_id": job.job_id, "cartridge_text": _CARTRIDGE})
+    for _ in range(200):
+        if reloaded(job).status == "waiting_for_human":
+            break
+        time.sleep(0.01)
+
+    return job, runner
+
+
+def test_a_target_nobody_opened_to_agents_parks_the_job_before_any_session(
+    app, fake_sheller, tmp_path
+):
+    """Sheller 1.8.3 refuses the target side's open with commit, and the job
+    failed on it as `not_owner`. It now asks for the switch, by name, and
+    opens nothing until it is on."""
+    fake_sheller.set_agent_commit("odoo-new", False)
+
+    job, runner = _start_waiting_on_the_switch(app, fake_sheller, tmp_path)
+
+    parked = reloaded(job)
+    assert parked.status == "waiting_for_human"
+    assert "agents may commit" in parked.question
+    assert "odoo-new" in parked.question
+    assert fake_sheller.opens == []
+    runner.stop(job.job_id)
+    runner.wait(job.job_id)
+
+
+def test_the_job_goes_on_once_a_person_turns_the_switch_on(client, fake_sheller, tmp_path):
+    fake_sheller.set_agent_commit("odoo-new", False)
+    job, runner = _start_waiting_on_the_switch(client.app, fake_sheller, tmp_path)
+
+    fake_sheller.set_agent_commit("odoo-new", True)
+    answer_job(
+        module_id=job.module_id, answer="switched on", hub=client.app.state.hub,
+        resume=runner.resume,
+    )
+    runner.wait(job.job_id)
+
+    assert reloaded(job).status == "passed"
+    target = [row for row in fake_sheller.opens if row["container"] == "odoo-new"]
+    assert target and all(row["allow_commit"] for row in target)
+
+
+def test_a_sheller_without_the_switch_is_named_as_too_old(app, tmp_path):
+    from odoo_migrator.sheller import FakeShellerClient
+
+    older = FakeShellerClient(version="1.10.0")
+
+    job, runner = _start_waiting_on_the_switch(app, older, tmp_path)
+
+    parked = reloaded(job)
+    assert parked.status == "waiting_for_human"
+    assert "1.11.0" in parked.question
+    runner.stop(job.job_id)
+    runner.wait(job.job_id)

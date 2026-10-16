@@ -325,6 +325,7 @@ class NativeRunner:
             # the new one used to leave `ctx` unassigned, and the `finally`
             # below closed nothing: a live odoo-bin stayed on the host.
             ctx.baseline_files = snapshot(_module_root(ctx))
+            self._await_commit_switch(ctx)
             self._open_sessions(ctx)
             self._log(
                 job_id,
@@ -502,6 +503,33 @@ class NativeRunner:
         # path.
         for side in list(ctx.sessions):
             close_side(ctx, side)
+
+    def _await_commit_switch(self, ctx: StepContext) -> None:
+        """Park until a person has opened the target container to agents' commits.
+
+        Sheller 1.8.3 refuses an agent's session that opens with the right to
+        commit, and the runner commits on the target after every upgrade. A
+        job started anyway was refused at its first open and failed with
+        `not_owner`, which told the person about a key. Sheller 1.11.0 lets a
+        person switch the container on (*agents may commit*) and lists the
+        switched-on containers without a key, so this asks before opening
+        anything, and says what to do.
+
+        The answer reopens the sessions (`wait_for_human`); a switch still off
+        refuses the target there, and the job parks again with the daemon's
+        own words.
+        """
+        if "new" not in ctx.session_targets:
+
+            return
+        container = ctx.session_targets["new"]["container"]
+        while True:
+            question = _commit_switch_question(ctx.sheller, container)
+            if question is None:
+
+                return
+            self._log(ctx.job_id, "runner", question, level="warn")
+            ctx.wait_for_human(question)
 
     def _open_sessions(self, ctx: StepContext) -> None:
         for side in ctx.session_targets:
@@ -887,6 +915,30 @@ def _outcome_line(result) -> str:
     tail = f" — {reason[0]}" if reason else ""
 
     return f"{head}{f' [{flags}]' if flags else ''}{spent}{tail}"
+
+
+def _commit_switch_question(sheller, container: str) -> str | None:
+    """What a person has to do before the target can commit, or None."""
+    try:
+        switched = {entry["container"] for entry in sheller.agent_commit()}
+    except ShellerError as exc:
+        if exc.status != 404:
+            raise
+
+        return (
+            f"This Sheller has no 'agents may commit' switch, and since 1.8.3 it "
+            f"lets no agent commit on {container}. Update Sheller to 1.11.0 or "
+            f"later, turn the switch on for {container}, then answer here."
+        )
+    if container in switched:
+
+        return None
+
+    return (
+        f"The target container {container} is not open to agents' commits, and "
+        f"the run commits there after every upgrade. In Sheller, turn on 'agents "
+        f"may commit' on the {container} card, then answer here."
+    )
 
 
 def _model_line(cartridge, ctx) -> str:
