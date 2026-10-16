@@ -151,6 +151,9 @@
         <label>Model
           <select name="model_override">
             {% for item in providers %}
+            {% if not item.models %}
+            <option value="" data-provider="{{ item.name }}" disabled{% if item.name != chosen_provider %} hidden{% endif %}>Nothing listed — is its server running?</option>
+            {% endif %}
             {% for name in item.models %}
             <option value="{{ name }}" data-provider="{{ item.name }}"{% if item.name != chosen_provider %} hidden disabled{% endif %}{% if item.name == chosen_provider and ((expanded.model_override or flow_default.model) == name or (not expanded.model_override and not flow_default.model and name == item.models[0])) %} selected{% endif %}>{{ name }}</option>
             {% endfor %}

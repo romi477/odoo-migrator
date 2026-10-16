@@ -159,16 +159,28 @@ def _count_param(request: Request, name: str) -> int:
     return int(raw) if raw.isdigit() else 0
 
 
-def _providers() -> list[dict]:
-    """Selectable providers and the models each one lists. The scripted
-    double has none, so it does not appear on the card."""
-    from odoo_migrator.runner.providers import known_models
+def _providers(migration: dict | None = None) -> list[dict]:
+    """Selectable providers and the models each one lists.
 
+    The scripted double has no models and no settings, so it does not
+    appear on the card. A provider with settings stays even when it lists
+    nothing — the local one lists what its server has loaded, which is
+    nothing while the server is off — and the pair the card saved is always
+    among the options. Dropped, the select fell to another provider, every
+    model was disabled and not sent, and Save was refused.
+    """
+    from odoo_migrator.runner.providers import REGISTRY, known_models
+
+    saved_provider = (migration or {}).get("provider_override") or ""
+    saved_model = (migration or {}).get("model_override") or ""
     rows = []
     for name, models in sorted(known_models().items()):
-        if not models:
+        listed = set(models)
+        if name == saved_provider and saved_model:
+            listed.add(saved_model)
+        if not listed and not REGISTRY[name].settings:
             continue
-        rows.append({"name": name, "models": sorted(models)})
+        rows.append({"name": name, "models": sorted(listed)})
 
     return rows
 
@@ -289,7 +301,6 @@ def create_app(
             # while a module waited for an answer showed a calm nav bar.
             "running_count": running_migration_count(),
             "lamp": lamp_state(),
-            "providers": _providers(),
         }
 
     def _page(request: Request, template: str, active: str, extra: dict | None = None):
@@ -1447,6 +1458,10 @@ def create_app(
                 "provision": provision,
                 "cartridges": list_installs() if migration else [],
                 "smoke": smoke_state(migration) if migration else None,
+                # Only here: the local provider's list is a request to its
+                # server, and every page used to make it for a select only
+                # this card has.
+                "providers": _providers(migration) if migration else [],
                 # The form is asked for, not permanently open. It stays open
                 # with what was typed still in it when the answer is a
                 # refusal — re-rendering an empty form is how someone loses

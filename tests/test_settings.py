@@ -509,3 +509,53 @@ def test_a_bin_alone_keeps_every_other_setting(client):
     kept = get_app_settings()
     assert kept["sheller_base_url"] == "http://127.0.0.1:9999"
     assert kept["sheller_image_tag"] == "1.2.3"
+
+
+def test_a_saved_local_model_stays_on_the_card_while_its_server_is_off(client):
+    """The local provider lists what its server has loaded, and nothing
+    when the server is off. It vanished from the card then: the provider
+    select fell to the first option, every model was disabled and not sent,
+    and Save was refused — not even the retry limit could change."""
+    _create(client, "Acme")
+    with database.connection_context():
+        row = Migration.get(Migration.name == "Acme")
+        row.provider_override = "local"
+        row.model_override = "qwen/qwen3.8-27b"
+        row.save()
+
+    page = client.get(f"/?settings={row.id}").text
+
+    assert 'value="local" selected' in page
+    assert 'value="qwen/qwen3.8-27b" data-provider="local" selected' in page
+    saved = client.post(
+        f"/migrations/{row.id}/settings",
+        data={
+            "strictness_default": "basic",
+            "retry_limit": "3",
+            "ask_human_mode": "sync",
+            "provider_override": "local",
+            "model_override": "qwen/qwen3.8-27b",
+        },
+        follow_redirects=True,
+    )
+
+    assert "Nothing saved." not in saved.text
+    with database.connection_context():
+        assert Migration.get_by_id(row.id).retry_limit == 3
+
+
+def test_only_the_card_asks_the_providers_for_their_models(client, monkeypatch):
+    """The local provider's list is a request to its server. Every page
+    asked for it, to fill a select only the migration card has."""
+    from odoo_migrator.runner import providers
+
+    asked = []
+    real = providers.known_models
+    monkeypatch.setattr(providers, "known_models", lambda: asked.append(1) or real())
+    _create(client, "Acme")
+    asked.clear()
+
+    for screen in ("/tree", "/run", "/result", "/flow", "/settings"):
+        client.get(screen)
+
+    assert asked == []
