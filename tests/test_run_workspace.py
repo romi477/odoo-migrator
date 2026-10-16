@@ -539,3 +539,18 @@ def test_a_run_parked_on_a_question_can_be_stopped(client):
     page = client.get("/run").text
 
     assert f'action="/run/modules/{sale["id"]}/stop"' in page
+
+
+def test_a_page_opened_while_nothing_runs_holds_the_whole_live_panel(client):
+    """The ribbon, Stop and the answer form were drawn only when a run was
+    in flight at load. A page opened between two modules got the name and
+    stage from the `module` event and an empty card under them: there was
+    no ribbon for the event to paint, and no form for the question."""
+    _row, _sale = _prepared(client)
+
+    page = client.get("/run").text
+
+    assert "data-ribbon" in page
+    assert page.count('class="ribbon-node"') >= 7
+    assert "data-pipeline-stop" in page
+    assert "data-pipeline-ask" in page

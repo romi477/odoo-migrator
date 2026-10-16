@@ -209,16 +209,16 @@
         <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
         {# The queue's Stop lets the module finish, which is not what someone
            watching a run spend tokens is asking for. #}
-        {% if live and live.status in ('running', 'waiting_for_human') %}
-        <form method="post" action="/run/modules/{{ live.module_id }}/stop" class="pipeline-stop">
+        {# Drawn hidden when nothing runs, so a page opened between two
+           modules has it for the next one; sse.js points it at the module. #}
+        {% set parked = live and live.status == 'waiting_for_human' %}
+        <form method="post" class="pipeline-stop" data-pipeline-stop
+              action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
+              {% if not live or live.status not in ('running', 'waiting_for_human') %}hidden{% endif %}>
           <button type="submit" aria-label="Stop this run at its next step">Stop this run</button>
-          {% if live.status == 'waiting_for_human' %}
-          <span class="field-hint">Nothing is running: the question is withdrawn and the run ends now.</span>
-          {% else %}
-          <span class="field-hint">The step running now finishes — a model turn cannot be called back — and the run ends there.</span>
-          {% endif %}
+          <span class="field-hint" data-stop-parked{% if not parked %} hidden{% endif %}>Nothing is running: the question is withdrawn and the run ends now.</span>
+          <span class="field-hint" data-stop-running{% if parked %} hidden{% endif %}>The step running now finishes — a model turn cannot be called back — and the run ends there.</span>
         </form>
-        {% endif %}
         {% if ribbon %}
         {# Which attempt the ribbon shows. A retry loops back part way, so
            one attempt is not the whole run; each can be read back. #}
@@ -271,7 +271,7 @@
         {# The question, where the run is being watched. It used to live only
            on Tree, so a module that parked while Pipeline was open said
            "waiting_for_human" and offered nothing to answer it with. #}
-        <form class="ask pipeline-ask" method="post"
+        <form class="ask pipeline-ask" method="post" data-pipeline-ask
               action="{% if live %}/run/modules/{{ live.module_id }}/answer{% endif %}"
               {% if not live or live.status != "waiting_for_human" %}hidden{% endif %}>
           <p class="question">{% if live %}{{ live.question or "" }}{% endif %}</p>

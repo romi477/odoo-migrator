@@ -83,6 +83,49 @@ function fillResultCornerGlyph(glyph, kind) {
           pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
         }
       }
+      /* Stop and the answer form are drawn even when the page opened with
+         nothing running; they follow the module the events are about. */
+      const parked = data.status === "waiting_for_human";
+      const stop = pipe.querySelector("[data-pipeline-stop]");
+      if (stop) {
+        stop.hidden = !(data.status === "running" || parked);
+        if (inflight) {
+          stop.setAttribute("action", "/run/modules/" + data.id + "/stop");
+        }
+        const parkedHint = stop.querySelector("[data-stop-parked]");
+        const runningHint = stop.querySelector("[data-stop-running]");
+        if (parkedHint) {
+          parkedHint.hidden = !parked;
+        }
+        if (runningHint) {
+          runningHint.hidden = parked;
+        }
+      }
+      const ask = pipe.querySelector("[data-pipeline-ask]");
+      if (ask) {
+        const wasHidden = ask.hidden;
+        ask.hidden = !parked;
+        if (parked) {
+          ask.setAttribute("action", "/run/modules/" + data.id + "/answer");
+          const question = ask.querySelector(".question");
+          if (question && data.question) {
+            question.textContent = data.question;
+          }
+          const label = "Answer " + (data.technical_name || "");
+          const box = ask.querySelector("textarea");
+          if (box) {
+            box.setAttribute("aria-label", label.trim());
+            /* A new question, not a repaint of the one being answered. */
+            if (wasHidden) {
+              box.value = "";
+            }
+          }
+          const submit = ask.querySelector("button[type=submit]");
+          if (submit) {
+            submit.setAttribute("aria-label", label.trim());
+          }
+        }
+      }
     }
     if (onThisMigration) {
       const inflight =

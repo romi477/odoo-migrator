@@ -960,7 +960,9 @@ def create_app(
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
-        ribbon = _ribbon(current, live) if current and live else None
+        # Drawn whether or not a run is in flight: a page opened between two
+        # modules has nothing else for the next one's events to paint.
+        ribbon = _ribbon(current, live) if current else None
         # The module this panel is showing, not the migration: the thread
         # used to carry every checkpoint ever written here, so a diagnosis of
         # the module before this one appeared under a run that had just
