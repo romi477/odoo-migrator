@@ -109,6 +109,7 @@
              :class="{ 'is-queue-expanded': expanded }">
       <header class="pipeline-queue-head{% if pipeline_queue.modules | length > 1 %} is-expandable{% endif %}"
               data-pipeline-queue-head
+              role="button"
               :aria-expanded="expanded ? 'true' : 'false'"
               aria-label="Toggle full queue list"
               @click="

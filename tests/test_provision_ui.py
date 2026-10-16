@@ -130,3 +130,20 @@ def test_styleguide_shows_container_actions(client):
     assert "Up Acme old" in html
     assert "Odoo containers running" in html
     assert "Container" in html
+
+
+def test_actions_that_take_a_container_away_ask_first(client, tmp_path):
+    """Stop, Restart and Rebuild under a running job fail it at its next
+    command, and one stray press did that with no question asked."""
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _, row = _open_migration(client, old=old, new=new)
+    page = client.get(f"/?settings={row.id}").text
+
+    for action in ("stop", "restart", "rebuild"):
+        form = page[page.index(f'containers/old/{action}"') :]
+        assert "data-confirm-text" in form[: form.index(">")]
+    up = page[page.index('containers/old/up"') :]
+    assert "data-confirm-text" not in up[: up.index(">")]

@@ -463,3 +463,14 @@ def test_scripted_hears_a_stop_between_two_actions():
         )
 
     assert client.calls == 2
+
+
+def test_anthropic_offers_the_current_models():
+    """The card lists only what the provider names, and the newest Opus and
+    Haiku were not among them."""
+    from odoo_migrator.runner.providers import get
+
+    anthropic = get("anthropic")
+
+    assert anthropic.accepts_model("claude-opus-5-5")
+    assert anthropic.accepts_model("claude-haiku-5-5")

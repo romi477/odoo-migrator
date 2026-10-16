@@ -26,7 +26,14 @@ class AnthropicProvider:
     # Sonnet 5.5 refuses a forced tool choice and non-default sampling, and
     # Sonnet 4.6 has no `xhigh`.
     models = frozenset(
-        {"claude-opus-5", "claude-sonnet-5", "claude-sonnet-5-5", "claude-sonnet-4-6"}
+        {
+            "claude-opus-5-5",
+            "claude-opus-5",
+            "claude-sonnet-5-5",
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+            "claude-haiku-5-5",
+        }
     )
     settings = (SettingField("api_key", "Anthropic API key"),)
 

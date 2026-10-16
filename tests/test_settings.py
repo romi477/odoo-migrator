@@ -559,3 +559,25 @@ def test_only_the_card_asks_the_providers_for_their_models(client, monkeypatch):
         client.get(screen)
 
     assert asked == []
+
+
+def test_the_lamp_leads_to_a_question_before_an_old_failure(client):
+    """The lamp is red for a failure and for a question alike, and it led to
+    the stalled module with the lowest id: a module that failed last week
+    hid the one waiting for an answer now. Its title said "waiting" for
+    both."""
+    from test_tree import _open
+
+    from odoo_migrator.models import Module
+
+    row = _open(client, "Lamp")
+    with database.connection_context():
+        Module.create(migration=row.id, technical_name="old_fail", status="failed")
+        waiting = Module.create(
+            migration=row.id, technical_name="asks_now", status="waiting_for_human"
+        )
+
+    jumped = client.get("/attention", follow_redirects=False)
+
+    assert jumped.headers["location"] == f"/tree?focus={waiting.id}"
+    assert "waiting for you or has failed" in client.get("/").text

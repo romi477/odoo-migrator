@@ -95,12 +95,21 @@ def lamp_state() -> str:
 
 
 def attention_target() -> dict | None:
-    """The stalled module the lamp should land on, whichever migration it is."""
+    """The stalled module the lamp should land on, whichever migration it is.
+
+    A question first — a person can unblock it now — then the newest failure.
+    By lowest id, a module that failed last week hid the one asking now.
+    """
     with database.connection_context():
         module = (
             Module.select()
-            .where(Module.status.in_(ATTENTION))
+            .where(Module.status == "waiting_for_human")
             .order_by(Module.id)
+            .first()
+        ) or (
+            Module.select()
+            .where(Module.status.in_(ATTENTION))
+            .order_by(Module.id.desc())
             .first()
         )
         if module is None:
