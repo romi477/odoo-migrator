@@ -431,3 +431,10 @@ def test_anthropic_reads_a_key_saved_in_either_place(tmp_path):
     )
 
     assert _key() == "sk-new"
+
+
+def test_anthropic_takes_both_sonnets_a_cartridge_may_name():
+    provider = get("anthropic")
+
+    assert provider.accepts_model("claude-sonnet-5-5")
+    assert provider.accepts_model("claude-sonnet-4-6")

@@ -19,7 +19,13 @@ class NoModelClient(RuntimeError):
 
 class AnthropicProvider:
     name = "anthropic"
-    models = frozenset({"claude-opus-5", "claude-sonnet-5"})
+    # The request below sends adaptive thinking, effort `high` and no
+    # `tool_choice` or sampling parameters, which every model here accepts:
+    # Sonnet 5.5 refuses a forced tool choice and non-default sampling, and
+    # Sonnet 4.6 has no `xhigh`.
+    models = frozenset(
+        {"claude-opus-5", "claude-sonnet-5", "claude-sonnet-5-5", "claude-sonnet-4-6"}
+    )
     settings = (SettingField("api_key", "Anthropic API key"),)
 
     def accepts_model(self, name: str) -> bool:
