@@ -41,6 +41,10 @@ def install_from_text(text: str) -> CartridgeInstall:
                 smoke_status="untested",
             )
         else:
+            # A smoke-run passed one text. Another text under the same id and
+            # version is not what it tried.
+            if row.sha256 != loaded.sha256:
+                row.smoke_status = "untested"
             row.sha256 = loaded.sha256
             row.schema_version = loaded.schema_version
             row.body = text
@@ -92,21 +96,39 @@ def smoke_allows_batch(migration: Migration) -> bool:
     With nothing installed at all the app is on its own stub and there is
     no cartridge to smoke-run, so that case stays open. Once a cartridge
     has been imported, a pin that matches no install is a mistake worth
-    stopping on rather than the one case that skips the gate.
+    stopping on rather than the one case that skips the gate — except the
+    stock flow, which ships with the app and has no install row: asking for
+    one locked every migration on stock out the moment any flow was
+    imported.
     """
+    cartridge_id = migration.cartridge_id or "stock"
     with database.connection_context():
         if not CartridgeInstall.select().exists():
 
             return True
         row = CartridgeInstall.get_or_none(
-            (CartridgeInstall.cartridge_id == (migration.cartridge_id or "stock"))
+            (CartridgeInstall.cartridge_id == cartridge_id)
             & (CartridgeInstall.version == (migration.cartridge_version or "1.0.0"))
         )
         if row is None:
 
-            return False
+            return cartridge_id == "stock"
 
         return row.smoke_status == "passed"
+
+
+def smoke_state(migration) -> dict:
+    """What the card says about the pin's smoke-run, and whether one is owed."""
+    cartridge_id = migration.get("cartridge_id") or "stock"
+    version = migration.get("cartridge_version") or "1.0.0"
+    with database.connection_context():
+        row = CartridgeInstall.get_or_none(
+            (CartridgeInstall.cartridge_id == cartridge_id)
+            & (CartridgeInstall.version == version)
+        )
+    status = row.smoke_status if row is not None else ("shipped" if cartridge_id == "stock" else "missing")
+
+    return {"status": status, "owed": status not in ("passed", "shipped", "running")}
 
 
 def record_smoke(migration_id: str, status: str) -> None:

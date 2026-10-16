@@ -23,6 +23,9 @@
   }
 </script>
 <div class="card-settings">
+  {# `_overview` builds `provision` for every expanded row, Docker or not.
+     A second copy of the form for its absence was never drawn, and had
+     already lost the database fields. #}
   {% if provision %}
   {# The flow, in one line: get the source container up, then read its module
      graph on Tree. Resolve links to a running source on its own. #}
@@ -163,91 +166,29 @@
       <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
         <fieldset class="import-flow">
           <legend>Import a flow</legend>
-          <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file">
+          <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file" required>
           <button type="submit">Import</button>
         </fieldset>
       </form>
+      {# A batch waits for the pinned flow to pass one module first. Without
+         this button nothing on any screen started that run, and an imported
+         flow could never run at all. #}
+      {% if smoke %}
+      <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/smoke">
+        <fieldset class="import-flow">
+          <legend>Smoke-run</legend>
+          <p class="field-hint">The pinned flow:
+            <span class="badge{% if smoke.status == 'passed' %} passed{% elif smoke.status == 'failed' %} failed{% elif smoke.status == 'running' %} running{% endif %}">{{ smoke.status }}</span>.
+            {% if smoke.owed %}A batch starts once one module has run through it and passed.{% else %}Batches may start.{% endif %}</p>
+          <button type="submit"{% if smoke.owed %} class="primary"{% endif %}
+                  title="Run the first module through the pinned flow"
+                  aria-label="Smoke-run the pinned flow of {{ expanded.name }}">Smoke-run</button>
+        </fieldset>
+      </form>
+      {% endif %}
       {% endif %}
     </div>
     {% endfor %}
   </div>
-  {% else %}
-  <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">
-    <ol class="settings-fields">
-      <li>
-        <label>Strictness
-          <select name="strictness_default">
-            <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
-            <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
-          </select>
-        </label>
-        <p class="field-hint">How hard a rewrite is checked. <code>enhanced</code>
-        asks for more; the stock flow runs what <code>basic</code> runs until a
-        flow honours the difference.</p>
-      </li>
-      <li>
-        <label>Retry limit
-          <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
-        </label>
-        <p class="field-hint">How many times one module is retried before the
-        batch stops on it.</p>
-      </li>
-      <li>
-        <label>Ask-human mode
-          <select name="ask_human_mode">
-            <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
-            <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
-          </select>
-        </label>
-        <p class="field-hint"><code>sync</code> stops and waits for your answer on
-        Tree. <code>batch_defer</code> records an assumption and keeps going; you
-        read it at the checkpoint.</p>
-      </li>
-      <li>
-        <label>Flow
-          <select name="cartridge_id">
-            {% for item in cartridges %}
-            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
-            {% else %}
-            <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
-            {% endfor %}
-          </select>
-        </label>
-        <p class="field-hint">The flow package that does the rewrite, pinned by
-        id and version. The pin is recorded on every job.</p>
-      </li>
-      <li>
-        {% set chosen_provider = expanded.provider_override or flow_default.provider or "anthropic" %}
-        <label>Provider
-          <select name="provider_override" onchange="filterModels(this)">
-            {% for item in providers %}
-            <option value="{{ item.name }}"{% if chosen_provider == item.name %} selected{% endif %}>{{ item.name }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <p class="field-hint">The flow names a default. A pair saved here
-        replaces it, and the job records this pair.</p>
-        <label>Model
-          <select name="model_override">
-            {% for item in providers %}
-            {% for name in item.models %}
-            <option value="{{ name }}" data-provider="{{ item.name }}"{% if item.name != chosen_provider %} hidden disabled{% endif %}{% if item.name == chosen_provider and ((expanded.model_override or flow_default.model) == name or (not expanded.model_override and not flow_default.model and name == item.models[0])) %} selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-            {% endfor %}
-          </select>
-        </label>
-        <p class="field-hint">Models of the provider above. A step that names
-        its own model still wins.</p>
-      </li>
-    </ol>
-    <button type="submit" class="primary">Save</button>
-  </form>
-  <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
-    <fieldset class="import-flow">
-      <legend>Import a flow</legend>
-      <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file">
-      <button type="submit">Import</button>
-    </fieldset>
-  </form>
   {% endif %}
 </div>

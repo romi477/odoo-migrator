@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
-from odoo_migrator.cartridges import install_from_text, list_installs, smoke_run
+from odoo_migrator.cartridges import install_from_text, list_installs, smoke_run, smoke_state
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database, init_db
 from odoo_migrator.events import CLOSED, EventHub
@@ -1425,6 +1425,7 @@ def create_app(
                 "flow_default": _flow_default(migration),
                 "provision": provision,
                 "cartridges": list_installs() if migration else [],
+                "smoke": smoke_state(migration) if migration else None,
                 # The form is asked for, not permanently open. It stays open
                 # with what was typed still in it when the answer is a
                 # refusal — re-rendering an empty form is how someone loses
@@ -1511,17 +1512,17 @@ def create_app(
         raw = await file.read()
         try:
             text = raw.decode("utf-8")
-            install_from_text(text)
+            row = install_from_text(text)
         except (CartridgeError, UnicodeError) as exc:
 
             return _overview(request, expanded=migration_id, error=str(exc))
         with database.connection_context():
-            from odoo_migrator.models import CartridgeInstall as Install
             from odoo_migrator.models import Migration
 
-            row = Install.select().order_by(Install.id.desc()).first()
+            # The row just imported. The newest by id is another flow when
+            # this one was imported before: it is updated in place.
             migration = Migration.get_or_none(Migration.id == migration_id)
-            if row is not None and migration is not None:
+            if migration is not None:
                 migration.cartridge_id = row.cartridge_id
                 migration.cartridge_version = row.version
                 migration.save()

@@ -161,3 +161,68 @@ on_failure:
 
     assert loaded.cartridge == "house"
     assert [step.kind for step in loaded.pipeline] == ["verdict"]
+
+
+def _variant(cartridge_id: str, version: str = "1.0.0", note: str = "") -> str:
+    text = STOCK_TEXT.replace("cartridge: stock", f"cartridge: {cartridge_id}", 1)
+    text = text.replace("version: 1.0.0", f"version: {version}", 1)
+
+    return text + (f"\n# {note}\n" if note else "")
+
+
+def test_importing_a_flow_does_not_lock_the_stock_flow_out(client, migration):
+    """The stock file ships with the app and has no install row. Once any
+    flow was imported, the gate asked for that missing row and every
+    migration on stock answered "A smoke-run must pass before a batch"."""
+    from odoo_migrator.cartridges import smoke_allows_batch
+
+    install_from_text(_variant("acme_flow"))
+
+    with database.connection_context():
+        on_stock = Migration.get_by_id(migration["id"])
+
+    assert smoke_allows_batch(on_stock)
+
+
+def test_the_card_offers_a_smoke_run_for_a_pin_that_has_not_passed(client, migration):
+    """The gate asks for a passed smoke-run, and nothing on any screen
+    started one: an imported flow could never run."""
+    client.post(
+        f"/migrations/{migration['id']}/cartridge",
+        files={"file": ("acme.yaml", _variant("acme_flow").encode())},
+    )
+
+    card = client.get(f"/?settings={migration['id']}").text
+
+    assert f'action="/migrations/{migration["id"]}/smoke"' in card
+    assert "untested" in card
+
+
+def test_import_pins_the_flow_it_imported(client, migration):
+    """The newest row by id is not the one just imported when that flow was
+    imported before: the row is updated in place and keeps its old id."""
+    install_from_text(_variant("first_flow"))
+    install_from_text(_variant("second_flow"))
+
+    client.post(
+        f"/migrations/{migration['id']}/cartridge",
+        files={"file": ("first.yaml", _variant("first_flow", note="again").encode())},
+    )
+
+    with database.connection_context():
+        pinned = Migration.get_by_id(migration["id"])
+    assert pinned.cartridge_id == "first_flow"
+
+
+def test_a_changed_text_needs_a_new_smoke_run(client, migration):
+    """A smoke-run passed one text. The same id and version with another
+    text is not what was tried."""
+    row = install_from_text(_variant("acme_flow"))
+    with database.connection_context():
+        CartridgeInstall.update(smoke_status="passed").where(
+            CartridgeInstall.id == row.id
+        ).execute()
+
+    again = install_from_text(_variant("acme_flow", note="edited"))
+
+    assert again.smoke_status == "untested"
