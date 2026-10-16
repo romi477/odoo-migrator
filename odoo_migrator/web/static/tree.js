@@ -355,12 +355,39 @@
     });
   }
 
+  /* What the graph module table counts as done (`graph.DONE`): passed here,
+     or already installed on the target before the run. Tree drew every
+     module alike, so nothing on it said which ones were finished; Result
+     has said so with this corner since it was built. */
+  const DONE_STATUSES = { passed: "Passed", migrated: "Already on the target" };
+
+  function placeDoneCorner(node, box) {
+    const said = DONE_STATUSES[node.data("status")];
+    if (!said || node.data("struck_out")) {
+      return;
+    }
+    const corner = document.createElement("span");
+    corner.className = "result-corner-badge done graph-node-done";
+    corner.title = said;
+    const glyph = document.createElement("span");
+    glyph.className = "result-corner-glyph-check";
+    glyph.textContent = "\u2713";
+    corner.appendChild(glyph);
+    corner.style.setProperty("--x", Math.round(box.x2) + "px");
+    corner.style.setProperty("--y", Math.round(box.y1) + "px");
+    badges.appendChild(corner);
+  }
+
   function placeBadges() {
     if (!badges) {
       return;
     }
     badges.replaceChildren();
     cy.nodes().forEach(function (node) {
+      placeDoneCorner(
+        node,
+        node.renderedBoundingBox({ includeLabels: false, includeOverlays: false }),
+      );
       const text = indexText({
         node_id: node.data("node_id"),
         migration_rank: node.data("migration_rank"),

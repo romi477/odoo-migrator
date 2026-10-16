@@ -2676,6 +2676,15 @@ h2 {
   left: var(--x);
 }
 
+/* Result's corner, on a graph node: centred on the node's top-right corner
+   the way the card's sits 9px over its own. */
+.graph-badges .graph-node-done {
+  top: var(--y);
+  left: var(--x);
+  right: auto;
+  transform: translate(-50%, -50%);
+}
+
 .graph-node.struck {
   opacity: 0.55;
 }

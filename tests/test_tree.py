@@ -401,3 +401,23 @@ def test_a_batch_group_can_be_cleared(client):
     client.post(f"/tree/modules/{module['id']}/batch", data={"batch_group": ""})
 
     assert _reload(migration_id, module["id"])["batch_group"] is None
+
+
+def test_a_finished_module_carries_results_green_corner_on_tree(client):
+    """Tree drew a passed module like any other, so nothing on it said which
+    ones were done. It now draws Result's corner, for both statuses the graph
+    counts as done, and not on a module that is left out."""
+    script = client.get("/static/tree.js").text
+    css = client.get("/static/style.css").text
+
+    assert "result-corner-badge done graph-node-done" in script
+    assert 'passed: "Passed"' in script
+    assert 'migrated: "Already on the target"' in script
+    assert 'node.data("struck_out")' in script.split("function placeDoneCorner")[1].split("}")[0]
+    assert ".graph-badges .graph-node-done" in css
+
+
+def test_the_done_corner_on_a_graph_node_has_a_row_on_components(client):
+    page = client.get("/components").text
+
+    assert "result-corner-badge done graph-node-done" in page
