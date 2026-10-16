@@ -643,3 +643,31 @@ def test_a_sheller_without_the_switch_is_named_as_too_old(app, tmp_path):
     assert "1.11.0" in parked.question
     runner.stop(job.job_id)
     runner.wait(job.job_id)
+
+
+def test_a_stop_is_forgotten_once_its_run_has_ended(client, parked_job):
+    """The set of stops grew for the life of the process. It was emptied at
+    a run's start instead, which also threw away a Stop pressed between
+    the thread being made and its first line."""
+    from odoo_migrator.runner.native import stopping
+
+    del client
+    job, runner = parked_job
+
+    runner.stop(job.job_id)
+    runner.wait(job.job_id, timeout=5)
+
+    assert stopping(job.job_id) is False
+    assert runner.stopping(job.job_id) is False
+
+
+def test_a_stop_pressed_before_the_thread_starts_is_kept(app, tmp_path):
+    from odoo_migrator.runner.native import ask_to_stop
+
+    job = _module(tmp_path)
+    runner = NativeRunner(sheller=None, hub=app.state.hub, result=app.state.on_result)
+    ask_to_stop(job.job_id)
+
+    runner._run({"job_id": job.job_id})
+
+    assert reloaded(job).status == "stopped"

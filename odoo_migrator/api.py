@@ -965,6 +965,11 @@ def create_app(
         current = get_active(request.cookies.get(OPEN_COOKIE))
         checkpoint = latest_checkpoint(current["id"]) if current else None
         live = live_run(current["id"]) if current else None
+        if live:
+            # A Stop this process has heard and the run has not reached yet:
+            # the turn in flight finishes first, which can take minutes.
+            asked = getattr(request.app.state.executor, "stopping", None)
+            live["stopping"] = bool(asked(live["job_id"])) if callable(asked) else False
         # Drawn whether or not a run is in flight: a page opened between two
         # modules has nothing else for the next one's events to paint.
         ribbon = _ribbon(current, live) if current else None
@@ -1177,13 +1182,24 @@ def create_app(
 
             return RedirectResponse("/run", status_code=303)
         queue_stop(current["id"], request.app.state.hub)
-        stopped = stop_job(
-            module_id=module_id,
-            hub=request.app.state.hub,
-            stop=getattr(request.app.state.executor, "stop", None),
-        )
+        try:
+            stopped = stop_job(
+                module_id=module_id,
+                hub=request.app.state.hub,
+                stop=getattr(request.app.state.executor, "stop", None),
+            )
+        except ContractError as refused:
+            # Ended between the page drawing Stop and the press, or a reload
+            # of the page a Stop answered, which posts it again.
 
-        return _run_page(request, error=None if stopped else _NO_RUNNER)
+            return _run_page(request, error=str(refused))
+        if not stopped:
+
+            return _run_page(request, error=_NO_RUNNER)
+
+        # Back to the screen, not a page under the POST: reloading that one
+        # pressed Stop again.
+        return RedirectResponse("/run", status_code=303)
 
     @app.post("/run/modules/{module_id}/answer")
     def run_answer(request: Request, module_id: int, answer: str = Form("")):

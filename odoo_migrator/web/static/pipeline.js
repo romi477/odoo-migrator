@@ -5,6 +5,27 @@
      the node whose text matched the stage line, which said only where the
      run was and never whether that step had failed. */
 
+  /* Stop takes effect after the model turn in flight, which can take
+     minutes. Saying so at the press, and refusing a second one, is what
+     tells the person it was heard. */
+  const stopForm = document.querySelector("[data-pipeline-stop]");
+  if (stopForm) {
+    stopForm.addEventListener("submit", function (event) {
+      const button = stopForm.querySelector("button");
+      if (!button) {
+        return;
+      }
+      if (button.getAttribute("aria-busy") === "true") {
+        event.preventDefault();
+
+        return;
+      }
+      button.setAttribute("aria-busy", "true");
+      button.textContent = "Stopping…";
+      button.title = stopForm.getAttribute("data-hint-stopping") || button.title;
+    });
+  }
+
   const panel = document.querySelector("[data-pipeline-queue-panel]");
   if (!panel) {
     return;

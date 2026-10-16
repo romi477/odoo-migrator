@@ -216,14 +216,19 @@
              nothing runs, so a page opened between two modules has it for the
              next one; sse.js points it at the module and picks the hint. #}
           {% set parked = live and live.status == 'waiting_for_human' %}
+          {% set stopping = live and live.stopping %}
           {% set hint_parked = "Nothing is running: the question is withdrawn and the run ends now." %}
-          {% set hint_running = "The step running now finishes — a model turn cannot be called back — and the run ends there." %}
+          {% set hint_running = "The model turn in flight finishes — it cannot be called back — and the run ends before the next one." %}
+          {% set hint_stopping = "Stop was heard. The model turn in flight finishes first, then the run ends." %}
           <form method="post" class="pipeline-stop" data-pipeline-stop
                 data-hint-parked="{{ hint_parked }}" data-hint-running="{{ hint_running }}"
+                data-hint-stopping="{{ hint_stopping }}"
                 action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
                 {% if not live or live.status not in ('running', 'waiting_for_human') %}hidden{% endif %}>
-            <button type="submit" aria-label="Stop this run at its next step"
-                    title="{{ hint_parked if parked else hint_running }}">Stop this run</button>
+            <button type="submit" aria-label="Stop this run after the model turn in flight"
+                    data-label="Stop this run"
+                    title="{{ hint_stopping if stopping else (hint_parked if parked else hint_running) }}"
+                    {% if stopping %}disabled{% endif %}>{% if stopping %}Stopping…{% else %}Stop this run{% endif %}</button>
           </form>
         </header>
         {% if ribbon %}

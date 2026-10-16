@@ -140,6 +140,7 @@ function fillResultCornerGlyph(glyph, kind) {
         /* A Stop asked for on another module is not this one's. */
         if (!same) {
           button.disabled = false;
+          button.removeAttribute("aria-busy");
           button.textContent = button.getAttribute("data-label") || button.textContent;
         }
       }

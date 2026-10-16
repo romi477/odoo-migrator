@@ -590,3 +590,50 @@ def test_an_answered_question_folds_into_one_line(client):
     assert '<details class="checkpoint-past"' in page
     assert "Answered: use the new one" in page
     assert "<details class=\"checkpoint-past\" open" not in page
+
+
+class StoppableExecutor(SessionExecutor):
+    """Parks, and hears a Stop the way the native runner does."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.asked: set[str] = set()
+
+    def stop(self, job_id):
+        self.asked.add(job_id)
+
+        return True
+
+    def stopping(self, job_id):
+
+        return job_id in self.asked
+
+
+def test_stop_on_a_module_no_longer_running_says_so_instead_of_crashing(client):
+    """The job ended between the page drawing Stop and the press — or the
+    page was reloaded after a Stop, which posts it again. stop_job refused,
+    the route did not catch it, and the answer was a 500."""
+    _row, sale = _prepared(client)
+
+    page = client.post(f"/run/modules/{sale['id']}/stop", follow_redirects=False)
+
+    assert page.status_code == 200
+    assert "That module is not running." in page.text
+
+
+def test_a_heard_stop_lands_on_run_and_says_it_is_stopping(client):
+    """After the press the card looked exactly as before until the model's
+    turn ended, which can take minutes, and a reload posted the Stop again."""
+    _row, sale = _prepared(client)
+    client.app.state.executor = StoppableExecutor(client.app)
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+
+    pressed = client.post(f"/run/modules/{sale['id']}/stop", follow_redirects=False)
+
+    assert pressed.status_code == 303
+    assert pressed.headers["location"] == "/run"
+    page = client.get("/run").text
+    stop = page[page.index("data-pipeline-stop") :]
+    stop = stop[: stop.index("</form>")]
+    assert "Stopping…" in stop
+    assert "disabled" in stop

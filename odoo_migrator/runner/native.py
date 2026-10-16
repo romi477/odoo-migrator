@@ -187,6 +187,12 @@ class NativeRunner:
 
         return True
 
+    def stopping(self, job_id: str) -> bool:
+        """A Stop was asked for and the run has not reached it yet."""
+        thread = self._threads.get(job_id)
+
+        return thread is not None and thread.is_alive() and stopping(job_id)
+
     def resume(self, job_id: str, answer: str) -> bool:
         """True when this process still has the thread that parked the job."""
 
@@ -235,7 +241,16 @@ class NativeRunner:
 
     def _run(self, payload: dict) -> None:
         job_id = payload["job_id"]
-        _forget_stop(job_id)
+        try:
+            self._run_job(payload)
+        finally:
+            # Forgotten when the run is over, not when it starts: emptied at
+            # the start, a Stop pressed before the thread got going was lost,
+            # and nothing emptied it after.
+            _forget_stop(job_id)
+
+    def _run_job(self, payload: dict) -> None:
+        job_id = payload["job_id"]
         ctx = None
         seen_attempt = 0
 
@@ -310,6 +325,8 @@ class NativeRunner:
             # will not load and a missing model key all raise here. Outside
             # this try they killed the thread with nobody told, and the job
             # sat queued until a restart called it unknown.
+            if stopping(job_id):
+                raise Stopped("before it started")
             self._log(job_id, "runner", "job started")
             cartridge = self._cartridge(payload)
             ctx = self._context(payload, cartridge, self.job_sheller())
