@@ -205,20 +205,22 @@
         <header class="name-line">
           <span class="name mono" data-pipeline-module>{% if live %}{{ live.module }}{% endif %}</span>
           <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
+          {# The queue's Stop lets the module finish, which is not what someone
+             watching a run spend tokens is asking for. Drawn hidden when
+             nothing runs, so a page opened between two modules has it for the
+             next one; sse.js points it at the module and picks the hint. #}
+          {% set parked = live and live.status == 'waiting_for_human' %}
+          {% set hint_parked = "Nothing is running: the question is withdrawn and the run ends now." %}
+          {% set hint_running = "The step running now finishes — a model turn cannot be called back — and the run ends there." %}
+          <form method="post" class="pipeline-stop" data-pipeline-stop
+                data-hint-parked="{{ hint_parked }}" data-hint-running="{{ hint_running }}"
+                action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
+                {% if not live or live.status not in ('running', 'waiting_for_human') %}hidden{% endif %}>
+            <button type="submit" aria-label="Stop this run at its next step"
+                    title="{{ hint_parked if parked else hint_running }}">Stop this run</button>
+          </form>
         </header>
         <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
-        {# The queue's Stop lets the module finish, which is not what someone
-           watching a run spend tokens is asking for. #}
-        {# Drawn hidden when nothing runs, so a page opened between two
-           modules has it for the next one; sse.js points it at the module. #}
-        {% set parked = live and live.status == 'waiting_for_human' %}
-        <form method="post" class="pipeline-stop" data-pipeline-stop
-              action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
-              {% if not live or live.status not in ('running', 'waiting_for_human') %}hidden{% endif %}>
-          <button type="submit" aria-label="Stop this run at its next step">Stop this run</button>
-          <span class="field-hint" data-stop-parked{% if not parked %} hidden{% endif %}>Nothing is running: the question is withdrawn and the run ends now.</span>
-          <span class="field-hint" data-stop-running{% if parked %} hidden{% endif %}>The step running now finishes — a model turn cannot be called back — and the run ends there.</span>
-        </form>
         {% if ribbon %}
         {# Which attempt the ribbon shows. A retry loops back part way, so
            one attempt is not the whole run; each can be read back. #}

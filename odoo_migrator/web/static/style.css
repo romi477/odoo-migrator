@@ -3110,18 +3110,11 @@ pre.test-output {
   color: #c4552a;
 }
 
-/* Stopping the run that is on screen. The queue's own Stop is about the
-   queue and lets this module finish. */
+/* Stopping the run that is on screen, at the right end of its name line.
+   The queue's own Stop is about the queue and lets this module finish.
+   What a stop does now is the button's tooltip. */
 .pipeline-stop {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
-.pipeline-stop .field-hint {
-  margin: 0;
+  margin: 0 0 0 auto;
 }
 
 /* The pipeline, left to right, centred under the module's name. Each block

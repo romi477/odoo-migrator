@@ -92,13 +92,10 @@ function fillResultCornerGlyph(glyph, kind) {
         if (inflight) {
           stop.setAttribute("action", "/run/modules/" + data.id + "/stop");
         }
-        const parkedHint = stop.querySelector("[data-stop-parked]");
-        const runningHint = stop.querySelector("[data-stop-running]");
-        if (parkedHint) {
-          parkedHint.hidden = !parked;
-        }
-        if (runningHint) {
-          runningHint.hidden = parked;
+        const button = stop.querySelector("button");
+        if (button) {
+          button.title =
+            stop.getAttribute(parked ? "data-hint-parked" : "data-hint-running") || "";
         }
       }
       const ask = pipe.querySelector("[data-pipeline-ask]");
