@@ -3026,7 +3026,7 @@ pre.test-output {
 
 /* Cyan: the ribbon's colour for the step running now. */
 .pipeline-stage {
-  color: var(--cyan);
+  color: var(--text);
   text-align: center;
   white-space: nowrap;
 }
