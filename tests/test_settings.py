@@ -458,3 +458,54 @@ def test_the_bin_stays_on_settings_and_remembers_where_to_go_back(client):
     page = client.get("/settings?back=/result").text
 
     assert 'name="back" value="/result"' in page
+
+
+def test_enter_in_a_field_saves_and_never_presses_a_bin(client):
+    """Enter in a text field presses the form's first submit button.
+
+    The bins stood ahead of Save and Close in the same form, so Enter in
+    the Sheller URL pressed the first bin and deleted the Anthropic key.
+    The bins belong to a form of their own; Save is the settings form's
+    first button.
+    """
+    page = client.get("/settings").text
+    form = re.search(r'<form[^>]*class="[^"]*settings-form[^"]*".*?</form>', page, re.DOTALL).group(0)
+    own = [
+        button
+        for button in re.findall(r"<button\b[^>]*>", form)
+        if " form=" not in button and 'type="button"' not in button
+    ]
+
+    assert own and "settings-save" in own[0]
+    bins = re.findall(r'<button\b[^>]*name="clear_provider"[^>]*>', page)
+    assert bins and all('form="settings-clear"' in button for button in bins)
+    assert re.search(r'<form[^>]*id="settings-clear"', page)
+
+
+def test_a_bin_alone_keeps_every_other_setting(client):
+    """The bin's form carries nothing but the key to remove."""
+    from odoo_migrator.settings import get_app_settings, provider_setting
+
+    _save(client, back="/")
+    client.post(
+        "/settings",
+        data={
+            "sheller_base_url": "http://127.0.0.1:9999",
+            "sheller_image_tag": "1.2.3",
+            "provider_cursor_api_key": "cursor-secret",
+            "provider_anthropic_api_key": "anthropic-secret",
+        },
+    )
+
+    removed = client.post(
+        "/settings",
+        data={"clear_provider": "cursor__api_key", "back": "/"},
+        follow_redirects=False,
+    )
+
+    assert removed.status_code == 303
+    assert provider_setting("cursor", "api_key") == ""
+    assert provider_setting("anthropic", "api_key") == "anthropic-secret"
+    kept = get_app_settings()
+    assert kept["sheller_base_url"] == "http://127.0.0.1:9999"
+    assert kept["sheller_image_tag"] == "1.2.3"

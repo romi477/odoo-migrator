@@ -1314,9 +1314,17 @@ def create_app(
             if key.startswith("provider_")
         }
         cleared = form.get("clear_provider")
+        # A field the form did not carry is kept: the bins post from a form
+        # of their own, with nothing in it but the key to remove.
+        stored = get_app_settings()
+
+        def sent(name: str) -> str:
+
+            return str(form.get(name) or "") if name in form else stored[name]
+
         save_app_settings(
-            sheller_base_url=str(form.get("sheller_base_url") or ""),
-            sheller_image_tag=str(form.get("sheller_image_tag") or ""),
+            sheller_base_url=sent("sheller_base_url"),
+            sheller_image_tag=sent("sheller_image_tag"),
             provider_values=values,
             cleared={str(cleared)} if cleared else set(),
         )

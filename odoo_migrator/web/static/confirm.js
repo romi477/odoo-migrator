@@ -14,14 +14,23 @@
   const go = dialog.querySelector("[data-confirm-go]");
   const cancel = dialog.querySelector("[data-confirm-cancel]");
   let pending = null;
+  let pressed = null;
 
   document.addEventListener("submit", function (event) {
     const form = event.target;
     if (!form.hasAttribute || !form.hasAttribute("data-confirm-text")) {
       return;
     }
+    /* The confirmed send, coming back through here once. */
+    if (form.dataset.confirmed === "yes") {
+      delete form.dataset.confirmed;
+      return;
+    }
     event.preventDefault();
     pending = form;
+    /* The button that was pressed carries a name and value of its own (a
+       bin says which key), and `submit()` would send the form without it. */
+    pressed = event.submitter || null;
     title.textContent = form.getAttribute("data-confirm-title") || "Are you sure?";
     text.textContent = form.getAttribute("data-confirm-text");
     go.textContent = form.getAttribute("data-confirm-go") || "Confirm";
@@ -31,23 +40,30 @@
 
   cancel.addEventListener("click", function () {
     pending = null;
+    pressed = null;
     dialog.close();
   });
 
   go.addEventListener("click", function () {
     const form = pending;
+    const button = pressed;
     pending = null;
+    pressed = null;
     dialog.close();
     if (form) {
-      /* `submit()` does not fire the submit event again, so the form is not
-         asked about twice. */
-      form.submit();
+      form.dataset.confirmed = "yes";
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit(button && button.form === form ? button : undefined);
+      } else {
+        form.submit();
+      }
     }
   });
 
   /* Escape and a click on the backdrop close the dialog and confirm nothing. */
   dialog.addEventListener("close", function () {
     pending = null;
+    pressed = null;
   });
   dialog.addEventListener("click", function (event) {
     if (event.target === dialog) {

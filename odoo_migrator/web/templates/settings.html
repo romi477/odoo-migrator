@@ -33,7 +33,10 @@
                    value="{% if field.set %}{% if field.secret %}{{ field.mask }}{% else %}{{ field.value }}{% endif %}{% endif %}"
                    onfocus="if (this.dataset.mask && this.value === this.dataset.mask) { this.type = 'password'; this.select(); }"
                    onblur="if (this.dataset.mask && (this.value === '' || this.value === this.dataset.mask)) { this.type = 'text'; this.value = this.dataset.mask; }">
+            {# Its own form, not this one: Enter in a field presses the form's
+               first submit button, and a bin ahead of Save deleted a key. #}
             <button type="submit" class="icon-danger" name="clear_provider"
+                    form="settings-clear"
                     value="{{ field.provider }}__{{ field.key }}"
                     title="Remove {{ field.label }}"
                     aria-label="Remove {{ field.label }}">
@@ -61,6 +64,14 @@
        stays here, so the answer has to survive it. #}
     <input type="hidden" name="back" value="{{ back }}">
     <button type="submit" class="primary settings-save">Save and Close</button>
+  </form>
+  {# What the bins submit: the key to remove and where to go back, nothing
+     else, so a bin never saves or blanks the fields above. #}
+  <form id="settings-clear" method="post" action="/settings"
+        data-confirm-title="Remove this setting?"
+        data-confirm-text="The stored value is deleted. A key is never shown again, so using it later means pasting it anew."
+        data-confirm-go="Remove">
+    <input type="hidden" name="back" value="{{ back }}">
   </form>
 </section>
 {% endblock %}
