@@ -51,7 +51,8 @@ The bar is two rows, on every page.
 - **Attention lamp** — `/attention`. Global: whichever migration has a
   module on `failed` or `waiting_for_human` that has not been dismissed.
   Clicking it opens that migration and focuses the node on Tree
-  (`?focus=`). There is no "which one?" picker; the lamp is not a list.
+  (`?focus=`): a module waiting for an answer first, else the newest
+  failure. There is no "which one?" picker; the lamp is not a list.
 - **Running count** — how many migrations currently have work in
   flight, labelled “N run”. It is a number, not a button.
 - **Settings** — an outline gear at the far right of the top row,
@@ -237,13 +238,16 @@ flow returns to `lint`). The failure lane that attempt ran (diagnose,
 patch) is a smaller row under it. From a second attempt on, numbers above
 the ribbon read any attempt back; the latest one follows the run live. A
 parked question sits
-under the ribbon as a thread. **Stop this run** ends the module at its
-next step — between two test runs inside `tests` — and a parked one at
-once, withdrawing the question. Empty reads "No module is running." SSE
-fills the stage. When the batch reaches
-checkpoint a banner appears: *This batch has finished. Reload to review
-it.* The screen does not swap itself for the review while you are
-looking at a live stage.
+under the ribbon as a thread. **Stop this run** ends the module after
+the model turn in flight (Cursor: at the step's end), between two test
+runs inside `tests`, and a parked one at once, withdrawing the question.
+The button reads *Stopping…* from the press until the run gets there.
+Empty reads "No module is running." SSE fills the stage; when the stream
+comes back after a drop or a restart, its first message repaints the card,
+the queue and the statuses. When a batch stops at checkpoint a banner
+appears: *This batch has finished. Reload to review it.* A wave the queue
+approves and carries on from is not announced. The screen does not swap
+itself for the review while you are looking at a live stage.
 
 **Flow** (`/flow`) draws the pinned cartridge. The picture is computed
 from the file each time the page is opened; nothing about it is stored.
@@ -343,15 +347,17 @@ every label over two lines.
 |---|---|
 | Strictness | Stored on the migration. The stock flow does not branch on it yet: `enhanced` runs what `basic` runs. |
 | Retry limit | How many laps the failure lane may take. Not a cap inside one model call. |
-| Ask-human mode | `sync` parks the job until you answer. `batch_defer` records an assumption and continues; you read it at checkpoint. |
+| Ask-human mode | `sync` parks the job until you answer. `batch_defer` records the question as an assumption and continues without asking; you read it at checkpoint. |
 | Flow | The pinned cartridge, `id@version`. Recorded on every job. Import replaces the pin. |
-| Provider / Model | The flow file names a default. The card shows it and can replace it; the model list is the models of the selected provider. The job records the pair that was on the card. A step that names its own model still wins. |
+| Provider / Model | The flow file names a default. The card shows it and can replace it; the model list is the models of the selected provider. The saved pair is always listed, also while the local model server is off and lists nothing. The job records the pair that was on the card. A step that names its own model still wins. |
 
-**Smoke-run** starts the first unstruck module by name through the pinned
-flow. The button says the run started; the verdict is whatever the
-job ends as. A failed smoke-run blocks Batch. With nothing installed
-the app is on its stub and a batch is allowed; once a flow exists, an
-unknown pin is refused.
+**Smoke-run**, under Import a flow, shows the pin's smoke status and
+starts the first unstruck module by name through the pinned flow. The
+button says the run started; the verdict is whatever the job ends as. An
+untested or failed smoke-run blocks Batch. With nothing installed the app
+is on its stub and a batch is allowed; once a flow exists, an unknown pin
+is refused — except stock, which ships with the app. Importing a changed
+text under the same id and version needs a new smoke-run.
 
 ## Guide (in-app)
 

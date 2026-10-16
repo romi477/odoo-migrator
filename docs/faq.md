@@ -83,10 +83,11 @@ make.
 
 Once a cartridge is installed, an untested pin does not get to run two
 hundred modules. Smoke-run takes the first unstruck module by name; the
-verdict is the job's result, not the instant the run was started. With
-nothing installed the
-app uses its own stub and a batch is allowed — that is how the suite
-runs with no model and no containers.
+verdict is the job's result, not the instant the run was started. The
+button is on the migration card, under Import a flow. With nothing
+installed the app uses its own stub and a batch is allowed — that is how
+the suite runs with no model and no containers. The stock flow ships
+with the app and needs no smoke-run.
 
 **A module passed and the checkpoint diff is empty.**
 
