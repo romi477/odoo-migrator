@@ -15,6 +15,23 @@
   const cancel = dialog.querySelector("[data-confirm-cancel]");
   let pending = null;
   let pressed = null;
+  /* A control that is not a form (the log's Clear) asks through here. */
+  let then = null;
+
+  function ask(words) {
+    title.textContent = words.title || "Are you sure?";
+    text.textContent = words.text || "";
+    go.textContent = words.go || "Confirm";
+    dialog.showModal();
+    cancel.focus();
+  }
+
+  window.askToConfirm = function (words, onYes) {
+    pending = null;
+    pressed = null;
+    then = onYes;
+    ask(words);
+  };
 
   document.addEventListener("submit", function (event) {
     const form = event.target;
@@ -31,25 +48,32 @@
     /* The button that was pressed carries a name and value of its own (a
        bin says which key), and `submit()` would send the form without it. */
     pressed = event.submitter || null;
-    title.textContent = form.getAttribute("data-confirm-title") || "Are you sure?";
-    text.textContent = form.getAttribute("data-confirm-text");
-    go.textContent = form.getAttribute("data-confirm-go") || "Confirm";
-    dialog.showModal();
-    cancel.focus();
+    then = null;
+    ask({
+      title: form.getAttribute("data-confirm-title"),
+      text: form.getAttribute("data-confirm-text"),
+      go: form.getAttribute("data-confirm-go"),
+    });
   });
 
   cancel.addEventListener("click", function () {
     pending = null;
     pressed = null;
+    then = null;
     dialog.close();
   });
 
   go.addEventListener("click", function () {
     const form = pending;
     const button = pressed;
+    const onYes = then;
     pending = null;
     pressed = null;
+    then = null;
     dialog.close();
+    if (onYes) {
+      onYes();
+    }
     if (form) {
       form.dataset.confirmed = "yes";
       if (typeof form.requestSubmit === "function") {
@@ -64,6 +88,7 @@
   dialog.addEventListener("close", function () {
     pending = null;
     pressed = null;
+    then = null;
   });
   dialog.addEventListener("click", function (event) {
     if (event.target === dialog) {

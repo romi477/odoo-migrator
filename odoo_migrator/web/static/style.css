@@ -3435,7 +3435,8 @@ a.ribbon-box:focus-visible {
 }
 
 .result-summary-actions .copy-button.is-failed,
-.run-log-body-head .copy-button.is-failed {
+.run-log-body-head .copy-button.is-failed,
+.run-log-clear.is-failed {
   color: #c4552a;
 }
 
@@ -3789,7 +3790,8 @@ a.ribbon-box:focus-visible {
   color: #4f8a52;
 }
 
-.copy-button.is-failed {
+.copy-button.is-failed,
+.run-log-clear.is-failed {
   color: #c4552a;
 }
 

@@ -15,7 +15,15 @@
   var bodyLabel = panel.querySelector("[data-run-log-body-label]");
   var follow = panel.querySelector("[data-run-log-follow]");
   var job = panel.getAttribute("data-job") || "";
+  /* The panel shows its own migration's runs. Two migrations run side by
+     side, and a panel that followed every job hopped between them. */
+  var migration = panel.getAttribute("data-migration-id") || "";
   var last = 0;
+  /* Live lines wait here while the history is being read. Appended first,
+     a live line moved `last` past the whole history, which was then
+     dropped as already shown. */
+  var loading = false;
+  var held = [];
   /* Clear empties the card, name and all. What that name was is kept here,
      so the first line of the next run puts it back rather than leaving a
      list of lines belonging to nothing. */
@@ -86,7 +94,12 @@
         }
         fetch("/api/log/" + line.id)
           .then(function (response) {
-            return response.text();
+            return response.text().then(function (text) {
+              return response.ok ? text : "not available (" + response.status + ")";
+            });
+          })
+          .catch(function () {
+            return "not available: the app did not answer";
           })
           .then(function (text) {
             var chosen = list.querySelector(".is-open");
@@ -196,13 +209,14 @@
     closer.addEventListener("click", closeBody);
   }
   var clear = panel.querySelector("[data-run-log-clear]");
-  if (clear) {
-    clear.addEventListener("click", function () {
-      if (!job) {
-        return;
-      }
-      fetch("/api/jobs/" + job + "/log", { method: "DELETE" }).then(function () {
-        list.innerHTML = "";
+
+  function wipe() {
+    fetch("/api/jobs/" + encodeURIComponent(job) + "/log", { method: "DELETE" })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error(String(response.status));
+        }
+        list.replaceChildren();
         last = 0;
         closeBody();
         forget();
@@ -210,23 +224,76 @@
           empty.textContent = "This log was cleared.";
           empty.hidden = false;
         }
+      })
+      .catch(function () {
+        clear.classList.add("is-failed");
+        clear.title = "The log was not cleared: the app refused or did not answer.";
+        setTimeout(function () {
+          clear.classList.remove("is-failed");
+          clear.title = "Delete this job's log";
+        }, 2400);
       });
+  }
+
+  if (clear) {
+    clear.addEventListener("click", function () {
+      if (!job) {
+        return;
+      }
+      /* Deleted is deleted: the lines are not kept anywhere else. */
+      if (typeof window.askToConfirm === "function") {
+        window.askToConfirm(
+          {
+            title: "Clear this job's log?",
+            text: "Every line of this job's log is deleted. The job, its steps and its result stay.",
+            go: "Clear",
+          },
+          wipe
+        );
+      } else {
+        wipe();
+      }
     });
   }
 
+  /* The history after `last`, in pages: a long job has more lines than one
+     answer carries. */
+  var PAGE = 1000;
+
   function load() {
-    if (!job) {
+    if (!job || loading) {
       return;
     }
-    fetch("/api/jobs/" + job + "/log?after=" + last)
+    loading = true;
+    var reading = job;
+    fetch("/api/jobs/" + encodeURIComponent(job) + "/log?after=" + last)
       .then(function (response) {
+        if (!response.ok) {
+          throw new Error(String(response.status));
+        }
         return response.json();
       })
       .then(function (data) {
-        (data.lines || []).forEach(append);
+        if (reading !== job) {
+          return;
+        }
+        var lines = data.lines || [];
+        lines.forEach(append);
         if (last > 0 && empty) {
           empty.hidden = true;
         }
+        if (lines.length >= PAGE) {
+          loading = false;
+          load();
+
+          return;
+        }
+        loading = false;
+        held.splice(0).forEach(append);
+      })
+      .catch(function () {
+        loading = false;
+        held.splice(0).forEach(append);
       });
   }
 
@@ -244,11 +311,26 @@
   }
 
   function listen(src) {
+    /* A stream that comes back after a drop missed whatever was written
+       meanwhile; the history after `last` has it. */
+    var dropped = false;
+    src.addEventListener("error", function () {
+      dropped = true;
+    });
+    src.addEventListener("open", function () {
+      if (dropped) {
+        dropped = false;
+        load();
+      }
+    });
     src.addEventListener("log", function (event) {
       var data;
       try {
         data = JSON.parse(event.data);
       } catch (err) {
+        return;
+      }
+      if (migration && data.migration_id && String(data.migration_id) !== migration) {
         return;
       }
       /* A job that started after this page was rendered is the one to
@@ -263,7 +345,9 @@
         panel.setAttribute("data-job", data.job_id);
         job = data.job_id;
         last = 0;
-        list.innerHTML = "";
+        loading = false;
+        held = [];
+        list.replaceChildren();
         list.appendChild(handover);
         showJob(data.job_id, data.module);
       } else if (!job) {
@@ -274,7 +358,11 @@
       if (empty) {
         empty.hidden = true;
       }
-      append(data);
+      if (loading) {
+        held.push(data);
+      } else {
+        append(data);
+      }
       /* A line that arrived is a job at work. The panel is folded by default
          when nothing runs, and opens itself for this — unless the reader has
          already chosen. */

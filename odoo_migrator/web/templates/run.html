@@ -371,6 +371,7 @@
        as they chose. #}
     <article class="workspace-panel run-log-panel"
              data-run-log-panel
+             {% if current %}data-migration-id="{{ current.id }}"{% endif %}
              {% if log_job %}data-job="{{ log_job.job_id }}"{% endif %}
              x-data="{
                open: {{ 'true' if log_job and log_job.live else 'false' }},
@@ -430,7 +431,9 @@
         </div>
       </header>
       <div id="run-log-body" class="run-log-fold" x-show="open" x-cloak>
-      <ol class="run-log" data-run-log aria-live="polite"></ol>
+      {# Not a live region: a screen reader read out every line of a running
+         job as it landed. #}
+      <ol class="run-log" data-run-log></ol>
       <p class="field-hint" data-run-log-empty{% if log_job and log_job.lines %} hidden{% endif %}>
         {% if log_job %}This job's log is empty — it was cleared.{% else %}No job has run on this migration yet.{% endif %}
       </p>

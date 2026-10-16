@@ -216,3 +216,24 @@ def test_a_queue_row_says_its_modules_status(client):
     page = client.get("/run").text
 
     assert f'data-module-id="{first["id"]}" data-status="{first["status"]}"' in page
+
+
+def test_a_wave_the_queue_carries_on_from_is_not_announced_for_review(client):
+    """The batch closed to `checkpoint` and said so; the queue then approved
+    it and started the next wave. Pipeline showed "This batch has finished.
+    Reload to review it." at every wave, with nothing left to review."""
+    from test_batch import OutcomeExecutor
+
+    from odoo_migrator.models import Batch
+
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add-all", follow_redirects=True)
+    client.app.state.executor = OutcomeExecutor({}, client.app)
+
+    client.post("/run/queue/run", follow_redirects=True)
+
+    with database.connection_context():
+        statuses = {batch.status for batch in Batch.select().where(Batch.migration == row.id)}
+    assert "checkpoint" not in statuses
+    announced = [event for event in client.app.state.hub.published if event[0] == "checkpoint"]
+    assert announced == []

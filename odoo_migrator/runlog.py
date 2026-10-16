@@ -40,6 +40,7 @@ def write(
     body = _clip(detail, MAX_DETAIL)
     row_id = 0
     module = ""
+    migration_id = ""
     at = datetime.now(UTC)
     try:
         with database.connection_context():
@@ -52,6 +53,9 @@ def write(
             # arrives before the progress that renames that panel: for the
             # seconds in between, a new job wore the previous module's name.
             module = job.module.technical_name
+            # Which migration, so a page shows only its own: two run side by
+            # side, and a panel that followed every job hopped between them.
+            migration_id = str(job.module.migration_id)
             row = RunLog.create(
                 job=job,
                 at=at,
@@ -74,6 +78,7 @@ def write(
             {
                 "id": row_id,
                 "job_id": job_id,
+                "migration_id": migration_id,
                 "module": module,
                 "at": at.isoformat(),
                 "level": level,

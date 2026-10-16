@@ -67,6 +67,7 @@ from odoo_migrator.jobs import (
     start_batch,
     start_job,
     stop_job,
+    stream_state,
 )
 from odoo_migrator.migrations import (
     ProjectPathsError,
@@ -127,6 +128,10 @@ OPEN_COOKIE = "open_migration"
 SSE_RETRY_MS = 3000
 SSE_HEARTBEAT_SECONDS = 15
 SSE_MAX_SECONDS = 300
+# What the pages listen to. The runner also publishes its steps, tool calls
+# and job ends, for its own record and the tests; sent to every open page,
+# each tool call was one more message to every tab with nothing listening.
+PAGE_EVENTS = frozenset({"module", "checkpoint", "lamp", "running", "log", "queue"})
 PROVISION_ACTIONS = {
     "up": up,
     "attach": attach,
@@ -1598,8 +1603,18 @@ def create_app(
 
         return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 
+    def _stream_hello(migration_id: str) -> list[tuple[str, dict]]:
+        if get_active(migration_id) is None:
+
+            return []
+
+        return [
+            *stream_state(migration_id),
+            ("queue", {"migration_id": migration_id, **queue_snapshot(migration_id)}),
+        ]
+
     @app.get("/sse")
-    async def sse(request: Request):
+    async def sse(request: Request, migration: str = ""):
         """One stream per page, held open.
 
         ``async def`` on purpose, and the one endpoint that must be: a sync
@@ -1631,6 +1646,13 @@ def create_app(
                 )
                 yield f'event: running\ndata: {{"count": {count}}}\n\n'
                 yield f'event: lamp\ndata: {{"state": "{lamp}"}}\n\n'
+                # The page's own migration as it is now. Whatever was
+                # published while the stream was down is gone, and a page
+                # that missed a run ending kept showing it running.
+                if migration:
+                    told = await asyncio.to_thread(_stream_hello, migration)
+                    for event, data in told:
+                        yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
                 deadline = time.monotonic() + SSE_MAX_SECONDS
                 hub = request.app.state.hub
                 while time.monotonic() < deadline and not hub.closed:
@@ -1649,6 +1671,8 @@ def create_app(
                         # process alive.
                         break
                     event, data = item
+                    if event not in PAGE_EVENTS:
+                        continue
                     yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
             finally:
                 request.app.state.hub.unsubscribe(subscribed)

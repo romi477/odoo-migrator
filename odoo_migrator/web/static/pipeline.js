@@ -34,34 +34,32 @@
     );
   }
 
-  function queueItemMarkup(mod) {
-    const rank =
-      mod.migration_rank != null && mod.step != null
-        ? "#" + mod.migration_rank + "/" + mod.step
-        : "";
-    return (
-      '<span class="pipeline-queue-order">' +
-      mod.position +
-      "</span>" +
-      (rank
-        ? '<span class="graph-node-index">' + rank + "</span>"
-        : "") +
-      '<span class="pipeline-lamp" aria-hidden="true"></span>' +
-      '<span class="name mono">' +
-      mod.technical_name +
-      "</span>" +
-      '<span class="badge">step ' +
-      mod.step +
-      "</span>"
-    );
+  function cell(tag, className, text) {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (text != null) {
+      node.textContent = String(text);
+    }
+
+    return node;
   }
 
+  /* Built from nodes, as every other row on the page is. The name is data
+     from the project on disk, and went in through innerHTML. */
   function buildRow(mod, tag) {
     const row = document.createElement(tag);
     row.className = "pipeline-queue-item" + (mod.active ? " pipeline-queue-active" : "");
     row.setAttribute("data-module-id", String(mod.id));
     row.setAttribute("data-status", mod.status || "");
-    row.innerHTML = queueItemMarkup(mod);
+    row.appendChild(cell("span", "pipeline-queue-order", mod.position));
+    if (mod.migration_rank != null && mod.step != null) {
+      row.appendChild(cell("span", "graph-node-index", "#" + mod.migration_rank + "/" + mod.step));
+    }
+    const lamp = cell("span", "pipeline-lamp", null);
+    lamp.setAttribute("aria-hidden", "true");
+    row.appendChild(lamp);
+    row.appendChild(cell("span", "name mono", mod.technical_name));
+    row.appendChild(cell("span", "badge", "step " + mod.step));
 
     return row;
   }
@@ -233,9 +231,15 @@
           body: data,
         })
           .then(function (response) {
-            return response.json().then(function (payload) {
-              return { ok: response.ok, payload: payload };
-            });
+            /* A refusal from the guard or a crash is not JSON. */
+            return response
+              .json()
+              .catch(function () {
+                return { error: "The app answered " + response.status + "." };
+              })
+              .then(function (payload) {
+                return { ok: response.ok, payload: payload };
+              });
           })
           .then(function (result) {
             if (!result.ok) {
@@ -257,8 +261,9 @@
 
   wireQueueAddForms();
 
-  if (typeof EventSource !== "undefined") {
-    const src = new EventSource("/sse");
+  /* sse.js owns the page's one EventSource; a second one here was a second
+     connection and a second server thread for as long as the page was open. */
+  function listen(src) {
     src.addEventListener("queue", function (event) {
       let data;
       try {
@@ -279,15 +284,22 @@
       if (!migrationId || String(data.migration_id) !== migrationId) {
         return;
       }
-      const inflight =
-        data.status === "queued" ||
-        data.status === "running" ||
-        data.status === "waiting_for_human";
-      if (inflight) {
+      /* The active row is the one running or parked. A module reopened or
+         marked for review is not, and used to take the mark off the one
+         that was. */
+      if (data.status === "running" || data.status === "waiting_for_human") {
         setActive(data.id);
-      } else {
+      } else if (panel.querySelector('.pipeline-queue-active[data-module-id="' + data.id + '"]')) {
         setActive(null);
       }
+    });
+  }
+
+  if (window.migratorSse) {
+    listen(window.migratorSse);
+  } else {
+    document.addEventListener("sse-ready", function (ready) {
+      listen(ready.detail);
     });
   }
 })();

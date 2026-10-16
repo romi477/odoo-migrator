@@ -314,3 +314,23 @@ def test_a_line_names_the_module_whose_run_it_belongs_to(app, job):
     runlog.write(job.job_id, source="runner", text="job started", hub=app.state.hub)
 
     assert seen[0][1]["module"] == "sale_custom"
+
+
+def test_a_line_names_the_migration_it_belongs_to(app, job):
+    """Two migrations run side by side. The panel took any line for a job
+    it was not showing as a new run of its own migration, wiped itself and
+    followed the other migration's job, then back, line by line."""
+    seen = []
+    app.state.hub.publish = lambda event, data: seen.append((event, data))
+
+    runlog.write(job.job_id, source="runner", text="job started", hub=app.state.hub)
+
+    with database.connection_context():
+        migration_id = str(Job.get_by_id(job.id).module.migration_id)
+    assert seen[0][1]["migration_id"] == migration_id
+
+
+def test_the_panel_follows_only_its_own_migration(client):
+    script = client.get("/static/runlog.js").text
+
+    assert "data.migration_id" in script

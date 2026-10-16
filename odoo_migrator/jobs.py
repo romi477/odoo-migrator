@@ -122,7 +122,7 @@ def _run_state(run: StepRun) -> str:
     return "done" if run.ok else "failed"
 
 
-def ribbon_states(job: Job, attempt: int | None = None) -> list[dict]:
+def ribbon_states(job: Job, attempt: int | None = None, pipeline=None) -> list[dict]:
     """Every pipeline step of this job's cartridge, with how one attempt went.
 
     The ribbon used to mark the current step and nothing else, so a
@@ -134,6 +134,7 @@ def ribbon_states(job: Job, attempt: int | None = None) -> list[dict]:
     run, they read as never done; they are `earlier`, with the attempt that
     passed them. The failure lane is not here: see `lane_states`.
 
+    ``pipeline`` is the cartridge's, when the caller already has it.
     Caller holds the connection.
     """
     from odoo_migrator.cartridges import pinned_for
@@ -149,8 +150,10 @@ def ribbon_states(job: Job, attempt: int | None = None) -> list[dict]:
     for run in runs:
         if run.attempt < attempt and run.finished_at is not None and run.ok:
             passed_before[run.step_id or run.kind] = run.attempt
+    if pipeline is None:
+        pipeline = pinned_for(job.module.migration).pipeline
     states = []
-    for step in pinned_for(job.module.migration).pipeline:
+    for step in pipeline:
         name = step.id or step.kind
         run = this.get(name)
         if run is not None:
@@ -163,13 +166,15 @@ def ribbon_states(job: Job, attempt: int | None = None) -> list[dict]:
     return states
 
 
-def lane_states(job: Job, attempt: int | None = None) -> list[dict]:
+def lane_states(job: Job, attempt: int | None = None, pipeline_steps=None) -> list[dict]:
     """The steps one attempt ran outside the pipeline — the failure lane —
     in the order they ran. Caller holds the connection."""
     from odoo_migrator.cartridges import pinned_for
 
     attempt = attempt or job.attempt
-    pipeline = {step.id or step.kind for step in pinned_for(job.module.migration).pipeline}
+    if pipeline_steps is None:
+        pipeline_steps = pinned_for(job.module.migration).pipeline
+    pipeline = {step.id or step.kind for step in pipeline_steps}
 
     return [
         {"id": run.step_id or run.kind, "state": _run_state(run)}
@@ -198,30 +203,85 @@ def attempt_view(job_id: str, attempt: int) -> dict | None:
         }
 
 
+def module_payload(job: Job, module: Module) -> dict:
+    """What a `module` event says about one module and its job.
+
+    The cartridge is read once for both the ribbon and the lane: each read
+    parses its YAML, and this runs on every progress of every job.
+    """
+    from odoo_migrator.cartridges import pinned_for
+
+    pipeline = pinned_for(module.migration).pipeline
+
+    return {
+        "id": module.id,
+        "status": module.status,
+        "stage": job.current_stage,
+        "attempt": job.attempt,
+        "migration_id": str(module.migration_id),
+        "question": job.question,
+        "has_assumptions": bool(module.has_assumptions),
+        "needs_review": bool(module.needs_review),
+        "technical_name": module.technical_name,
+        "current_session_id": job.current_session_id or "",
+        # The ribbon paints itself from this. Rebuilding it from the
+        # stage alone meant guessing that every earlier step passed,
+        # which is the question the ribbon is there to answer.
+        "steps": ribbon_states(job, pipeline=pipeline),
+        "lane": lane_states(job, pipeline_steps=pipeline),
+        "job_id": job.job_id,
+    }
+
+
 def _emit(hub: EventHub, job: Job, module: Module) -> None:
-    hub.publish(
-        "module",
-        {
-            "id": module.id,
-            "status": module.status,
-            "stage": job.current_stage,
-            "attempt": job.attempt,
-            "migration_id": str(module.migration_id),
-            "question": job.question,
-            "has_assumptions": bool(module.has_assumptions),
-            "needs_review": bool(module.needs_review),
-            "technical_name": module.technical_name,
-            "current_session_id": job.current_session_id or "",
-            # The ribbon paints itself from this. Rebuilding it from the
-            # stage alone meant guessing that every earlier step passed,
-            # which is the question the ribbon is there to answer.
-            "steps": ribbon_states(job),
-            "lane": lane_states(job),
-            "job_id": job.job_id,
-        },
-    )
+    hub.publish("module", module_payload(job, module))
     hub.publish("running", {"count": running_migration_count()})
     hub.publish("lamp", {"state": lamp_state()})
+
+
+def stream_state(migration_id: str) -> list[tuple[str, dict]]:
+    """What a page watching this migration is told when its stream opens.
+
+    The stream drops every few minutes and on every restart, and whatever
+    was published meanwhile is gone. This is the state now: the run in
+    flight or the word that there is none, and every module's status.
+    """
+    with database.connection_context():
+        job = (
+            Job.select()
+            .join(Module)
+            .where((Module.migration == migration_id) & (Job.status.in_(IN_FLIGHT)))
+            .order_by(Job.id.desc())
+            .first()
+        )
+        told: list[tuple[str, dict]] = []
+        if job is not None:
+            told.append(("module", module_payload(job, job.module)))
+        else:
+            told.append(("pipeline_idle", {"migration_id": migration_id}))
+        waiting = {
+            row.module_id: row.question
+            for row in Job.select(Job.module, Job.question)
+            .join(Module)
+            .where(
+                (Module.migration == migration_id) & (Job.status == "waiting_for_human")
+            )
+        }
+        modules = [
+            {
+                "id": row.id,
+                "technical_name": row.technical_name,
+                "status": row.status,
+                "struck_out": bool(row.struck_out),
+                "question": waiting.get(row.id) or "",
+                "has_assumptions": bool(row.has_assumptions),
+                "needs_review": bool(row.needs_review),
+            }
+            for row in Module.select().where(Module.migration == migration_id)
+        ]
+    told.append(("module_states", {"migration_id": migration_id, "modules": modules}))
+
+    return told
 
 
 def reconcile_jobs() -> None:
@@ -610,10 +670,31 @@ def close_batch(batch_id: int, hub: EventHub | None = None) -> None:
         batch.save()
         migration_id = str(batch.migration_id)
     if hub is not None:
-        # The run screen exists to be watched. Without this the batch ends,
-        # the pipeline panel says nothing is running, and the review the
-        # human is waiting for only appears if they think to reload.
-        hub.publish("checkpoint", {"migration_id": migration_id, "batch_id": batch_id})
+        _announce_review(hub, migration_id, batch_id)
+
+
+def _announce_review(hub: EventHub, migration_id: str, batch_id: int) -> None:
+    # The run screen exists to be watched. Without this the batch ends,
+    # the pipeline panel says nothing is running, and the review the
+    # human is waiting for only appears if they think to reload.
+    hub.publish("checkpoint", {"migration_id": migration_id, "batch_id": batch_id})
+
+
+def _end_batch(batch_id: int, migration_id: str, executor, hub: EventHub) -> None:
+    """Close the batch, let the queue carry on, and say so if review waits.
+
+    Announced after the queue has had its turn, not on closing: a queue
+    that approves a clean wave and starts the next left "Reload to review
+    it" on Pipeline at every wave, with nothing to review.
+    """
+    close_batch(batch_id)
+    _pipeline_after_batch(migration_id, batch_id, executor, hub)
+    with database.connection_context():
+        waiting = Batch.select().where(
+            (Batch.id == batch_id) & (Batch.status == "checkpoint")
+        ).exists()
+    if waiting:
+        _announce_review(hub, migration_id, batch_id)
 
 
 # The stub answers inside ``executor.start``, so advancing from a result
@@ -671,8 +752,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         return
     if stopped or (group is None and wave is None):
         # A stop is the batch's answer, and a batch of one has nothing next.
-        close_batch(batch_id, hub)
-        _pipeline_after_batch(migration_id, batch_id, executor, hub)
+        _end_batch(batch_id, migration_id, executor, hub)
 
         return
     # The same selection the batch started from, re-read so it survives a
@@ -685,15 +765,13 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         [module for module in selected if module["id"] not in done]
     )
     if not remaining:
-        close_batch(batch_id, hub)
-        _pipeline_after_batch(migration_id, batch_id, executor, hub)
+        _end_batch(batch_id, migration_id, executor, hub)
 
         return
     from odoo_migrator.pipeline_queue import should_advance_modules
 
     if not should_advance_modules(migration_id):
-        close_batch(batch_id, hub)
-        _pipeline_after_batch(migration_id, batch_id, executor, hub)
+        _end_batch(batch_id, migration_id, executor, hub)
 
         return
     try:
@@ -708,8 +786,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         # Struck out since the batch began, or already in flight from a
         # separate Migrate. Stop rather than skip past it silently; the
         # checkpoint screen is where the human sees what did not run.
-        close_batch(batch_id, hub)
-        _pipeline_after_batch(migration_id, batch_id, executor, hub)
+        _end_batch(batch_id, migration_id, executor, hub)
 
 
 def _pipeline_after_batch(

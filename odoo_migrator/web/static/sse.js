@@ -20,7 +20,19 @@ function fillResultCornerGlyph(glyph, kind) {
   if (typeof EventSource === "undefined") {
     return;
   }
-  const src = new EventSource("/sse");
+  const INFLIGHT = { queued: true, running: true, waiting_for_human: true };
+  /* A run that is going or parked: what the pipeline card is for. `queued`
+     is not one — Reopen sends it for a module nobody is running. */
+  const LIVE = { running: true, waiting_for_human: true };
+
+  /* The open migration goes with the request, so the hello says what it
+     looks like now. The stream drops every few minutes and on every
+     restart, and whatever was published meanwhile is gone. */
+  const opened = document.querySelector("[data-open-migration]");
+  const migration = opened ? opened.getAttribute("data-open-migration") : "";
+  const src = new EventSource(
+    "/sse" + (migration ? "?migration=" + encodeURIComponent(migration) : "")
+  );
   /* One stream per page, as the comment above says. Anything else that
      wants events takes this one: a second EventSource is a second
      subscriber and a second thread parked on the server for the page's
@@ -28,119 +40,141 @@ function fillResultCornerGlyph(glyph, kind) {
   window.migratorSse = src;
   document.dispatchEvent(new CustomEvent("sse-ready", { detail: src }));
 
-  src.addEventListener("module", function (event) {
-    let data;
+  function parse(event) {
     try {
-      data = JSON.parse(event.data);
+      return JSON.parse(event.data);
     } catch (err) {
-      return;
+      return null;
     }
-    const migrationId = data.migration_id ? String(data.migration_id) : "";
+  }
+
+  function pipeFor(migrationId) {
     const pipe = document.querySelector("[data-pipeline]");
-    const observer = document.querySelector("[data-observer]");
-    const onThisMigration =
-      migrationId &&
-      ((pipe && pipe.getAttribute("data-migration-id") === migrationId) ||
-        (observer && observer.getAttribute("data-migration-id") === migrationId));
-    if (
-      onThisMigration &&
-      pipe &&
-      pipe.getAttribute("data-migration-id") === migrationId
-    ) {
-      const inflight =
-        data.status === "queued" ||
-        data.status === "running" ||
-        data.status === "waiting_for_human";
-      const live = pipe.querySelector(".pipeline-live");
-      const empty = pipe.querySelector("[data-pipeline-empty]");
-      if (live) {
-        live.hidden = !inflight;
-      }
-      if (empty) {
-        empty.hidden = inflight;
-      }
-      if (inflight) {
-        pipe.setAttribute("data-module-id", String(data.id));
-        const name = pipe.querySelector("[data-pipeline-module]");
-        if (name && data.technical_name) {
-          name.textContent = data.technical_name;
-        }
-        const pipeBadge = pipe.querySelector("[data-pipeline-status]");
-        if (pipeBadge && data.status) {
-          pipeBadge.className = "badge " + data.status;
-          pipeBadge.textContent = data.status;
-        }
-        const pipeStage = pipe.querySelector("[data-stage]");
-        if (pipeStage) {
-          const attempt = data.attempt ? " · attempt " + data.attempt : "";
-          pipeStage.textContent = (data.stage || "") + attempt;
-        }
-        /* The states come from the job's own step rows. Deriving them from
-           the stage would mean assuming every earlier step passed, which is
-           the question the ribbon exists to answer. attempts.js paints them,
-           and leaves them alone while someone is reading an older attempt. */
-        if (data.steps && data.steps.length) {
-          pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
-        }
-      }
-      /* Stop and the answer form are drawn even when the page opened with
-         nothing running; they follow the module the events are about. */
-      const parked = data.status === "waiting_for_human";
-      const stop = pipe.querySelector("[data-pipeline-stop]");
-      if (stop) {
-        stop.hidden = !(data.status === "running" || parked);
-        if (inflight) {
-          stop.setAttribute("action", "/run/modules/" + data.id + "/stop");
-        }
-        const button = stop.querySelector("button");
-        if (button) {
-          button.title =
-            stop.getAttribute(parked ? "data-hint-parked" : "data-hint-running") || "";
-        }
-      }
-      const ask = pipe.querySelector("[data-pipeline-ask]");
-      if (ask) {
-        const wasHidden = ask.hidden;
-        ask.hidden = !parked;
-        if (parked) {
-          ask.setAttribute("action", "/run/modules/" + data.id + "/answer");
-          const question = ask.querySelector(".question");
-          if (question && data.question) {
-            question.textContent = data.question;
-          }
-          const label = "Answer " + (data.technical_name || "");
-          const box = ask.querySelector("textarea");
-          if (box) {
-            box.setAttribute("aria-label", label.trim());
-            /* A new question, not a repaint of the one being answered. */
-            if (wasHidden) {
-              box.value = "";
-            }
-          }
-          const submit = ask.querySelector("button[type=submit]");
-          if (submit) {
-            submit.setAttribute("aria-label", label.trim());
-          }
-        }
-      }
-    }
-    if (onThisMigration) {
-      const inflight =
-        data.status === "queued" ||
-        data.status === "running" ||
-        data.status === "waiting_for_human";
-      const sessions = document.querySelectorAll("[data-session]");
-      for (let i = 0; i < sessions.length; i++) {
-        if (data.current_session_id) {
-          sessions[i].textContent = data.current_session_id;
-        } else if (!inflight) {
-          sessions[i].textContent = "No live session yet.";
-        }
-      }
+    if (!pipe || !migrationId || pipe.getAttribute("data-migration-id") !== migrationId) {
+      return null;
     }
 
-    /* Both queue rows of a module, the compact one and the list's: their
-       lamp spins while it runs and stands still while it waits. */
+    return pipe;
+  }
+
+  /* Nothing is running: the card folds to its empty line. A page showing
+     hand edits keeps them; that list is the way out of a refused start. */
+  function idleCard(pipe) {
+    const live = pipe.querySelector(".pipeline-live");
+    const empty = pipe.querySelector("[data-pipeline-empty]");
+    const edits = pipe.querySelector("[data-hand-edits]");
+    if (live) {
+      live.hidden = true;
+    }
+    if (empty) {
+      empty.hidden = !!edits;
+    }
+    const stop = pipe.querySelector("[data-pipeline-stop]");
+    if (stop) {
+      stop.hidden = true;
+    }
+    const ask = pipe.querySelector("[data-pipeline-ask]");
+    if (ask) {
+      ask.hidden = true;
+    }
+  }
+
+  /* The card follows the module it shows, and takes a new one only when
+     that one is running or parked. Any module of the migration used to
+     repaint it: a Reopen on Result swapped a running card for a queued
+     module and pointed Stop at it, and the review mark on a dependent
+     (`passed`) folded the card while its run went on. */
+  function paintCard(pipe, data) {
+    const shown = pipe.getAttribute("data-module-id") || "";
+    const same = shown === String(data.id);
+    if (!same && !LIVE[data.status]) {
+      return;
+    }
+    if (!INFLIGHT[data.status]) {
+      idleCard(pipe);
+
+      return;
+    }
+    const live = pipe.querySelector(".pipeline-live");
+    const empty = pipe.querySelector("[data-pipeline-empty]");
+    if (live) {
+      live.hidden = false;
+    }
+    if (empty) {
+      empty.hidden = true;
+    }
+    if (!same) {
+      pipe.setAttribute("data-module-id", String(data.id));
+      pipe.removeAttribute("data-stopping");
+    }
+    const name = pipe.querySelector("[data-pipeline-module]");
+    if (name && data.technical_name) {
+      name.textContent = data.technical_name;
+    }
+    const pipeBadge = pipe.querySelector("[data-pipeline-status]");
+    if (pipeBadge && data.status) {
+      pipeBadge.className = "badge " + data.status;
+      pipeBadge.textContent = data.status;
+    }
+    const pipeStage = pipe.querySelector("[data-stage]");
+    if (pipeStage) {
+      const attempt = data.attempt ? " · attempt " + data.attempt : "";
+      pipeStage.textContent = (data.stage || "") + attempt;
+    }
+    /* The states come from the job's own step rows. Deriving them from
+       the stage would mean assuming every earlier step passed, which is
+       the question the ribbon exists to answer. attempts.js paints them,
+       and leaves them alone while someone is reading an older attempt. */
+    if (data.steps && data.steps.length) {
+      pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
+    }
+    const parked = data.status === "waiting_for_human";
+    const stop = pipe.querySelector("[data-pipeline-stop]");
+    if (stop) {
+      stop.hidden = !LIVE[data.status];
+      stop.setAttribute("action", "/run/modules/" + data.id + "/stop");
+      const button = stop.querySelector("button");
+      if (button) {
+        button.title =
+          stop.getAttribute(parked ? "data-hint-parked" : "data-hint-running") || "";
+        /* A Stop asked for on another module is not this one's. */
+        if (!same) {
+          button.disabled = false;
+          button.textContent = button.getAttribute("data-label") || button.textContent;
+        }
+      }
+    }
+    const ask = pipe.querySelector("[data-pipeline-ask]");
+    if (ask) {
+      const wasHidden = ask.hidden;
+      ask.hidden = !parked;
+      if (parked) {
+        ask.setAttribute("action", "/run/modules/" + data.id + "/answer");
+        const question = ask.querySelector(".question");
+        if (question && data.question) {
+          question.textContent = data.question;
+        }
+        const label = "Answer " + (data.technical_name || "");
+        const box = ask.querySelector("textarea");
+        if (box) {
+          box.setAttribute("aria-label", label.trim());
+          /* A new question, not a repaint of the one being answered. */
+          if (wasHidden) {
+            box.value = "";
+          }
+        }
+        const submit = ask.querySelector("button[type=submit]");
+        if (submit) {
+          submit.setAttribute("aria-label", label.trim());
+        }
+      }
+    }
+  }
+
+  /* One module's rows elsewhere on the page: the queue lamps, a Result
+     card, the Tree node card. The pipeline card is not one of them; it
+     carries `data-module-id` too, and is painted above. */
+  function paintRows(data) {
     if (data.status) {
       document
         .querySelectorAll('.pipeline-queue-item[data-module-id="' + data.id + '"]')
@@ -148,17 +182,13 @@ function fillResultCornerGlyph(glyph, kind) {
           item.setAttribute("data-status", data.status);
         });
     }
-
-    const row = document.querySelector('[data-module-id="' + data.id + '"]');
+    const row = document.querySelector(
+      '[data-module-id="' + data.id + '"]:not([data-pipeline]):not(.pipeline-queue-item)'
+    );
     if (!row) {
       return;
     }
-    /* A queue row's badge says which step the module is in, and the lamp
-       beside it says it is running. Rewritten with the status it read
-       "running" and the step was gone. */
-    const badge = row.classList.contains("pipeline-queue-item")
-      ? null
-      : row.querySelector(".badge");
+    const badge = row.querySelector(".badge");
     if (badge && data.status) {
       badge.className = "badge " + data.status;
       badge.textContent = data.status;
@@ -195,11 +225,6 @@ function fillResultCornerGlyph(glyph, kind) {
         corner.remove();
         row.removeAttribute("data-result-corner");
       }
-      if (data.status === "failed") {
-        row.classList.add("failed");
-      } else {
-        row.classList.remove("failed");
-      }
       /* Sent with the module events that touch it; one that does not say
          leaves the mark as it is. */
       const review = row.querySelector("[data-result-review]");
@@ -212,16 +237,18 @@ function fillResultCornerGlyph(glyph, kind) {
           data.status === "passed" ||
           data.status === "failed" ||
           data.status === "unknown" ||
-          data.status === "migrated";
+          data.status === "migrated" ||
+          data.status === "stopped";
         reopen.hidden = !finished;
       }
-    } else if (data.status === "failed") {
+    }
+    if (data.status === "failed") {
       row.classList.add("failed");
     } else {
       row.classList.remove("failed");
     }
     const stage = row.querySelector("[data-stage]");
-    if (stage) {
+    if (stage && "stage" in data) {
       const attempt = data.attempt ? " · attempt " + data.attempt : "";
       stage.textContent = (data.stage || "") + attempt;
     }
@@ -237,17 +264,68 @@ function fillResultCornerGlyph(glyph, kind) {
         ask.hidden = true;
       }
     }
+  }
+
+  src.addEventListener("module", function (event) {
+    const data = parse(event);
+    if (!data) {
+      return;
+    }
+    const migrationId = data.migration_id ? String(data.migration_id) : "";
+    const pipe = pipeFor(migrationId);
+    if (pipe) {
+      paintCard(pipe, data);
+    }
+    const observer = document.querySelector("[data-observer]");
+    const onThisMigration =
+      !!pipe ||
+      (observer && migrationId && observer.getAttribute("data-migration-id") === migrationId);
+    if (onThisMigration && (!pipe || pipe.getAttribute("data-module-id") === String(data.id))) {
+      const sessions = document.querySelectorAll("[data-session]");
+      for (let i = 0; i < sessions.length; i++) {
+        if (data.current_session_id) {
+          sessions[i].textContent = data.current_session_id;
+        } else if (!INFLIGHT[data.status]) {
+          sessions[i].textContent = "No live session yet.";
+        }
+      }
+    }
+    paintRows(data);
+  });
+
+  /* The hello's word that nothing of this migration is in flight. */
+  src.addEventListener("pipeline_idle", function (event) {
+    const data = parse(event);
+    const pipe = data && pipeFor(String(data.migration_id));
+    if (pipe) {
+      idleCard(pipe);
+    }
+  });
+
+  /* The hello's statuses, for the rows of a page that missed events while
+     its stream was down. */
+  src.addEventListener("module_states", function (event) {
+    const data = parse(event);
+    if (!data || !data.modules) {
+      return;
+    }
+    data.modules.forEach(function (row) {
+      if (row.struck_out) {
+        return;
+      }
+      paintRows({
+        id: row.id,
+        status: row.status,
+        question: row.question,
+        needs_review: row.needs_review,
+        migration_id: data.migration_id,
+      });
+    });
   });
 
   src.addEventListener("checkpoint", function (event) {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (err) {
-      return;
-    }
-    const pipe = document.querySelector("[data-pipeline]");
-    if (!pipe || pipe.getAttribute("data-migration-id") !== String(data.migration_id)) {
+    const data = parse(event);
+    if (!data || !pipeFor(String(data.migration_id))) {
       return;
     }
     const ready = document.querySelector("[data-checkpoint-ready]");
@@ -259,21 +337,16 @@ function fillResultCornerGlyph(glyph, kind) {
   });
 
   src.addEventListener("lamp", function (event) {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (err) {
-      return;
-    }
+    const data = parse(event);
     const lamp = document.querySelector(".nav-end .attention-lamp");
-    if (!lamp || !data.state) {
+    if (!lamp || !data || !data.state) {
       return;
     }
     lamp.className = "attention-lamp " + data.state;
     lamp.setAttribute(
       "title",
       data.state === "needs-attention"
-        ? "A module is waiting. Open it."
+        ? "A module is waiting for you or has failed. Open it."
         : data.state === "running"
           ? "A migration is running."
           : "Nothing needs attention."
@@ -281,14 +354,9 @@ function fillResultCornerGlyph(glyph, kind) {
   });
 
   src.addEventListener("running", function (event) {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (err) {
-      return;
-    }
+    const data = parse(event);
     const count = document.querySelector(".nav-end .running-count");
-    if (!count) {
+    if (!count || !data) {
       return;
     }
     const n = data.count == null ? 0 : data.count;
