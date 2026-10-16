@@ -17,7 +17,7 @@ Sheller's journal keeps the bodies.
 **Tech Stack:** FastAPI, Jinja, Alpine, Peewee/SQLite, Pydantic v2, PyYAML,
 `anthropic` (new dependency), Cytoscape.js (already vendored), httpx2.
 
-**Spec:** `docs_/superpowers/specs/2026-09-23-native-runner-design.md` — read
+**Spec:** `docs/runner-design.md` — read
 it before Task 1 and keep it open. The plan argues from the spec; where they
 differ, the spec wins.
 

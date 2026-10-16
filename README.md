@@ -54,7 +54,7 @@ Full documentation: [docs/](docs/README.md) — architecture, the UI guide,
 the security model, and an FAQ in
 [English](docs/faq.md) and [Russian](docs/faq-ru.md). The design of record
 for the runner is
-[`docs_/superpowers/specs/2026-09-23-native-runner-design.md`](docs_/superpowers/specs/2026-09-23-native-runner-design.md).
+[`docs/runner-design.md`](docs/runner-design.md).
 
 ## Security
 

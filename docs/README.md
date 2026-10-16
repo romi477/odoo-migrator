@@ -13,7 +13,7 @@ there. This folder goes deeper on the parts worth explaining once.
 | [faq-ru.md](faq-ru.md) | То же самое по-русски |
 
 The design of record for the runner is
-[`docs_/superpowers/specs/2026-09-23-native-runner-design.md`](../docs_/superpowers/specs/2026-09-23-native-runner-design.md).
+[runner-design.md](runner-design.md).
 These pages describe the software as it behaves.
 
 ## Where to start

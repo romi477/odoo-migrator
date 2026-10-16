@@ -1166,7 +1166,7 @@ def test_the_spec_shows_the_stock_cartridge_as_it_is():
     copy gave `understand` no rules and `diagnose` none either."""
     from pathlib import Path
 
-    spec = Path("docs_/superpowers/specs/2026-09-23-native-runner-design.md").read_text(
+    spec = Path("docs/runner-design.md").read_text(
         encoding="utf-8"
     )
     start = spec.index("```yaml", spec.index("### The stock cartridge")) + len("```yaml\n")
