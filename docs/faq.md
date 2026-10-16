@@ -118,7 +118,10 @@ pretending to run.
 
 Whatever the registered provider accepts. Anthropic: `claude-opus-5`
 and `claude-sonnet-5`. Cursor: the names it lists, plus `auto-smart`
-with parameters. OpenCode is specified and not built.
+with parameters. Local: whatever the server at the URL in settings has
+loaded, e.g. `qwen/qwen3.8-27b` in LM Studio — free per token, slower, and
+weaker at long tool use, so it is for debugging the pipeline rather than
+judging a port. OpenCode is specified and not built.
 
 ## Rules and findings
 

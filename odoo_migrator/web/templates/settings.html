@@ -29,8 +29,8 @@
             <input class="mono"
                    type="{% if field.secret and not field.set %}password{% else %}text{% endif %}"
                    name="{{ field.input_name }}" autocomplete="off"
-                   {% if field.set %}data-mask="{{ field.mask }}"{% endif %}
-                   value="{% if field.set %}{{ field.mask }}{% endif %}"
+                   {% if field.set and field.secret %}data-mask="{{ field.mask }}"{% endif %}
+                   value="{% if field.set %}{% if field.secret %}{{ field.mask }}{% else %}{{ field.value }}{% endif %}{% endif %}"
                    onfocus="if (this.dataset.mask && this.value === this.dataset.mask) { this.type = 'password'; this.select(); }"
                    onblur="if (this.dataset.mask && (this.value === '' || this.value === this.dataset.mask)) { this.type = 'text'; this.value = this.dataset.mask; }">
             <button type="submit" class="icon-danger" name="clear_provider"
@@ -44,8 +44,13 @@
             </button>
           </span>
         </label>
+        {% if field.secret %}
         <p class="field-hint">Dots mean a key is saved. The bin removes it.
         A secret is never shown again.</p>
+        {% else %}
+        <p class="field-hint">An OpenAI-compatible server on this machine:
+        LM Studio, Ollama, llama.cpp. The bin removes it.</p>
+        {% endif %}
       </li>
       {% endfor %}
     </ol>

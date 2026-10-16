@@ -14,6 +14,7 @@ def _row(settings: AppSettings) -> dict:
     fields = []
     for provider in REGISTRY.values():
         for field in provider.settings:
+            stored = provider_setting(provider.name, field.key)
             fields.append(
                 {
                     "provider": provider.name,
@@ -21,8 +22,11 @@ def _row(settings: AppSettings) -> dict:
                     "label": field.label,
                     "secret": field.secret,
                     "input_name": f"provider_{provider.name}_{field.key}",
-                    "set": bool(provider_setting(provider.name, field.key)),
+                    "set": bool(stored),
                     "mask": SECRET_MASK,
+                    # A URL is not a secret: shown as written, so a typo in
+                    # it can be seen. A key is never rendered.
+                    "value": "" if field.secret else stored,
                 }
             )
 

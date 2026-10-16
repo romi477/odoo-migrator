@@ -98,11 +98,13 @@ Providers registered today:
 |---|---|
 | `anthropic` | The Anthropic SDK tool runner. Models `claude-opus-5` and `claude-sonnet-5`. |
 | `cursor` | `cursor-sdk`, in-process `custom_tools`, built-in tools off (`tools=[]`). |
+| `local` | Its own tool loop over the OpenAI-compatible `/v1/chat/completions` of a server on this machine: LM Studio, Ollama, llama.cpp. Models are whatever that server has loaded. |
 | `scripted` | The test double. A cartridge cannot select it. |
 
 Keys live in `ProviderSetting` rows (`provider`, `key`, `value`), not
 one column per SDK. The settings page shows whether a secret is set and
-never renders the value. A blank save keeps the stored one.
+never renders the value. A blank save keeps the stored one. The local
+server's URL is not a secret and is shown as written.
 
 The tool catalog and its JSON schemas live in `runner/tools.py`. A
 provider translates them. `write_file` and `read_file` take container
