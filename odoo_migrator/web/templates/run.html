@@ -261,9 +261,13 @@
           {% endfor %}
         </ol>
         {% endif %}
-        {% if thread %}
+        {# The open question is the answer form's text below; listed here as
+           well, it read twice down the card. #}
+        {% set asking = live.question if live and live.status == "waiting_for_human" else "" %}
+        {% set shown = thread | rejectattr("text", "equalto", asking) | list if asking else thread %}
+        {% if shown %}
         <ol class="checkpoint-thread">
-          {% for message in thread %}
+          {% for message in shown %}
           <li class="{{ message.author }}">{{ message.text }}</li>
           {% endfor %}
         </ol>

@@ -3234,6 +3234,7 @@ a.ribbon-box:focus-visible {
 
 .checkpoint-thread li {
   padding: 4px 0;
+  white-space: pre-wrap;
 }
 
 /* A result card says when its last run ended, and opens what that run

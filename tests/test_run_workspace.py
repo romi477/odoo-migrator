@@ -554,3 +554,18 @@ def test_a_page_opened_while_nothing_runs_holds_the_whole_live_panel(client):
     assert page.count('class="ribbon-node"') >= 7
     assert "data-pipeline-stop" in page
     assert "data-pipeline-ask" in page
+
+
+def test_the_open_question_is_shown_once_in_its_answer_form(client):
+    """The question is the newest message of the thread and the text of
+    the answer form. Shown in both, it read twice down the card: once with
+    its lines run together, once as written."""
+    _row, sale = _prepared(client)
+    client.app.state.executor = SessionExecutor(client.app)
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+
+    page = client.get("/run").text
+
+    panel = page.split("data-pipeline-ask", 1)[0].split("data-pipeline", 1)[1]
+    assert QUESTION not in panel
+    assert page.count(QUESTION) >= 1

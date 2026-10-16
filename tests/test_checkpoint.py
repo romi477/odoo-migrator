@@ -67,8 +67,9 @@ def parked_job(client):
 def test_a_checkpoint_shows_the_thread(client, parked_job):
     page = client.get("/run").text
 
-    assert "checkpoint-thread" in page
-    assert parked_job.question in page
+    # The thread so far is the open question, which the answer form holds.
+    assert page.count(parked_job.question) == 1
+    assert "data-pipeline-ask" in page
 
 
 def test_the_run_page_shows_the_checkpoint(client):
