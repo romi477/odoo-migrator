@@ -442,12 +442,33 @@ def _project_mount_points(migration: Migration) -> list[str]:
     return points
 
 
+# Excluding a module that is already done used to be allowed, by the node
+# card's Exclude and by Exclude all alike: a finished port then read as left
+# out on Tree and Result, and its parents' exclusions dragged it along. A
+# done module stays in the plan; reopening it on Result is how it runs again.
+def _finished(row: Module) -> bool:
+
+    return row.status in DONE
+
+
+def _already_done(names: list[str]) -> GraphError:
+    listed = ", ".join(sorted(names))
+
+    return GraphError(
+        f"{listed} {'is' if len(names) == 1 else 'are'} already migrated and "
+        f"cannot be excluded. Reopen on Result to run again."
+    )
+
+
 def set_struck(module_id: int, struck: bool | None = None) -> dict:
     with database.connection_context():
         module = Module.get_or_none(Module.id == module_id)
         if module is None:
             raise GraphError("unknown module")
-        module.struck_out = (not module.struck_out) if struck is None else bool(struck)
+        wanted = (not module.struck_out) if struck is None else bool(struck)
+        if wanted and not module.struck_out and _finished(module):
+            raise _already_done([module.technical_name])
+        module.struck_out = wanted
         module.save()
 
         return _module_row(module)
@@ -521,6 +542,8 @@ def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
         order = _downstream(rows, module.technical_name)
         downstream = set(order)
         wanted = (not module.struck_out) if struck is None else bool(struck)
+        if wanted and not module.struck_out and _finished(module):
+            raise _already_done([module.technical_name])
         if not wanted:
             blocking = [
                 parent
@@ -534,6 +557,8 @@ def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
         updated: list[Module] = []
         for name in order:
             row = by_name[name]
+            if wanted and not row.struck_out and _finished(row):
+                continue
             if not wanted and any(
                 by_name[parent].struck_out and parent not in downstream
                 for parent in parents[name]
@@ -646,6 +671,9 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
             if row is None:
                 raise GraphError("unknown module")
             seeds.add(row.technical_name)
+        open_seeds = {name for name in seeds if not by_name[name].struck_out}
+        if open_seeds and all(_finished(by_name[name]) for name in open_seeds):
+            raise _already_done(list(open_seeds))
         if len(seeds) == 1:
             only = next(iter(seeds))
             downstream = _downstream(rows, only)
@@ -665,7 +693,7 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
         updated: list[Module] = []
         for name in ordered_names:
             row = by_name[name]
-            if row.struck_out:
+            if row.struck_out or _finished(row):
                 continue
             row.struck_out = True
             row.save()
@@ -675,11 +703,13 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
 
 
 def leave_out_all(migration_id: str) -> list[dict]:
-    """Leave every module still in the plan out of the migration."""
+    """Leave every module still in the plan out, except the ones already done."""
     with database.connection_context():
         rows = list(
             Module.select().where(
-                (Module.migration == migration_id) & (~Module.struck_out)
+                (Module.migration == migration_id)
+                & (~Module.struck_out)
+                & (Module.status.not_in(DONE))
             )
         )
         updated: list[Module] = []

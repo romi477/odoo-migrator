@@ -361,6 +361,12 @@
      has said so with this corner since it was built. */
   const DONE_STATUSES = { passed: "Passed", migrated: "Already on the target" };
 
+  /* A done module cannot be excluded (`graph._finished`): the server
+     refuses, so the card does not offer it. */
+  function isDone(node) {
+    return !node.data("struck_out") && !!DONE_STATUSES[node.data("status")];
+  }
+
   function placeDoneCorner(node, box) {
     const said = DONE_STATUSES[node.data("status")];
     if (!said || node.data("struck_out")) {
@@ -611,8 +617,15 @@
     }
     if (group && nodes && nodes.length > 1) {
       hintEl.textContent =
-        "Exclude — the selection and every module that depends on it. " +
+        "Exclude — the selection and every module that depends on it, " +
+        "except the ones already migrated. " +
         "Include — the selection, with depends chains upward only.";
+
+      return;
+    }
+    if (nodes && nodes.length === 1 && isDone(nodes[0])) {
+      hintEl.textContent =
+        "Already migrated — it stays in the plan. Reopen it on Result to run it again.";
 
       return;
     }
@@ -644,7 +657,7 @@
       includeEl.classList.add("primary");
     }
     const anyIn = nodes.some(function (node) {
-      return !node.data("struck_out");
+      return !node.data("struck_out") && !isDone(node);
     });
     const anyOut = nodes.some(function (node) {
       return node.data("struck_out");
@@ -766,7 +779,7 @@
     }
     syncSelectionActions("one", [node]);
     if (skipEl) {
-      skipEl.disabled = false;
+      skipEl.disabled = isDone(node);
       skipEl.textContent = struck ? "Include" : "Exclude";
       skipEl.classList.add("primary");
     }

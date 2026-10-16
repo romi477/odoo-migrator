@@ -777,3 +777,72 @@ def test_live_graph_from_old_odoo(tmp_path):
     # during the run — the daemon reaps dead ones — which is not our bug
     # and made the suite flaky against a live daemon.
     assert after - before == set()
+
+
+def _with_done(tmp_path):
+    """base passed, partner already on the target, sale still to do."""
+    from odoo_migrator.models import Module
+
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_partner", ["mig_test_base"]),
+            _custom("mig_test_sale", ["mig_test_partner"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    with database.connection_context():
+        Module.update(status="passed").where(Module.id == rows["mig_test_base"]["id"]).execute()
+        Module.update(status="migrated").where(
+            Module.id == rows["mig_test_partner"]["id"]
+        ).execute()
+
+    return created, rows
+
+
+def _struck(created):
+
+    return {row["technical_name"]: row["struck_out"] for row in list_modules(created["id"])}
+
+
+def test_a_module_already_migrated_cannot_be_excluded(tmp_path):
+    """The node card offered Exclude on a passed module, and the server took
+    it: a finished port then read as left out on Tree and on Result."""
+    created, rows = _with_done(tmp_path)
+
+    with pytest.raises(GraphError, match="already migrated"):
+        leave_out_selection([rows["mig_test_base"]["id"]])
+    with pytest.raises(GraphError, match="already migrated"):
+        skip_subtree(rows["mig_test_partner"]["id"], True)
+    with pytest.raises(GraphError, match="already migrated"):
+        set_struck(rows["mig_test_base"]["id"], True)
+
+    assert not any(_struck(created).values())
+
+
+def test_exclude_all_leaves_the_modules_already_migrated_in(tmp_path):
+    created, _rows = _with_done(tmp_path)
+
+    leave_out_all(created["id"])
+
+    assert _struck(created) == {
+        "mig_test_base": False,
+        "mig_test_partner": False,
+        "mig_test_sale": True,
+    }
+
+
+def test_excluding_a_parent_does_not_drag_a_finished_child_out(tmp_path):
+    """A selection strikes everything downstream; a done module in that
+    downstream stays in, and the rest goes."""
+    created, rows = _with_done(tmp_path)
+
+    leave_out_selection([rows["mig_test_base"]["id"], rows["mig_test_sale"]["id"]])
+
+    assert _struck(created) == {
+        "mig_test_base": False,
+        "mig_test_partner": False,
+        "mig_test_sale": True,
+    }
