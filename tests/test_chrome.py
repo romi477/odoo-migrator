@@ -208,3 +208,14 @@ def test_the_timestamp_formatter_loads_ahead_of_every_screen_script(client):
     stamp = html.index("/static/stamp.js")
 
     assert stamp < html.index("/static/result.js")
+
+
+def test_the_guide_reads_as_one_column_in_the_middle(client):
+    """It hugged the left edge with the rest of a wide screen empty."""
+    page = client.get("/styleguide").text
+    css = client.get("/static/style.css").text
+    rule = css.split(".screen-guide > .guide-flow {")[1].split("}")[0]
+
+    assert 'class="screen screen-guide"' in page
+    assert "margin-left: auto" in rule and "margin-right: auto" in rule
+    assert "max-width" in rule

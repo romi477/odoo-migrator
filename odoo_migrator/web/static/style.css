@@ -820,6 +820,17 @@ pre,
   margin-top: 8px;
 }
 
+/* One reading column in the middle of the screen. It hugged the left edge
+   with the rest of a wide screen empty. The lines stay left-aligned inside
+   it: centred prose with lists in it is hard to read. */
+.screen-guide > .screen-head,
+.screen-guide > .guide-steps,
+.screen-guide > .guide-flow {
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .guide-steps > li {
   margin: 0 0 22px;
   padding-left: 0.35rem;
