@@ -3010,6 +3010,44 @@ pre.test-output {
   margin: 0;
 }
 
+/* Three columns, the outer two of equal width, so the step sits at the
+   card's centre whatever the module's name and Stop take. */
+.pipeline-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.pipeline-head-who {
+  display: flex;
+  align-items: center;
+  gap: 2ch;
+  min-width: 0;
+}
+
+/* Cyan: the ribbon's colour for the step running now. */
+.pipeline-stage {
+  color: var(--cyan);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pipeline-head .pipeline-stop {
+  justify-self: end;
+}
+
+/* Too narrow for three columns: the step goes under the name. */
+@media (max-width: 640px) {
+  .pipeline-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pipeline-stage {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
 .checkpoint-ready {
   margin: 0 0 12px;
   padding: 10px 14px;

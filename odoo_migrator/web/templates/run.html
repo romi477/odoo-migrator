@@ -202,9 +202,15 @@
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}
              {% if live %}data-module-id="{{ live.module_id }}"{% endif %}>
       <div class="pipeline-live"{% if not live %} hidden{% endif %}>
-        <header class="name-line">
-          <span class="name mono" data-pipeline-module>{% if live %}{{ live.module }}{% endif %}</span>
-          <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
+        {# One line: who and how, the step it is in at the centre, Stop at the
+           end. The step had a line of its own, and the card's middle stood
+           empty beside it. #}
+        <header class="name-line pipeline-head">
+          <span class="pipeline-head-who">
+            <span class="name mono" data-pipeline-module>{% if live %}{{ live.module }}{% endif %}</span>
+            <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
+          </span>
+          <span class="pipeline-stage mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</span>
           {# The queue's Stop lets the module finish, which is not what someone
              watching a run spend tokens is asking for. Drawn hidden when
              nothing runs, so a page opened between two modules has it for the
@@ -220,7 +226,6 @@
                     title="{{ hint_parked if parked else hint_running }}">Stop this run</button>
           </form>
         </header>
-        <p class="mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</p>
         {% if ribbon %}
         {# Which attempt the ribbon shows. A retry loops back part way, so
            one attempt is not the whole run; each can be read back. #}
