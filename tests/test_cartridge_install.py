@@ -49,7 +49,7 @@ def test_a_run_records_the_cartridge_it_used(client, migration):
     assert job.cartridge_sha256 == install.sha256
     # The card has not chosen, so the job records the flow's default.
     assert job.provider == "anthropic"
-    assert job.model_name == "claude-opus-5"
+    assert job.model_name == "claude-sonnet-5-5"
 
 
 def test_a_run_records_the_pair_the_card_saved(client, migration):

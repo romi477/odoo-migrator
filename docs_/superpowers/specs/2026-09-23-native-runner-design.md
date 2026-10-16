@@ -387,9 +387,12 @@ cartridge: stock
 version: 1.0.0
 schema: 1
 
+# Sonnet, not Opus: a project runs dozens of modules through several agent
+# steps each, and Opus cost too much for that. A migration card can still
+# name another model.
 model:
   provider: anthropic
-  name: claude-opus-5
+  name: claude-sonnet-5-5
 
 pipeline:
   - step: agent
@@ -706,8 +709,9 @@ The Anthropic SDK, through the beta tool runner (`@beta_tool` +
 `client.beta.messages.tool_runner`), which owns the request → execute → loop
 cycle and leaves us the tool functions. Adaptive thinking, effort from the
 migration's settings, streaming for the long turns. The default model is
-`claude-opus-5`; `claude-sonnet-5` is the cheaper alternative, chosen per
-migration, never silently.
+`claude-sonnet-5-5` (it was `claude-opus-5`, which cost too much across a
+whole project); `claude-sonnet-4-6`, `claude-sonnet-5` and `claude-opus-5`
+are chosen per migration, never silently.
 
 `model.provider` is validated against what this build implements. Which model
 a given step runs on is settled by the precedence under "Model choice"; the

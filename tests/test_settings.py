@@ -193,7 +193,7 @@ def test_the_card_picks_a_provider_and_only_its_models(client):
 
     assert 'name="provider_override"' in page
     assert 'value="anthropic" selected' in page
-    assert 'value="claude-opus-5" data-provider="anthropic" selected' in page
+    assert 'value="claude-sonnet-5-5" data-provider="anthropic" selected' in page
     assert "composer-2.5" in page
     saved = client.post(
         f"/migrations/{row.id}/settings",

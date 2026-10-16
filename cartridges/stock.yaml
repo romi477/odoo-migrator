@@ -2,9 +2,12 @@ cartridge: stock
 version: 1.0.0
 schema: 1
 
+# Sonnet, not Opus: a project runs dozens of modules through several agent
+# steps each, and Opus cost too much for that. A migration card can still
+# name another model.
 model:
   provider: anthropic
-  name: claude-opus-5
+  name: claude-sonnet-5-5
 
 pipeline:
   - step: agent
