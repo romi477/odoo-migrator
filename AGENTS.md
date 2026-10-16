@@ -145,7 +145,11 @@ Python loops where `mapped` is one call.
 
 Sessions the migrator opens are `owner.kind = agent` and carry the
 `migration_id`, so concurrent migrations stay attributable. Commit is
-allowed on the new container and refused on the old one. Sheller's only
+allowed on the new container and refused on the old one. Since Sheller
+1.8.3 an agent cannot be handed commit at open; from 1.11.0 a person turns
+on *agents may commit* on the new container's card in Sheller, and the
+runner's target side opens with the right. The old side opens with
+`allow_commit: false`, an opt-out the switch honours. Sheller's only
 hard lock is production, which we never touch because the target
 container is never production.
 

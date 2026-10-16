@@ -33,7 +33,9 @@ def sheller_fake(request):
 
 # Sheller 1.8.3 runs a bare module and lists what failed. One before it
 # takes a class or a method only, and the step runs class by class there.
-MODULE_RUNS = "1.8.3"
+# 1.8.3 to 1.10 also refuse the target side's open with commit, so the
+# daemon that runs a module here is the one that lets the target commit.
+MODULE_RUNS = "1.11.0"
 _older_daemon = pytest.mark.parametrize("sheller_fake", ["1.8.2"], indirect=True)
 
 

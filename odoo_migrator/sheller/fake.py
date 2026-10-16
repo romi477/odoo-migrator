@@ -8,6 +8,7 @@ import uuid
 from odoo_migrator.sheller.errors import (
     ShellerBusy,
     ShellerError,
+    ShellerNeedsHuman,
     ShellerNotOwner,
     ShellerSessionDead,
     ShellerTimeout,
@@ -56,6 +57,12 @@ TEST_SPEC_RE = re.compile(r"^(\w+)\.(\w+)(?:\.(\w+))?$")
 # Sheller 1.8.3 takes a bare module as well, and lists what failed.
 MODULE_SPEC_RE = re.compile(r"^(\w+)(?:\.(\w+)(?:\.(\w+))?)?$")
 MODULE_RUNS_SINCE = (1, 8, 3)
+# Sheller 1.8.3 refuses an agent's open with `allow_commit: true`: a grant is
+# a person's act. From then until 1.11.0 the runner's target side could not
+# open at all. 1.11.0 lets a person switch a container on for every agent's
+# commit, and the open is accepted there.
+NEEDS_A_HUMAN_SINCE = (1, 8, 3)
+AGENT_COMMIT_SINCE = (1, 11, 0)
 
 
 def _version(text: str) -> tuple[int, ...]:
@@ -66,12 +73,15 @@ class FakeShellerClient:
     def __init__(
         self,
         *,
-        version: str = "1.8.3",
+        version: str = "1.11.0",
         container: bool = False,
         mcp: dict | None = None,
+        agent_commit: set[str] | None = None,
     ):
         self._version = version
         self._module_runs = _version(version) >= MODULE_RUNS_SINCE
+        self._needs_a_human = _version(version) >= NEEDS_A_HUMAN_SINCE
+        self._has_switch = _version(version) >= AGENT_COMMIT_SINCE
         self._container = container
         self._mcp = mcp
         self._sessions: dict[str, dict] = {}
@@ -84,6 +94,17 @@ class FakeShellerClient:
             {"id": "0123456789ab", "name": "odoo-old", "image": "odoo:17", "status": "Up"},
             {"id": "ba9876543210", "name": "odoo-new", "image": "odoo:18", "status": "Up"},
         ]
+        # Containers a person switched on for agents (*agents may commit*).
+        # Both by default, as a migration is set up to run: the old side
+        # opens with `allow_commit: false`, and the switch honours that.
+        self._agent_commit: dict[str, str] = {
+            name: "2026-10-16T00:00:00Z"
+            for name in (
+                agent_commit
+                if agent_commit is not None
+                else {entry["name"] for entry in self._containers}
+            )
+        }
         self.graph_modules = [dict(row) for row in DEFAULT_GRAPH]
         # container name -> modules installed in its database. What the
         # target's `ir.module.module` answers; empty is a fresh database.
@@ -129,6 +150,72 @@ class FakeShellerClient:
 
         return [dict(entry) for entry in self._containers]
 
+    def agent_commit(self) -> list:
+        """``GET /api/agent-commit``: the switched-on containers, by name."""
+        if not self._has_switch:
+            raise ShellerError("Not Found", status=404)
+
+        return [
+            {"container": name, "since": since}
+            for name, since in sorted(self._agent_commit.items())
+        ]
+
+    def set_agent_commit(self, container: str, on: bool) -> list[str]:
+        """A person flips the switch in Sheller's UI. Not on the client: the
+        daemon takes it only with the admin key, which this app never sends.
+
+        As the daemon does, it reaches open sessions at once: on grants every
+        agent session on the container that did not opt out, off takes the
+        right from every agent session there, whatever gave it.
+        """
+        if on:
+            self._agent_commit.setdefault(container, "2026-10-16T00:00:00Z")
+        else:
+            self._agent_commit.pop(container, None)
+        changed = []
+        for session in self._sessions.values():
+            if session["container"] != container or session["owner"].get("kind") != "agent":
+                continue
+            if on and not session["allow_commit"] and not session["opted_out"]:
+                session["allow_commit"], session["commit_grant"] = True, "container"
+                changed.append(session["id"])
+            elif not on and session["allow_commit"]:
+                session["allow_commit"], session["commit_grant"] = False, None
+                changed.append(session["id"])
+
+        return changed
+
+    def _commit_right(
+        self, container: str, owner: dict | None, allow_commit: bool | None
+    ) -> tuple[bool, str | None]:
+        """What the daemon gives a session at open: the right, and where it came from.
+
+        A local human holds it and needs no grant. An agent gets it from the
+        switch alone: `true` where the switch is off is refused, and `false`
+        is an opt-out the switch honours.
+        """
+        if (owner or {}).get("kind", "human") != "agent":
+            right = True if allow_commit is None else allow_commit
+
+            return right, None
+        if not self._needs_a_human:
+
+            return bool(allow_commit), None
+        switched = self._has_switch and container in self._agent_commit
+        if allow_commit and not switched:
+            raise ShellerNeedsHuman(
+                "needs_a_human: open an agent's session with commit already granted — "
+                "open it without allow_commit; a human grants the right later, from the "
+                "UI — or turns on 'agents may commit' for this container, and its "
+                "sessions open with it",
+                status=403,
+            )
+        if allow_commit is False or not switched:
+
+            return False, None
+
+        return True, "container"
+
     def probe(self, container: str) -> dict:
         if container not in {entry["name"] for entry in self._containers}:
             raise ShellerError(f"unknown container: {container}", status=404)
@@ -159,6 +246,7 @@ class FakeShellerClient:
             raise ShellerError(
                 "container, database and odoo_bin are required", status=422
             )
+        right, grant = self._commit_right(container, owner, allow_commit)
         session_id = uuid.uuid4().hex
         write_key = secrets.token_hex(16)
         self._sessions[session_id] = {
@@ -172,7 +260,9 @@ class FakeShellerClient:
             "pending_commands": 0,
             "odoo_bin": odoo_bin,
             "owner": dict(owner or {}),
-            "allow_commit": bool(allow_commit),
+            "allow_commit": right,
+            "commit_grant": grant,
+            "opted_out": (owner or {}).get("kind") == "agent" and allow_commit is False,
             "write_key": write_key,
             "commands": [],
         }
@@ -210,6 +300,7 @@ class FakeShellerClient:
         "stage",
         "owner",
         "allow_commit",
+        "commit_grant",
         "pending_commands",
     )
 

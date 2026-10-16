@@ -52,6 +52,8 @@ class ShellerClient(Protocol):
 
     def probe(self, container: str) -> dict: ...
 
+    def agent_commit(self) -> list: ...
+
     def open_session(
         self,
         *,
@@ -125,6 +127,15 @@ class HttpShellerClient:
     def list_containers(self) -> list:
 
         return self._request("GET", "/api/containers")
+
+    def agent_commit(self) -> list:
+        """``GET /api/agent-commit``: the containers a person switched on for agents.
+
+        Sheller 1.11.0. No key to read it; turning one on or off takes the
+        admin key, which this app never sends, so there is no call for that.
+        """
+
+        return self._request("GET", "/api/agent-commit")
 
     def probe(self, container: str) -> dict:
         """Where ``odoo_bin`` and the database list come from.

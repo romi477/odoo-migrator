@@ -20,6 +20,20 @@ from odoo_migrator.sheller import (
 )
 from odoo_migrator.sheller.client import SESSION_OPEN_TIMEOUT
 
+# What Sheller 1.11.0 answers an agent's open with `allow_commit: true` on a
+# container nobody switched on, word for word.
+NEEDS_A_HUMAN = {
+    "detail": {
+        "error": "needs_a_human",
+        "act": "open an agent's session with commit already granted",
+        "recovery": (
+            "open it without allow_commit; a human grants the right later, from the "
+            "UI — or turns on 'agents may commit' for this container, and its "
+            "sessions open with it"
+        ),
+    }
+}
+
 
 def _stub_app(fake: FakeShellerClient):
     """ASGI double of the Sheller routes the migrator actually calls."""
@@ -46,6 +60,9 @@ def _stub_app(fake: FakeShellerClient):
         container: str
 
     def translate(exc: ShellerError) -> HTTPException:
+        if isinstance(exc, ShellerNeedsHuman):
+
+            return HTTPException(status_code=403, detail=NEEDS_A_HUMAN["detail"])
         if isinstance(exc, ShellerNotOwner):
 
             return HTTPException(status_code=403, detail={"error": "not_owner"})
@@ -59,14 +76,25 @@ def _stub_app(fake: FakeShellerClient):
 
     @app.post("/api/sessions")
     def open_session(body: OpenBody):
+        try:
 
-        return fake.open_session(
-            container=body.container,
-            database=body.database,
-            odoo_bin=body.odoo_bin,
-            owner=body.owner,
-            allow_commit=body.allow_commit,
-        )
+            return fake.open_session(
+                container=body.container,
+                database=body.database,
+                odoo_bin=body.odoo_bin,
+                owner=body.owner,
+                allow_commit=body.allow_commit,
+            )
+        except ShellerError as exc:
+            raise translate(exc) from None
+
+    @app.get("/api/agent-commit")
+    def agent_commit():
+        try:
+
+            return fake.agent_commit()
+        except ShellerError as exc:
+            raise translate(exc) from None
 
     @app.get("/api/containers")
     def list_containers():
@@ -547,20 +575,6 @@ def test_an_answer_that_is_not_json_is_a_sheller_error():
         client.get_session("s1")
 
 
-# What Sheller 1.11.0 answers an agent's open with `allow_commit: true` on a
-# container nobody switched on, word for word.
-NEEDS_A_HUMAN = {
-    "detail": {
-        "error": "needs_a_human",
-        "act": "open an agent's session with commit already granted",
-        "recovery": (
-            "open it without allow_commit; a human grants the right later, from the "
-            "UI — or turns on 'agents may commit' for this container, and its "
-            "sessions open with it"
-        ),
-    }
-}
-
 
 def test_a_refusal_that_needs_a_person_is_not_a_wrong_key():
     """Every 403 used to read `not_owner`. The runner's target side was
@@ -596,3 +610,81 @@ def test_a_wrong_key_is_still_not_owner():
 
     with pytest.raises(ShellerNotOwner):
         client.exec("abc", "1", write_key="someone-elses-key")
+
+
+@pytest.fixture(params=["fake", "http"])
+def switched(request):
+    """A daemon where a person switched `odoo-new` on for agents, and only it.
+
+    The fake is handed back too: flipping the switch is a person's act with
+    the admin key, which this app has no call for.
+    """
+    fake = FakeShellerClient(agent_commit={"odoo-new"})
+    client = fake if request.param == "fake" else _http_client(fake)
+
+    return client, fake
+
+
+def test_the_switched_on_containers_can_be_read_before_anything_opens(switched):
+    client, _fake = switched
+
+    assert [entry["container"] for entry in client.agent_commit()] == ["odoo-new"]
+
+
+def test_the_target_opens_with_commit_where_a_person_switched_it_on(switched):
+    client, _fake = switched
+
+    opened = _open(client, container="odoo-new", allow_commit=True)
+
+    assert opened["allow_commit"] is True
+    assert opened["commit_grant"] == "container"
+    assert client.commit(opened["id"], write_key=opened["write_key"])
+
+
+def test_the_target_is_refused_where_nobody_switched_it_on(switched):
+    """Sheller 1.8.3 and on. The double used to accept it."""
+    client, _fake = switched
+
+    with pytest.raises(ShellerNeedsHuman, match="agents may commit"):
+        _open(client, container="odoo-old", allow_commit=True)
+
+
+def test_the_source_side_stays_read_only_on_a_switched_on_container(switched):
+    """`allow_commit: false` is an opt-out the switch honours, at open and
+    when a person turns it on later. The source side relies on it."""
+    client, fake = switched
+    fake.set_agent_commit("odoo-old", True)
+
+    opened = _open(client, container="odoo-old", allow_commit=False)
+    fake.set_agent_commit("odoo-old", True)
+
+    assert opened["allow_commit"] is False
+    assert client.get_session(opened["id"])["allow_commit"] is False
+    with pytest.raises(ShellerError) as refused:
+        client.commit(opened["id"], write_key=opened["write_key"])
+    assert refused.value.status == 423
+
+
+def test_turning_the_switch_off_takes_the_right_from_an_open_session(switched):
+    client, fake = switched
+    opened = _open(client, container="odoo-new", allow_commit=True)
+
+    fake.set_agent_commit("odoo-new", False)
+
+    described = client.get_session(opened["id"])
+    assert described["allow_commit"] is False
+    assert described["commit_grant"] is None
+    with pytest.raises(ShellerError) as refused:
+        client.commit(opened["id"], write_key=opened["write_key"])
+    assert refused.value.status == 423
+
+
+def test_a_daemon_before_the_switch_refuses_the_target_everywhere():
+    """1.8.3 to 1.10: no switch to read, and no way for an agent to commit."""
+    fake = FakeShellerClient(version="1.10.0")
+
+    with pytest.raises(ShellerError) as missing:
+        fake.agent_commit()
+    with pytest.raises(ShellerNeedsHuman):
+        _open(fake, container="odoo-new", allow_commit=True)
+    assert missing.value.status == 404
