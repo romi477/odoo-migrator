@@ -323,6 +323,23 @@
         load();
       }
     });
+    /* The header says the job's status. It moved only with the first line
+       of a new job, so a run that stopped still read "running" above its
+       own last line. */
+    src.addEventListener("module", function (event) {
+      var data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        return;
+      }
+      if (!job || data.job_id !== job || !name) {
+        return;
+      }
+      named = data.technical_name || named;
+      var live = data.status === "queued" || data.status === "running" || data.status === "waiting_for_human";
+      name.textContent = named + " · " + data.status + (live ? "" : " · last run");
+    });
     src.addEventListener("log", function (event) {
       var data;
       try {

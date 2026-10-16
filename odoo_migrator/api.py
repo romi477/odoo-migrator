@@ -1539,12 +1539,16 @@ def create_app(
             provider_override=provider_override,
             model_override=model_override,
         ) is None:
+            refused = "Those settings were rejected. Nothing saved."
+            if (provider_override or "").strip() and not (model_override or "").strip():
+                # The model select sends nothing when the provider lists
+                # nothing, which for the local one means its server is off.
+                refused = (
+                    f"Pick a model for {provider_override.strip()}. Nothing saved. "
+                    "A provider that lists none may have its server off."
+                )
 
-            return _overview(
-                request,
-                expanded=migration_id,
-                error="Those settings were rejected. Nothing saved.",
-            )
+            return _overview(request, expanded=migration_id, error=refused)
 
         return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 

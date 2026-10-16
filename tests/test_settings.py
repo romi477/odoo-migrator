@@ -581,3 +581,22 @@ def test_the_lamp_leads_to_a_question_before_an_old_failure(client):
 
     assert jumped.headers["location"] == f"/tree?focus={waiting.id}"
     assert "waiting for you or has failed" in client.get("/").text
+
+
+def test_a_provider_with_no_model_picked_says_which_is_missing(client):
+    _create(client, "Acme")
+    with database.connection_context():
+        row = Migration.get(Migration.name == "Acme")
+
+    refused = client.post(
+        f"/migrations/{row.id}/settings",
+        data={
+            "strictness_default": "basic",
+            "retry_limit": "5",
+            "ask_human_mode": "sync",
+            "provider_override": "local",
+        },
+        follow_redirects=True,
+    )
+
+    assert "Pick a model for local" in refused.text

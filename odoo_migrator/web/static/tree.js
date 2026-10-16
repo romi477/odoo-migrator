@@ -548,9 +548,8 @@
       hintEl.textContent =
         "Exclude — this module and the " +
         below +
-        " module" +
-        (below === 1 ? "" : "s") +
-        " that depend on it, except the ones already migrated. Parents stay in the plan.";
+        (below === 1 ? " module that depends" : " modules that depend") +
+        " on it, except the ones already migrated. Parents stay in the plan.";
     } else {
       hintEl.textContent = "Exclude — skip this module; parents stay in the plan.";
     }
@@ -646,6 +645,10 @@
     if (assumptionsEl) {
       assumptionsEl.hidden = true;
     }
+    const stageEl = document.getElementById("node-card-stage");
+    if (stageEl) {
+      stageEl.textContent = "";
+    }
     syncSelectionActions("many", nodes);
     setSkipHint(true, nodes);
     if (askForm) {
@@ -718,6 +721,12 @@
     }
     if (questionEl) {
       questionEl.textContent = node.data("question") || "";
+    }
+    /* This module's stage, not the line sse.js left from the one the card
+       showed before. */
+    const stageEl = document.getElementById("node-card-stage");
+    if (stageEl) {
+      stageEl.textContent = node.data("stage_line") || "";
     }
     if (assumptionsEl) {
       assumptionsEl.hidden = !node.data("has_assumptions");
@@ -817,6 +826,10 @@
     }
     if (typeof row.has_assumptions === "boolean") {
       node.data("has_assumptions", row.has_assumptions);
+    }
+    if ("stage" in row) {
+      const attempt = row.attempt ? " · attempt " + row.attempt : "";
+      node.data("stage_line", row.stage ? row.stage + attempt : "");
     }
     if (typeof row.struck_out === "boolean" && row.struck_out !== !!node.data("struck_out")) {
       syncStruckVisual(node, row.struck_out);
