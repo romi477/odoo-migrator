@@ -1,13 +1,28 @@
-"""Park the job until a human answers.
+"""Park the job until a human answers — or, at `batch_defer`, do not.
 
 Without a waiter the loop stops and the job stays parked. The native runner
 installs a waiter that blocks this step and then lets the loop continue.
+
+A migration set to `batch_defer` records the question as an assumption and
+carries on; the checkpoint is where a person reads it. The card offered the
+mode for a long time before anything here read it.
 """
 
 from __future__ import annotations
 
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
+
+DEFERRED = (
+    "Not asked: this migration defers questions to the checkpoint "
+    "(batch_defer). The run carried on without an answer."
+)
+# What the next step reads in place of a person's answer.
+DEFERRED_ANSWER = (
+    "No one was asked: this migration defers questions to the checkpoint "
+    "(batch_defer). Carry on with your best judgement and say in your report "
+    "what you assumed."
+)
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
@@ -26,6 +41,11 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             "question": question,
         }
     )
+    mode = getattr(getattr(ctx, "migration", None), "ask_human_mode", "sync")
+    if mode == "batch_defer":
+        ctx.assumptions.append({"question": question, "assumption": DEFERRED})
+
+        return StepResult(ok=True, answer=DEFERRED_ANSWER, output=question)
     waiter = getattr(ctx, "wait_for_human", None)
     if callable(waiter):
         answer = waiter(question)

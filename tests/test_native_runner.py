@@ -671,3 +671,35 @@ def test_a_stop_pressed_before_the_thread_starts_is_kept(app, tmp_path):
     runner._run({"job_id": job.job_id})
 
     assert reloaded(job).status == "stopped"
+
+
+def test_batch_defer_records_the_question_and_carries_on(app, fake_sheller, tmp_path):
+    """The card offered batch_defer — "records an assumption and keeps
+    going" — and the runner never read it: every question parked the job
+    and waited for a person, whatever the card said."""
+    from odoo_migrator.models import Assumption
+
+    job = _module(tmp_path)
+    with database.connection_context():
+        migration = Module.get_by_id(job.module_id).migration
+        migration.ask_human_mode = "batch_defer"
+        migration.save()
+    model = ModelDouble(
+        turns=[{"name": "report", "input": {"answer": "which override?", "needs_human": True}}]
+    )
+    runner = NativeRunner(
+        sheller=fake_sheller,
+        hub=app.state.hub,
+        provider=ScriptedProvider(model),
+        result=app.state.on_result,
+    )
+
+    runner.start({"job_id": job.job_id, "cartridge_text": _ASKS})
+    runner.wait(job.job_id, timeout=5)
+
+    assert reloaded(job).status == "passed"
+    with database.connection_context():
+        assert Module.get_by_id(job.module_id).has_assumptions is True
+        recorded = list(Assumption.select().where(Assumption.job == job.id))
+    assert [row.question for row in recorded] == ["which override?"]
+    assert "batch_defer" in recorded[0].assumption

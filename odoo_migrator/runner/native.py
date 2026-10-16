@@ -409,6 +409,7 @@ class NativeRunner:
                     }
                 ],
                 "findings": list(ctx.findings),
+                "assumptions": list(ctx.assumptions),
             },
         )
         self._log(

@@ -74,6 +74,9 @@ class StepContext:
     # What the job reports besides its verdict: `{"text", "source"}`, as the
     # result payload's findings. The checkpoint shows them.
     findings: list[dict] = field(default_factory=list)
+    # Questions a `batch_defer` migration did not stop for:
+    # `{"question", "assumption"}`, as the result payload's assumptions.
+    assumptions: list[dict] = field(default_factory=list)
     # Set by the native runner so a tool call lands on the step that made it.
     step_run_id: int | None = None
     # The same step, by name, for the run log.
