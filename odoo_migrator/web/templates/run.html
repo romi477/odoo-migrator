@@ -167,7 +167,7 @@
           {% if pipeline_queue.modules %}
           {% set mod = pipeline_queue.modules[0] %}
           <div class="pipeline-queue-item{% if mod.active %} pipeline-queue-active{% endif %}"
-               data-module-id="{{ mod.id }}">
+               data-module-id="{{ mod.id }}" data-status="{{ mod.status }}">
             <span class="pipeline-queue-order">{{ mod.position }}</span>
             <span class="graph-node-index">#{{ mod.migration_rank }}/{{ mod.step }}</span>
             <span class="pipeline-lamp" aria-hidden="true"></span>
@@ -179,7 +179,7 @@
         <ol class="pipeline-queue-list" data-pipeline-queue>
           {% for mod in pipeline_queue.modules %}
           <li class="pipeline-queue-item{% if mod.active %} pipeline-queue-active{% endif %}"
-              data-module-id="{{ mod.id }}">
+              data-module-id="{{ mod.id }}" data-status="{{ mod.status }}">
             <span class="pipeline-queue-order">{{ mod.position }}</span>
             <span class="graph-node-index">#{{ mod.migration_rank }}/{{ mod.step }}</span>
             <span class="pipeline-lamp" aria-hidden="true"></span>

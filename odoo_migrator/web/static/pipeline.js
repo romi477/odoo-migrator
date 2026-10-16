@@ -60,6 +60,7 @@
     const row = document.createElement(tag);
     row.className = "pipeline-queue-item" + (mod.active ? " pipeline-queue-active" : "");
     row.setAttribute("data-module-id", String(mod.id));
+    row.setAttribute("data-status", mod.status || "");
     row.innerHTML = queueItemMarkup(mod);
 
     return row;

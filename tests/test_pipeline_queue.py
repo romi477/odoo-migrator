@@ -203,3 +203,16 @@ def test_queue_run_on_an_empty_queue_says_so(client):
     assert run_state(row.id) == "stopped"
     form = page.text[page.text.index('action="/run/queue/run"') :]
     assert "disabled" in form[: form.index("</form>")]
+
+
+def test_a_queue_row_says_its_modules_status(client):
+    """The lamp of the module in work spins while it runs and stands still
+    while it waits on a person; the stylesheet can only tell the two apart
+    from the row."""
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+    first = queue_snapshot(row.id)["modules"][0]
+
+    page = client.get("/run").text
+
+    assert f'data-module-id="{first["id"]}" data-status="{first["status"]}"' in page

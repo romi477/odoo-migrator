@@ -2314,23 +2314,37 @@ h2 {
    drawn.) */
 .pipeline-queue-active .pipeline-lamp {
   background: var(--amber);
-  animation: pipeline-lamp-pulse 1s ease-in-out infinite;
+}
+
+/* While the module runs the lamp is a spinner: an amber arc turning on a
+   faint ring. A blinking dot at the row's far end read as a stray mark
+   more than as work going on. A module parked on a question keeps the
+   still dot: nothing is turning while it waits on a person. */
+.pipeline-queue-active[data-status="running"] .pipeline-lamp,
+.pipeline-queue-active[data-status="queued"] .pipeline-lamp {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 2px solid color-mix(in oklch, var(--amber) 22%, transparent);
+  border-top-color: var(--amber);
+  background: transparent;
+  animation: pipeline-lamp-spin 0.8s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pipeline-queue-active .pipeline-lamp {
+  .pipeline-queue-active[data-status="running"] .pipeline-lamp,
+  .pipeline-queue-active[data-status="queued"] .pipeline-lamp {
+    width: 8px;
+    height: 8px;
+    border: 0;
+    background: var(--amber);
     animation: none;
   }
 }
 
-@keyframes pipeline-lamp-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
+@keyframes pipeline-lamp-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

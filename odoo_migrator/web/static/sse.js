@@ -142,6 +142,16 @@ function fillResultCornerGlyph(glyph, kind) {
       }
     }
 
+    /* Both queue rows of a module, the compact one and the list's: their
+       lamp spins while it runs and stands still while it waits. */
+    if (data.status) {
+      document
+        .querySelectorAll('.pipeline-queue-item[data-module-id="' + data.id + '"]')
+        .forEach(function (item) {
+          item.setAttribute("data-status", data.status);
+        });
+    }
+
     const row = document.querySelector('[data-module-id="' + data.id + '"]');
     if (!row) {
       return;
