@@ -542,7 +542,8 @@ def create_app(
         request: Request,
         module_ids: Annotated[list[int], Form()],
     ):
-        """Exclude for one or many modules: upward depends chains only."""
+        """Exclude for one or many modules. A leaf goes alone; a module with
+        dependents, or a multi-select, takes everything downstream with it."""
         current = get_active(request.cookies.get(OPEN_COOKIE))
         if current is None:
 
@@ -841,6 +842,17 @@ def create_app(
             return JSONResponse({"error": "no such attempt"}, status_code=404)
 
         return JSONResponse(view)
+
+    @app.get("/api/result/progress")
+    def result_progress(request: Request):
+        """The board's tallies now, for the counters over the cards."""
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return JSONResponse({"error": "no migration"}, status_code=404)
+        progress = migration_results(current["id"])["progress"]
+
+        return JSONResponse({"migration_id": current["id"], **progress})
 
     @app.get("/api/result/modules/{module_id}/summary")
     def result_module_summary(request: Request, module_id: int):

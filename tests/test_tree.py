@@ -424,3 +424,16 @@ def test_the_done_corner_on_a_graph_node_has_a_row_on_components(client):
     page = client.get("/components").text
 
     assert "result-corner-badge done graph-node-done" in page
+
+
+def test_the_tree_follows_the_run_and_says_what_exclude_takes(client):
+    """Tree drew the statuses of page load, so a module that parked on a
+    question afterwards lost its answer form when selected again. And the
+    hint for one module said only that its parents stay, while every module
+    depending on it went out with it."""
+    script = client.get("/static/tree.js").text
+
+    assert 'addEventListener("module"' in script
+    assert 'addEventListener("module_states"' in script
+    assert 'successors("node")' in script
+    assert "requestAnimationFrame" in script

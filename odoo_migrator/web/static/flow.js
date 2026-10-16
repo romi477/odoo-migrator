@@ -8,24 +8,45 @@
   var embedded = document.getElementById("flow-graph");
   var cyGraph = null;
   var COLUMN = { main: 200, failure: 560 };
-  var ACCENT = "#c4552a";
-  var QUIET = "#e4d7cc";
-  var LINE = "#8a7568";
-  var INK = "#1c140f";
+
+  /* The stylesheet's colours for the drawing, resolved to what Cytoscape
+     can paint. They were constants here and in the stylesheet both. */
+  function token(name, fallback) {
+    var value = getComputedStyle(canvas).getPropertyValue(name).trim();
+
+    return value || fallback;
+  }
+
+  var ACCENT = token("--flow-agent", "#c4552a");
+  var QUIET = token("--flow-function", "#e4d7cc");
+  var LINE = token("--flow-line", "#8a7568");
+  var INK = token("--flow-ink", "#1c140f");
+  var SELECTED = token("--flow-selected", "#7ec8e3");
+
+  /* A drawing that could not be had says so, in the canvas it would fill. */
+  function unavailable(text) {
+    var note = document.createElement("p");
+    note.className = "flow-unavailable field-hint";
+    note.textContent = text;
+    canvas.replaceChildren(note);
+  }
 
   if (migration) {
-    fetch("/api/flow/" + migration + "/graph")
+    fetch("/api/flow/" + encodeURIComponent(migration) + "/graph")
       .then(function (response) {
+        if (!response.ok) {
+          throw new Error(String(response.status));
+        }
         return response.json();
       })
-      .then(draw);
+      .then(draw)
+      .catch(function () {
+        unavailable("The flow could not be drawn: the app did not hand over its graph. Reload the page.");
+      });
   } else if (embedded) {
     draw(JSON.parse(embedded.textContent));
   }
 
-  /* A gated step says so on the node. Without the flag, `probe` reads as part
-     of every run, and `patch` reads as something that happens before
-     `rewrite` rather than instead of it. */
   /* Cytoscape does not paint oklch(), which is what the theme computes to.
      A one-pixel canvas turns that into rgb the edge labels can sit on. */
   function panelColor() {
@@ -39,6 +60,9 @@
     return "rgb(" + pixel[0] + "," + pixel[1] + "," + pixel[2] + ")";
   }
 
+  /* A gated step says so on the node. Without the flag, `probe` reads as part
+     of every run, and `patch` reads as something that happens before
+     `rewrite` rather than instead of it. */
   function label(node) {
     if (node.gated_on) {
       return node.label + "\nif " + node.gated_on;
@@ -131,7 +155,7 @@
         },
         {
           selector: "node.is-selected",
-          style: { "border-width": 3, "border-color": "#7ec8e3" },
+          style: { "border-width": 3, "border-color": SELECTED },
         },
         {
           selector: "node[kind = 'lane']",

@@ -149,7 +149,7 @@
       wrap.appendChild(text);
       body.appendChild(wrap);
     });
-    if (!data.messages.length && !(data.steps && data.steps.length)) {
+    if (!(data.messages && data.messages.length) && !(data.steps && data.steps.length)) {
       body.appendChild(line("This run recorded no steps and said nothing."));
     }
   }
@@ -190,22 +190,35 @@
     });
   }
 
+  /* The newest press wins. Two quick presses answered in either order,
+     and the slower answer drew one module's run under the other's name. */
+  let asked = 0;
+
   document.addEventListener("click", function (event) {
     const button = event.target.closest("[data-result-summary]");
     if (!button) {
       return;
     }
     const id = button.getAttribute("data-result-summary");
+    const mine = ++asked;
     title.textContent = button.getAttribute("data-result-summary-name") || "";
     panel.hidden = false;
     reveal();
     body.textContent = "loading…";
-    fetch("/api/result/modules/" + id + "/summary")
+    fetch("/api/result/modules/" + encodeURIComponent(id) + "/summary")
       .then(function (response) {
         return response.ok ? response.json() : null;
       })
+      .catch(function () {
+        return { failed: true };
+      })
       .then(function (data) {
-        if (data) {
+        if (mine !== asked) {
+          return;
+        }
+        if (data && data.failed) {
+          body.textContent = "not available: the app did not answer";
+        } else if (data) {
           render(data);
         } else {
           body.textContent = "not available";
@@ -223,6 +236,85 @@
   if (close) {
     close.addEventListener("click", function () {
       panel.hidden = true;
+    });
+  }
+})();
+
+/* The counters over the board, kept to what the modules are now. The cards
+   followed the run and the figures above them stayed as the page loaded. */
+(function () {
+  const board = document.querySelector("[data-result]");
+  const progress = document.querySelector("[data-result-progress]");
+  if (!board || !progress) {
+    return;
+  }
+  const migration = board.getAttribute("data-migration-id");
+  let queued = null;
+
+  function counter(selector, value) {
+    const node = progress.querySelector(selector);
+    if (!node) {
+      return;
+    }
+    node.hidden = !value;
+    const figure = node.querySelector("[data-figure]");
+    if (figure) {
+      figure.textContent = String(value || 0);
+    }
+  }
+
+  function refresh() {
+    queued = null;
+    fetch("/api/result/progress")
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .catch(function () {
+        return null;
+      })
+      .then(function (data) {
+        if (!data || String(data.migration_id) !== migration) {
+          return;
+        }
+        const done = progress.querySelector("[data-progress-done]");
+        const bad = progress.querySelector("[data-progress-bad]");
+        if (done) {
+          done.style.setProperty("--x", data.pct_done);
+        }
+        if (bad) {
+          bad.style.setProperty("--x", data.pct_bad);
+        }
+        const count = progress.querySelector("[data-progress-count]");
+        if (count) {
+          count.textContent = data.done + " of " + data.total + " modules";
+        }
+        counter("[data-progress-migrated]", data.migrated);
+        counter("[data-progress-waiting]", data.waiting);
+        counter("[data-progress-failed]", data.failed);
+      });
+  }
+
+  function listen(src) {
+    src.addEventListener("module", function (event) {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        return;
+      }
+      if (String(data.migration_id) !== migration || queued) {
+        return;
+      }
+      /* A burst of events is one request. */
+      queued = setTimeout(refresh, 400);
+    });
+  }
+
+  if (window.migratorSse) {
+    listen(window.migratorSse);
+  } else {
+    document.addEventListener("sse-ready", function (ready) {
+      listen(ready.detail);
     });
   }
 })();

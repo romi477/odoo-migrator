@@ -22,21 +22,17 @@
   <div class="result-board"
        {% if current %}data-result data-migration-id="{{ current.id }}"{% endif %}>
     <article class="card result-summary">
-      <div class="row-progress">
+      {# Drawn whole, zeros hidden, so `result.js` can move the figures as
+         modules finish instead of leaving the counts of page load. #}
+      <div class="row-progress" data-result-progress>
         <div class="progress-bar" aria-hidden="true">
-          <span class="done" style="--x: {{ board.progress.pct_done }}"></span>
-          <span class="bad" style="--x: {{ board.progress.pct_bad }}"></span>
+          <span class="done" data-progress-done style="--x: {{ board.progress.pct_done }}"></span>
+          <span class="bad" data-progress-bad style="--x: {{ board.progress.pct_bad }}"></span>
         </div>
-        <span class="progress-count">{{ board.progress.done }} of {{ board.progress.total }} modules</span>
-        {% if board.progress.migrated %}
-        <span class="counter migrated" title="Installed on the target before this app ran them"><span class="dot"></span>{{ board.progress.migrated }} already in target</span>
-        {% endif %}
-        {% if board.progress.waiting %}
-        <span class="counter waiting"><span class="dot"></span>{{ board.progress.waiting }} waiting for you</span>
-        {% endif %}
-        {% if board.progress.failed %}
-        <span class="counter failed"><span class="dot"></span>{{ board.progress.failed }} failed</span>
-        {% endif %}
+        <span class="progress-count" data-progress-count>{{ board.progress.done }} of {{ board.progress.total }} modules</span>
+        <span class="counter migrated" data-progress-migrated title="Installed on the target before this app ran them"{% if not board.progress.migrated %} hidden{% endif %}><span class="dot"></span><span data-figure>{{ board.progress.migrated }}</span> already in target</span>
+        <span class="counter waiting" data-progress-waiting{% if not board.progress.waiting %} hidden{% endif %}><span class="dot"></span><span data-figure>{{ board.progress.waiting }}</span> waiting for you</span>
+        <span class="counter failed" data-progress-failed{% if not board.progress.failed %} hidden{% endif %}><span class="dot"></span><span data-figure>{{ board.progress.failed }}</span> failed</span>
       </div>
     </article>
 

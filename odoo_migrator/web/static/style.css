@@ -11,6 +11,14 @@
   --amber: oklch(0.72 0.12 62);
   --amber-dark: oklch(0.29 0.08 62);
   --cyan: oklch(0.72 0.09 205);
+  /* The Flow drawing's colours. The legend reads them and `flow.js` reads
+     the same properties for the canvas, so the two cannot drift. Hex,
+     because Cytoscape cannot paint oklch(). */
+  --flow-agent: #c4552a;
+  --flow-function: #e4d7cc;
+  --flow-line: #8a7568;
+  --flow-ink: #1c140f;
+  --flow-selected: #7ec8e3;
   --cyan-dark: oklch(0.29 0.07 205);
   --chrome-edge: color-mix(in oklch, var(--cyan) 38%, var(--border));
   --screen-start: 16px;
@@ -3108,12 +3116,12 @@ pre.test-output {
 }
 
 .flow-swatch.agent {
-  background: #c4552a;
-  border-color: #c4552a;
+  background: var(--flow-agent);
+  border-color: var(--flow-agent);
 }
 
 .flow-swatch.function {
-  background: #e4d7cc;
+  background: var(--flow-function);
 }
 
 .flow-swatch.gated {
@@ -3130,6 +3138,10 @@ pre.test-output {
 
 .flow-board.is-inspecting {
   grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.flow-unavailable {
+  padding: 16px;
 }
 
 .flow-canvas {

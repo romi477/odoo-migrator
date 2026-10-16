@@ -569,3 +569,24 @@ def test_a_long_module_name_breaks_at_underscores_not_out_of_its_card(client):
 
     assert "integration_<wbr>shopify_<wbr>payouts" in page
     assert "needs integration_<wbr>shopify" in page
+
+
+def test_the_counters_over_the_board_can_be_read_again(client):
+    """The cards followed the run over SSE and the figures above them stayed
+    as the page loaded: "3 of 30" while the tenth module passed."""
+    migration_id = _open(client)
+    with database.connection_context():
+        Module.create(migration=migration_id, technical_name="sale_custom", status="passed")
+        Module.create(migration=migration_id, technical_name="stock_custom", status="failed")
+
+    progress = client.get("/api/result/progress").json()
+
+    assert progress["migration_id"] == migration_id
+    assert progress["done"] == 1
+    assert progress["failed"] == 1
+    assert progress["total"] == 2
+    page = client.get("/result").text
+    assert "data-result-progress" in page
+    assert "data-progress-waiting" in page
+    script = client.get("/static/result.js").text
+    assert "/api/result/progress" in script

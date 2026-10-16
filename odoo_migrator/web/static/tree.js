@@ -365,9 +365,20 @@
       badges.appendChild(badge);
     });
   }
+  /* Once per frame at most. Cytoscape renders on every step of a pan or a
+     zoom, and each render rebuilt every badge of a graph of hundreds. */
+  let chromeQueued = false;
+
   function paintGraphChrome() {
-    placeBadges();
-    placeSelectionRings();
+    if (chromeQueued) {
+      return;
+    }
+    chromeQueued = true;
+    requestAnimationFrame(function () {
+      chromeQueued = false;
+      placeBadges();
+      placeSelectionRings();
+    });
   }
 
   cy.on("render", paintGraphChrome);
@@ -399,7 +410,6 @@
   }
 
   function applyStrikeRows(body) {
-    const error = document.getElementById("node-card-error");
     (body.modules || []).forEach(function (row) {
       cy.nodes()
         .filter(function (node) {
@@ -409,113 +419,89 @@
           syncStruckVisual(node, row.struck_out);
         });
     });
-    if (error) {
-      error.hidden = true;
-      error.textContent = "";
-    }
+    showError("");
     refreshCard();
   }
 
-  function applySkip(moduleId, wanted) {
-    return fetch("/tree/modules/" + moduleId + "/strike", {
+  function showError(message) {
+    const error = document.getElementById("node-card-error");
+    if (error) {
+      error.hidden = !message;
+      error.textContent = message || "";
+    }
+  }
+
+  /* One request in flight at a time. A double press sent two, and the
+     second answered against what the first had already changed. */
+  let busy = false;
+
+  function setBusy(on) {
+    busy = on;
+    ["node-card-skip", "node-card-include", "tree-leave-out-all", "tree-include-all"].forEach(
+      function (id) {
+        const button = document.getElementById(id);
+        if (button) {
+          button.setAttribute("aria-busy", on ? "true" : "false");
+        }
+      }
+    );
+  }
+
+  /* Every exclude and include goes through here. The guard's refusal is
+     plain text, a crash is HTML, and a lost cookie redirects to the page:
+     reading any of them as JSON threw, and the press did nothing visible. */
+  function postModules(url, moduleIds) {
+    if (busy) {
+      return Promise.resolve();
+    }
+    setBusy(true);
+    const body = (moduleIds || [])
+      .map(function (id) {
+        return "module_ids=" + encodeURIComponent(id);
+      })
+      .join("&");
+
+    return fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
       },
-      body: "struck=" + wanted,
-    }).then(function (response) {
-      return response.json().then(function (body) {
-        const error = document.getElementById("node-card-error");
-        if (!response.ok) {
-          if (error) {
-            error.hidden = false;
-            error.textContent = body.error || "Could not update the module.";
-          }
+      body: body,
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return { error: "The app answered " + response.status + ". Reload the page." };
+          })
+          .then(function (payload) {
+            if (!response.ok || payload.error) {
+              showError(payload.error || "Could not update the modules.");
 
-          return;
-        }
-        applyStrikeRows(body);
+              return;
+            }
+            applyStrikeRows(payload);
+          });
+      })
+      .catch(function () {
+        showError("The app did not answer. Is it running?");
+      })
+      .finally(function () {
+        setBusy(false);
       });
-    });
   }
 
   function applyLeaveOut(moduleIds) {
-    const body = moduleIds
-      .map(function (id) {
-        return "module_ids=" + encodeURIComponent(id);
-      })
-      .join("&");
-    return fetch("/tree/modules/leave-out", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: body,
-    }).then(function (response) {
-      return response.json().then(function (payload) {
-        const error = document.getElementById("node-card-error");
-        if (!response.ok) {
-          if (error) {
-            error.hidden = false;
-            error.textContent = payload.error || "Could not update the module.";
-          }
-
-          return;
-        }
-        applyStrikeRows(payload);
-      });
-    });
-  }
-
-  function applyBulk(url) {
-    return fetch(url, {
-      method: "POST",
-      headers: { Accept: "application/json" },
-    }).then(function (response) {
-      return response.json().then(function (payload) {
-        const error = document.getElementById("node-card-error");
-        if (!response.ok) {
-          if (error) {
-            error.hidden = false;
-            error.textContent = payload.error || "Could not update the modules.";
-          }
-
-          return;
-        }
-        applyStrikeRows(payload);
-      });
-    });
+    return postModules("/tree/modules/leave-out", moduleIds);
   }
 
   function applyRestore(moduleIds) {
-    const body = moduleIds
-      .map(function (id) {
-        return "module_ids=" + encodeURIComponent(id);
-      })
-      .join("&");
-    return fetch("/tree/modules/restore", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: body,
-    }).then(function (response) {
-      return response.json().then(function (payload) {
-        const error = document.getElementById("node-card-error");
-        if (!response.ok) {
-          if (error) {
-            error.hidden = false;
-            error.textContent = payload.error || "Could not update the module.";
-          }
+    return postModules("/tree/modules/restore", moduleIds);
+  }
 
-          return;
-        }
-        applyStrikeRows(payload);
-      });
-    });
+  function applyBulk(url) {
+    return postModules(url, []);
   }
 
   const card = document.getElementById("node-card");
@@ -552,9 +538,22 @@
     }
     const struck =
       nodes && nodes.length === 1 && nodes[0].data("struck_out");
-    hintEl.textContent = struck
-      ? "Include — this module's depends chain upward."
-      : "Exclude — skip this module; parents stay in the plan.";
+    /* What the server does (`graph.leave_out_selection`): a module with
+       dependents goes out with all of them. The hint said only that the
+       parents stay, and twenty modules left the plan with one press. */
+    const below = nodes && nodes.length === 1 ? nodes[0].successors("node").length : 0;
+    if (struck) {
+      hintEl.textContent = "Include — this module's depends chain upward.";
+    } else if (below) {
+      hintEl.textContent =
+        "Exclude — this module and the " +
+        below +
+        " module" +
+        (below === 1 ? "" : "s") +
+        " that depend on it, except the ones already migrated. Parents stay in the plan.";
+    } else {
+      hintEl.textContent = "Exclude — skip this module; parents stay in the plan.";
+    }
   }
 
   function syncSelectionActions(mode, nodes) {
@@ -775,9 +774,93 @@
     });
   }
 
-  cy.on("select unselect", "node", function () {
-    refreshCard();
-  });
+  /* Selecting a wave selects each of its nodes, one event apiece, and each
+     event redrew the card and the legend: a wave of a hundred did it a
+     hundred times. Once per frame is enough. */
+  let cardQueued = false;
+
+  function refreshCardSoon() {
+    if (cardQueued) {
+      return;
+    }
+    cardQueued = true;
+    requestAnimationFrame(function () {
+      cardQueued = false;
+      refreshCard();
+    });
+  }
+
+  cy.on("select unselect", "node", refreshCardSoon);
+
+  /* The graph as it is now. Tree drew the statuses of page load: a module
+     that parked on a question after that kept its old status on the node,
+     and selecting it again hid the answer form sse.js had opened. */
+  const switcher = document.querySelector("[data-open-migration]");
+  const openMigration = switcher ? switcher.getAttribute("data-open-migration") : "";
+
+  function nodeFor(moduleId) {
+    return cy.nodes().filter(function (node) {
+      return String(node.data("module_id")) === String(moduleId);
+    });
+  }
+
+  function takeState(row) {
+    const node = nodeFor(row.id);
+    if (!node.length) {
+      return;
+    }
+    if (row.status) {
+      node.data("status", row.status);
+    }
+    if ("question" in row) {
+      node.data("question", row.question || "");
+    }
+    if (typeof row.has_assumptions === "boolean") {
+      node.data("has_assumptions", row.has_assumptions);
+    }
+    if (typeof row.struck_out === "boolean" && row.struck_out !== !!node.data("struck_out")) {
+      syncStruckVisual(node, row.struck_out);
+    }
+  }
+
+  function listen(src) {
+    src.addEventListener("module", function (event) {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        return;
+      }
+      if (!openMigration || String(data.migration_id) !== openMigration) {
+        return;
+      }
+      takeState(data);
+      paintGraphChrome();
+      refreshCardSoon();
+    });
+    src.addEventListener("module_states", function (event) {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        return;
+      }
+      if (!openMigration || String(data.migration_id) !== openMigration) {
+        return;
+      }
+      (data.modules || []).forEach(takeState);
+      paintGraphChrome();
+      refreshCardSoon();
+    });
+  }
+
+  if (window.migratorSse) {
+    listen(window.migratorSse);
+  } else {
+    document.addEventListener("sse-ready", function (ready) {
+      listen(ready.detail);
+    });
+  }
 
   if (card && selectedModules().length === 1) {
     fillCard(selectedModules()[0]);

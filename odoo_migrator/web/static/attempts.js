@@ -143,6 +143,9 @@
       .then(function (response) {
         return response.ok ? response.json() : null;
       })
+      .catch(function () {
+        return null;
+      })
       .then(function (view) {
         if (!view) {
           return;
