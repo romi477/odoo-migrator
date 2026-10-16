@@ -235,13 +235,15 @@ def test_cytoscape_is_vendored_with_a_hash(client):
     assert digest in readme
 
 
-def test_tree_script_enables_marquee_and_batch_drag(client):
+def test_tree_script_enables_marquee_and_no_batch_drag(client):
+    """A drag that ended over a node wrote a batch group nothing drew and
+    nothing on the screens ran. A drag moves the node, and that is all."""
     script = client.get("/static/tree.js")
 
     assert script.status_code == 200
     assert "boxSelectionEnabled" in script.text
-    assert "dragfree" in script.text
-    assert "batch_group" in script.text
+    assert "dragfree" not in script.text
+    assert "/batch" not in script.text
 
 
 def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
@@ -273,7 +275,8 @@ def test_tree_script_keeps_breadthfirst_and_colours_steps(client):
     assert "module_id || row.id" in script.text
     assert "rank + \"/\" +" in script.text
     assert ".graph-node-index" in css.text
-    assert "stepsFromDepends" in script.text
+    # The server's step, not a second computation that had to agree with it.
+    assert "stepsFromDepends" not in script.text
     assert "node-card" in script.text
     assert "node-card-include" in script.text
     assert 'data-selection="many"' in script.text or "data-selection" in script.text

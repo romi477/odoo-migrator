@@ -158,8 +158,9 @@ files, **Discard changes** — after a confirm — runs `git restore` and
 `git clean` in that module's directory only, back to its last commit.
 Committed changes have nothing to discard. Both start the queue again.
 
-Grouping blocks for a run happens here (Resolve waves, or drag one module
-onto another); starting a block is on **Pipeline**.
+Waves are drawn here when the graph is built; starting them is on
+**Pipeline**. A module's wave is one after the deepest module it depends
+on, so a wave never holds a module and something it needs.
 
 Above the canvas, centred **step** buttons (one colour per wave) select
 every module on that wave. The **node card** sits under them: a compact dashed panel (same outline
@@ -205,8 +206,7 @@ were. Uninstalled addons under the source project path count once Odoo
 knows them (Update Apps List). |
 | **Exclude / Include** | On the node card; applies to the current selection (see table above). |
 
-Dragging a node onto another puts both in the same group (creating one
-if the target had none).
+Dragging a node only moves it.
 
 A module that recorded assumptions at `batch_defer` keeps an
 `assumptions` badge until you read them at checkpoint.

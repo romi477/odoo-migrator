@@ -67,10 +67,11 @@ header is how many are in flight.
 
 **What is a batch?**
 
-A group of modules you drew on the Tree (Group, or drag onto another
-node) and started with **Batch**. They run **sequentially**, in
-dependency order. A checkpoint after the group is the review gate;
-starting another batch while one is sitting there is refused.
+One wave of the dependency graph, started from the queue on
+**Pipeline**. A module's wave is one after the deepest module it depends
+on, so nothing in a wave needs another module of the same wave. Its
+modules run **sequentially**. A checkpoint after the wave is the review
+gate; starting another batch while one is sitting there is refused.
 
 **What is a job?**
 

@@ -623,23 +623,27 @@ def restore_selection(module_ids: list[int]) -> list[dict]:
             seeds.add(row.technical_name)
         names = _ancestor_names(seeds, parents)
         ordered_names = sorted(names, key=lambda n: (steps.get(n, 1), n))
-        updated: list[Module] = []
+        # Decided whole, then written: a refusal half-way used to leave the
+        # ancestors it had already brought back in.
+        back: set[str] = set()
         for name in ordered_names:
-            row = by_name[name]
-            if not row.struck_out:
+            if not by_name[name].struck_out:
                 continue
             blocking = [
                 parent
                 for parent in parents[name]
-                if by_name[parent].struck_out
+                if by_name[parent].struck_out and parent not in back
             ]
             if blocking:
                 raise GraphError(
                     f"Bring {blocking[0]} back before {name}."
                 )
-            row.struck_out = False
-            row.save()
-            updated.append(row)
+            back.add(name)
+        updated = [by_name[name] for name in ordered_names if name in back]
+        with database.atomic():
+            for row in updated:
+                row.struck_out = False
+                row.save()
 
         return [_module_row(row) for row in updated]
 
@@ -757,33 +761,39 @@ def include_all(migration_id: str) -> list[dict]:
 
 
 def topological_steps(depends_by_name: dict[str, list[str]]) -> dict[str, int]:
-    """Visual row: in-graph edges from a root, plus one.
+    """The wave each module runs in: one after its deepest parent.
 
-    Roots (no parent in the kept set) are step 1. A child is one more
-    than the nearest parent — the same rank breadthfirst paints.
+    Roots (no parent in the set) are step 1. A wave runs only after every
+    earlier one, so a module has to come after *all* it depends on. With
+    the nearest parent deciding — the row breadthfirst paints — a module
+    that needed both the root and a step-2 module sat in step 2 beside the
+    one it needed, and ran first when its name sorted first.
+
+    Modules in a cycle have no order to find; they share the step after
+    everything else.
     """
     names = set(depends_by_name)
     children: dict[str, list[str]] = {name: [] for name in names}
+    waiting: dict[str, int] = {name: 0 for name in names}
     for name, deps in depends_by_name.items():
-        for dep in deps:
-            if dep in names:
+        for dep in set(deps):
+            if dep in names and dep != name:
                 children[dep].append(name)
-    roots = sorted(
-        name
-        for name, deps in depends_by_name.items()
-        if not any(dep in names for dep in deps)
-    )
-    rank = {name: 1 for name in roots}
-    queue = list(roots)
-    while queue:
-        name = queue.pop(0)
+                waiting[name] += 1
+    rank: dict[str, int] = {}
+    ready = sorted(name for name, count in waiting.items() if count == 0)
+    for name in ready:
+        rank[name] = 1
+    while ready:
+        name = ready.pop(0)
         for child in children[name]:
-            if child not in rank:
-                rank[child] = rank[name] + 1
-                queue.append(child)
-    leftover = [name for name in names if name not in rank]
+            rank[child] = max(rank.get(child, 1), rank[name] + 1)
+            waiting[child] -= 1
+            if waiting[child] == 0:
+                ready.append(child)
+    leftover = [name for name in names if waiting[name] > 0]
     if leftover:
-        bump = max(rank.values(), default=0) + 1
+        bump = max((rank[name] for name in names if waiting[name] == 0), default=0) + 1
         for name in leftover:
             rank[name] = bump
 
@@ -849,9 +859,11 @@ def earlier_steps_blocking(migration_id: str, step: int | None) -> str | None:
                 (Module.migration == migration_id) & (Module.struck_out == False)
             )
         )
-    ranks = topological_steps(
-        {row.technical_name: json.loads(row.depends or "[]") for row in rows}
-    )
+    # Ranked over every module, struck or not, as Tree and the queue rank
+    # them. Ranking the kept ones alone moved a module whose parent was
+    # struck one step up here, and the guard then blocked a step on the
+    # very module it was starting.
+    ranks = steps_for_migration(migration_id)
     blockers = [
         row
         for row in rows

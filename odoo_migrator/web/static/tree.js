@@ -1,4 +1,8 @@
-/* Module tree: Cytoscape canvas, strike-out, marquee, drag into batch groups. */
+/* Module tree: Cytoscape canvas, strike-out, marquee.
+
+   Dragging a node onto another used to put both in a batch group: state
+   nothing drew and nothing on the screens ran, written by any drag that
+   happened to end over a node. A drag only moves the node now. */
 (function () {
   const holder = document.getElementById("module-graph");
   const canvas = document.getElementById("graph-canvas");
@@ -11,71 +15,9 @@
     return row.technical_name;
   }));
 
-  function stepsFromDepends(rows) {
-    const known = new Set(rows.map(function (row) {
-      return row.technical_name;
-    }));
-    const children = {};
-    rows.forEach(function (row) {
-      children[row.technical_name] = [];
-    });
-    rows.forEach(function (row) {
-      (row.depends || []).forEach(function (dep) {
-        if (known.has(dep)) {
-          children[dep].push(row.technical_name);
-        }
-      });
-    });
-    const roots = rows
-      .filter(function (row) {
-        return !(row.depends || []).some(function (dep) {
-          return known.has(dep);
-        });
-      })
-      .map(function (row) {
-        return row.technical_name;
-      })
-      .sort();
-    const rank = {};
-    roots.forEach(function (name) {
-      rank[name] = 1;
-    });
-    const queue = roots.slice();
-    while (queue.length) {
-      const name = queue.shift();
-      (children[name] || []).forEach(function (child) {
-        if (rank[child] == null) {
-          rank[child] = rank[name] + 1;
-          queue.push(child);
-        }
-      });
-    }
-    const leftover = rows
-      .map(function (row) {
-        return row.technical_name;
-      })
-      .filter(function (name) {
-        return rank[name] == null;
-      });
-    if (leftover.length) {
-      let bump = 1;
-      Object.keys(rank).forEach(function (name) {
-        if (rank[name] >= bump) {
-          bump = rank[name] + 1;
-        }
-      });
-      leftover.forEach(function (name) {
-        rank[name] = bump;
-      });
-    }
-
-    return rank;
-  }
-
-  const ranks = stepsFromDepends(modules);
-  modules.forEach(function (row) {
-    row.step = ranks[row.technical_name];
-  });
+  /* The step each row carries is the server's (`graph.topological_steps`):
+     the wave the module runs in. This file used to compute its own, and the
+     two had to be kept in step by hand. */
   /* Cytoscape's colour parser does not understand oklch(); a custom
      property from getComputedStyle is still the specified oklch string.
      Paint it onto a probe so the browser resolves rgb(), which it does
@@ -175,7 +117,6 @@
         label: moduleLabel(row.technical_name, row.struck_out),
         struck_out: row.struck_out,
         absent: row.absent_from_odoo,
-        batch_group: row.batch_group,
         status: row.status,
         step: row.step,
         notes: row.notes || "",
@@ -449,26 +390,6 @@
       stalled.select();
       cy.center(stalled);
     }
-  }
-
-  function nextGroup() {
-    let high = 0;
-    cy.nodes().forEach(function (node) {
-      const group = node.data("batch_group");
-      if (typeof group === "number" && group > high) {
-        high = group;
-      }
-    });
-    return high + 1;
-  }
-
-  function postBatch(moduleId, group) {
-    const body = "batch_group=" + (group == null ? "" : String(group));
-    return fetch("/tree/modules/" + moduleId + "/batch", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body,
-    });
   }
 
   function selectedModules() {
@@ -853,32 +774,6 @@
       refreshCard();
     });
   }
-
-  cy.on("dragfree", "node", function (event) {
-    const dragged = event.target;
-    const pos = dragged.renderedPosition();
-    const hit = cy.nodes().filter(function (node) {
-      if (node.id() === dragged.id() || !node.data("module_id")) {
-        return false;
-      }
-      const box = node.renderedBoundingBox();
-      return pos.x >= box.x1 && pos.x <= box.x2 && pos.y >= box.y1 && pos.y <= box.y2;
-    });
-    if (hit.length === 0) {
-      return;
-    }
-    const target = hit[0];
-    let assigned = target.data("batch_group");
-    const writes = [];
-    if (assigned == null) {
-      assigned = nextGroup();
-      writes.push(postBatch(target.data("module_id"), assigned));
-      target.data("batch_group", assigned);
-    }
-    writes.push(postBatch(dragged.data("module_id"), assigned));
-    dragged.data("batch_group", assigned);
-    Promise.all(writes);
-  });
 
   cy.on("select unselect", "node", function () {
     refreshCard();

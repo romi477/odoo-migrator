@@ -112,10 +112,11 @@ def _custom(name, depends):
 
 
 def test_step_is_edges_from_a_root_plus_one():
-    """The visual row: 0 edges is step 1, one hop is step 2.
+    """0 edges is step 1; a module is one step after its deepest parent.
 
-    A shortcut to the root does not push the node down; breadthfirst
-    paints it on the nearer row, and the step follows that.
+    The step is the wave a module runs in, and a wave runs after every
+    earlier one. With the nearest parent deciding, `c` sat in `b`'s wave
+    beside the module it needs, and ran first when its name sorted first.
     """
     assert topological_steps({"root": [], "child": ["root"]}) == {
         "root": 1,
@@ -127,7 +128,69 @@ def test_step_is_edges_from_a_root_plus_one():
             "b": ["a"],
             "c": ["a", "b"],
         }
-    ) == {"a": 1, "b": 2, "c": 2}
+    ) == {"a": 1, "b": 2, "c": 3}
+
+
+def _diamond(tmp_path):
+    """`m_report` needs `z_sale` and `a_base`; its name sorts before `z_sale`."""
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("a_base", []),
+            _custom("z_sale", ["a_base"]),
+            _custom("m_report", ["a_base", "z_sale"]),
+        ],
+    )
+
+    return created, {row["technical_name"]: row for row in list_modules(created["id"])}
+
+
+def test_a_module_never_shares_a_wave_with_what_it_depends_on(tmp_path):
+    from odoo_migrator.graph import modules_in_step_order
+
+    created, rows = _diamond(tmp_path)
+
+    assert rows["z_sale"]["step"] < rows["m_report"]["step"]
+    wave = modules_in_step_order(created["id"], rows["z_sale"]["step"])
+    assert [row["technical_name"] for row in wave] == ["z_sale"]
+
+
+def test_include_all_brings_back_a_diamond_whole(tmp_path):
+    created, _rows = _diamond(tmp_path)
+    leave_out_all(created["id"])
+
+    include_all(created["id"])
+
+    assert not any(row["struck_out"] for row in list_modules(created["id"]))
+
+
+def test_include_on_a_diamond_brings_its_parents_without_refusing(tmp_path):
+    created, rows = _diamond(tmp_path)
+    leave_out_all(created["id"])
+
+    restore_selection([rows["m_report"]["id"]])
+
+    assert not any(row["struck_out"] for row in list_modules(created["id"]))
+
+
+def test_the_wave_guard_ranks_the_way_the_screens_do(tmp_path):
+    """A struck root left its dependent on step 2 on Tree and on step 1 in
+    the guard, which then blocked step 2 on the module it was starting."""
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [_custom("root_mod", []), _custom("child_mod", ["root_mod"])],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    from odoo_migrator.db import database as db
+    from odoo_migrator.models import Module
+
+    with db.connection_context():
+        Module.update(struck_out=True).where(Module.id == rows["root_mod"]["id"]).execute()
+
+    assert rows["child_mod"]["step"] == 2
+    assert earlier_steps_blocking(created["id"], 2) is None
 
 
 def test_topological_steps_match_four_waves_on_a_real_tree():
