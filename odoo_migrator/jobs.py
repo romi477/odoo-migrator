@@ -1505,6 +1505,24 @@ def recent_job(migration_id: str) -> dict | None:
         }
 
 
+def _discard_offer(job: Job) -> dict | None:
+    """What the Discard button says, or None when this run has none.
+
+    Only a run that did not pass, on a module that is not running now. The
+    count is what the question names: files the module's directory would
+    have put back, or None when it is not a git checkout, which the refusal
+    explains.
+    """
+    from odoo_migrator.discard import DISCARDABLE, discard_preview
+
+    module = job.module
+    if job.status not in DISCARDABLE or module.status not in DISCARDABLE:
+
+        return None
+
+    return {"files": discard_preview(module)}
+
+
 def latest_checkpoint(migration_id: str) -> dict | None:
     """The open review, if this migration has one."""
     with database.connection_context():
@@ -1527,6 +1545,8 @@ def latest_checkpoint(migration_id: str) -> dict | None:
                     "id": job.id,
                     "job_id": job.job_id,
                     "module": job.module.technical_name,
+                    "module_id": job.module_id,
+                    "discard": _discard_offer(job),
                     "status": job.status,
                     "reviewed": bool(job.reviewed),
                     "question": job.question,

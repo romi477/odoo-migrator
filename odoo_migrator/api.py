@@ -1288,6 +1288,24 @@ def create_app(
 
         return RedirectResponse("/run", status_code=303)
 
+    @app.post("/run/modules/{module_id}/discard-run")
+    def run_discard_run(request: Request, module_id: int):
+        """Forget the module's runs: not the hand-edit Discard above, which
+        only puts files back and then runs."""
+        from odoo_migrator.discard import discard_run
+
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        if current is None:
+
+            return RedirectResponse("/run", status_code=303)
+        try:
+            discard_run(module_id, current["id"], request.app.state.hub)
+        except ContractError as refused:
+
+            return _run_page(request, error=str(refused))
+
+        return RedirectResponse("/run", status_code=303)
+
     @app.post("/run/findings/{finding_id}/promote")
     def run_promote(request: Request, finding_id: int, version: str = Form("")):
         current = get_active(request.cookies.get(OPEN_COOKIE))

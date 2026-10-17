@@ -2873,6 +2873,16 @@ h2 {
   margin: 0;
 }
 
+/* `.primary` draws its border transparent, which suits Save and Up inside a
+   card. Continue stands alone on the screen and read as a bare word. */
+.checkpoint .row .primary {
+  border-color: var(--border);
+}
+
+.checkpoint .row .primary:hover:not(:disabled) {
+  border-color: var(--cyan);
+}
+
 .job-review {
   display: grid;
   gap: 10px;

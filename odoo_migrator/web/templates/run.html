@@ -502,10 +502,33 @@
         <span class="badge">dismissed</span>
         {% endif %}
       </header>
+      {# Dismiss marks the run as read and keeps all of it. Discard run deletes it:
+         the jobs, the logs, the module's files in the new project back to the
+         last commit, and the module is queued again. #}
+      {% if job.stalled or job.discard %}
+      <div class="row job-review-actions">
       {% if job.stalled %}
       <form method="post" action="/run/jobs/{{ job.id }}/dismiss">
-        <button type="submit" aria-label="Dismiss {{ job.module }}">Dismiss</button>
+        <button type="submit" aria-label="Dismiss {{ job.module }}"
+                title="Mark this run as read. Nothing is deleted.">Dismiss</button>
       </form>
+      {% endif %}
+      {% if job.discard and job.discard.files is none %}
+      {# Its files cannot be put back, so the run is not forgotten half way. #}
+      <button type="button" disabled aria-label="Discard the run of {{ job.module }}"
+              title="Its directory in the new project is not a git checkout, so its files cannot be put back.">Discard run</button>
+      {% elif job.discard %}
+      <form method="post" action="/run/modules/{{ job.module_id }}/discard-run"
+            data-confirm-title="Discard the run of {{ job.module }}?"
+            data-confirm-text="Every run of this module is deleted with its log, findings and thread, and the module is queued again.
+            {%- if job.discard.files %} {{ job.discard.files }} changed file{{ '' if job.discard.files == 1 else 's' }} in its directory in the new project {{ 'is' if job.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
+            {%- else %} Its directory in the new project has no changes.{% endif %} The new container's database is not touched."
+            data-confirm-go="Discard run">
+        <button type="submit" aria-label="Discard the run of {{ job.module }}"
+                title="Delete this run and queue the module again.">Discard run</button>
+      </form>
+      {% endif %}
+      </div>
       {% endif %}
       {% if job.question %}
       <p class="question">{{ job.question }}</p>

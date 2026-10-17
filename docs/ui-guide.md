@@ -306,7 +306,8 @@ review.
 |---|---|
 | **Continue** | Starts the next work. Disabled while any job is still `failed` or `waiting_for_human` and not dismissed. |
 | **Override** | Continues anyway. Named, not hidden in Continue. |
-| **Dismiss** | Marks one stalled job reviewed so Continue can enable. Only failed or waiting jobs. |
+| **Dismiss** | Marks one stalled job reviewed so Continue can enable. Only failed or waiting jobs. Nothing is deleted. |
+| **Discard run** | Forgets the module's runs as if it had never started, after a question that says what goes. Deletes every job of the module with its log, findings and checkpoint thread; puts the module's directory in the new project back to its last commit (changed files restored, files git does not know removed; other modules and ignored files are not touched); queues the module again; closes the batch if it was the last job in it. Offered for stopped, failed and unknown runs; a module that passed is Reopen's, because the app committed its port. Off, with the reason on hover, when the directory is not a git checkout: half a discard is not offered. The new container's database is not touched. |
 | **Promote** | Appends a finding to a `rules/<version>.md`. You pick the version file; the app does not guess. A 17→19 finding that belongs in 18.0.md must not land in 19.0.md by default. |
 
 Each job lists attempts (iteration, verdict, diagnosis, unified diff,
