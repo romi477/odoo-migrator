@@ -283,3 +283,17 @@ def test_the_widest_supported_jump_is_accepted(client):
     assert response.status_code == 200
     with database.connection_context():
         assert Migration.get(Migration.name == "Wide").target_version == "20.0"
+
+
+def test_a_card_keeps_its_thick_accent_edge_only_while_collapsed(client):
+    """Open, the card is outlined all round in its accent, and a thick left
+    edge beside three thin ones looked wrong. Collapsed, the thick edge is the
+    marker; the one pixel it gives up open is put back as padding, so the
+    header does not move when the card opens."""
+    css = client.get("/static/style.css").text
+
+    closed = css.split(".migration-list .row-card {", 1)[1].split("}", 1)[0]
+    assert "border-left-width: 3px" in closed
+    opened = css.split(".migration-list .row-card.expanded {", 1)[1].split("}", 1)[0]
+    assert "border-left-width: 1px" in opened
+    assert "padding-left: 2px" in opened
