@@ -164,7 +164,7 @@ host.
   have is `web_guard`: a Host that is not a loopback name, or a change
   sent from another site's page, is refused. Tests talk to
   `http://127.0.0.1`, not Starlette's `testserver`.
-- `read_file` and `write_file` stay under the configured old and new
+- `read_file` and `write_file` stay under the configured source and target
   project roots. A path that escapes them is refused, not clamped.
 - Provider secrets are `ProviderSetting` rows. The settings page reports
   whether one is set and never renders the value. A blank save keeps the

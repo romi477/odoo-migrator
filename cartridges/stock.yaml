@@ -42,7 +42,7 @@ pipeline:
     tools: [exec, source, read_file, write_file]
     context: [rules, module_source, prior_answers, hand_changes]
     prompt: |
-      Port the module to the target version. Write files into the new
+      Port the module to the target version. Write files into the target
       project. The source container's session stays open — use it whenever
       you need to check what the original actually does.
 
@@ -65,11 +65,11 @@ pipeline:
     prompt: |
       This module ships no tests. Replay the fixture recipe from the
       understand step on both sides, call the same methods on each, and
-      report every difference. A recipe that will not replay on the new
+      report every difference. A recipe that will not replay on the target
       version is a failure worth reporting on its own.
 
       Raise behaviour_differs when the ported module does something the
-      original did not, or when the recipe will not replay on the new
+      original did not, or when the recipe will not replay on the target
       version. Leave it unset when both sides answered the same, and say
       in your answer what you compared. A difference the target version
       makes on purpose, written in the rules, is not one: name it and

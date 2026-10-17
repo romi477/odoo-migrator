@@ -427,7 +427,7 @@ pipeline:
     tools: [exec, source, read_file, write_file]
     context: [rules, module_source, prior_answers, hand_changes]
     prompt: |
-      Port the module to the target version. Write files into the new
+      Port the module to the target version. Write files into the target
       project. The source container's session stays open — use it whenever
       you need to check what the original actually does.
 
@@ -450,11 +450,11 @@ pipeline:
     prompt: |
       This module ships no tests. Replay the fixture recipe from the
       understand step on both sides, call the same methods on each, and
-      report every difference. A recipe that will not replay on the new
+      report every difference. A recipe that will not replay on the target
       version is a failure worth reporting on its own.
 
       Raise behaviour_differs when the ported module does something the
-      original did not, or when the recipe will not replay on the new
+      original did not, or when the recipe will not replay on the target
       version. Leave it unset when both sides answered the same, and say
       in your answer what you compared. A difference the target version
       makes on purpose, written in the rules, is not one: name it and
@@ -812,7 +812,7 @@ What holds the rest:
 
 - **Source container**: `allow_commit: false` for the whole run. The agent
   does not need commit to compare behaviour — rollback is Sheller's default,
-  so records it creates exist inside the session and vanish at close. The old
+  so records it creates exist inside the session and vanish at close. The source
   project is the one thing in the pipeline that cannot be recreated.
 - **Target container**: `allow_commit: true` at open, no human grant. It is
   recreated from compose in a minute; Sheller still refuses commit on

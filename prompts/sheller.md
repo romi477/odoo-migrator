@@ -210,7 +210,7 @@ records and no higher than the manifest's, so a database already at the
 manifest version redoes schema and data but runs no script.
 
 Edited Python is not picked up: the process imported those files at startup
-and an upgrade does not re-import them. After you change a `.py` on the new
+and an upgrade does not re-import them. After you change a `.py` on the target
 side, call `reopen`.
 
 ## Delayed jobs

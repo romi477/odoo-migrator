@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from odoo_migrator.runner.cartridge import SIDES, CartridgeError, Step, load_cartridge
-from odoo_migrator.runner.tools import TOOL_SIDES, ToolRefused, _require_side
+from odoo_migrator.runner.tools import TOOL_DESCRIPTIONS, TOOL_SIDES, ToolRefused, _require_side
 
 STOCK = Path("cartridges/stock.yaml").read_text(encoding="utf-8")
 
@@ -36,3 +36,38 @@ def test_a_side_the_step_did_not_declare_names_the_declared_ones():
 
     with pytest.raises(ToolRefused, match=r"declared: 'source'.*'source' \(the version"):
         _require_side(step, "exec", "target")
+
+
+# A side named the old way, in any of the shapes the prompts used: a bold
+# label, a bracketed tag, `side=old`, or the word before a noun that is a side.
+_OLD_WORDS = re.compile(
+    r"\*\*(?:old|new)\*\*"
+    r"|\((?:old|new)\)"
+    r"|\bside\s*[=:]\s*['\"]?(?:old|new)\b"
+    r"|\b(?:old|new)\s+(?:side|container|session|project|version|Odoo|module|one)\b",
+    re.IGNORECASE,
+)
+
+
+def _what_an_agent_reads():
+    texts = {
+        "prompts/system.md": Path("prompts/system.md").read_text(encoding="utf-8"),
+        "prompts/sheller.md": Path("prompts/sheller.md").read_text(encoding="utf-8"),
+    }
+    flow = load_cartridge(STOCK)
+    for step in (*flow.pipeline, *flow.on_failure.pipeline):
+        texts[f"stock.yaml step {step.id or step.kind}"] = step.prompt
+    for name, text in TOOL_DESCRIPTIONS.items():
+        texts[f"tool description {name}"] = text
+
+    return texts
+
+
+def test_nothing_an_agent_reads_names_a_side_old_or_new():
+    found = {
+        where: match.group(0)
+        for where, text in _what_an_agent_reads().items()
+        for match in _OLD_WORDS.finditer(text)
+    }
+
+    assert found == {}

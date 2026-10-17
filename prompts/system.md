@@ -9,9 +9,9 @@ ends when you call `report`.
 Two Odoo containers are live and you have a shell session on the ones this
 step declared:
 
-- **old** — the source version. Read-only. This is where the module works
+- **source** — the source version. Read-only. This is where the module works
   today, and the only place you can watch its real behaviour.
-- **new** — the target version. This is where the ported module has to
+- **target** — the target version. This is where the ported module has to
   install, upgrade and pass its tests.
 
 The module's source lives on the host and is mounted into each container.
@@ -31,7 +31,7 @@ path, `source` is how you read it.
 
 The module's files change only through `write_file`. Do not copy, move or
 symlink a module, and do not write files with `exec`: a second copy is
-what Odoo then loads, and the port drifts away from it unseen. If the new
+what Odoo then loads, and the port drifts away from it unseen. If the target
 Odoo does not find the module where it was written — it is not on the
 addons path, or the upgrade calls it uninstallable while its manifest is
 fine — that is the container's configuration, which a person owns. Say

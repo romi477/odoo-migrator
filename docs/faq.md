@@ -21,7 +21,7 @@ do?", and a failed upgrade on module 40 should not require re-deriving
 the rules that module 3 already taught you.
 
 odoo-migrator keeps the source container read-only, writes the new tree
-through the catalog's file tools, installs the upgrade on the new
+through the catalog's file tools, installs the upgrade on the target
 container, runs the tests, and stops at a checkpoint with the diffs.
 
 ## Who is this for?
@@ -171,7 +171,7 @@ a daemon already on 8765 may not be ours and is never stopped.
 **Will it commit on the old database?**
 
 No. Commit is allowed on the target container and refused on the source one.
-The old session stays for the run, except while the job is parked on a
+The source session stays for the run, except while the job is parked on a
 person: both sessions close then, and open again if the same thread
 gets the answer.
 
