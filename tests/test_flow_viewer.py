@@ -187,15 +187,15 @@ def test_the_script_writes_no_markup(name):
     assert not re.search(r"\.innerHTML\s*=\s*(?![\"']{2})", text)
 
 
-def test_the_dialog_is_a_tenth_narrower_than_the_card_it_opened_from():
-    """At the card's own width its edges ran on into the dialog's, and the
-    two read as one window."""
+def test_the_dialog_is_as_wide_as_the_card_it_opened_from():
+    """Tried a tenth narrower, so the card's edges would not run on into the
+    dialog's; the same width was wanted after all."""
     script = (static_dir() / "flow_viewer.js").read_text(encoding="utf-8")
     sheet = (static_dir() / "style.css").read_text(encoding="utf-8")
 
     assert 'closest(".row-card")' in script
-    assert "getBoundingClientRect().width * 0.9" in script
-    assert 'setProperty("--flow-width"' in script
+    assert 'setProperty("--flow-width", card.getBoundingClientRect().width + "px")' in script
+    assert "* 0.9" not in script
     block = sheet[sheet.index(".flow-dialog {") :].split("}", 1)[0]
     assert "var(--flow-width" in block
     # Never wider than the window it sits in.
