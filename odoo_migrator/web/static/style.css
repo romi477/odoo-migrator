@@ -839,6 +839,12 @@ pre,
   margin-right: auto;
 }
 
+/* The title sits on the column's axis; the lead line under it reads as
+   prose and stays left. */
+.screen-guide > .screen-head h1 {
+  text-align: center;
+}
+
 .guide-steps > li {
   margin: 0 0 22px;
   padding-left: 0.35rem;
