@@ -285,3 +285,75 @@ def test_the_model_is_told_what_the_tool_is_for():
     assert "tests/" in description
     assert "source" in description
     assert tools.TOOL_SCHEMAS["write_source_test"]["required"] == ["side", "path", "content"]
+
+
+# -- a test that asserts nothing proves nothing --------------------------------
+
+NO_ASSERT = (
+    "class TestX(TransactionCase):\n"
+    "    def test_a(self):\n        self.env['res.partner'].create({'name': 'x'})\n"
+)
+
+
+def test_a_test_method_without_an_assertion_is_never_green(ctx):
+    _written(ctx, NO_ASSERT)
+
+    _ran(ctx, "sale_x", run=1)
+
+    assert ctx.source_green is False
+
+
+def test_the_write_says_which_method_asserts_nothing(ctx):
+    written = _write_source_test(ctx, "source", "sale_x/tests/test_x.py", NO_ASSERT)
+
+    assert "test_a" in written
+    assert "asserts nothing" in written
+
+
+def test_a_good_write_answers_with_the_path_alone(ctx):
+    written = _write_source_test(ctx, "source", "sale_x/tests/test_x.py", TWO_TESTS)
+
+    assert "\n" not in written
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "        self.assertEqual(1, 1)\n",
+        "        with self.assertRaises(ValueError):\n            int('x')\n",
+        "        assert 1 == 1\n",
+        "        self._assert_total(10)\n",
+        "        self.assertTrue(1)\n",
+    ],
+)
+def test_every_ordinary_way_to_assert_counts(ctx, body):
+    _written(ctx, f"class TestX(TransactionCase):\n    def test_a(self):\n{body}")
+
+    _ran(ctx, "sale_x", run=1)
+
+    assert ctx.source_green is True
+
+
+def test_one_bare_method_among_asserting_ones_keeps_the_tests_unproven(ctx):
+    _written(ctx, TWO_TESTS + "    def test_c(self):\n        self.env['res.partner'].search([])\n")
+
+    _ran(ctx, "sale_x", run=3)
+
+    assert ctx.source_green is False
+
+
+def test_a_file_that_does_not_parse_is_never_green(ctx):
+    _written(ctx, "class TestX(TransactionCase:\n    def test_a(self):\n")
+
+    _ran(ctx, "sale_x", run=1)
+
+    assert ctx.source_green is False
+
+
+def test_fixing_the_method_that_asserted_nothing_makes_the_tests_provable(ctx):
+    _written(ctx, NO_ASSERT)
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", TWO_TESTS)
+
+    _ran(ctx, "sale_x", run=2)
+
+    assert ctx.source_green is True

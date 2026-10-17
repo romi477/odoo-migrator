@@ -295,3 +295,30 @@ def test_the_stock_flow_wires_the_step():
     assert "write_source_test" in characterize.tools
     assert "write_source_test" not in flow.step_by_id("port").tools
     assert "write_source_test" not in flow.step_by_id("rewrite").tools
+
+
+def test_characterize_does_not_read_the_rules_of_the_target():
+    """They describe what 18.0 changes, and a test written to them runs on 17.0
+    only by luck."""
+    step = load_cartridge_file(Path("cartridges/stock.yaml")).step_by_id("characterize")
+
+    assert set(step.context) == {"module_source", "prior_answers"}
+
+
+def test_the_characterize_prompt_holds_what_was_decided():
+    step = load_cartridge_file(Path("cartridges/stock.yaml")).step_by_id("characterize")
+    prompt = " ".join(step.prompt.split())
+
+    assert "what this module does today" in prompt
+    assert "recipe" in prompt
+    assert "eight at most" in prompt
+    assert "check its class" in prompt
+    assert "write_source_test" in prompt
+    assert "`reopen`" in prompt
+    assert "whole module" in prompt
+    assert "every test you wrote" in prompt
+    assert "pin it and say so" in prompt
+    assert "the module is right by definition" in prompt
+    assert "what you chose not to pin" in prompt
+    # A double pass was considered and ruled out.
+    assert "twice" not in prompt

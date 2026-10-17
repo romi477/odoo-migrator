@@ -9,6 +9,7 @@ from the migration row, which is what confines the agent to two of them.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import json
 import re
@@ -626,9 +627,14 @@ def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
     path.write_text(content, encoding="utf-8")
     ctx.source_tests_written = True
     ctx.source_test_methods[str(path)] = len(_TEST_METHOD.findall(content))
+    flaws = _test_flaws(content)
+    ctx.source_test_flaws[str(path)] = flaws
     ctx.source_green = False
     ctx.source_green_session = ""
     ctx.source_green_command = ""
+    if flaws:
+        # A run cannot show this: a test that asserts nothing passes.
+        return f"{path}\nnote: {'; '.join(flaws)}. Fix it before you run it; it cannot count as proved."
 
     return str(path)
 
@@ -639,6 +645,47 @@ def _has_tests(root: Path) -> bool:
         return True
 
     return any("__pycache__" not in found.parts for found in root.rglob("test_*.py"))
+
+
+def _test_flaws(content: str) -> list[str]:
+    """What is wrong with a test file that a green run would not show.
+
+    A test method with no assertion passes whatever the module does, and a
+    file that does not parse is no test at all. Read from the syntax tree, not
+    with a pattern: a name that merely contains "test_" in a string is not a
+    test.
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError as exc:
+
+        return [f"the file does not parse (line {exc.lineno})"]
+    bare = [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name.startswith("test_")
+        and not _asserts(node)
+    ]
+
+    return [f"{name} asserts nothing" for name in bare]
+
+
+def _asserts(function) -> bool:
+    """An `assert`, or a call whose name says it asserts (`assertEqual`,
+    `assertRaises`, a helper called `_assert_total`)."""
+    for node in ast.walk(function):
+        if isinstance(node, ast.Assert):
+
+            return True
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if "assert" in name.lower():
+
+                return True
+
+    return False
 
 
 _TEST_METHOD = re.compile(r"^[ \t]*def test_\w*\(", re.MULTILINE)
@@ -663,6 +710,7 @@ def _note_source_run(ctx, name: str, side: str, value, spec: str = "") -> None:
     ctx.source_green = bool(
         ours
         and wanted > 0
+        and not any(ctx.source_test_flaws.values())
         and isinstance(outcome, dict)
         and not value.get("error")
         and outcome.get("success")

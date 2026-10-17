@@ -50,23 +50,57 @@ pipeline:
     when: needs_tests
     sessions: [source]
     tools: [exec, source, run_test, list_tests, read_file, write_source_test, reopen]
-    context: [rules, module_source, prior_answers]
+    # Not the rules: they describe what the target changes, and a test written
+    # to them would be written in the target's API and fail on the source.
+    context: [module_source, prior_answers]
     prompt: |
-      This module has no tests. Write the smallest test that pins the
-      behaviour the understand step described, built from the recipe it
-      proved, into `tests/` of the module on the source side with
-      `write_source_test`: a `tests/__init__.py` that imports the test file,
-      and the test file. Read a test of a module that has one with `source`
-      before writing yours: the base class and the helpers are this
-      version's, not the ones you remember.
+      This module has no tests. Write a characterization test for it on the
+      source version. It is not coverage for its own sake: the port will be
+      judged by running this test on the target version, so it has to say, in
+      assertions, what this module does today.
 
-      Then `reopen` the source session, so Odoo sees the new package, and
-      `run_test` it there. Fix the test until it passes on the source. A
-      test that cannot be made to pass here is not evidence of anything: say
-      so and finish; the runner removes what you wrote.
+      Start from the recipe the understand step proved. It is the smallest
+      data that makes the module do anything, and it already ran here.
 
-      This test is the oracle for the port. It must assert what this
-      version does, not what you think it ought to do.
+      Choose what to pin: the behaviours that decide whether a port is
+      faithful. A method that returns or computes something; a computed field;
+      a constraint that refuses a write; a state change behind a button; an
+      onchange or a default. One test method per behaviour, eight at most, the
+      smallest set that touches each once. Skip what has no logic: field
+      declarations, views, access files, translations, menus.
+
+      Assert on what a business user would see: field values, states, amounts,
+      counts, returned values. Do not assert on the text of an exception (check
+      its class), on translated strings, on record ids or sequence numbers, on
+      the order of records you did not sort, on timestamps, or on log output.
+      Do not pin something you know the target version changes on purpose.
+      Every test method needs an assertion: one that only creates records
+      passes whatever the module does.
+
+      Write for the source version as it is. Read a test of a module that has
+      one with `source` before writing yours: the base class and the helpers
+      are this version's, not the ones you remember. Use TransactionCase, and
+      @tagged('post_install', '-at_install') when you rely on another module's
+      data. Make all your data in setUpClass or in the test; do not rely on
+      demo data, or on records this module's `depends` does not guarantee. No
+      commit, no network, no sleep, no HTTP and no tours.
+
+      Write `tests/__init__.py`, which imports the test file, and
+      `tests/test_<module>.py`, with write_source_test. Then `reopen` the
+      source session, so Odoo sees the new package, and run_test the whole
+      module.
+
+      A failure here is a mistake in your test: the module is right by
+      definition, and you cannot change it. Fix the expectation to what the
+      module actually does (if that surprises you, pin it and say so), or fix
+      your data. Your last run must be of the whole module and must have run
+      every test you wrote, or the runner does not count the tests as proved.
+      A test that depends on order, time or leftover data is not an oracle.
+
+      Finish with an answer that lists, one line each, what you pinned and what
+      you chose not to pin and why. The port reads it. If you cannot get a
+      green run in a few attempts, say what blocked and finish; the runner
+      removes what you wrote.
 
   - step: agent
     id: port

@@ -74,6 +74,9 @@ class StepContext:
     # Test methods in each file the step wrote, by path: a run proves the tests
     # green only when it ran at least this many.
     source_test_methods: dict[str, int] = field(default_factory=dict)
+    # What is wrong with each file the step wrote that no run can show: a test
+    # method that asserts nothing, or a file that does not parse.
+    source_test_flaws: dict[str, list[str]] = field(default_factory=dict)
     # The Sheller session and command that proved the tests green. They go in
     # the commit, so a test can be traced to the run that vouched for it. The
     # session's write key never does: it is a secret, and the id is not.

@@ -196,7 +196,10 @@ no signing, one lock, never a repository at or above the home directory):
   whether the tests the step wrote are green: `green` is true only when the
   last `run_test` on the source side after the last write was for this module
   (its spec is the module name or starts with `<module>.`), passed, and ran at
-  least as many tests as the step wrote test methods. Another module's run, or
+  least as many tests as the step wrote test methods. A test method with no
+  assertion (read from the syntax tree: an `assert`, or a call whose name says
+  it asserts) and a file that does not parse are never green, and the write
+  names the method so the model can fix it. Another module's run, or
   a rerun of the one method just fixed, proves nothing.
   - green, and the checkout is on the migration's branch: `git add` the
     module's `tests/` (without `__pycache__`) and commit

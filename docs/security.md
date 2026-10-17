@@ -99,7 +99,9 @@ port then carries. It is held by five things, none of which is the prompt:
   refused; nothing here runs `git init`.
 - **Green means this module's tests ran.** A run counts only when its spec is
   this module and it ran at least as many tests as the step wrote; a run of
-  another module, or of one method, proves nothing.
+  another module, or of one method, proves nothing. A test method with no
+  assertion, or a file that does not parse, is never counted: it would pass
+  whatever the module does.
 - **Delete if red.** A test that is not green on the source when the step ends,
   or a step that was stopped or raised, has its `tests/` removed and nothing
   committed. A green one is committed with the migrator's fixed author and a
