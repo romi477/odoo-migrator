@@ -41,7 +41,7 @@ def _ctx() -> StepContext:
     )
 
 
-def test_the_registry_is_how_a_provider_is_found():
+def test_the_registry_is_how_a_provider_is_found(client):
     assert get("anthropic").name == "anthropic"
     assert "claude-sonnet-5-5" in known_models()["anthropic"]
     assert "composer-2.5" in known_models()["cursor"]
@@ -466,14 +466,14 @@ def test_scripted_hears_a_stop_between_two_actions():
 
 
 def test_anthropic_offers_sonnet_and_haiku_and_no_opus():
-    """Opus is more than a port needs and costs too much across a project, so
-    the card does not offer it and a cartridge cannot name it."""
+    """Opus is more than a port needs and costs too much across a project, and
+    the plain Sonnet 5 is the one between the two Sonnets kept. The card does
+    not offer them and a cartridge cannot name them."""
     from odoo_migrator.runner.providers import get
 
     anthropic = get("anthropic")
 
-    assert anthropic.models == frozenset(
-        {"claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-5-5"}
-    )
+    assert anthropic.models == frozenset({"claude-sonnet-5-5", "claude-sonnet-4-6", "claude-haiku-5-5"})
+    assert not anthropic.accepts_model("claude-sonnet-5")
     assert not anthropic.accepts_model("claude-opus-5-5")
     assert not anthropic.accepts_model("claude-opus-5")

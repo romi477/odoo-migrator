@@ -96,7 +96,7 @@ Providers registered today:
 
 | Name | What runs the turn |
 |---|---|
-| `anthropic` | The Anthropic SDK tool runner. Models `claude-sonnet-5-5`, `claude-sonnet-5`, `claude-sonnet-4-6` and `claude-haiku-5-5`. No Opus: a port does not need it and a project's worth of runs costs too much. |
+| `anthropic` | The Anthropic SDK tool runner. Models `claude-sonnet-5-5`, `claude-sonnet-4-6` and `claude-haiku-5-5`. No Opus: a port does not need it and a project's worth of runs costs too much. |
 | `openai` | The same tool loop over `https://api.openai.com/v1/chat/completions`, with the key from settings. The address is fixed. Model `gpt-6-sol`. A 401 is reported without OpenAI's message, which quotes part of the key. |
 | `cursor` | `cursor-sdk`, in-process `custom_tools`, built-in tools off (`tools=[]`). |
 | `local` | Its own tool loop over the OpenAI-compatible `/v1/chat/completions` of a server on this machine: LM Studio, Ollama, llama.cpp. Models are whatever that server has loaded. |

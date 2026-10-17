@@ -710,7 +710,7 @@ The Anthropic SDK, through the beta tool runner (`@beta_tool` +
 cycle and leaves us the tool functions. Adaptive thinking, effort from the
 migration's settings, streaming for the long turns. The default model is
 `claude-sonnet-5-5` (it was `claude-opus-5`, which cost too much across a
-whole project); `claude-sonnet-4-6`, `claude-sonnet-5` and `claude-haiku-5-5`
+whole project); `claude-sonnet-4-6` and `claude-haiku-5-5`
 are chosen per migration, never silently. Opus is not offered at all.
 
 `model.provider` is validated against what this build implements. Which model

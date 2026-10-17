@@ -119,7 +119,7 @@ pretending to run.
 **Which models can a cartridge name?**
 
 Whatever the registered provider accepts. Anthropic: the Sonnets
-(`claude-sonnet-5-5`, `claude-sonnet-5`, `claude-sonnet-4-6`) and
+(`claude-sonnet-5-5`, `claude-sonnet-4-6`) and
 `claude-haiku-5-5`; Opus is not offered. Cursor: the names it lists, plus `auto-smart`
 with parameters. Local: whatever the server at the URL in settings has
 loaded, e.g. `qwen/qwen3.8-27b` in LM Studio — free per token, slower, and

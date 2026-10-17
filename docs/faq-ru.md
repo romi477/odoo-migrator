@@ -122,7 +122,7 @@ Overview. Открытие другой миграции первую не ар�
 
 Те, которые принимает зарегистрированный провайдер. Anthropic:
 Sonnet (`claude-sonnet-5-5`,
-`claude-sonnet-5`, `claude-sonnet-4-6`) и `claude-haiku-5-5`; Opus не
+`claude-sonnet-4-6`) и `claude-haiku-5-5`; Opus не
 предлагается. Cursor: имена из списка плюс
 `auto-smart` с параметрами. Local: то, что загружено на сервере по URL из
 настроек, например `qwen/qwen3.8-27b` в LM Studio — токены бесплатные, но

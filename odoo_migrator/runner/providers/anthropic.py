@@ -28,7 +28,6 @@ class AnthropicProvider:
     models = frozenset(
         {
             "claude-sonnet-5-5",
-            "claude-sonnet-5",
             "claude-sonnet-4-6",
             "claude-haiku-5-5",
         }

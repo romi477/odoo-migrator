@@ -114,11 +114,11 @@ def test_a_step_model_beats_the_card_and_the_card_beats_the_cartridge(agent_ctx)
         kind="agent",
         id="diagnose",
         prompt="why",
-        model=ModelRef(provider="anthropic", name="claude-sonnet-5"),
+        model=ModelRef(provider="anthropic", name="claude-sonnet-5-5"),
     )
     plain = Step(kind="agent", id="port", prompt="port")
 
-    assert resolve_model(named, ctx) == "claude-sonnet-5"
+    assert resolve_model(named, ctx) == "claude-sonnet-5-5"
     assert resolve_model(plain, ctx) == "claude-sonnet-5-5"
     ctx.migration.model_override = ""
     assert resolve_model(plain, ctx) == "claude-sonnet-5-5"
