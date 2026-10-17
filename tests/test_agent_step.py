@@ -20,7 +20,7 @@ _MINIMAL = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: lint
 on_failure:
@@ -109,7 +109,7 @@ def test_patch_is_given_it(agent_ctx):
 
 def test_a_step_model_beats_the_card_and_the_card_beats_the_cartridge(agent_ctx):
     ctx = agent_ctx()
-    ctx.migration.model_override = "claude-opus-5"
+    ctx.migration.model_override = "claude-sonnet-5-5"
     named = Step(
         kind="agent",
         id="diagnose",
@@ -119,9 +119,9 @@ def test_a_step_model_beats_the_card_and_the_card_beats_the_cartridge(agent_ctx)
     plain = Step(kind="agent", id="port", prompt="port")
 
     assert resolve_model(named, ctx) == "claude-sonnet-5"
-    assert resolve_model(plain, ctx) == "claude-opus-5"
+    assert resolve_model(plain, ctx) == "claude-sonnet-5-5"
     ctx.migration.model_override = ""
-    assert resolve_model(plain, ctx) == "claude-opus-5"
+    assert resolve_model(plain, ctx) == "claude-sonnet-5-5"
 
 
 @pytest.fixture

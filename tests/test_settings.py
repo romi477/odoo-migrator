@@ -221,7 +221,7 @@ def test_the_card_picks_a_provider_and_only_its_models(client):
             "retry_limit": "5",
             "ask_human_mode": "sync",
             "provider_override": "cursor",
-            "model_override": "claude-opus-5",
+            "model_override": "claude-sonnet-5-5",
         },
         follow_redirects=True,
     )

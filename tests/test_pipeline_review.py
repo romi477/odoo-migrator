@@ -22,7 +22,7 @@ _MINIMAL = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: verdict
 on_failure:
@@ -504,7 +504,7 @@ _ASKS = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -571,7 +571,7 @@ def test_the_same_failure_with_new_addresses_is_still_the_same(ctx_for):
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -671,7 +671,7 @@ def _run(provider, budget=None):
 
     return provider.run_step(
         system="s", prompt="p", tools=[], report=report_tool(step),
-        model="claude-opus-5", budget=budget or Budget(),
+        model="claude-sonnet-5-5", budget=budget or Budget(),
     )
 
 
@@ -838,7 +838,7 @@ def test_a_step_that_raises_still_closes_its_row(app, fake_sheller, tmp_path):
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -1041,7 +1041,7 @@ def test_the_baseline_is_the_module_as_the_job_found_it(app, fake_sheller, tmp_p
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -1107,7 +1107,7 @@ def test_a_flag_only_verdict_reads_needs_a_verdict_in_the_file():
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: probe
@@ -1131,7 +1131,7 @@ def test_the_loop_hands_the_verdict_this_laps_flags(ctx_for):
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: probe

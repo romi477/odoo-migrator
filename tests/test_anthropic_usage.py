@@ -60,7 +60,7 @@ def _run(provider, budget):
         prompt="p",
         tools=[],
         report=report_tool(_step()),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=budget,
     )
 

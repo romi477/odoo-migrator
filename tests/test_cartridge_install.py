@@ -141,7 +141,7 @@ def test_the_runner_loads_the_cartridge_the_card_pinned(client, tmp_path, fake_s
 cartridge: house
 version: 2.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: verdict
 on_failure:

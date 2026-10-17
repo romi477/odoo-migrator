@@ -43,7 +43,7 @@ def _ctx() -> StepContext:
 
 def test_the_registry_is_how_a_provider_is_found():
     assert get("anthropic").name == "anthropic"
-    assert "claude-opus-5" in known_models()["anthropic"]
+    assert "claude-sonnet-5-5" in known_models()["anthropic"]
     assert "composer-2.5" in known_models()["cursor"]
     with pytest.raises(KeyError):
         get("no-such-provider")
@@ -53,7 +53,7 @@ def test_cursor_accepts_a_parameterised_auto_model():
     provider = CursorProvider()
 
     assert provider.accepts_model("auto-smart?effort=high")
-    assert not provider.accepts_model("claude-opus-5")
+    assert not provider.accepts_model("claude-sonnet-5-5")
 
 
 def test_a_cartridge_may_name_cursor_without_the_loader_knowing_the_model():
@@ -84,7 +84,7 @@ def test_scripted_converges_on_report():
         prompt="x",
         tools=tools_for(step, _ctx()),
         report=report_tool(step),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=Budget(tool_calls=5),
     )
 
@@ -99,7 +99,7 @@ def test_scripted_can_fail_to_converge():
         prompt="x",
         tools=[],
         report=report_tool(_step()),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=Budget(tool_calls=5),
     )
 
@@ -113,7 +113,7 @@ def test_scripted_stops_at_the_tool_budget():
         prompt="x",
         tools=[BoundTool("exec", lambda **_kwargs: "ok")],
         report=report_tool(_step()),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=Budget(tool_calls=2),
     )
 
@@ -136,7 +136,7 @@ def test_scripted_returns_a_refused_tool():
         prompt="x",
         tools=tools,
         report=report_tool(step),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=Budget(tool_calls=5),
     )
 
@@ -369,7 +369,7 @@ def test_scripted_sends_a_contradictory_report_back_to_the_model():
         prompt="why",
         tools=tools_for(step, _ctx()),
         report=report_tool(step),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=Budget(tool_calls=5),
     )
 
@@ -457,7 +457,7 @@ def test_scripted_hears_a_stop_between_two_actions():
             prompt="x",
             tools=[BoundTool("exec", lambda **_kwargs: "ok")],
             report=report_tool(_step()),
-            model="claude-opus-5",
+            model="claude-sonnet-5-5",
             budget=Budget(tool_calls=10),
             stop_check=stop_check,
         )
@@ -465,12 +465,15 @@ def test_scripted_hears_a_stop_between_two_actions():
     assert client.calls == 2
 
 
-def test_anthropic_offers_the_current_models():
-    """The card lists only what the provider names, and the newest Opus and
-    Haiku were not among them."""
+def test_anthropic_offers_sonnet_and_haiku_and_no_opus():
+    """Opus is more than a port needs and costs too much across a project, so
+    the card does not offer it and a cartridge cannot name it."""
     from odoo_migrator.runner.providers import get
 
     anthropic = get("anthropic")
 
-    assert anthropic.accepts_model("claude-opus-5-5")
-    assert anthropic.accepts_model("claude-haiku-5-5")
+    assert anthropic.models == frozenset(
+        {"claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-5-5"}
+    )
+    assert not anthropic.accepts_model("claude-opus-5-5")
+    assert not anthropic.accepts_model("claude-opus-5")

@@ -18,7 +18,7 @@ _CARTRIDGE = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -85,7 +85,7 @@ _ASKS = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: diagnose
@@ -338,12 +338,12 @@ def test_the_log_names_the_model_that_will_run(client, tmp_path):
     line = _model_line(cartridge, ctx)
 
     assert line.startswith("cursor/composer-2.5")
-    assert "anthropic/claude-opus-5" in line, "the file's own choice is worth saying"
+    assert "anthropic/claude-sonnet-5-5" in line, "the file's own choice is worth saying"
 
     migration.provider_override = ""
     migration.model_override = ""
 
-    assert _model_line(cartridge, ctx) == "anthropic/claude-opus-5"
+    assert _model_line(cartridge, ctx) == "anthropic/claude-sonnet-5-5"
 
 
 def test_a_stopped_run_ends_at_its_next_step(client, tmp_path):

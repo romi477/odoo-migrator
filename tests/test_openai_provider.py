@@ -115,7 +115,7 @@ def test_the_models_are_a_fixed_list_and_need_no_key_to_show():
 
     assert provider.models == frozenset({"gpt-6-sol"})
     assert provider.accepts_model("gpt-6-sol")
-    assert not provider.accepts_model("claude-opus-5-5")
+    assert not provider.accepts_model("claude-sonnet-5-5")
 
 
 def test_a_cartridge_may_name_it(client):

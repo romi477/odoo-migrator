@@ -27,8 +27,6 @@ class AnthropicProvider:
     # Sonnet 4.6 has no `xhigh`.
     models = frozenset(
         {
-            "claude-opus-5-5",
-            "claude-opus-5",
             "claude-sonnet-5-5",
             "claude-sonnet-5",
             "claude-sonnet-4-6",

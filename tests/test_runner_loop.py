@@ -11,7 +11,7 @@ ALWAYS_FAILS = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -35,7 +35,7 @@ CARTRIDGE_WITH_PROBE = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -60,7 +60,7 @@ ASKS_A_HUMAN = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: upgrade
 on_failure:
@@ -190,7 +190,7 @@ STOCK_SHAPE = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: understand
@@ -295,7 +295,7 @@ def test_an_agent_step_does_not_own_last_failure(monkeypatch):
     ctx = SimpleNamespace(
         migration=SimpleNamespace(provider_override="", model_override=""),
         module=SimpleNamespace(technical_name="sale_custom"),
-        cartridge=SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-opus-5")),
+        cartridge=SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-sonnet-5-5")),
         provider=None,
         prior_answers={},
         last_answer="",

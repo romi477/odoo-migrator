@@ -39,7 +39,7 @@ def _ctx(**extra):
             new_project_path="",
         ),
         "module": SimpleNamespace(technical_name="sale_custom", old_path="", new_path=""),
-        "cartridge": SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-opus-5")),
+        "cartridge": SimpleNamespace(model=ModelRef(provider="anthropic", name="claude-sonnet-5-5")),
         "provider": None,
         "prior_answers": {},
         "last_answer": "",
@@ -115,7 +115,7 @@ def test_anthropic_sends_it_as_the_system_parameter(monkeypatch):
         prompt="port it",
         tools=[],
         report=report_tool(_step()),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=Budget(tool_calls=3),
     )
 

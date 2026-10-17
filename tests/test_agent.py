@@ -23,7 +23,7 @@ def _run(step, ctx, model, budget):
         prompt=step.prompt,
         tools=tools_for(step, ctx),
         report=report_tool(step),
-        model="claude-opus-5",
+        model="claude-sonnet-5-5",
         budget=budget,
     )
 

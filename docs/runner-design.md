@@ -710,8 +710,8 @@ The Anthropic SDK, through the beta tool runner (`@beta_tool` +
 cycle and leaves us the tool functions. Adaptive thinking, effort from the
 migration's settings, streaming for the long turns. The default model is
 `claude-sonnet-5-5` (it was `claude-opus-5`, which cost too much across a
-whole project); `claude-sonnet-4-6`, `claude-sonnet-5` and `claude-opus-5`
-are chosen per migration, never silently.
+whole project); `claude-sonnet-4-6`, `claude-sonnet-5` and `claude-haiku-5-5`
+are chosen per migration, never silently. Opus is not offered at all.
 
 `model.provider` is validated against what this build implements. Which model
 a given step runs on is settled by the precedence under "Model choice"; the
@@ -1057,7 +1057,7 @@ Three differences decide what it costs:
    fits the same three steps.
 3. **A provider inside a provider.** OpenCode is itself model-agnostic
    (`providerID` plus `modelID`), so a cartridge saying `provider: opencode`
-   has to carry both in the model name — `name: "anthropic/claude-opus-5"`.
+   has to carry both in the model name — `name: "anthropic/claude-sonnet-5-5"`.
    This is the one place the cartridge language bends to a provider, and it
    bends rather than breaks.
 

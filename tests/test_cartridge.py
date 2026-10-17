@@ -6,7 +6,7 @@ MINIMAL = """
 cartridge: t
 version: 1.0.0
 schema: 1
-model: {provider: anthropic, name: claude-opus-5}
+model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
@@ -48,7 +48,7 @@ def test_json_is_accepted_too():
     """yaml.safe_load parses JSON, so an uploaded .json file is not a refusal."""
     as_json = load_cartridge(
         '{"cartridge":"t","version":"1.0.0","schema":1,'
-        '"model":{"provider":"anthropic","name":"claude-opus-5"},'
+        '"model":{"provider":"anthropic","name":"claude-sonnet-5-5"},'
         '"pipeline":[{"step":"verdict"}],"on_failure":{"pipeline":[],'
         '"retry":{"resume_at":"verdict"}}}'
     )
