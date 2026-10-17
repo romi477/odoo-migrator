@@ -53,6 +53,7 @@ def _what_an_agent_reads():
     texts = {
         "prompts/system.md": Path("prompts/system.md").read_text(encoding="utf-8"),
         "prompts/sheller.md": Path("prompts/sheller.md").read_text(encoding="utf-8"),
+        "prompts/test_guide.md": Path("prompts/test_guide.md").read_text(encoding="utf-8"),
     }
     flow = load_cartridge(STOCK)
     for step in (*flow.pipeline, *flow.on_failure.pipeline):

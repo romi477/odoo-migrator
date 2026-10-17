@@ -14,6 +14,7 @@ from odoo_migrator.rules import (
     assemble_rules,
     load_shell_notes,
     load_system_prompt,
+    load_test_guide,
 )
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
@@ -178,6 +179,9 @@ def _render(item: str, ctx: StepContext) -> str:
     if item == "last_failure":
 
         return ctx.last_failure or "(none)"
+    if item == "test_guide":
+
+        return load_test_guide()
 
     return ""
 

@@ -374,6 +374,7 @@ cartridge author selects from a list, never writes an expression.
 | `project_notes` | `AGENTS.md`, `CLAUDE.md`, `README.md`/`.rst` on the source side: the project directory, each addons directory of the plan, the module's own; clipped per file and in total |
 | `module_source` | the module as it exists on the source version |
 | `prior_answers` | what earlier agent steps in this job answered |
+| `test_guide` | `prompts/test_guide.md`: what to pin, what to assert on, how to write and name a test. One text for every step that writes tests (`characterize`, `write_test`), so two steps do not drift into two opinions of a good one |
 | `previous_diff` | everything written to the module since the job began: the module now, against the module as the job found it |
 | `hand_changes` | what a person committed in the module's target directory since the app's last commit there, as the commits and their diff; `(none)` when nothing |
 | `last_failure` | the output of the step that failed: test report, traceback, lint findings |
@@ -429,7 +430,13 @@ pipeline:
       Then build the smallest set of records this module needs in order to
       do anything, and prove the recipe works here: create them, call the
       methods, check they respond, roll back. The recipe travels with your
-      answer — the port will be judged by replaying it on both versions.
+      answer: if the module needs tests, `characterize` turns it into one on
+      this version; if it does not, `probe` replays it on both versions.
+
+      In your answer, list the behaviours you found, one line each: a method
+      that returns or computes something, a computed field, a constraint, an
+      onchange, a button that changes state. The next step chooses what to
+      pin from this list.
 
       Last, decide whether this module needs tests written for it. Call
       `list_tests` on the source side first. If it lists any test class, the
@@ -446,38 +453,17 @@ pipeline:
     tools: [exec, source, run_test, list_tests, read_file, write_source_test, reopen]
     # Not the rules: they describe what the target changes, and a test written
     # to them would be written in the target's API and fail on the source.
-    context: [module_source, prior_answers]
+    context: [module_source, prior_answers, test_guide]
     prompt: |
       This module has no tests. Write a characterization test for it on the
       source version. It is not coverage for its own sake: the port will be
       judged by running this test on the target version, so it has to say, in
-      assertions, what this module does today.
+      assertions, what this module does today. The test_guide above says what
+      to pin, what to assert on and how to name it.
 
-      Start from the recipe the understand step proved. It is the smallest
-      data that makes the module do anything, and it already ran here.
-
-      Choose what to pin: the behaviours that decide whether a port is
-      faithful. A method that returns or computes something; a computed field;
-      a constraint that refuses a write; a state change behind a button; an
-      onchange or a default. One test method per behaviour, eight at most, the
-      smallest set that touches each once. Skip what has no logic: field
-      declarations, views, access files, translations, menus.
-
-      Assert on what a business user would see: field values, states, amounts,
-      counts, returned values. Do not assert on the text of an exception (check
-      its class), on translated strings, on record ids or sequence numbers, on
-      the order of records you did not sort, on timestamps, or on log output.
-      Do not pin something you know the target version changes on purpose.
-      Every test method needs an assertion: one that only creates records
-      passes whatever the module does.
-
-      Write for the source version as it is. Read a test of a module that has
-      one with `source` before writing yours: the base class and the helpers
-      are this version's, not the ones you remember. Use TransactionCase, and
-      @tagged('post_install', '-at_install') when you rely on another module's
-      data. Make all your data in setUpClass or in the test; do not rely on
-      demo data, or on records this module's `depends` does not guarantee. No
-      commit, no network, no sleep, no HTTP and no tours.
+      Start from the recipe the understand step proved: it is the smallest
+      data that makes the module do anything, and it already ran here. Choose
+      what to pin from its list of behaviours.
 
       Write `tests/__init__.py`, which imports the test file, and
       `tests/test_<module>.py`, with write_source_test. Then `reopen` the
@@ -506,18 +492,21 @@ pipeline:
       project. The source container's session stays open — use it whenever
       you need to check what the original actually does.
 
-      If the module's `tests/` directory is in the source you were given, it
-      holds characterization tests this run wrote and proved green on the
-      source version. Port them with the rest, and keep what they assert:
-      change only what the target version forces. Write them into the
-      target's `tests/`, with the same method names, replacing a tests file of
-      the same name that is already there: the tests step checks by name that
-      each one arrived, and fails the lap when one did not. Do not leave the
-      target with only the tests it had before.
+      The module's tests come across with it. If the `characterize` answer is
+      among the prior answers, the source's `tests/` directory is that step's
+      work: characterization tests proved green on the source version. Write
+      them into the target's `tests/` with the same method names, replacing a
+      tests file of the same name that is already there. The tests step checks
+      by name that each one arrived, and fails the lap when one did not. Do not
+      leave the target with only the tests it had before. Keep what they
+      assert; change only what the target version forces. If there is no such
+      answer, the tests in the source are the module's own, tests of its own
+      that its authors wrote: port them like any other file.
 
-      When the target version forces a different value in one of those
-      assertions, and the rules say the behaviour changed on purpose, change
-      the assertion and put this on the line above it, exactly:
+      When the target version forces a different value in one of the
+      characterization tests' assertions, and the rules say the behaviour
+      changed on purpose, change the assertion and put this on the line above
+      it, exactly:
 
           # migrator: target-differs — <what changed, and the rule that says so>
 
@@ -543,9 +532,9 @@ pipeline:
     context: [rules, prior_answers]
     raises: [behaviour_differs]
     prompt: |
-      This module ships no tests. Replay the fixture recipe from the
-      understand step on both sides, call the same methods on each, and
-      report every difference. A recipe that will not replay on the target
+      The ported module has no tests to show whether it behaves like the
+      original. Replay the fixture recipe from the understand step on both
+      sides, call the same methods on each, and report every difference. A recipe that will not replay on the target
       version is a failure worth reporting on its own.
 
       Raise behaviour_differs when the ported module does something the
@@ -560,12 +549,12 @@ pipeline:
     when: no_tests
     sessions: [source, target]
     tools: [exec, source, run_test, list_tests, read_file, write_file, reopen]
-    context: [rules, module_source, prior_answers]
+    context: [rules, module_source, prior_answers, test_guide]
     prompt: |
       The ported module has no tests: `characterize` wrote none. The module
       may have been judged to have nothing worth pinning, the source project
       may not be a git repository, or no test went green on the source. Write
-      them on the target now.
+      them on the target now, following the test_guide above.
 
       If the understand answer above said this module has nothing worth
       pinning (data, views, security files, translations), write nothing and
@@ -574,15 +563,6 @@ pipeline:
       The source container is the oracle. For each behaviour worth pinning,
       call it on the source with `exec` first, in the recipe's data, and note
       what came back. Then write a test on the target that asserts the same.
-      A method that returns or computes something; a computed field; a
-      constraint that refuses a write; a state change behind a button; an
-      onchange or a default. One test method per behaviour, eight at most.
-
-      Assert on what a business user would see: field values, states, amounts,
-      counts, returned values. Do not assert on the text of an exception (check
-      its class), on translated strings, on record ids or sequence numbers, on
-      the order of records you did not sort, on timestamps, or on log output.
-      Every test method needs an assertion.
 
       If the target answers differently and the rules say the behaviour
       changed on purpose, assert what the target does and put this on the line
@@ -593,13 +573,9 @@ pipeline:
       A difference you cannot trace to a rule is a finding, not a test: do not
       write it down as expected. Say so in your answer.
 
-      Read a test of a module that has one with `source` before writing yours:
-      the base class and the helpers are the target version's, not the ones
-      you remember. Make all your data in setUpClass or in the test; do not
-      rely on demo data. No commit, no network, no sleep.
-
-      Run the module's tests on the target before you finish, and list in
-      your answer what you pinned and what you chose not to pin and why.
+      Write the files, then `reopen` the target session so Odoo sees them, and
+      run the module's tests on the target before you finish. List in your
+      answer what you pinned and what you chose not to pin and why.
 
   # The run above is the agent's own. This one is the runner's, and its
   # outcome is recorded: a test written and never run used to pass as
@@ -617,27 +593,49 @@ on_failure:
       sessions: [target]
       tools: [exec, source, journal, history, read_file, run_test, list_tests]
       context: [rules, previous_diff, last_failure, prior_answers]
-      raises: [needs_human, reexamine_old, small_fix, start_over]
+      raises: [needs_human, reexamine_source, small_fix, start_over]
       prompt: |
         Work out why it failed. Logs, the journal, source and a live
         session are all available. When a test failed and its log does not
         say why, run that one spec again on its own — not the module.
-        Decide whether a targeted fix is enough or the port should be
-        started over, whether you need to look at the source version again,
-        and whether this needs a human.
+
+        Then decide, and raise what you decided and nothing else:
+
+        - `small_fix`: a targeted change to the port repairs it.
+        - `start_over`: the port is unsound as a whole and should be written
+          again. `small_fix` and `start_over` are never both: they ask for
+          different repairs, and the runner refuses a report that raises both.
+        - `reexamine_source`: you cannot tell what the original does here and
+          want the source version looked at again. Put the question in your
+          answer.
+        - `needs_human`: the cause is a decision, a container setting or a
+          rule only a person can settle. Your answer is what they will read.
+
+        Two kinds of failure to recognise. If the `characterize` answer is
+        among the prior answers, a failing test in this module is one the
+        source version passed: the test is right and the port is wrong, unless
+        the rules say the behaviour changed on purpose. In that case the repair
+        is the assertion, marked `# migrator: target-differs — <what changed,
+        and the rule that says so>`, and it is a `small_fix`. A failure that
+        says the characterization tests "did not reach the target" is not a
+        flaw in the port's logic: the tests were never written there. That is
+        a `small_fix` too.
 
     - step: ask_human
       when: needs_human
 
     - step: agent
       id: reprobe
-      when: reexamine_old
+      when: reexamine_source
       sessions: [source]
       tools: [exec, source, read_file]
       context: [prior_answers, last_failure]
       prompt: |
         Go back to the source version with the specific question the
-        diagnosis raised.
+        diagnosis raised. You may run code and read files; change nothing.
+        Answer with what you ran and what came back, quoting the output that
+        matters, then say what it means for the question. If the source
+        cannot answer it, say so — do not guess.
 
     - step: agent
       id: patch
@@ -654,6 +652,15 @@ on_failure:
         the tests step runs that again after you, and its outcome is the
         one recorded.
 
+        If the failing test is a characterization test (the `characterize`
+        answer is among the prior answers), do not edit its assertion to make
+        it pass: the source version passed it, so the fix is in the port. The
+        one exception is a difference the rules say is on purpose; then change
+        the assertion and mark it on the line above with
+        `# migrator: target-differs — <what changed, and the rule that says so>`.
+        If the failure is that the tests did not reach the target, write them
+        there, with the same method names.
+
     - step: agent
       id: rewrite
       when: start_over
@@ -666,6 +673,12 @@ on_failure:
         diagnosis. Write the module again from the source version. You are
         not given the previous attempt; do not reconstruct it. Hand
         changes are a person's, not the previous attempt: carry them.
+
+        The target's directory was emptied, its `tests/` included. If the
+        `characterize` answer is among the prior answers, write the
+        characterization tests back into the target's `tests/`, with the same
+        method names, as the port step does: the tests step fails the lap when
+        one is missing.
 
   retry:
     resume_at: lint

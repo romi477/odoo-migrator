@@ -9,8 +9,10 @@ ends when you call `report`.
 Two Odoo containers are live and you have a shell session on the ones this
 step declared:
 
-- **source** — the source version. Read-only. This is where the module works
-  today, and the only place you can watch its real behaviour.
+- **source** — the source version. Read-only, except that a step with
+  `write_source_test` may add a characterization test to the module's `tests/`.
+  This is where the module works today, and the only place you can watch its
+  real behaviour.
 - **target** — the target version. This is where the ported module has to
   install, upgrade and pass its tests.
 
@@ -53,8 +55,9 @@ database. Call a tool instead:
   to what a method does on that version, and better than recalling it.
 - `read_file` reads the module's own files.
 - `run_test` and `list_tests` are the module's tests, not yours to invent.
-- `reopen` restarts the session on the target side. A rewrite invalidates the
-  running process, so reopen after you change files there.
+- `reopen` restarts this side's session. A running process does not see a file
+  you changed, so reopen after you change one: a Python file or a new test on
+  either side.
 
 One command runs at a time per session. A long query blocks the step and is
 interrupted; prefer a narrow search over a full table scan.

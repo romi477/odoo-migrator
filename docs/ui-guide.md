@@ -267,7 +267,7 @@ runs class by class instead, a red class again by method; each run is a
 line in the run log; no classes raises `no_tests` and is not a failure),
 `probe` and `write_test` only when `no_tests`, then `verdict`.
 **On failure** is entered when any pipeline step fails. `diagnose` raises
-`needs_human`, `reexamine_old`, `small_fix`, or `start_over`, and only the
+`needs_human`, `reexamine_source`, `small_fix`, or `start_over`, and only the
 block for that flag runs: `ask_human` parks the job, `reprobe` returns to
 the source version, `patch` edits the previous diff, `rewrite` starts the
 port again without the previous attempt (the module's directory is

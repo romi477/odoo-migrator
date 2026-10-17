@@ -24,6 +24,7 @@ CONTEXT_ITEMS = (
     "previous_diff",
     "hand_changes",
     "last_failure",
+    "test_guide",
 )
 SCHEMA_VERSION = 1
 SIDES = frozenset({"source", "target"})

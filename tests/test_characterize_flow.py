@@ -308,7 +308,7 @@ def test_characterize_does_not_read_the_rules_of_the_target():
     only by luck."""
     step = load_cartridge_file(Path("cartridges/stock.yaml")).step_by_id("characterize")
 
-    assert set(step.context) == {"module_source", "prior_answers"}
+    assert set(step.context) == {"module_source", "prior_answers", "test_guide"}
 
 
 def test_the_characterize_prompt_holds_what_was_decided():
@@ -317,8 +317,7 @@ def test_the_characterize_prompt_holds_what_was_decided():
 
     assert "what this module does today" in prompt
     assert "recipe" in prompt
-    assert "eight at most" in prompt
-    assert "check its class" in prompt
+    assert "list of behaviours" in prompt
     assert "write_source_test" in prompt
     assert "`reopen`" in prompt
     assert "whole module" in prompt
@@ -326,6 +325,8 @@ def test_the_characterize_prompt_holds_what_was_decided():
     assert "pin it and say so" in prompt
     assert "the module is right by definition" in prompt
     assert "what you chose not to pin" in prompt
+    # The choices about what to pin live in the guide, once.
+    assert "eight at most" not in prompt
     # A double pass was considered and ruled out.
     assert "twice" not in prompt
 
@@ -358,13 +359,13 @@ def test_write_test_is_the_fallback_and_reads_both_sides_and_the_rules():
 
     assert step.when == "no_tests"
     assert set(step.sessions) == {"source", "target"}
-    assert {"rules", "module_source", "prior_answers"} <= set(step.context)
+    assert {"rules", "module_source", "prior_answers", "test_guide"} <= set(step.context)
     # The source is the oracle: it is asked first, and the target is written to match.
     assert "oracle" in prompt
     assert "exec" in prompt
     assert "write nothing" in prompt
     assert MARKER in prompt
-    assert "check its class" in prompt
+    assert "`reopen`" in prompt
     assert "twice" not in prompt
 
 

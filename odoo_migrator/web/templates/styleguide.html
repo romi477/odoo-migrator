@@ -162,7 +162,7 @@
       the journal, the source, and a live session on the target container. It
       raises the flags that open the blocks under it:
       <span class="mono">needs_human</span>,
-      <span class="mono">reexamine_old</span>,
+      <span class="mono">reexamine_source</span>,
       <span class="mono">small_fix</span>,
       <span class="mono">start_over</span>.</li>
       <li><strong>ask_human</strong> <span class="mono">if needs_human</span>
@@ -170,7 +170,7 @@
       it waits. You answer on Tree, and the same run continues. If the thread
       that was waiting is gone, the answer is kept and the job becomes
       <span class="mono">unknown</span>.</li>
-      <li><strong>reprobe</strong> <span class="mono">if reexamine_old</span>
+      <li><strong>reprobe</strong> <span class="mono">if reexamine_source</span>
       goes back to the source version with the question the diagnosis raised.</li>
       <li><strong>patch</strong> <span class="mono">if small_fix</span> applies
       that fix on the target side. It has the previous diff and is told to change

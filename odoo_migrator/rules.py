@@ -201,6 +201,18 @@ def load_system_prompt(*, prompts_dir: Path | None = None) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def load_test_guide(*, prompts_dir: Path | None = None) -> str:
+    """How to write a test for a module: what to pin, what to assert on, how
+    to name it. One text for every step that writes tests, so two steps do not
+    drift into two opinions of a good one."""
+    directory = Path(prompts_dir) if prompts_dir is not None else default_prompts_dir()
+    path = directory / "test_guide.md"
+    if not path.is_file():
+        raise MissingPromptError(f"No test guide at {path} (test_guide.md).")
+
+    return path.read_text(encoding="utf-8").strip()
+
+
 def load_shell_notes(*, prompts_dir: Path | None = None) -> str:
     """What the Odoo shell can do, vendored from odoo-sheller's own help.
 
