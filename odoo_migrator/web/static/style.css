@@ -4086,6 +4086,14 @@ a.ribbon-box:focus-visible {
   font-size: 14px;
 }
 
+/* Fork, Save fork and Cancel, together at the right edge beside the ×. */
+.flow-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .flow-dialog-close {
   padding: 0 8px;
   border: 0;
@@ -4100,7 +4108,6 @@ a.ribbon-box:focus-visible {
 }
 
 .flow-viewer-hash {
-  margin-left: auto;
   color: var(--muted);
   font-size: 12px;
 }

@@ -154,6 +154,8 @@
     editor.hidden = !on;
     source.hidden = on;
     bar.hidden = !on;
+    saveButton.hidden = !on;
+    cancelButton.hidden = !on;
     forkButton.hidden = on || loaded === null;
     mode.textContent = on ? "editing a fork" : "read-only";
     failure.hidden = true;

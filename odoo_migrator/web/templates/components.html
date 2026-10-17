@@ -116,8 +116,10 @@
     <header class="flow-dialog-head">
       <h2 class="mono">stock 1.0.0</h2>
       <span class="badge">read-only</span>
-      <button type="button" title="Copy this flow to edit it. The original stays as it is.">Fork</button>
       <span class="mono flow-viewer-hash">99b4ddb72081</span>
+      <div class="flow-dialog-actions">
+        <button type="button" title="Copy this flow to edit it. The original stays as it is.">Fork</button>
+      </div>
       <button type="button" class="flow-dialog-close" aria-label="Close">×</button>
     </header>
     <div class="flow-viewer-panes">
@@ -156,13 +158,15 @@
       <h2 class="mono">stock 1.0.0</h2>
       <span class="badge">editing a fork</span>
       <span class="mono flow-viewer-hash">99b4ddb72081</span>
+      <div class="flow-dialog-actions">
+        <button type="button" class="primary">Save fork</button>
+        <button type="button">Cancel</button>
+      </div>
       <button type="button" class="flow-dialog-close" aria-label="Close">×</button>
     </header>
     <div class="flow-fork-bar">
       <label>Flow <input class="mono" type="text" value="stock" aria-label="Fork flow id"></label>
       <label>Version <input class="mono" type="text" value="1.0.1" aria-label="Fork version"></label>
-      <button type="button" class="primary">Save fork</button>
-      <button type="button">Cancel</button>
       <span class="field-hint">Saved as a new flow; the original is not changed. The outline is of the file as it was forked.</span>
     </div>
     <p class="form-error" role="alert">stock@1.0.0 already exists. A fork is saved under a new version or a new id; it never replaces a flow. The next free version is 1.0.1.</p>

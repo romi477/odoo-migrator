@@ -227,14 +227,41 @@ def test_the_dialog_starts_read_only_and_its_edit_area_is_hidden(client):
     area = dialog[dialog.index("<textarea") :].split(">", 1)[0]
     assert "hidden" in area
     assert "data-flow-edit" in area
-    # The fields and both buttons live in the bar, which starts hidden, as
-    # does the Fork button until a flow has loaded.
-    for hidden in ("data-flow-bar", "data-flow-fork"):
+    # The fields live in the bar, which starts hidden. Fork, Save fork and
+    # Cancel sit together at the right of the head, and Save fork and Cancel
+    # are hidden until a fork is open.
+    for hidden in ("data-flow-bar", "data-flow-fork", "data-flow-save", "data-flow-cancel"):
         tag = dialog[dialog.rindex("<", 0, dialog.index(hidden)) :].split(">", 1)[0]
         assert "hidden" in tag, hidden
     bar = dialog[dialog.index("data-flow-bar") :].split("</div>", 1)[0]
-    for inside in ("data-flow-save", "data-flow-cancel", "data-flow-id", "data-flow-version"):
+    for inside in ("data-flow-id", "data-flow-version"):
         assert inside in bar
+    for outside in ("data-flow-save", "data-flow-cancel"):
+        assert outside not in bar
+
+
+def test_the_hash_sits_by_the_title_and_the_buttons_at_the_right_edge(client):
+    page = client.get("/").text
+    head = page[page.index("flow-dialog-head") :].split("</header>", 1)[0]
+    sheet = (static_dir() / "style.css").read_text(encoding="utf-8")
+
+    order = [
+        head.index(mark)
+        for mark in (
+            "data-flow-title",
+            "data-flow-mode",
+            "data-flow-hash",
+            "data-flow-fork",
+            "data-flow-save",
+            "data-flow-cancel",
+            "data-flow-close",
+        )
+    ]
+    assert order == sorted(order)
+    actions = sheet[sheet.index(".flow-dialog-actions {") :].split("}", 1)[0]
+    assert "margin-left: auto" in actions
+    hash_rule = sheet[sheet.index(".flow-viewer-hash {") :].split("}", 1)[0]
+    assert "margin-left" not in hash_rule
 
 
 def test_the_script_sends_the_text_and_nothing_else(client):
