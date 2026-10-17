@@ -137,14 +137,20 @@ Rules that are not ours to bend:
   daemon's admin endpoints.
 - A daemon that answers on 8765 may not be ours. Use it; never stop it.
 
-Two things the daemon only serves over MCP are vendored here, because this
-process speaks HTTP to it and there is no route for either: the source
-snippet in `sheller/source.py`, and the shell guidance in
-`prompts/sheller.md` (its `os_help` topics, minus the ones about owning and
-committing sessions, which the runner does). Both have a test that compares
-them with the sibling checkout and skips when it is absent. A copy can
-drift; an agent told its tools exist and nothing about what they do writes
-Python loops where `mapped` is one call.
+The shell guidance the agent gets comes from the daemon. A job asks
+`GET /api/help` when it starts (Sheller 1.11.0), caches the answer by the
+daemon's version, replaces the `{{markers}}` with this app's tool names and
+fixes the text for the whole job; `Job.shell_notes_hash` and
+`shell_notes_source` record it (`odoo_migrator/shell_guidance.py`,
+`docs_/superpowers/specs/2026-10-17-shell-guidance-from-the-daemon.md`).
+Two topics, `tests` and `modules`, are worded here instead
+(`prompts/shell_overlay/`): this app runs a test in the session a step holds.
+Each overlay records the hash of the daemon text it was written against, and a
+changed one is a `warn` line in the job's log. A daemon without the route, or
+one that does not answer, gets `prompts/sheller.md`, the copy taken by hand at
+1.10.0. One thing is still vendored: the source snippet in `sheller/source.py`,
+which has no route; a test compares it with the sibling checkout and skips
+when it is absent.
 
 Sessions the migrator opens are `owner.kind = agent` and carry the
 `migration_id`, so concurrent migrations stay attributable. Commit is

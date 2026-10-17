@@ -82,7 +82,8 @@ vocabulary is closed: you pick from this list and never write an expression.
 | `last_failure` | the output of the step that failed: test report, traceback, lint findings |
 | `test_guide` | `prompts/test_guide.md`: what to pin, what to assert on, how to write and name a test |
 
-Every agent step also gets the standing prompt and the shell notes, and a
+Every agent step also gets the standing prompt and the shell notes (fetched from the
+daemon when the job starts, the same for every step of it), and a
 "This run" block (the module, the step, which side is the source and which the
 target, and the module's directory on each). None of that is set in the file.
 

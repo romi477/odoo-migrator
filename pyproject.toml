@@ -61,7 +61,7 @@ packages = [
 [tool.setuptools.package-data]
 odoo_migrator = ["web/**/*"]
 "odoo_migrator.bundled_rules" = ["*.md"]
-"odoo_migrator.bundled_prompts" = ["*.md"]
+"odoo_migrator.bundled_prompts" = ["*.md", "shell_overlay/*.md"]
 "odoo_migrator.bundled_cartridges" = ["*.yaml"]
 
 # `rules/AGENTS.md` is for whoever edits the rules, and it says so in its

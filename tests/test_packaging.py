@@ -139,6 +139,29 @@ def test_rules_prompts_and_cartridges_ship_inside_the_package():
         assert config["package-data"][name]
 
 
+def test_the_shell_overlays_ship_with_the_prompts():
+    """`shell_guidance` reads `prompts/shell_overlay/*.md` for every job. A
+    glob of `*.md` stops at the top of the directory, and a build without them
+    would fail the first job."""
+    import fnmatch
+    from pathlib import Path
+
+    patterns = _pyproject()["tool"]["setuptools"]["package-data"]["odoo_migrator.bundled_prompts"]
+    overlays = sorted(
+        path.relative_to("prompts").as_posix() for path in Path("prompts/shell_overlay").glob("*.md")
+    )
+
+    assert overlays
+    def covered(relative: str, pattern: str) -> bool:
+        # setuptools' `*` stops at a slash, which fnmatch's does not.
+        names, globs = relative.split("/"), pattern.split("/")
+
+        return len(names) == len(globs) and all(map(fnmatch.fnmatch, names, globs))
+
+    for relative in overlays:
+        assert any(covered(relative, pattern) for pattern in patterns), relative
+
+
 def test_an_installed_build_reads_the_bundled_copies(tmp_path, monkeypatch):
     """No checkout next to the package: the copies inside it are used."""
     from odoo_migrator import paths

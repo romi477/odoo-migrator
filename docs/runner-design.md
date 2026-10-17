@@ -1044,6 +1044,15 @@ none — leads its first message with it. The first live run had no system
 prompt at all: the model answered in prose, called no tool, and every
 agent step came back with nothing reported.
 
+After `prompts/system.md` come the shell notes: what the Odoo shell can do, as
+Sheller's own guidance says it. They are fetched once, when the job starts,
+from the daemon's `GET /api/help`, with the tool names put in place of the
+daemon's markers and two topics (`tests`, `modules`) worded by this app in
+`prompts/shell_overlay/`. The text is fixed for the job, so every step and every
+retry is briefed alike, and `Job.shell_notes_hash` and `shell_notes_source`
+name it. A daemon without the route gets the copy in `prompts/sheller.md`.
+See [the spec](../docs_/superpowers/specs/2026-10-17-shell-guidance-from-the-daemon.md).
+
 A provider also enforces `budget.tokens`, because only it can see what a
 turn spent. The count is every turn of the tool loop, not the last one.
 
