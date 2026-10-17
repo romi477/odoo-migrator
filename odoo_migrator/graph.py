@@ -540,7 +540,6 @@ def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
                 if dep in by_name:
                     parents[row.technical_name].append(dep)
         order = _downstream(rows, module.technical_name)
-        downstream = set(order)
         wanted = (not module.struck_out) if struck is None else bool(struck)
         if wanted and not module.struck_out and _finished(module):
             raise _already_done([module.technical_name])
@@ -554,16 +553,26 @@ def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
                 raise GraphError(
                     f"Bring {blocking[0]} back before {module.technical_name}."
                 )
+        if not wanted:
+            # Parents before children: a module comes back only when each of its
+            # parents is in the plan or came back in this pass. Being downstream
+            # of the restored module is not enough, the parent may stay out.
+            steps = topological_steps(
+                {name: json.loads(row.depends or "[]") for name, row in by_name.items()}
+            )
+            order = sorted(order, key=lambda name: (steps.get(name, 1), name))
+        back: set[str] = set()
         updated: list[Module] = []
         for name in order:
             row = by_name[name]
             if wanted and not row.struck_out and _finished(row):
                 continue
             if not wanted and any(
-                by_name[parent].struck_out and parent not in downstream
+                by_name[parent].struck_out and parent not in back
                 for parent in parents[name]
             ):
                 continue
+            back.add(name)
             if row.struck_out != wanted:
                 row.struck_out = wanted
                 row.save()

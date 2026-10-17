@@ -349,6 +349,58 @@ def test_restoring_a_module_brings_descendants_back(tmp_path):
     assert after["mig_test_sale"]["struck_out"] is False
 
 
+def test_restoring_a_module_leaves_out_what_hangs_on_a_module_that_stays_out(tmp_path):
+    """`dashboard` is in the restored module's downstream and stays out because
+    `workflow` is still struck. `js` depends on `dashboard` alone: it must not
+    come back by the fact that `dashboard` is downstream."""
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_sale", ["mig_test_base"]),
+            _custom("mig_test_sale_ext", ["mig_test_sale"]),
+            _custom("mig_test_ui", ["mig_test_sale"]),
+            _custom("mig_test_workflow", ["mig_test_ui"]),
+            _custom("mig_test_dashboard", ["mig_test_sale_ext", "mig_test_workflow"]),
+            _custom("mig_test_js", ["mig_test_dashboard"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    skip_subtree(rows["mig_test_sale_ext"]["id"], True)
+    skip_subtree(rows["mig_test_ui"]["id"], True)
+
+    skip_subtree(rows["mig_test_sale_ext"]["id"], False)
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert after["mig_test_sale_ext"]["struck_out"] is False
+    assert after["mig_test_dashboard"]["struck_out"] is True
+    assert after["mig_test_js"]["struck_out"] is True
+
+
+def test_restoring_a_module_brings_back_a_chain_whose_parents_all_return(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_sale", ["mig_test_base"]),
+            _custom("mig_test_ext", ["mig_test_sale"]),
+            _custom("mig_test_ops", ["mig_test_ext", "mig_test_sale"]),
+            _custom("mig_test_js", ["mig_test_ops"]),
+        ],
+    )
+    rows = {row["technical_name"]: row for row in list_modules(created["id"])}
+    skip_subtree(rows["mig_test_ext"]["id"], True)
+
+    skip_subtree(rows["mig_test_ext"]["id"], False)
+    after = {row["technical_name"]: row for row in list_modules(created["id"])}
+
+    assert [after[name]["struck_out"] for name in ("mig_test_ext", "mig_test_ops", "mig_test_js")] == [
+        False, False, False,
+    ]
+
+
 def test_leave_out_selection_on_a_leaf_strikes_only_that_module(tmp_path):
     created = _migration(tmp_path)
     persist_graph(
