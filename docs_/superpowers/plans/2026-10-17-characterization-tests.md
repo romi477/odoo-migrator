@@ -1014,8 +1014,7 @@ def test_a_testless_module_gets_a_green_test_on_a_branch_and_the_port_sees_it(ap
     assert script.ran.index("characterize") < script.ran.index("port")
     assert git(source, "branch", "--show-current").startswith("migrator/sandbox-")
     assert git(source, "rev-parse", "main") == seed
-    assert "sale_custom/tests/test_x.py" in git(source, "show", "--name-only", "--format=", "HEAD") or \
-        "project/sale_custom/tests/test_x.py" in git(source, "show", "--name-only", "--format=", "HEAD")
+    assert "project/sale_custom/tests/test_x.py" in git(source, "show", "--name-only", "--format=", "HEAD").splitlines()
     assert "### tests/test_x.py" in script.port_prompt
     assert _status(job) == "passed"
 
