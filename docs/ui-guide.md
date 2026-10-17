@@ -257,7 +257,8 @@ some), `characterize` (only then: a test written into the source module on a
 branch `migrator/<name>-<id>` of the source project, and run there until it
 passes), `port` (writes the target project, both
 sessions), `lint` (Python, XML, manifest — no container), `upgrade`
-(install or upgrade on the target container, then commit), `tests` (one
+(install or upgrade on the target container, then commit), `tests` (first, when the migrator wrote tests on the source, a check that each
+one arrived on the target by method name; then one
 run of the module's standard tests, then each test it lists as failed
 again on its own, for the log that says why — ten at most, the rest
 named; a run that outlives its timeout is interrupted and not run again;

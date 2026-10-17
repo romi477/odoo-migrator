@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
@@ -30,6 +31,10 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if not ctx.sessions.get("target"):
 
         return StepResult(ok=False, output="no target session")
+    missing = _tests_left_behind(ctx)
+    if missing:
+
+        return StepResult(ok=False, flags={"tests_failed"}, output=missing)
     if "no_tests" in ctx.lap_flags:
         # A test was written after this session opened, and the process
         # imported the module's `tests` package when it did. Without a fresh
@@ -58,6 +63,39 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             return result
 
     return _by_class(ctx, name, classes)
+
+
+def _tests_left_behind(ctx: StepContext) -> str:
+    """Why the lap fails before it runs anything, or "".
+
+    The tests the migrator proved green on the source are the oracle for the
+    port, and a port that did not write them leaves the step to run whatever
+    the target already had: the first live run passed four old tests while the
+    seven that mattered were not there. Checked by method name, so a port may
+    reshape a body and may not drop the test.
+    """
+    from odoo_migrator.module_paths import module_root
+    from odoo_migrator.source_git import characterization_names
+    from odoo_migrator.test_names import test_method_names
+
+    wanted = characterization_names(ctx.migration, ctx.module)
+    if not wanted:
+
+        return ""
+    directory = module_root(ctx.migration, ctx.module, "target")
+    present = test_method_names(Path(directory) / "tests") if directory else set()
+    missing = [name for name in wanted if name not in present]
+    if not missing:
+
+        return ""
+
+    return (
+        f"The characterization tests did not reach the target: {len(missing)} of "
+        f"{len(wanted)} test methods the source proved green are not in "
+        f"{ctx.module.technical_name}/tests/ on the target: {', '.join(missing)}. "
+        "Port them with the same method names, replacing a tests file of the "
+        "same name that is already there."
+    )
 
 
 def _runs_modules(ctx: StepContext) -> bool:

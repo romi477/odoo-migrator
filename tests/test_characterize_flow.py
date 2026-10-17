@@ -82,9 +82,10 @@ class CharacterizeScript:
 
     name = "scripted"
 
-    def __init__(self, *, raise_needs_tests=True, run_it=True):
+    def __init__(self, *, raise_needs_tests=True, run_it=True, carry_tests=True):
         self.raise_needs_tests = raise_needs_tests
         self.run_it = run_it
+        self.carry_tests = carry_tests
         self.ran: list[str] = []
         self.port_prompt = ""
         self.refusal = ""
@@ -119,6 +120,11 @@ class CharacterizeScript:
             by_name["write_file"](
                 side="target", path="project/sale_custom/__manifest__.py", content=MANIFEST
             )
+            if self.carry_tests and "### tests/test_x.py" in prompt:
+                for name, body in (("__init__.py", "from . import test_x\n"), ("test_x.py", TEST)):
+                    by_name["write_file"](
+                        side="target", path=f"project/sale_custom/tests/{name}", content=body
+                    )
 
         return StepResult(ok=True, answer=f"{step} done", flags=flags)
 
@@ -366,3 +372,66 @@ def test_write_test_never_writes_the_source():
     flow = load_cartridge_file(Path("cartridges/stock.yaml"))
 
     assert "write_source_test" not in flow.step_by_id("write_test").tools
+
+
+# -- the tests the migrator proved on the source must arrive on the target -------
+
+
+def _log_texts():
+    from odoo_migrator.models import RunLog
+
+    with database.connection_context():
+        return [str(row.text) for row in RunLog.select()]
+
+
+def test_a_port_that_leaves_the_characterization_tests_behind_fails_the_tests_step(
+    app, fake_sheller, sandbox
+):
+    """Job 43 of the first live run: the target already had a tests file of its
+    own, the port did not touch it, and the step ran those four and passed. The
+    seven the source had proved were nowhere near."""
+    source = _source(sandbox)
+    make_repo(source)
+    fake_sheller.tests_for(
+        "sale_custom", fake_sheller.catalogue("sale_custom", {"TestOld": ["test_old"]})
+    )
+    script = CharacterizeScript(carry_tests=False)
+
+    job = _run(app, fake_sheller, sandbox, script)
+
+    assert _status(job) != "passed"
+    said = " ".join(_log_texts())
+    assert "did not reach the target" in said
+    assert "test_x" in said
+
+
+def test_a_port_that_carries_them_passes_the_tests_step(app, fake_sheller, sandbox):
+    source = _source(sandbox)
+    make_repo(source)
+    fake_sheller.tests_for(
+        "sale_custom", fake_sheller.catalogue("sale_custom", {"TestX": ["test_x"]})
+    )
+
+    job = _run(app, fake_sheller, sandbox, CharacterizeScript())
+    _, tmp_path = sandbox
+
+    assert "did not reach the target" not in " ".join(_log_texts())
+    assert "def test_x" in (tmp_path / "18" / "project" / "sale_custom" / "tests" / "test_x.py").read_text()
+    assert _status(job) == "passed"
+
+
+def test_a_module_the_migrator_wrote_no_tests_for_is_not_held_to_any(app, fake_sheller, sandbox):
+    source = _source(sandbox)
+    make_repo(source)
+
+    job = _run(app, fake_sheller, sandbox, CharacterizeScript(raise_needs_tests=False))
+
+    assert "did not reach the target" not in " ".join(_log_texts())
+    assert _status(job) == "passed"
+
+
+def test_the_port_is_told_to_keep_the_method_names_and_to_replace_a_file_there():
+    prompt = _flat("port")
+
+    assert "same method names" in prompt
+    assert "replacing a tests file of the same name" in prompt

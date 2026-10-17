@@ -115,7 +115,11 @@ pipeline:
       If the module's `tests/` directory is in the source you were given, it
       holds characterization tests this run wrote and proved green on the
       source version. Port them with the rest, and keep what they assert:
-      change only what the target version forces.
+      change only what the target version forces. Write them into the
+      target's `tests/`, with the same method names, replacing a tests file of
+      the same name that is already there: the tests step checks by name that
+      each one arrived, and fails the lap when one did not. Do not leave the
+      target with only the tests it had before.
 
       When the target version forces a different value in one of those
       assertions, and the rules say the behaviour changed on purpose, change

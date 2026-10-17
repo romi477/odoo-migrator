@@ -509,7 +509,11 @@ pipeline:
       If the module's `tests/` directory is in the source you were given, it
       holds characterization tests this run wrote and proved green on the
       source version. Port them with the rest, and keep what they assert:
-      change only what the target version forces.
+      change only what the target version forces. Write them into the
+      target's `tests/`, with the same method names, replacing a tests file of
+      the same name that is already there: the tests step checks by name that
+      each one arrived, and fails the lap when one did not. Do not leave the
+      target with only the tests it had before.
 
       When the target version forces a different value in one of those
       assertions, and the rules say the behaviour changed on purpose, change
@@ -677,7 +681,17 @@ the assertion and puts this on the line above it, exactly:
 ```
 
 and lists each in its answer. The marker is plain text so that `grep` finds it
-and a person reading the test sees why it is not the source's. A difference
+and a person reading the test sees why it is not the source's. **The tests the migrator proved must arrive on the target.** Where the source's
+`tests/` was written and committed by the migrator (`characterize`, or an earlier
+run of it), the `tests` step checks by method name that every one of those
+methods is defined somewhere under the module's `tests/` on the target, and fails
+the lap, before running anything, when one is not. A port may reshape a test's
+body for the target; it may not drop the test. Without this check a target that
+already held tests of its own passed on those while the ones that mattered were
+not there (the first live run, job 43). Tests a person wrote on the source are
+not held to this: a port may drop or rename them for a reason of theirs.
+
+A difference
 nobody can trace to a rule is not marked: the assertion stays as the source had
 it, the tests step reports it, and the failure lane looks at it.
 

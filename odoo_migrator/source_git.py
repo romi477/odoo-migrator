@@ -36,6 +36,7 @@ from odoo_migrator.target_git import (
     _why,
     init_with_baseline,
 )
+from odoo_migrator.test_names import test_method_names
 
 # The title of a commit of tests the migrator wrote. The session the green run
 # happened in is in the brackets, short enough to read and long enough to find
@@ -262,3 +263,20 @@ def migrator_test_commits(directory) -> list[dict]:
             )
 
     return found
+
+
+def characterization_names(migration, module) -> list[str]:
+    """The test methods the migrator proved green on the source, which a port
+    must carry to the target. Empty when the source's tests are not its own:
+    a port may drop or rename a test a person wrote, for a reason of theirs.
+    """
+    directory = module_root(migration, module, "source")
+    if directory is None:
+
+        return []
+    tests = Path(directory) / "tests"
+    if not migrator_test_commits(tests):
+
+        return []
+
+    return sorted(test_method_names(tests))

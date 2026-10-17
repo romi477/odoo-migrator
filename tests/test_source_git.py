@@ -468,3 +468,49 @@ def test_a_start_puts_the_source_under_git_and_says_so(plain):
     assert (source / ".git").is_dir()
     texts = [line["text"] for line in lines(job.job_id)]
     assert any("source" in text and "git init" in text for text in texts)
+
+
+# -- which tests are the migrator's to see carried -------------------------------
+
+
+def _commit_tests(source, migration, module, body):
+    ensure_branch(migration)
+    tests = source / "sale_x" / "tests"
+    tests.mkdir()
+    (tests / "__init__.py").write_text("from . import test_x\n")
+    (tests / "test_x.py").write_text(body)
+    settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+
+def test_the_migrators_tests_name_the_methods_a_port_must_carry(repo):
+    from odoo_migrator.source_git import characterization_names
+
+    source, migration, module = repo
+    _commit_tests(
+        source, migration, module,
+        "class T:\n    def test_a(self): assert 1\n    def test_b(self): assert 1\n",
+    )
+
+    assert characterization_names(migration, module) == ["test_a", "test_b"]
+
+
+def test_a_module_with_no_tests_of_the_migrators_names_nothing(repo):
+    from odoo_migrator.source_git import characterization_names
+
+    _, migration, module = repo
+
+    assert characterization_names(migration, module) == []
+
+
+def test_tests_a_person_wrote_are_not_the_migrators_to_demand(repo):
+    """A port may drop or rename a test someone wrote, for a reason of theirs.
+    Only the migrator's own, proved green on the source, must arrive."""
+    from odoo_migrator.source_git import characterization_names
+
+    source, migration, module = repo
+    (source / "sale_x" / "tests").mkdir()
+    (source / "sale_x" / "tests" / "test_mine.py").write_text("class T:\n    def test_mine(self): assert 1\n")
+    git(source, "add", "-A")
+    git(source, "commit", "-q", "-m", "odoo-migrator: characterization tests for sale_x [sheller:ffffffffffff]")
+
+    assert characterization_names(migration, module) == []
