@@ -159,3 +159,35 @@ def test_a_module_nested_under_addons_is_still_attributed(client):
     with database.connection_context():
         stored = Attempt.select().get()
     assert marker.strip() in stored.diff
+
+
+def test_an_earlier_attempt_of_a_passed_job_is_not_recorded_as_passed(client):
+    """The runner reports no attempts, so the rows come from what was written.
+    A lap that was followed by another failed; only the last one has the job's
+    outcome."""
+    row, sale = _prepared(client)
+    holder = _running(client, sale)
+    note_new_write(str(row.id), "sale_custom/first.py", "", f"a = {uuid.uuid4().hex}\n")
+    client.app.state.on_progress({"job_id": holder.job_id, "stage": "lint", "attempt": 2})
+    note_new_write(str(row.id), "sale_custom/second.py", "", f"b = {uuid.uuid4().hex}\n")
+
+    client.app.state.on_result({"job_id": holder.job_id, "status": "passed", "attempts": []})
+
+    with database.connection_context():
+        rows = list(
+            Attempt.select().join(Job).where(Job.job_id == holder.job_id).order_by(Attempt.iteration)
+        )
+    assert [(one.iteration, one.verdict) for one in rows] == [(1, "failed"), (2, "passed")]
+
+
+def test_the_card_holds_an_older_attempt_until_the_reader_follows(client):
+    """Reading attempt 1 while the next module starts used to swap the card, and
+    read as the run starting over. The page says so instead, and Follow goes on."""
+    static = client.get("/static/sse.js").text
+    attempts = client.get("/static/attempts.js").text
+    components = client.get("/components").text
+
+    assert 'pipe.hasAttribute("data-reading")' in static
+    assert "card-held" in static and "card-follow" in static
+    assert "data-attempt-follow" in attempts
+    assert "attempt-moved" in components

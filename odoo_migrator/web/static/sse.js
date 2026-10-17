@@ -90,6 +90,14 @@ function fillResultCornerGlyph(glyph, kind) {
     if (!same && !LIVE[data.status]) {
       return;
     }
+    /* Someone is reading an older attempt. Another module taking the card, or
+       this one folding it, would swap the page under them: it was read as the
+       run starting over. attempts.js says so and holds the event until Follow. */
+    if (pipe.hasAttribute("data-reading") && (!same || !INFLIGHT[data.status])) {
+      pipe.dispatchEvent(new CustomEvent("card-held", { detail: data }));
+
+      return;
+    }
     if (!INFLIGHT[data.status]) {
       idleCard(pipe);
 
@@ -170,6 +178,13 @@ function fillResultCornerGlyph(glyph, kind) {
         }
       }
     }
+  }
+
+  const readingPipe = document.querySelector("[data-pipeline]");
+  if (readingPipe) {
+    readingPipe.addEventListener("card-follow", function (event) {
+      paintCard(readingPipe, event.detail);
+    });
   }
 
   /* One module's rows elsewhere on the page: the queue lamps, a Result

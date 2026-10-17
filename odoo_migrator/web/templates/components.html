@@ -737,6 +737,7 @@ tools offered: exec, read_file, report, source</pre>
       <button type="button" class="attempt-pick">1</button>
       <button type="button" class="attempt-pick is-active" aria-current="true">2</button>
     </nav>
+    <p class="attempt-moved"><span>mig_test_account is running.</span> <button type="button">Follow</button></p>
     <ol class="ribbon">
       <li class="ribbon-node" data-state="earlier"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">understand</span></span></li>
       <li class="ribbon-node" data-state="done"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">lint</span></span></li>
@@ -751,7 +752,9 @@ tools offered: exec, read_file, report, source</pre>
   </div>
   <p>A step passed in an earlier attempt and not run again is dashed green.
   The retry lane an attempt ran sits under the pipeline. Any attempt can be
-  read back; the latest follows the run live.</p>
+  read back; the latest follows the run live. While an older attempt is
+  read the card stays on it: when another module starts, or the run ends, a
+  line under the numbers says so and Follow goes to the live card.</p>
 
   <h2>Uncommitted changes</h2>
   <div class="workspace-panel">

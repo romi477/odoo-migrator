@@ -908,7 +908,9 @@ def _record_result(job: Job, module: Module, payload: ResultPayload) -> None:
             job=job,
             iteration=int(iteration),
             diff=logged[iteration],
-            verdict=payload.status,
+            # The job's outcome belongs to its last lap. A lap another one
+            # followed failed, whatever the job came to.
+            verdict=payload.status if int(iteration) >= job.attempt else "failed",
         )
     for finding in payload.findings:
         Finding.create(job=job, text=finding.text, source=finding.source)

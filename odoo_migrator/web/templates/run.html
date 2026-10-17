@@ -256,6 +256,12 @@
                   title="Show attempt {{ n }}">{{ n }}</button>
           {% endfor %}
         </nav>
+        {# Shown while an older attempt is on screen and the run moved on:
+           another module took the card, or this one ended. #}
+        <p class="attempt-moved" data-attempt-moved hidden>
+          <span data-attempt-moved-text></span>
+          <button type="button" data-attempt-follow>Follow</button>
+        </p>
         <ol class="ribbon" data-ribbon>
           {% for node in ribbon.steps %}
           <li class="ribbon-node" data-step="{{ node.id }}" data-state="{{ node.state }}">

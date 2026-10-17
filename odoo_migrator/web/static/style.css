@@ -4003,6 +4003,28 @@ a.ribbon-box:focus-visible {
   color: var(--cyan);
 }
 
+/* Said under the attempt numbers while an older attempt is on screen and the
+   run has moved on; Follow goes back to the live card. */
+.attempt-moved {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.attempt-moved[hidden] {
+  display: none;
+}
+
+.attempt-moved button {
+  padding: 1px 8px;
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
 /* A Run refused over uncommitted changes, on the run card: each module with
    its files and the two ways out beside it. */
 .hand-edits {

@@ -12,6 +12,36 @@
   /* 0 follows the live attempt; a number holds that attempt on screen. */
   let viewing = 0;
   let live = null;
+  /* The last event the card did not take while an older attempt was read. */
+  let held = null;
+
+  function moved() {
+    return pipe.querySelector("[data-attempt-moved]");
+  }
+
+  /* `data-reading` is what sse.js looks at before it swaps the card. */
+  function reading(on) {
+    pipe.toggleAttribute("data-reading", on);
+    if (!on) {
+      held = null;
+      const note = moved();
+      if (note) {
+        note.hidden = true;
+      }
+    }
+  }
+
+  function follow() {
+    const event = held;
+    reading(false);
+    viewing = 0;
+    if (event) {
+      pipe.dispatchEvent(new CustomEvent("card-follow", { detail: event }));
+    } else if (live) {
+      paint(live);
+      markPicker(live.attempt || 1, live.attempt || 1);
+    }
+  }
 
   function picker() {
     return pipe.querySelector("[data-attempt-picker]");
@@ -123,7 +153,26 @@
     markPicker(total, viewing || total);
   });
 
+  pipe.addEventListener("card-held", function (event) {
+    held = event.detail;
+    const note = moved();
+    const text = note && note.querySelector("[data-attempt-moved-text]");
+    if (!note || !text) {
+      return;
+    }
+    const other = String(held.id) !== (pipe.getAttribute("data-module-id") || "");
+    text.textContent = other
+      ? (held.technical_name || "Another module") + " is running."
+      : "This run has ended.";
+    note.hidden = false;
+  });
+
   pipe.addEventListener("click", function (event) {
+    if (event.target.closest("[data-attempt-follow]")) {
+      follow();
+
+      return;
+    }
     const button = event.target.closest("[data-attempt]");
     const nav = picker();
     if (!button || !nav || !nav.contains(button)) {
@@ -133,9 +182,7 @@
     const total = Number(nav.getAttribute("data-attempts")) || wanted;
     const job = nav.getAttribute("data-job");
     if (wanted === total && live) {
-      viewing = 0;
-      paint(live);
-      markPicker(total, total);
+      follow();
 
       return;
     }
@@ -151,6 +198,7 @@
           return;
         }
         viewing = wanted === view.attempts ? 0 : wanted;
+        reading(viewing !== 0);
         paint(view);
         markPicker(view.attempts, wanted);
       });
