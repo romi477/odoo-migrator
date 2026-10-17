@@ -148,9 +148,9 @@
           </select>
           {# Reads the file, changes nothing. Follows the select above (see
              flow_viewer.js), so it shows the one about to be saved. #}
-          <a class="flow-view-button" data-flow-view href="/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
-             target="_blank" rel="noopener"
-             title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</a>
+          <button type="button" class="flow-view-button" data-flow-view data-flow-url="/api/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
+                  data-flow-name="{{ expanded.cartridge_id or 'stock' }} {{ expanded.cartridge_version or '1.0.0' }}"
+                  title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
           </span>
         </label>
         <p class="field-hint">The flow package that does the rewrite, pinned by

@@ -1,70 +1,104 @@
-/* The flow file, read-only. Two things live here: the eye on a migration's
-   card, which opens the viewer in a popup, and the viewer page itself. The
-   text is only ever written with textContent: a flow is a file somebody
-   imported. */
+/* The flow file, read-only, in the page's one `[data-flow-dialog]`. The eye
+   after the Flow field on a migration's card opens it; the text comes from
+   `/api/flows/<id>/<version>`. A native <dialog>, like the confirm one: the
+   page behind it is inert and Escape closes it. The text is only ever written
+   with textContent: a flow is a file somebody imported. */
 (function () {
   "use strict";
 
-  const WINDOW = "popup,width=1000,height=760";
+  const dialog = document.querySelector("[data-flow-dialog]");
+  if (!dialog) {
+    return;
+  }
+  const title = dialog.querySelector("[data-flow-title]");
+  const hash = dialog.querySelector("[data-flow-hash]");
+  const outlineList = dialog.querySelector("[data-flow-outline]");
+  const source = dialog.querySelector("[data-flow-source]");
+  const failure = dialog.querySelector("[data-flow-error]");
+  let lineItems = [];
+  let selectedButton = null;
+  /* A second press while the first answer is on its way: only the last
+     one paints. */
+  let asked = 0;
 
   /* The eye follows the Flow select: an unsaved choice is the one the person
      is about to look at. The option value is `id@version`. */
-  function viewAddress(value) {
-    const at = value.indexOf("@");
-    if (at < 1) {
-      return null;
-    }
-
-    return (
-      "/flows/" +
-      encodeURIComponent(value.slice(0, at)) +
-      "/" +
-      encodeURIComponent(value.slice(at + 1))
-    );
-  }
-
-  document.addEventListener("click", function (event) {
-    const eye = event.target.closest("a[data-flow-view]");
-    if (!eye) {
-      return;
-    }
-    const popup = window.open(eye.getAttribute("href"), "flow-viewer", WINDOW);
-    /* A blocked popup comes back null; the link is a plain one and opens
-       a tab on its own. */
-    if (!popup) {
-      return;
-    }
-    event.preventDefault();
-    popup.focus();
-  });
-
   document.addEventListener("change", function (event) {
     const select = event.target;
     if (!select.matches || !select.matches("select[name=cartridge_id]")) {
       return;
     }
-    const eye = select.closest("label").querySelector("a[data-flow-view]");
-    const address = viewAddress(select.value);
-    if (eye && address) {
-      eye.setAttribute("href", address);
+    const eye = select.closest("label").querySelector("[data-flow-view]");
+    const at = select.value.indexOf("@");
+    if (!eye || at < 1) {
+      return;
+    }
+    const id = select.value.slice(0, at);
+    const version = select.value.slice(at + 1);
+    eye.setAttribute(
+      "data-flow-url",
+      "/api/flows/" + encodeURIComponent(id) + "/" + encodeURIComponent(version)
+    );
+    eye.setAttribute("data-flow-name", id + " " + version);
+  });
+
+  document.addEventListener("click", function (event) {
+    const eye = event.target.closest("[data-flow-view]");
+    if (eye) {
+      open(eye.getAttribute("data-flow-url"), eye.getAttribute("data-flow-name") || "");
     }
   });
 
-  /* ---- the viewer page ---- */
-
-  const root = document.querySelector("[data-flow-viewer]");
-  if (!root) {
-    return;
-  }
-  const outlineList = root.querySelector("[data-flow-outline]");
-  const source = root.querySelector("[data-flow-source]");
-  const failure = root.querySelector("[data-flow-error]");
-  let lineItems = [];
-  let selectedButton = null;
+  dialog.querySelector("[data-flow-close]").addEventListener("click", function () {
+    dialog.close();
+  });
+  /* The dialog has no padding of its own, so a press that lands on it and
+     not on what it holds is a press on the backdrop. */
+  dialog.addEventListener("click", function (event) {
+    if (event.target === dialog) {
+      dialog.close();
+    }
+  });
 
   function fail(text) {
     failure.textContent = text;
     failure.hidden = false;
+  }
+
+  function clear() {
+    outlineList.replaceChildren();
+    source.replaceChildren();
+    failure.hidden = true;
+    failure.textContent = "";
+    hash.textContent = "";
+    lineItems = [];
+    selectedButton = null;
+  }
+
+  function open(url, name) {
+    asked += 1;
+    const mine = asked;
+    clear();
+    title.textContent = name;
+    dialog.showModal();
+    fetch(url)
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("the server answered " + response.status);
+        }
+
+        return response.json();
+      })
+      .then(function (body) {
+        if (mine === asked) {
+          show(body);
+        }
+      })
+      .catch(function (err) {
+        if (mine === asked) {
+          fail("Could not load the flow file: " + err.message);
+        }
+      });
   }
 
   function paintLines(first, last) {
@@ -107,9 +141,9 @@
       branch.className = "flow-outline-list";
       branch.hidden = depth !== 0;
       toggle.addEventListener("click", function () {
-        const open = branch.hidden;
-        branch.hidden = !open;
-        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        const opening = branch.hidden;
+        branch.hidden = !opening;
+        toggle.setAttribute("aria-expanded", opening ? "true" : "false");
       });
     } else {
       const gap = document.createElement("span");
@@ -146,11 +180,7 @@
   }
 
   function show(body) {
-    document.title = body.cartridge_id + " " + body.version + " — flow file";
-    const hash = root.querySelector("[data-flow-hash]");
-    if (hash) {
-      hash.textContent = body.sha256.slice(0, 12);
-    }
+    hash.textContent = body.sha256.slice(0, 12);
     lineItems = body.text.split("\n").map(function (text, index) {
       const item = document.createElement("li");
       item.className = "flow-line";
@@ -173,17 +203,4 @@
       fail("This file is not valid YAML, so there is no outline. The text is shown as it is.");
     }
   }
-
-  fetch(root.getAttribute("data-flow-url"))
-    .then(function (response) {
-      if (!response.ok) {
-        throw new Error("the server answered " + response.status);
-      }
-
-      return response.json();
-    })
-    .then(show)
-    .catch(function (err) {
-      fail("Could not load the flow file: " + err.message);
-    });
 })();

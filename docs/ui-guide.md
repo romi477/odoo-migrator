@@ -348,7 +348,7 @@ every label over two lines.
 | Strictness | Stored on the migration. The stock flow does not branch on it yet: `enhanced` runs what `basic` runs. |
 | Retry limit | How many laps the failure lane may take. Not a cap inside one model call. |
 | Ask-human mode | `sync` parks the job until you answer. `batch_defer` records the question as an assumption and continues without asking; you read it at checkpoint. |
-| Flow | The pinned cartridge, `id@version`. Recorded on every job. Import replaces the pin. The eye after the field opens the flow file in a window of its own (`/flows/<id>/<version>`): an outline of its keys and steps on the left, the text on the right, read-only. Clicking a node highlights the lines it covers. The eye follows the select, so it opens the flow about to be saved. If the browser blocks the window, the link opens a tab. |
+| Flow | The pinned cartridge, `id@version`. Recorded on every job. Import replaces the pin. The eye after the field opens the flow file in a dialog over the page: an outline of its keys and steps on the left, the text on the right, read-only. Clicking a node highlights the lines it covers; Escape, the × or a press outside closes it. The eye follows the select, so it opens the flow about to be saved. |
 | Provider / Model | The flow file names a default. The card shows it and can replace it; the model list is the models of the selected provider. The saved pair is always listed, also while the local model server is off and lists nothing. The job records the pair that was on the card. A step that names its own model still wins. |
 
 **Smoke-run**, under Import a flow, shows the pin's smoke status and

@@ -4023,41 +4023,72 @@ a.ribbon-box:focus-visible {
   gap: 8px;
 }
 
-/* The flow file's viewer: a small window of its own, an outline beside the
-   text. Read-only today; an editor replaces the text pane, not the outline. */
-.flow-viewer-page {
-  margin: 0;
-  height: 100vh;
-  overflow: hidden;
+/* The flow file's viewer: a dialog of the app, an outline beside the text.
+   Read-only today; an editor replaces the text pane, not the outline. The
+   dialog has no padding of its own: a press that lands on it is a press on
+   the backdrop (see flow_viewer.js). */
+.flow-dialog {
+  width: min(1100px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--chrome-edge);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  color: var(--text);
 }
 
-.flow-viewer {
+.flow-dialog[open] {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 12px 16px;
-  gap: 10px;
 }
 
-.flow-viewer-head {
+.flow-dialog::backdrop {
+  background: oklch(0 0 0 / 0.6);
+}
+
+.flow-dialog > .form-error {
+  margin: 0 16px 8px;
+}
+
+.flow-dialog-head {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 12px 16px;
 }
 
-.flow-viewer-head h1 {
+.flow-dialog-head h2 {
   margin: 0;
+  font-size: 14px;
 }
 
-.flow-viewer-version,
-.flow-viewer-hash {
+.flow-dialog-close {
+  padding: 0 8px;
+  border: 0;
+  background: none;
   color: var(--muted);
-  font-weight: 400;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.flow-dialog-close:hover {
+  color: var(--text);
 }
 
 .flow-viewer-hash {
   margin-left: auto;
+  color: var(--muted);
   font-size: 12px;
+}
+
+/* The catalogue's copy of it, open on the page instead of over it. */
+.flow-dialog.is-specimen {
+  position: static;
+  width: auto;
+  margin: 0;
+  height: 300px;
 }
 
 .flow-viewer-panes {
@@ -4066,6 +4097,7 @@ a.ribbon-box:focus-visible {
   gap: 12px;
   min-height: 0;
   flex: 1;
+  margin: 0 16px 16px;
 }
 
 .flow-outline,
@@ -4199,8 +4231,4 @@ a.ribbon-box:focus-visible {
 .flow-view-button:hover {
   color: var(--cyan);
   background: var(--panel-raised);
-}
-
-.flow-viewer-panes.is-specimen {
-  height: 220px;
 }

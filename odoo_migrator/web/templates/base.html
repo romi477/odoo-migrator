@@ -150,6 +150,26 @@
       <button type="button" class="primary" data-confirm-go>Confirm</button>
     </div>
   </dialog>
+  {# The flow file, read-only, opened by the eye after the Flow field (see
+     flow_viewer.js). The outline's nodes carry a path and a line range,
+     which is what an editor will address. #}
+  <dialog class="flow-dialog" data-flow-dialog aria-labelledby="flow-dialog-title">
+    <header class="flow-dialog-head">
+      <h2 id="flow-dialog-title" class="mono" data-flow-title></h2>
+      <span class="badge">read-only</span>
+      <span class="mono flow-viewer-hash" data-flow-hash title="sha256 of this text"></span>
+      <button type="button" class="flow-dialog-close" data-flow-close aria-label="Close">×</button>
+    </header>
+    <p class="form-error" data-flow-error hidden role="alert"></p>
+    <div class="flow-viewer-panes">
+      <nav class="flow-outline" aria-label="Outline of the flow file">
+        <ul class="flow-outline-list" data-flow-outline></ul>
+      </nav>
+      <section class="flow-source" aria-label="The flow file">
+        <ol class="flow-lines mono" data-flow-source></ol>
+      </section>
+    </div>
+  </dialog>
   <script id="sse-hook" defer src="/static/sse.js"></script>
 </body>
 </html>

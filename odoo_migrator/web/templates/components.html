@@ -105,13 +105,20 @@
   </div>
 
   <h2>Flow viewer</h2>
-  {# The window the eye opens: an outline beside the flow file's text,
+  {# The dialog the eye opens: an outline beside the flow file's text,
      read-only. The eye sits after the Flow select on a migration's card. #}
   <p class="field-hint">
-    <a class="flow-view-button" href="/flows/stock/1.0.0" aria-label="View the flow file">{% include "_eye_icon.svg" %}</a>
-    The eye after the Flow field opens this window.
+    <button type="button" class="flow-view-button" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
+    The eye after the Flow field opens this dialog.
   </p>
-  <div class="flow-viewer-panes is-specimen">
+  <dialog class="flow-dialog is-specimen" open aria-label="Flow viewer specimen">
+    <header class="flow-dialog-head">
+      <h2 class="mono">stock 1.0.0</h2>
+      <span class="badge">read-only</span>
+      <span class="mono flow-viewer-hash">99b4ddb72081</span>
+      <button type="button" class="flow-dialog-close" aria-label="Close">×</button>
+    </header>
+    <div class="flow-viewer-panes">
     <nav class="flow-outline" aria-label="Outline specimen">
       <ul class="flow-outline-list">
         <li class="flow-outline-item"><div class="flow-outline-row">
@@ -137,7 +144,8 @@
         <li class="flow-line is-selected"><span class="flow-line-no">3</span><span class="flow-line-text">  - step: agent</span></li>
       </ol>
     </section>
-  </div>
+    </div>
+  </dialog>
 
   <h2>Copy button</h2>
   <div class="row">

@@ -100,26 +100,28 @@ def test_the_api_returns_text_hash_and_outline(client):
     assert body["outline"][0]["label"] == "cartridge"
 
 
-def test_an_unknown_flow_is_a_404_on_both_routes(client):
+def test_an_unknown_flow_is_a_404(client):
     assert client.get("/api/flows/nothing/9.9.9").status_code == 404
-    page = client.get("/flows/nothing/9.9.9")
-
-    assert page.status_code == 404
-    assert "nothing" in page.text
 
 
-def test_the_page_is_read_only_and_loads_its_script(client):
-    page = client.get("/flows/stock/1.0.0")
+def test_every_page_carries_the_dialog_and_it_is_read_only(client):
+    for path in ("/", "/flow"):
+        page = client.get(path).text
 
-    assert page.status_code == 200
-    assert "/static/flow_viewer.js" in page.text
-    assert 'data-flow-url="/api/flows/stock/1.0.0"' in page.text
-    assert "read-only" in page.text
-    assert "<textarea" not in page.text
-    assert "contenteditable" not in page.text
+        assert "data-flow-dialog" in page
+        assert "read-only" in page
+        assert 'class="flow-dialog"' in page
+        assert "<textarea" not in page[page.index("data-flow-dialog") :][:3000]
+        assert "contenteditable" not in page
 
 
-def test_the_flow_page_has_no_route_that_changes_anything(client):
+def test_there_is_no_page_of_its_own_for_a_flow_file(client):
+    """The file is read inside the app, in a dialog; a window of the browser's
+    own was what was asked for and not wanted."""
+    assert client.get("/flows/stock/1.0.0").status_code == 404
+
+
+def test_the_flow_file_has_no_route_that_changes_anything(client):
     assert client.post("/api/flows/stock/1.0.0").status_code == 405
     assert client.put("/api/flows/stock/1.0.0").status_code == 405
 
@@ -150,27 +152,31 @@ def _card(client, tmp_path):
 def test_the_flow_field_has_an_eye_that_opens_the_selected_flow(client, tmp_path):
     html = _card(client, tmp_path)
 
-    assert 'data-flow-view href="/flows/stock/1.0.0"' in html
+    assert 'data-flow-view data-flow-url="/api/flows/stock/1.0.0"' in html
+    assert 'data-flow-name="stock 1.0.0"' in html
     assert 'aria-label="View the flow file"' in html
+    # A button: nothing to follow, and nothing that leaves the page.
+    eye = html[html.rindex("<", 0, html.index("data-flow-view")) :][:12]
+    assert eye.startswith("<button")
     # It follows the select, so it sits in the same item as the select.
     item = html[html.index('name="cartridge_id"') :]
     assert item.index("data-flow-view") < item.index("</li>")
 
 
-def test_the_script_opens_a_popup_and_leaves_a_link_for_a_blocked_one():
+def test_the_script_opens_a_dialog_of_the_app_not_a_window_of_the_browser():
     text = (static_dir() / "flow_viewer.js").read_text(encoding="utf-8")
 
-    assert "window.open(" in text
-    assert "popup" in text
-    assert "preventDefault" in text
-    # A blocked popup returns null, and the link then does its own job.
-    assert re.search(r"if\s*\(\s*!\s*\w+\s*\)", text)
+    assert ".showModal()" in text
+    assert "window.open" not in text
+    assert "data-flow-dialog" in text
+    # A press on the backdrop is a press on the dialog itself.
+    assert "event.target === dialog" in text
 
 
 def test_the_components_page_shows_the_viewer(client):
     html = client.get("/components").text
 
-    assert "flow-viewer" in html
+    assert "flow-dialog" in html
     assert "flow-view-button" in html
 
 
