@@ -51,7 +51,13 @@ ported module's own directory on the new side.
 
 **Provider secrets are stored and never rendered.** A key is a
 `ProviderSetting` row. The settings page reports whether it is set. A
-blank save keeps the stored value. The process does not print it.
+blank save keeps the stored value. The process does not print it. OpenAI's
+401 message quotes the start and end of the key it was sent, so the runner
+replaces it with its own sentence instead of passing it on to the run log.
+
+**A hosted provider is sent the module source.** With `anthropic`, `cursor`
+or `openai` the rules, the prompt and every file the agent reads leave this
+machine for that provider. `local` does not.
 
 **Sheller journals stay on the daemon.** A tool call is recorded as a
 skeleton (tool, side, session id, a short preview). The body is fetched
@@ -95,7 +101,7 @@ provides none in that direction.
 | | Provider setting | Sheller `admin.key` |
 |---|---|---|
 | Where | `ProviderSetting` in the migrator's SQLite | `~/.odoo-sheller/admin.key` |
-| Who it is for | the model SDK (Anthropic or Cursor) | a human acting on a session they never owned |
+| Who it is for | the model SDK (Anthropic, Cursor or OpenAI) | a human acting on a session they never owned |
 | The migrator | stores it, never renders it | never reads it, never forwards it |
 
 A provider key cannot close someone else's Sheller session. The admin

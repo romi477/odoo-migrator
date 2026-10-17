@@ -326,7 +326,7 @@ Shared by every migration.
 |---|---|
 | Sheller base URL | This process's client and the observer iframe. |
 | Sheller image tag | Docker tag when the app must spawn Sheller because nothing answers on 8765. |
-| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor). A saved key shows as dots, never as the key. The bin at the end of the field removes it. |
+| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor, OpenAI). A saved key shows as dots, never as the key. The bin at the end of the field removes it. |
 
 ### This migration
 

@@ -6,6 +6,7 @@ from odoo_migrator.runner.providers.anthropic import AnthropicProvider
 from odoo_migrator.runner.providers.base import Provider, SettingField
 from odoo_migrator.runner.providers.cursor import CursorProvider
 from odoo_migrator.runner.providers.local import LocalProvider
+from odoo_migrator.runner.providers.openai import OpenAIProvider
 from odoo_migrator.runner.providers.scripted import ScriptedProvider
 
 REGISTRY: dict[str, Provider] = {}
@@ -36,12 +37,14 @@ def model_allowed(name: str) -> bool:
 register(AnthropicProvider())
 register(CursorProvider())
 register(LocalProvider())
+register(OpenAIProvider())
 register(ScriptedProvider(client=None))
 
 __all__ = [
     "REGISTRY",
     "CursorProvider",
     "LocalProvider",
+    "OpenAIProvider",
     "Provider",
     "ScriptedProvider",
     "SettingField",

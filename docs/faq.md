@@ -123,7 +123,7 @@ and `claude-sonnet-5`. Cursor: the names it lists, plus `auto-smart`
 with parameters. Local: whatever the server at the URL in settings has
 loaded, e.g. `qwen/qwen3.8-27b` in LM Studio — free per token, slower, and
 weaker at long tool use, so it is for debugging the pipeline rather than
-judging a port. OpenCode is specified and not built.
+judging a port. OpenAI: `gpt-6-sol`, through the key on the settings page. OpenCode is specified and not built.
 
 ## Rules and findings
 

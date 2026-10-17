@@ -46,7 +46,19 @@ def reply(*calls: dict, content: str = "", prompt: int = 0, completion: int = 0,
 class OpenAIServer:
     """Answers ``/v1/chat/completions`` from a script and ``/v1/models`` from a list."""
 
-    def __init__(self, replies=(), *, models=("qwen/qwen3.8-27b",), status: int = 200, error=""):
+    def __init__(
+        self,
+        replies=(),
+        *,
+        models=("qwen/qwen3.8-27b",),
+        status: int = 200,
+        error="",
+        api_key: str | None = None,
+    ):
+        # A server that wants a key answers a missing or wrong one with 401,
+        # and its message quotes the start and end of what it was sent, as
+        # api.openai.com does. The local servers ask for none.
+        self.api_key = api_key
         self.replies = list(replies)
         self.models = list(models)
         self.status = status
@@ -58,6 +70,17 @@ class OpenAIServer:
         return httpx2.MockTransport(self._handle)
 
     def _handle(self, request: httpx2.Request) -> httpx2.Response:
+        if self.api_key is not None:
+            sent = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+            if sent != self.api_key:
+                shown = f"{sent[:7]}***{sent[-4:]}" if sent else "(none)"
+                error = {
+                    "message": f"Incorrect API key provided: {shown}.",
+                    "type": "invalid_request_error",
+                    "code": "invalid_api_key",
+                }
+
+                return httpx2.Response(401, json={"error": error})
         if request.url.path.endswith("/models"):
             data = [{"id": name, "object": "model", "owned_by": "organization_owner"} for name in self.models]
 
