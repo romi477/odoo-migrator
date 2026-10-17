@@ -48,6 +48,8 @@ def mcp_for_ui(health: dict) -> dict | None:
 class ShellerClient(Protocol):
     def health(self) -> dict: ...
 
+    def help(self) -> dict: ...
+
     def list_containers(self) -> list: ...
 
     def probe(self, container: str) -> dict: ...
@@ -123,6 +125,15 @@ class HttpShellerClient:
     def health(self) -> dict:
 
         return self._request("GET", "/health")
+
+    def help(self) -> dict:
+        """``GET /api/help`` (Sheller 1.11.0): the guidance its MCP clients get.
+
+        Every topic with its hash, and the tool names left as ``{{marker}}``
+        for the caller to replace with its own. An older daemon answers 404.
+        """
+
+        return self._request("GET", "/api/help")
 
     def list_containers(self) -> list:
 

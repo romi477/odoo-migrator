@@ -1,5 +1,6 @@
 """Sheller client contract: the fake and the HTTP client pass the same tests."""
 
+import hashlib
 import json
 
 import httpx2
@@ -85,6 +86,14 @@ def _stub_app(fake: FakeShellerClient):
                 owner=body.owner,
                 allow_commit=body.allow_commit,
             )
+        except ShellerError as exc:
+            raise translate(exc) from None
+
+    @app.get("/api/help")
+    def help_topics():
+        try:
+
+            return fake.help()
         except ShellerError as exc:
             raise translate(exc) from None
 
@@ -688,3 +697,30 @@ def test_a_daemon_before_the_switch_refuses_the_target_everywhere():
     with pytest.raises(ShellerNeedsHuman):
         _open(fake, container="odoo-new", allow_commit=True)
     assert missing.value.status == 404
+
+
+def test_the_guidance_is_served_as_data_with_its_markers_unresolved(sheller):
+    """Sheller 1.11.0: `GET /api/help`. A client that gives its agent its own
+    tools substitutes the markers; the daemon never spells a tool."""
+    answer = sheller.help()
+
+    assert answer["version"] == sheller.health()["version"]
+    assert answer["instructions"]
+    assert "run_test" in answer["markers"]
+    limits = answer["topics"]["limits"]
+    assert hashlib.sha256(limits["text"].encode()).hexdigest() == limits["hash"]
+    assert "{{run_test}}" in limits["text"]
+    assert "os_" not in limits["text"]
+
+
+def test_a_daemon_before_the_help_route_has_none():
+    """1.10.0 and older answer 404, and the caller falls back to its own copy."""
+    fake = FakeShellerClient(version="1.10.0")
+    with pytest.raises(ShellerError) as excinfo:
+        fake.help()
+
+    assert excinfo.value.status == 404
+    with pytest.raises(ShellerError) as excinfo:
+        _http_client(fake).help()
+
+    assert excinfo.value.status == 404

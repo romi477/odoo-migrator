@@ -1,5 +1,6 @@
 """In-memory Sheller. Same interface as HttpShellerClient; no daemon required."""
 
+import hashlib
 import json
 import re
 import secrets
@@ -63,6 +64,58 @@ MODULE_RUNS_SINCE = (1, 8, 3)
 # commit, and the open is accepted there.
 NEEDS_A_HUMAN_SINCE = (1, 8, 3)
 AGENT_COMMIT_SINCE = (1, 11, 0)
+HELP_SINCE = (1, 11, 0)
+
+# What `GET /api/help` names as replaceable: the MCP tools without `os_`.
+HELP_MARKERS = [
+    "exec", "source", "journal", "history", "run_test", "test_result", "list_tests",
+    "open_session", "close_session", "commit", "rollback", "interrupt", "session",
+    "attach_session", "help", "list_sessions", "list_containers",
+]
+
+# Topics as the daemon serves them, cut short but not invented: the wording is
+# Sheller 1.11.0's, markers and all. One of each kind a client has to tell
+# apart — a topic it takes as served, one it owns, one that is about a flow it
+# does not have, and one whose text names a tool it has no equivalent of.
+HELP_TOPICS = {
+    "limits": (
+        "## What you cannot do, and must not attempt\n\n"
+        "- Read or write ~/.odoo-sheller/ directly. Everything you need is in these tools.\n"
+        "- Count on Odoo 13 or 14. They open, with a warning, but are not fully tested:\n"
+        "  sessions, exec, commit, rollback and interrupt should work; {{run_test}} does\n"
+        "  not on 13 and says so.\n"
+    ),
+    "orm": (
+        "## Writing idiomatic ORM code\n\n"
+        "`records.mapped('name')` returns each record's `name` as a plain list.\n"
+    ),
+    "code": (
+        "## Reading the code you are debugging\n\n"
+        "Reading source is one tool call, not a shell:\n\n"
+        "    {{source}}(path=\"integration_shopify\")\n\n"
+        "When a read is not enough, that goes in {{exec}}.\n"
+    ),
+    "log": (
+        "## Seeing what Odoo logged\n\n"
+        "Read them with {{journal}}, which has every line in order. A whole module "
+        "leaves its log in the journal: {{help}}('tests').\n"
+    ),
+    "modules": (
+        "## Installing and updating a module\n\n"
+        "For a change in a `.py`, close this session and open a new one — "
+        "{{help}}('sessions').\n"
+    ),
+    "tests": (
+        "## Running a test\n\n"
+        "{{run_test}} takes three forms, and the run opens a session of its own: do not "
+        "call {{close_session}} on it. {{test_result}} re-reads the last one.\n"
+    ),
+    "sessions": (
+        "## Sessions\n\n{{open_session}} opens one and {{close_session}} closes it.\n"
+    ),
+    "commit": "## Commit\n\nCommit is a right the human grants: {{commit}}.\n",
+    "odoo_17": "## Odoo 17\n\nUse {{source}} before you rely on a name.\n",
+}
 
 
 def _version(text: str) -> tuple[int, ...]:
@@ -84,6 +137,7 @@ class FakeShellerClient:
         self._has_switch = _version(version) >= AGENT_COMMIT_SINCE
         self._container = container
         self._mcp = mcp
+        self.help_topics: dict[str, str] = dict(HELP_TOPICS)
         self._sessions: dict[str, dict] = {}
         self._catalogues: dict[str, list] = {}
         self.tests_run: list[dict] = []
@@ -144,6 +198,25 @@ class FakeShellerClient:
             "version": self._version,
             "container": self._container,
             "mcp": self._mcp,
+        }
+
+    def help(self) -> dict:
+        """``GET /api/help``: every topic with its hash, markers unresolved.
+
+        1.10.0 and older have no such route and answer 404. `help_topics` is a
+        copy per instance, so a test can add a topic the way Sheller would.
+        """
+        if _version(self._version) < HELP_SINCE:
+            raise ShellerError("Sheller HTTP 404: Not Found", status=404)
+
+        return {
+            "version": self._version,
+            "instructions": "odoo-sheller runs Python in a live Odoo shell.",
+            "topics": {
+                name: {"text": text, "hash": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+                for name, text in self.help_topics.items()
+            },
+            "markers": list(HELP_MARKERS),
         }
 
     def list_containers(self) -> list:
