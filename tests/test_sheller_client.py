@@ -49,6 +49,7 @@ def _stub_app(fake: FakeShellerClient):
     class RunTestBody(BaseModel):
         test: str
         timeout: float | None = None
+        params: str | None = None
 
     class OpenBody(BaseModel):
         container: str | None = None
@@ -161,6 +162,7 @@ def _stub_app(fake: FakeShellerClient):
                 body.test,
                 write_key=x_os_session_key or "",
                 timeout=body.timeout,
+                params=body.params,
             )
         except ShellerError as exc:
             raise translate(exc) from None
@@ -228,12 +230,7 @@ def _stub_app(fake: FakeShellerClient):
     @app.get("/api/containers/{container}/tests")
     def container_tests(container: str, module: str = ""):
 
-        return {
-            "module": module,
-            "path": f"/opt/project/{module}",
-            "classes": [],
-            "container": container,
-        }
+        return fake.catalogue_route(container, module)
 
     @app.delete("/api/sessions/{session_id}")
     def close(
@@ -254,10 +251,14 @@ def _stub_app(fake: FakeShellerClient):
 def _http_client(fake: FakeShellerClient) -> HttpShellerClient:
     # httpx2.ASGITransport is async-only; Starlette's TestClient is the sync
     # portal onto the same stub the HTTP client would hit on the wire.
-    return HttpShellerClient(
+    client = HttpShellerClient(
         "http://testserver",
         http=TestClient(_stub_app(fake)),
     )
+    # The double behind the wire, for a test that sets up what the daemon says.
+    client.behind = fake
+
+    return client
 
 
 @pytest.fixture(params=["fake", "http"])
@@ -724,3 +725,87 @@ def test_a_daemon_before_the_help_route_has_none():
         _http_client(fake).help()
 
     assert excinfo.value.status == 404
+
+
+def _behind(sheller) -> FakeShellerClient:
+
+    return sheller if isinstance(sheller, FakeShellerClient) else sheller.behind
+
+
+def _hoot_session(sheller):
+
+    return _open(sheller)
+
+
+def test_a_filter_for_a_browser_suite_reaches_the_daemon(sheller):
+    opened = _hoot_session(sheller)
+    sheller.run_test(
+        opened["id"], "web.WebSuite.test_unit_desktop",
+        write_key=opened["write_key"], params="@sale_custom",
+    )
+
+    fake = _behind(sheller)
+    assert fake.tests_run[-1]["params"] == "@sale_custom"
+
+
+def test_a_run_without_a_filter_sends_none(sheller):
+    opened = _hoot_session(sheller)
+    sheller.run_test(opened["id"], "sale_custom", write_key=opened["write_key"])
+
+    fake = _behind(sheller)
+    assert fake.tests_run[-1]["params"] is None
+
+
+def test_the_test_listing_says_whether_this_container_can_run_a_browser_suite(sheller):
+    opened = _hoot_session(sheller)
+    fake = _behind(sheller)
+    fake.js_listing["sale_custom"] = {
+        "runner": "hoot",
+        "files": [
+            {"path": "static/tests/badge.test.js", "in_manifest": True, "tests": ["renders"]}
+        ],
+        "run": {"test": "web.WebSuite.test_unit_desktop", "params": "@sale_custom"},
+    }
+    fake.js_tests.update({"available": False, "reason": "chrome_not_found"})
+
+    answer = sheller.list_tests(opened["id"], module="sale_custom", write_key="k")
+
+    assert answer["js"]["files"][0]["path"] == "static/tests/badge.test.js"
+    assert answer["js"]["run"]["params"] == "@sale_custom"
+    assert answer["js"]["available"] is False
+    assert answer["js"]["reason"] == "chrome_not_found"
+    assert answer["js"]["tested"] == "18-19"
+
+
+def test_a_module_without_browser_tests_lists_none(sheller):
+    opened = _hoot_session(sheller)
+
+    answer = sheller.list_tests(opened["id"], module="sale_custom", write_key="k")
+
+    assert answer["js"]["files"] == []
+    assert answer["js"]["run"] is None
+
+
+def test_a_skipped_browser_suite_is_a_failure_with_its_reason(sheller):
+    opened = _hoot_session(sheller)
+    fake = _behind(sheller)
+    fake.hoot_answers["web.WebSuite.test_unit_desktop"] = {
+        "skipped": True, "reason": "chrome_not_found",
+    }
+
+    answer = sheller.run_test(
+        opened["id"], "web.WebSuite.test_unit_desktop",
+        write_key=opened["write_key"], params="@sale_custom",
+    )
+
+    assert answer["hoot"] == {"skipped": True, "reason": "chrome_not_found"}
+    assert answer["test"]["success"] is False
+    assert answer["error"] == "js_tests_skipped"
+
+
+def test_a_daemon_before_the_browser_fields_answers_without_them():
+    fake = FakeShellerClient(version="1.10.0")
+    opened = _open(fake, allow_commit=False)
+
+    assert "js_tests" not in fake.get_session(opened["id"])
+    assert "js" not in fake.list_tests(opened["id"], module="m", write_key="k")

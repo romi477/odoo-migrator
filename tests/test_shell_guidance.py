@@ -231,3 +231,22 @@ def test_an_unusable_answer_is_not_remembered_either():
     fake.help_topics = good
 
     assert shell_guidance.shell_notes(fake).source == "daemon 1.11.0"
+
+
+def test_the_notes_teach_the_browser_suite_and_that_a_skip_is_not_a_pass():
+    text = shell_guidance.shell_notes(FakeShellerClient()).text
+
+    assert "web.WebSuite.test_unit_desktop" in text
+    assert "params" in text
+    assert "js_tests_skipped" in text
+    assert "in_manifest" in text
+    assert "available" in text
+    # The tools it names are the ones the agent has.
+    assert "os_run_test" not in text
+
+
+def test_the_browser_part_belongs_to_the_daemon_notes_and_not_to_the_old_copy():
+    """An old daemon ignores `params`; telling its agent about them would be
+    telling it to send an argument that does nothing."""
+    assert "js_tests_skipped" not in load_shell_notes()
+    assert "web.WebSuite" not in load_shell_notes()

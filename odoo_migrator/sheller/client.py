@@ -45,6 +45,26 @@ def mcp_for_ui(health: dict) -> dict | None:
     return mcp
 
 
+def with_js_capability(answer: dict, session: dict) -> dict:
+    """Put whether this session can run a browser suite beside the module's JS.
+
+    The listing says which JS test files a module ships and the call that runs
+    them; the session says whether its container has Chromium to run them
+    with. An agent reads both in one answer, before it spends a run. A daemon
+    older than 1.11.0 has neither, and its answer is left as it is.
+    """
+    js = answer.get("js")
+    capability = session.get("js_tests")
+    if not isinstance(js, dict) or not isinstance(capability, dict):
+
+        return answer
+    merged = dict(js)
+    for key in ("available", "reason", "tested"):
+        merged[key] = capability.get(key)
+
+    return {**answer, "js": merged}
+
+
 class ShellerClient(Protocol):
     def health(self) -> dict: ...
 
@@ -81,6 +101,7 @@ class ShellerClient(Protocol):
         *,
         write_key: str,
         timeout: float | None = None,
+        params: str | None = None,
     ) -> dict: ...
 
     def commit(self, session_id: str, *, write_key: str) -> dict: ...
@@ -221,10 +242,15 @@ class HttpShellerClient:
         *,
         write_key: str,
         timeout: float | None = None,
+        params: str | None = None,
     ) -> dict:
         body: dict = {"test": test}
         if timeout is not None:
             body["timeout"] = timeout
+        if params is not None:
+            # Sheller 1.10.0: goes on the test tag in brackets, and Hoot reads
+            # it as a filter. The daemon refuses a bracket it cannot pair.
+            body["params"] = params
 
         return self._request(
             "POST",
@@ -290,13 +316,14 @@ class HttpShellerClient:
     def list_tests(self, session_id: str, *, module: str, write_key: str) -> dict:
         """``GET /api/containers/{container}/tests``. The catalogue is not session-keyed."""
         session = self.get_session(session_id)
-
-        return self._request(
+        answer = self._request(
             "GET",
             f"/api/containers/{session['container']}/tests",
             params={"module": module},
             write_key=write_key,
         )
+
+        return with_js_capability(answer, session)
 
     def interrupt(self, session_id: str, *, write_key: str) -> dict:
 

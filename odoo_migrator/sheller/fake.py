@@ -6,6 +6,7 @@ import re
 import secrets
 import uuid
 
+from odoo_migrator.sheller.client import with_js_capability
 from odoo_migrator.sheller.errors import (
     ShellerBusy,
     ShellerError,
@@ -138,6 +139,15 @@ class FakeShellerClient:
         self._container = container
         self._mcp = mcp
         self.help_topics: dict[str, str] = dict(HELP_TOPICS)
+        # What a session reports about running a browser suite (1.11.0), and
+        # what the module listing says of a module's JS tests, by module.
+        self.js_tests: dict = {
+            "runner": "hoot", "available": True, "reason": None, "tested": "18-19",
+        }
+        self.js_listing: dict[str, dict] = {}
+        # spec -> the `hoot` block of that run's answer. A skipped one fails
+        # the run, as the daemon makes it.
+        self.hoot_answers: dict[str, dict] = {}
         self._sessions: dict[str, dict] = {}
         self._catalogues: dict[str, list] = {}
         self.tests_run: list[dict] = []
@@ -390,7 +400,11 @@ class FakeShellerClient:
         if session["state"] in ("ready", "busy"):
             session["state"] = "busy" if self._running(session) else "ready"
 
-        return {key: value for key, value in session.items() if key in self._DESCRIBED}
+        described = {key: value for key, value in session.items() if key in self._DESCRIBED}
+        if _version(self._version) >= HELP_SINCE:
+            described["js_tests"] = dict(self.js_tests)
+
+        return described
 
     def exec(
         self, session_id: str, code: str, *, write_key: str, timeout: float | None = None
@@ -457,6 +471,7 @@ class FakeShellerClient:
         *,
         write_key: str,
         timeout: float | None = None,
+        params: str | None = None,
     ) -> dict:
         """Refuse a malformed spec, and answer a run the way the daemon does.
 
@@ -484,7 +499,9 @@ class FakeShellerClient:
                     ),
                 },
             )
-        self.tests_run.append({"test": test, "session_id": session_id, "timeout": timeout})
+        self.tests_run.append(
+            {"test": test, "session_id": session_id, "timeout": timeout, "params": params}
+        )
         if test in self.test_hangs:
             self._next_command += 1
             session["commands"].append(
@@ -520,6 +537,14 @@ class FakeShellerClient:
         }
         if self._module_runs:
             answer["failed"] = failed
+        hoot = self.hoot_answers.get(test)
+        if hoot is not None and _version(self._version) >= HELP_SINCE:
+            answer["hoot"] = dict(hoot)
+            if hoot.get("skipped"):
+                # Odoo skips a browser test it cannot run, and a skip counts as
+                # a pass; 1.11.0 books it as the failure it is.
+                outcome["success"] = False
+                answer["error"] = "js_tests_skipped"
 
         return answer
 
@@ -677,12 +702,25 @@ class FakeShellerClient:
         # so every session verb has the same shape.
         del write_key
 
-        return {
+        return with_js_capability(
+            self.catalogue_route(session["container"], module), self.get_session(session_id)
+        )
+
+    def catalogue_route(self, container: str, module: str) -> dict:
+        """What `GET /api/containers/{container}/tests` answers: files on disk,
+        not a session's. The JS part exists from 1.11.0."""
+        answer = {
             "module": module,
             "path": f"/opt/project/{module}",
             "classes": list(self._catalogues.get(module, [])),
-            "container": session["container"],
+            "container": container,
         }
+        if _version(self._version) >= HELP_SINCE:
+            answer["js"] = dict(
+                self.js_listing.get(module) or {"runner": "hoot", "files": [], "run": None}
+            )
+
+        return answer
 
     def interrupt(self, session_id: str, *, write_key: str) -> dict:
         self._require(session_id, write_key, verb="interrupt")

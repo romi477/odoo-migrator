@@ -109,7 +109,11 @@ TOOL_SCHEMAS = {
     },
     "run_test": {
         "type": "object",
-        "properties": {"side": {"type": "string"}, "test": {"type": "string"}},
+        "properties": {
+            "side": {"type": "string"},
+            "test": {"type": "string"},
+            "params": {"type": "string"},
+        },
         "required": ["side", "test"],
     },
     "list_tests": {
@@ -134,7 +138,10 @@ TOOL_DESCRIPTIONS = {
     "run_test": (
         "Run tests: 'module' (its standard tests), 'module.TestClass' or "
         "'module.TestClass.test_method'. `failed` lists each failing test as "
-        "a spec to run again on its own, which answers with its log."
+        "a spec to run again on its own, which answers with its log. A "
+        "module's browser (Hoot) tests run as 'web.WebSuite.test_unit_desktop' "
+        "with `params='@module'`, Hoot's filter; `list_tests` has the exact "
+        "call. A suite Odoo skipped answers `js_tests_skipped`: it did not pass."
     ),
     "list_tests": "The test classes a module declares, each with a ready spec.",
     "test_result": "The report of the last run_test.",
@@ -352,7 +359,9 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
             write_key=write_key,
         )
     if name == "run_test":
-        result = _run_test(ctx, session_id, write_key, kwargs.get("test", ""))
+        result = _run_test(
+            ctx, session_id, write_key, kwargs.get("test", ""), kwargs.get("params") or ""
+        )
         ctx.last_test = result if isinstance(result, dict) else {"raw": result}
 
         return ctx.last_test
@@ -398,7 +407,7 @@ def _exec(ctx, session_id: str, write_key: str, code: str):
         ) from None
 
 
-def _run_test(ctx, session_id: str, write_key: str, test: str):
+def _run_test(ctx, session_id: str, write_key: str, test: str, params: str = ""):
     """A run past the call is interrupted, as an `exec` is: left running, it
     kept the session busy, and the agent's next command on that side
     answered `session_busy`.
@@ -409,6 +418,8 @@ def _run_test(ctx, session_id: str, write_key: str, test: str):
     """
     whole = "." not in test
     extra = {"timeout": MODULE_TEST_TIMEOUT} if whole else {}
+    if params:
+        extra["params"] = params
     try:
         report = ctx.sheller.run_test(session_id, test=test, write_key=write_key, **extra)
     except ShellerTimeout:
@@ -742,7 +753,15 @@ def _preview(name: str, value, text: str) -> str:
         return text
     if name == "run_test":
         outcome = value.get("test")
+        hoot = value.get("hoot") if isinstance(value.get("hoot"), dict) else {}
         if value.get("error"):
+            if hoot.get("skipped"):
+                # Odoo skips a browser test it cannot run and counts the skip
+                # as a pass; the line says what it is.
+                return (
+                    f"error: {value['error']} ({hoot.get('reason') or 'no reason given'}): "
+                    "the browser suite did not run"
+                )
 
             return f"error: {value['error']}"
         if isinstance(outcome, dict):
@@ -755,11 +774,16 @@ def _preview(name: str, value, text: str) -> str:
                 if isinstance(entry, dict) and entry.get("test")
             ]
             named = f" · failed: {', '.join(failed)}" if failed else ""
+            counted = (
+                f" · hoot {hoot.get('passed') or 0} passed, {hoot.get('failed') or 0} failed"
+                if "passed" in hoot or "failed" in hoot
+                else ""
+            )
 
             return (
                 f"{verdict}: {ran} test(s), "
                 f"{outcome.get('failures') or 0} failure(s), "
-                f"{outcome.get('errors') or 0} error(s){named}"
+                f"{outcome.get('errors') or 0} error(s){counted}{named}"
             )
     if name == "list_tests":
         classes = value.get("classes")

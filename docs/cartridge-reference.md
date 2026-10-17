@@ -100,8 +100,8 @@ listed here.
 | `source` | source, target | `side*`, `path`, `first`, `last`, `model`, `method`, `module` | read code in the container: a file or directory by `path`, or the code a model method runs by `model` and `method`. Sheller |
 | `journal` | source, target | `side*` | what Odoo logged in the session. Sheller |
 | `history` | source, target | `side*` | the commands the session has run. Sheller |
-| `run_test` | source, target | `side*`, `test*` | run `module`, `module.Class` or `module.Class.test_method`; answers with counts and `failed`. Sheller |
-| `list_tests` | source, target | `side*`, `module` | the test classes a module declares on disk, each with a ready spec. Sheller |
+| `run_test` | source, target | `side*`, `test*`, `params` | run `module`, `module.Class` or `module.Class.test_method`; answers with counts and `failed`. `params` is Hoot's filter for a browser suite (`web.WebSuite.test_unit_desktop` with `@module`); a suite Odoo skipped answers `js_tests_skipped`. Sheller |
+| `list_tests` | source, target | `side*`, `module` | the test classes a module declares on disk, each with a ready spec, and `js`: its browser test files, whether the manifest puts them in the run, the call that runs them, and whether this container can. Sheller |
 | `test_result` | target | `side*` | the report of the last `run_test`. Held by the app |
 | `interrupt` | source, target | `side*` | stop the command the session is running. Sheller |
 | `rollback` | source, target | `side*` | discard what the session holds uncommitted. Sheller |
