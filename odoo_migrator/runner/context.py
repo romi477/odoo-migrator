@@ -71,6 +71,11 @@ class StepContext:
     source_tests_had: bool | None = None
     source_tests_written: bool = False
     source_green: bool = False
+    # The Sheller session and command that proved the tests green. They go in
+    # the commit, so a test can be traced to the run that vouched for it. The
+    # session's write key never does: it is a secret, and the id is not.
+    source_green_session: str = ""
+    source_green_command: str = ""
     # ERROR and CRITICAL records Odoo logged during this lap's upgrade and
     # tests. `verdict` fails a lap that has any; the loop clears it per lap.
     log_errors: list[str] = field(default_factory=list)

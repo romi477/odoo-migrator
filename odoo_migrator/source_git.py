@@ -22,7 +22,17 @@ import subprocess
 from pathlib import Path
 
 from odoo_migrator.module_paths import module_root
-from odoo_migrator.target_git import _EXCLUDED, _LOCK, _git, _too_broad, _toplevel, _why
+from odoo_migrator.target_git import _EXCLUDED, _LOCK, AUTHOR, _git, _too_broad, _toplevel, _why
+
+# The title of a commit of tests the migrator wrote. The session the green run
+# happened in is in the brackets, short enough to read and long enough to find
+# in Sheller's journal; the whole id is in the body. A person can type the same
+# title, so the author is checked as well (see `migrator_test_commits`).
+TITLE = re.compile(
+    r"^odoo-migrator: characterization tests for (?P<module>\S+)"
+    r"(?: \[sheller:(?P<session>[0-9A-Za-z_-]+)\])?$"
+)
+SESSION_SHOWN = 12
 
 
 class SourceGitError(Exception):
@@ -68,7 +78,9 @@ def ensure_branch(migration) -> str:
     return name
 
 
-def settle_tests(migration, module, job_id: str, green: bool) -> str | None:
+def settle_tests(
+    migration, module, job_id: str, green: bool, session: str = "", command: str = ""
+) -> str | None:
     """Commit the tests a step wrote when they pass; delete them when they do not.
 
     `tests/` did not exist before the step (the write is refused otherwise),
@@ -106,7 +118,7 @@ def settle_tests(migration, module, job_id: str, green: bool) -> str | None:
                 return None
             _git(
                 top, "commit", "-q", "--no-verify", "-m",
-                f"odoo-migrator: characterization tests for {name}\n\nJob {job_id}.",
+                _message(name, job_id, session, command),
                 "--", relative,
             )
             head = _git(top, "rev-parse", "--short", "HEAD", check=False).stdout.strip()
@@ -115,3 +127,46 @@ def settle_tests(migration, module, job_id: str, green: bool) -> str | None:
             return f"the characterization tests of {name} could not be committed: {_why(exc)}"
 
     return f"committed the characterization tests of {name} as {head}"
+
+
+def _message(name: str, job_id: str, session: str, command: str) -> str:
+    """The title says who and in which session; the body says it all."""
+    title = f"odoo-migrator: characterization tests for {name}"
+    if session:
+        title += f" [sheller:{session[:SESSION_SHOWN]}]"
+    lines = [title, "", f"Job {job_id}."]
+    if session:
+        lines.append(f"Sheller-session: {session}")
+    if command:
+        lines.append(f"Sheller-command: {command}")
+
+    return "\n".join(lines)
+
+
+def migrator_test_commits(directory) -> list[dict]:
+    """The commits of characterization tests the migrator made in `directory`,
+    newest first: sha, module, and the short session id if the title has one.
+
+    Both halves must hold: the author the migrator commits as, and its title.
+    Either alone is easy to write by hand.
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+
+        return []
+    answer = _git(
+        directory, "log", f"--author={AUTHOR[1]}", "--format=%H%x1f%s", "--", ".", check=False
+    )
+    if answer.returncode != 0:
+
+        return []
+    found = []
+    for line in answer.stdout.splitlines():
+        sha, _, subject = line.partition("\x1f")
+        matched = TITLE.match(subject)
+        if matched:
+            found.append(
+                {"sha": sha, "module": matched["module"], "session": matched["session"] or ""}
+            )
+
+    return found

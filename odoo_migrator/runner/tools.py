@@ -625,6 +625,8 @@ def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
     path.write_text(content, encoding="utf-8")
     ctx.source_tests_written = True
     ctx.source_green = False
+    ctx.source_green_session = ""
+    ctx.source_green_command = ""
 
     return str(path)
 
@@ -653,6 +655,9 @@ def _note_source_run(ctx, name: str, side: str, value) -> None:
         and outcome.get("success")
         and (outcome.get("tests_run") or 0) > 0
     )
+    ran = value.get("id") if isinstance(value, dict) else None
+    ctx.source_green_session = ctx.sessions.get("source", "") if ctx.source_green else ""
+    ctx.source_green_command = str(ran) if ctx.source_green and ran is not None else ""
 
 
 def _write_file(ctx, side: str, relative: str, content: str) -> str:

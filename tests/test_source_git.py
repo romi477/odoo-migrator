@@ -192,3 +192,80 @@ def test_a_repository_at_the_home_directory_is_not_written_into(repo, tmp_path, 
 
     with pytest.raises(SourceGitError, match="not a git repository"):
         ensure_branch(migration)
+
+
+# -- who wrote a test, and in which Sheller session ----------------------------
+
+SESSION = "0123456789abcdef0123456789abcdef"
+
+
+def _body(source):
+    return git(source, "log", "-1", "--format=%B")
+
+
+def test_the_title_of_a_green_commit_names_the_sheller_session(repo):
+    source, migration, module = repo
+    ensure_branch(migration)
+    tests = source / "sale_x" / "tests"
+    tests.mkdir()
+    (tests / "test_x.py").write_text("# t\n")
+
+    settle_tests(migration, module, "job1", green=True, session=SESSION, command="12")
+
+    assert git(source, "log", "-1", "--format=%s") == (
+        "odoo-migrator: characterization tests for sale_x [sheller:0123456789ab]"
+    )
+    assert git(source, "log", "-1", "--format=%ae") == "odoo-migrator@localhost"
+    body = _body(source)
+    assert f"Sheller-session: {SESSION}" in body
+    assert "Sheller-command: 12" in body
+    assert "Job job1." in body
+
+
+def test_a_commit_without_a_command_id_leaves_that_line_out(repo):
+    source, migration, module = repo
+    ensure_branch(migration)
+    (source / "sale_x" / "tests").mkdir()
+    (source / "sale_x" / "tests" / "test_x.py").write_text("# t\n")
+
+    settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+    assert "Sheller-command" not in _body(source)
+
+
+def test_the_migrators_test_commits_are_told_from_everyone_elses(repo):
+    from odoo_migrator.source_git import migrator_test_commits
+
+    source, migration, module = repo
+    ensure_branch(migration)
+    (source / "sale_x" / "tests").mkdir()
+    (source / "sale_x" / "tests" / "test_x.py").write_text("# t\n")
+    settle_tests(migration, module, "job1", green=True, session=SESSION, command="12")
+    # A person copying the title does not make the commit the migrator's.
+    (source / "sale_x" / "tests" / "test_y.py").write_text("# mine\n")
+    git(source, "add", "-A")
+    git(
+        source, "commit", "-q", "-m",
+        "odoo-migrator: characterization tests for sale_x [sheller:ffffffffffff]",
+    )
+    # Nor is another commit of the migrator's a test commit.
+    (source / "sale_x" / "notes.txt").write_text("n\n")
+    git(source, "add", "-A")
+    git(
+        source, "-c", "user.name=odoo-migrator", "-c", "user.email=odoo-migrator@localhost",
+        "commit", "-q", "-m", "odoo-migrator: port sale_x to 18.0",
+    )
+
+    found = migrator_test_commits(source / "sale_x" / "tests")
+
+    assert [(one["module"], one["session"]) for one in found] == [("sale_x", "0123456789ab")]
+    assert len(found[0]["sha"]) == 40
+
+
+def test_no_commit_of_the_migrators_means_an_empty_answer(repo):
+    from odoo_migrator.source_git import migrator_test_commits
+
+    source, _, _ = repo
+
+    assert migrator_test_commits(source / "sale_x") == []
+    assert migrator_test_commits(source / "missing") == []

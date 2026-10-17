@@ -176,3 +176,44 @@ def test_the_model_is_told_what_the_tool_is_for():
     assert "tests/" in description
     assert "source" in description
     assert tools.TOOL_SCHEMAS["write_source_test"]["required"] == ["side", "path", "content"]
+
+
+def test_the_green_run_remembers_the_session_and_the_command_that_proved_it(ctx):
+    ctx.source_tests_written = True
+    ctx.sessions = {"source": "sess-source", "target": "sess-target"}
+    ctx.write_keys = {"source": "KEY-SECRET"}
+
+    tools._note_source_run(
+        ctx, "run_test", "source", {"id": 7, "test": {"success": True, "tests_run": 1}}
+    )
+
+    assert ctx.source_green_session == "sess-source"
+    assert ctx.source_green_command == "7"
+    assert "KEY-SECRET" not in (ctx.source_green_session + ctx.source_green_command)
+
+
+def test_a_run_that_is_not_green_forgets_the_proof(ctx):
+    ctx.source_tests_written = True
+    ctx.sessions = {"source": "sess-source"}
+    tools._note_source_run(
+        ctx, "run_test", "source", {"id": 7, "test": {"success": True, "tests_run": 1}}
+    )
+
+    tools._note_source_run(
+        ctx, "run_test", "source", {"id": 8, "test": {"success": False, "tests_run": 1}}
+    )
+
+    assert ctx.source_green_session == ""
+    assert ctx.source_green_command == ""
+
+
+def test_a_write_forgets_the_proof_too(ctx):
+    ctx.sessions = {"source": "sess-source"}
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "v1\n")
+    tools._note_source_run(
+        ctx, "run_test", "source", {"id": 7, "test": {"success": True, "tests_run": 1}}
+    )
+
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "v2\n")
+
+    assert ctx.source_green_session == ""

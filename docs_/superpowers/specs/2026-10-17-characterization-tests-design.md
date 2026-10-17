@@ -193,8 +193,27 @@ no signing, one lock, never a repository at or above the home directory):
   last `run_test` on the source side after the last write passed with at
   least one test run.
   - green: `git add` the module's `tests/` (without `__pycache__`) and commit
-    `odoo-migrator: characterization tests for <module>` with that directory
-    as the pathspec, so nothing else staged is swept in.
+    with that directory as the pathspec, so nothing else staged is swept in.
+    The title is fixed, so a failure later can be traced to the run that
+    wrote the test:
+
+    ```
+    odoo-migrator: characterization tests for <module> [sheller:<session12>]
+
+    Job <job id>.
+    Sheller-session: <whole session id>
+    Sheller-command: <id of the green run_test>
+    ```
+
+    `<session12>` is the first twelve characters of the Sheller session the
+    green `run_test` ran in; the body carries the whole id and the command,
+    so the run can be found in Sheller's journal. The session's write key is
+    never written: it is a secret, the id is not. The author is the
+    migrator's fixed one (`odoo-migrator@localhost`).
+  - `migrator_test_commits(directory)` lists such commits, newest first.
+    A commit counts only when **both** the author and the title match: either
+    alone is easy to write by hand, so a person who copies the title does not
+    make the commit the migrator's.
   - not green (the step stopped, failed, or never got the test to pass): the
     module's `tests/` directory is deleted and nothing is committed. It did
     not exist before the step (the write is refused otherwise), so this

@@ -1015,6 +1015,8 @@ def test_a_testless_module_gets_a_green_test_on_a_branch_and_the_port_sees_it(ap
     assert git(source, "branch", "--show-current").startswith("migrator/sandbox-")
     assert git(source, "rev-parse", "main") == seed
     assert "project/sale_custom/tests/test_x.py" in git(source, "show", "--name-only", "--format=", "HEAD").splitlines()
+    assert "[sheller:" in git(source, "log", "-1", "--format=%s")
+    assert "Sheller-session: " in git(source, "log", "-1", "--format=%B")
     assert "### tests/test_x.py" in script.port_prompt
     assert _status(job) == "passed"
 
@@ -1179,7 +1181,10 @@ New method on the runner class:
 
             return
         try:
-            line = settle_tests(ctx.migration, ctx.module, ctx.job_id, ctx.source_green)
+            line = settle_tests(
+                ctx.migration, ctx.module, ctx.job_id, ctx.source_green,
+                ctx.source_green_session, ctx.source_green_command,
+            )
         except Exception as exc:  # a git failure must not fail the lap
             line = f"the characterization tests could not be settled: {exc}"
         if line:
