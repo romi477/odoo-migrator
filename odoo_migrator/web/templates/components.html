@@ -104,6 +104,41 @@
   </div>
   </div>
 
+  <h2>Flow viewer</h2>
+  {# The window the eye opens: an outline beside the flow file's text,
+     read-only. The eye sits after the Flow select on a migration's card. #}
+  <p class="field-hint">
+    <a class="flow-view-button" href="/flows/stock/1.0.0" aria-label="View the flow file">{% include "_eye_icon.svg" %}</a>
+    The eye after the Flow field opens this window.
+  </p>
+  <div class="flow-viewer-panes is-specimen">
+    <nav class="flow-outline" aria-label="Outline specimen">
+      <ul class="flow-outline-list">
+        <li class="flow-outline-item"><div class="flow-outline-row">
+          <span class="flow-outline-toggle is-leaf" aria-hidden="true"></span>
+          <button type="button" class="flow-outline-label"><span class="flow-outline-name mono">cartridge</span><span class="flow-outline-preview">stock</span></button>
+        </div></li>
+        <li class="flow-outline-item"><div class="flow-outline-row">
+          <button type="button" class="flow-outline-toggle" aria-expanded="true" aria-label="Show or hide pipeline">▸</button>
+          <button type="button" class="flow-outline-label" aria-current="true"><span class="flow-outline-name mono">pipeline</span></button>
+        </div>
+        <ul class="flow-outline-list">
+          <li class="flow-outline-item"><div class="flow-outline-row">
+            <button type="button" class="flow-outline-toggle" aria-expanded="false" aria-label="Show or hide agent · port">▸</button>
+            <button type="button" class="flow-outline-label"><span class="flow-outline-name mono">agent · port</span></button>
+          </div></li>
+        </ul></li>
+      </ul>
+    </nav>
+    <section class="flow-source" aria-label="Source specimen">
+      <ol class="flow-lines mono">
+        <li class="flow-line"><span class="flow-line-no">1</span><span class="flow-line-text">cartridge: stock</span></li>
+        <li class="flow-line is-selected"><span class="flow-line-no">2</span><span class="flow-line-text">pipeline:</span></li>
+        <li class="flow-line is-selected"><span class="flow-line-no">3</span><span class="flow-line-text">  - step: agent</span></li>
+      </ol>
+    </section>
+  </div>
+
   <h2>Copy button</h2>
   <div class="row">
     <button type="button" class="copy-button" aria-label="Copy">{% include "_copy_icon.svg" %}</button>

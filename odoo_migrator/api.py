@@ -1799,6 +1799,51 @@ def create_app(
 
         return JSONResponse(flow_graph(pinned_for(row)))
 
+    # The flow file itself, read-only. The page is a window of its own: it
+    # opens from the Flow field on a migration's card, and an editor will
+    # write through the same address, so the JSON carries the hash a write
+    # would have to quote.
+    @app.get("/api/flows/{cartridge_id}/{version}")
+    def flow_file(cartridge_id: str, version: str):
+        import hashlib
+
+        from odoo_migrator.flowfile import flow_outline, flow_text
+
+        text = flow_text(cartridge_id, version)
+        if text is None:
+
+            return JSONResponse({"error": "unknown flow"}, status_code=404)
+
+        return JSONResponse(
+            {
+                "cartridge_id": cartridge_id,
+                "version": version,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "text": text,
+                "outline": flow_outline(text),
+            },
+            headers=NO_STORE,
+        )
+
+    @app.get("/flows/{cartridge_id}/{version}")
+    def flow_viewer(request: Request, cartridge_id: str, version: str):
+        from odoo_migrator.flowfile import flow_text
+
+        found = flow_text(cartridge_id, version) is not None
+
+        return TEMPLATES.TemplateResponse(
+            request,
+            "flow_viewer.html",
+            {
+                "cartridge_id": cartridge_id,
+                "version": version,
+                "found": found,
+                "flow_url": f"/api/flows/{quote(cartridge_id, safe='')}/{quote(version, safe='')}",
+            },
+            status_code=200 if found else 404,
+            headers=NO_STORE,
+        )
+
     @app.get("/api/jobs/{job_id}/log")
     def job_log(job_id: str, after: int = 0):
         """The run log so far. `after` is the last line the page holds."""

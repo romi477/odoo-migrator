@@ -138,6 +138,7 @@
       </li>
       <li>
         <label>Flow
+          <span class="field-with-action">
           <select name="cartridge_id">
             {% for item in cartridges %}
             <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
@@ -145,6 +146,12 @@
             <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
             {% endfor %}
           </select>
+          {# Reads the file, changes nothing. Follows the select above (see
+             flow_viewer.js), so it shows the one about to be saved. #}
+          <a class="flow-view-button" data-flow-view href="/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
+             target="_blank" rel="noopener"
+             title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</a>
+          </span>
         </label>
         <p class="field-hint">The flow package that does the rewrite, pinned by
         id and version. The pin is recorded on every job.</p>

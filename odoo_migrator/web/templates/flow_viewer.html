@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="dark">
+  <style>
+    /* The same value as --background in style.css, so the first paint of
+       a small window is not white. */
+    html,
+    body {
+      background: #04030e;
+    }
+  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ cartridge_id }} {{ version }} — flow file</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/flow_viewer.js"></script>
+</head>
+<body class="flow-viewer-page">
+  {# A window of its own: no navigation, nothing to click that leaves it.
+     Read-only for now. The outline's nodes carry a path and a line range,
+     which is what an editor will address. #}
+  <main class="flow-viewer"{% if found %} data-flow-viewer data-flow-url="{{ flow_url }}"{% endif %}>
+    <header class="flow-viewer-head">
+      <h1 class="mono">{{ cartridge_id }} <span class="flow-viewer-version">{{ version }}</span></h1>
+      <span class="badge">read-only</span>
+      {% if found %}
+      <span class="mono flow-viewer-hash" data-flow-hash title="sha256 of this text"></span>
+      {% endif %}
+    </header>
+    {% if found %}
+    <p class="form-error" data-flow-error hidden role="alert"></p>
+    <div class="flow-viewer-panes">
+      <nav class="flow-outline" aria-label="Outline of the flow file">
+        <ul class="flow-outline-list" data-flow-outline></ul>
+      </nav>
+      <section class="flow-source" aria-label="The flow file">
+        <ol class="flow-lines mono" data-flow-source></ol>
+      </section>
+    </div>
+    {% else %}
+    <p class="empty-state">No flow <span class="mono">{{ cartridge_id }} {{ version }}</span> is installed.</p>
+    {% endif %}
+  </main>
+</body>
+</html>
