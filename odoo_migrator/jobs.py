@@ -427,7 +427,7 @@ def start_job(
             module.needs_review = False
             module.save()
         _emit(hub, job, module)
-        target_dir = module_root(migration, module, "new")
+        target_dir = module_root(migration, module, "target")
     if put_under_git:
         runlog.write(job_id, source="runner", text=put_under_git, hub=hub)
     # A port is written in place, and git is its undo. Without it — no git
@@ -971,7 +971,7 @@ def reopen_module(module_id: int, migration_id: str, hub: EventHub | None = None
     """Put one finished module back to queued.
 
     The jobs that produced the outcome stay. This does not touch files in
-    the new project: a stub pass never wrote any, and a real rewrite is
+    the target project: a stub pass never wrote any, and a real rewrite is
     not something this button can undo.
     """
     with database.connection_context():
@@ -1375,7 +1375,7 @@ def _sessions(runs: list) -> list[dict]:
     session closes, so a finished job has none.
 
     A side has more than one when a session was reopened, which is ordinary:
-    a rewrite invalidates the session on the new container, and a checkpoint
+    a rewrite invalidates the session on the target container, and a checkpoint
     closes both. So these are listed, not folded into one per side.
 
     What is counted is what became a command in that session's journal: a

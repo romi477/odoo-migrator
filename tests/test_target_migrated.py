@@ -30,9 +30,9 @@ def _migration(tmp_path, *, new_container="odoo-new"):
         old_project_path="/tmp/old",
         new_project_path="/tmp/new",
     )
-    save_side_container(created["id"], "old", "odoo-old")
+    save_side_container(created["id"], "source", "odoo-old")
     if new_container:
-        save_side_container(created["id"], "new", new_container)
+        save_side_container(created["id"], "target", new_container)
 
     return created
 
@@ -208,8 +208,8 @@ def test_resolve_on_the_tree_reports_what_it_marked(client):
     with database.connection_context():
         row = Migration.get(Migration.name == "Acme")
     client.post(f"/migrations/{row.id}/open", follow_redirects=True)
-    save_side_container(row.id, "old", "odoo-old")
-    save_side_container(row.id, "new", "odoo-new")
+    save_side_container(row.id, "source", "odoo-old")
+    save_side_container(row.id, "target", "odoo-new")
     client.app.state.sheller.installed_by_container["odoo-new"] = ["sale_custom"]
 
     page = client.post("/tree/resolve", follow_redirects=True)

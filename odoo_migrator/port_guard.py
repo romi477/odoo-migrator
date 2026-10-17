@@ -169,7 +169,7 @@ def hand_edits(migration_id: str, module_ids: list[int]) -> list[dict]:
         return []
     edited = []
     for module in sorted(modules, key=lambda row: row.technical_name):
-        directory = module_root(migration, module, "new")
+        directory = module_root(migration, module, "target")
         if directory is None:
             continue
         files: list[str] = []
@@ -218,7 +218,7 @@ def hand_edits_blocking(migration_id: str, module_ids: list[int]) -> str | None:
         )
         sentences.append(
             "These modules were committed by hand since the agent last ported "
-            f"them: {named}. A new port is written from the old version; keep "
+            f"them: {named}. A new port is written from the source version; keep "
             "the commits to run anyway, and the agent is given them to carry."
         )
 
@@ -249,7 +249,7 @@ def _editable(migration_id: str, module_id: int) -> tuple[Module, Path]:
         )
         if busy:
             raise ContractError(f"{module.technical_name} is running. Stop it first.")
-        directory = module_root(module.migration, module, "new")
+        directory = module_root(module.migration, module, "target")
     if directory is None or not Path(directory).is_dir():
         raise ContractError(f"{module.technical_name} has no target directory.")
 
@@ -298,5 +298,5 @@ def keep_hand_edits(migration_id: str, module_id: int) -> None:
 def record_fingerprint(module: Module) -> None:
     """Remember what this run left in the module's directory. The caller
     holds the connection."""
-    directory = module_root(module.migration, module, "new")
+    directory = module_root(module.migration, module, "target")
     module.port_fingerprint = fingerprint(directory) if directory is not None else ""

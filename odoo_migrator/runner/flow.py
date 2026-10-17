@@ -14,13 +14,13 @@ FAILURE_LANE = "lane:on_failure"
 _HINTS = {
     "understand": (
         "Reads the project's own notes (AGENTS.md, READMEs, the module's "
-        "readme/ and docs/), then the module on the old Odoo through a live "
+        "readme/ and docs/), then the module on the source Odoo through a live "
         "session. Describes current behaviour "
         "and what will break, then builds a fixture recipe and rolls it back. "
         "Later steps replay that recipe."
     ),
     "port": (
-        "Writes the ported module into the new project. Both sessions stay "
+        "Writes the ported module into the target project. Both sessions stay "
         "open. It sees the version rules, the module source, and the "
         "understand answer."
     ),
@@ -29,13 +29,13 @@ _HINTS = {
         "parses, and its manifest is a dict with name and depends."
     ),
     "upgrade": (
-        "Drops the old version's migrations/ and upgrades/ scripts from the "
+        "Drops the source version's migrations/ and upgrades/ scripts from the "
         "port, keeping the target series'. Then installs the module on the new "
         "container, or upgrades it if it is already installed, and commits. "
-        "The old container is never committed."
+        "The source container is never committed."
     ),
     "tests": (
-        "Runs the module's own test classes on the new container. No classes "
+        "Runs the module's own test classes on the target container. No classes "
         "is a success that raises no_tests. A failing test leaves the pipeline."
     ),
     "probe": (
@@ -55,8 +55,8 @@ _HINTS = {
     ),
     "diagnose": (
         "Works out why the lap failed, from the log, the journal, the source, "
-        "and a live session on the new container. The flag it raises opens "
-        "one block below: ask a human, look at the old version again, patch, "
+        "and a live session on the target container. The flag it raises opens "
+        "one block below: ask a human, look at the source version again, patch, "
         "or rewrite."
     ),
     "ask_human": (
@@ -64,16 +64,16 @@ _HINTS = {
         "while it waits. Answer on Tree, and the same run continues."
     ),
     "reprobe": (
-        "Goes back to the old version with the question the diagnosis raised."
+        "Goes back to the source version with the question the diagnosis raised."
     ),
     "patch": (
-        "Applies the named fix on the new side. It has everything written to "
+        "Applies the named fix on the target side. It has everything written to "
         "the module since the job began, and changes what is wrong, leaving "
         "the rest."
     ),
     "rewrite": (
-        "Writes the module again from the old version. Its directory on the "
-        "new side is emptied first, and it is not given the previous attempt."
+        "Writes the module again from the source version. Its directory on the "
+        "target side is emptied first, and it is not given the previous attempt."
     ),
 }
 _KIND_HINTS = {

@@ -1,7 +1,7 @@
 """The understand step reads what the project says about itself.
 
 AGENTS.md, CLAUDE.md and READMEs say what a project is and how its modules
-fit together. The app finds them on the old side and hands them to the step
+fit together. The app finds them on the source side and hands them to the step
 that declares `project_notes`; a model told to go and look would guess at
 names with a tool that cannot list a directory.
 """
@@ -227,5 +227,5 @@ def test_understand_is_told_how_to_read_a_dependencys_notes():
     stock = load_cartridge_file(cartridges_dir() / "stock.yaml")
     prompt = " ".join(stock.step_by_id("understand").prompt.split())
 
-    assert "source(side='old', path='<module>/README.rst')" in prompt
+    assert "source(side='source', path='<module>/README.rst')" in prompt
     assert "depends" in prompt

@@ -28,7 +28,7 @@ def test_the_graph_is_derived_from_the_cartridge_not_stored(client, migration):
 
     by_id = {node["id"]: node for node in graph["nodes"]}
     assert by_id["understand"]["kind"] == "agent"
-    assert "old Odoo" in by_id["understand"]["hint"]
+    assert "source Odoo" in by_id["understand"]["hint"]
     assert by_id["understand"]["actor"] == "agent"
     assert "read_file" in by_id["understand"]["tools"]
     assert "reading a module" in by_id["understand"]["prompt"]

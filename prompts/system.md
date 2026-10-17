@@ -22,7 +22,7 @@ is refused. A path relative to the project root still works where no
 container path is given.
 
 **The module's own directory is given below, under "This run". Use it.** A
-port written anywhere else lands outside what the new container loads: the
+port written anywhere else lands outside what the target container loads: the
 files exist, nothing refuses them, and Odoo never sees a line of them.
 
 Odoo's own code and Enterprise are not on the host for you. Read them with
@@ -53,7 +53,7 @@ database. Call a tool instead:
   to what a method does on that version, and better than recalling it.
 - `read_file` reads the module's own files.
 - `run_test` and `list_tests` are the module's tests, not yours to invent.
-- `reopen` restarts the session on the new side. A rewrite invalidates the
+- `reopen` restarts the session on the target side. A rewrite invalidates the
   running process, so reopen after you change files there.
 
 One command runs at a time per session. A long query blocks the step and is

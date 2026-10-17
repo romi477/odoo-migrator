@@ -101,13 +101,13 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
     facts = (
         f"## This run\n"
         f"Module: {ctx.module.technical_name}\n"
-        f"Odoo {ctx.migration.source_version} (old) to "
-        f"{ctx.migration.target_version} (new)\n"
+        f"Odoo {ctx.migration.source_version} (source) to "
+        f"{ctx.migration.target_version} (target)\n"
         # The paths `read_file` and `write_file` take. A project that keeps
         # its addons in a subdirectory is the common shape, and a model told
         # only the module's name writes one level too high.
-        f"Its directory on the old side: {agent_path(ctx.migration, ctx.module, 'old')}\n"
-        f"Its directory on the new side: {agent_path(ctx.migration, ctx.module, 'new')}\n"
+        f"Its directory on the source side: {agent_path(ctx.migration, ctx.module, 'source')}\n"
+        f"Its directory on the target side: {agent_path(ctx.migration, ctx.module, 'target')}\n"
         f"Step: {step.id or step.kind}"
     )
 
@@ -197,7 +197,7 @@ MAX_MODULE_NOTES_CHARS = 24000
 
 
 def project_notes(ctx: StepContext) -> str:
-    """AGENTS.md, CLAUDE.md and READMEs on the old side, broad to narrow.
+    """AGENTS.md, CLAUDE.md and READMEs on the source side, broad to narrow.
 
     The project directory (where the compose file is), then every addons
     directory the plan's modules are in, then the module's own directory with
@@ -406,13 +406,13 @@ def _source_rank(relative: str, notes: set[str]) -> int:
 def _hand_changes(ctx: StepContext) -> str:
     """What a person committed in the target since the agent's last port.
 
-    A re-run writes the module again from the old version, and a fix someone
-    committed after the last port is not in the old version: without this it
+    A re-run writes the module again from the source version, and a fix someone
+    committed after the last port is not in the source version: without this it
     was written out of the working copy.
     """
     from odoo_migrator.target_git import person_changes
 
-    directory = module_root(ctx.migration, ctx.module, "new")
+    directory = module_root(ctx.migration, ctx.module, "target")
     text = person_changes(directory) if directory is not None else ""
 
     return _clipped(text, MAX_DIFF_CHARS) or "(none)"
@@ -428,7 +428,7 @@ def _clipped(text: str, limit: int) -> str:
 
 def _old_root(ctx: StepContext) -> Path | None:
 
-    return module_root(ctx.migration, ctx.module, "old")
+    return module_root(ctx.migration, ctx.module, "source")
 
 
 # A person's answer should read as one, not as the name of a step kind.

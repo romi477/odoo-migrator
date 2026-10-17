@@ -182,7 +182,7 @@ def build_trigger(
         },
         "source_version": migration.source_version,
         "target_version": migration.target_version,
-        "containers": {"old": migration.old_container, "new": migration.new_container},
+        "containers": {"source": migration.old_container, "target": migration.new_container},
         "system_prompt": load_system_prompt(),
         "rules": rules,
         "module_notes": notes,

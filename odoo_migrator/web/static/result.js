@@ -103,7 +103,7 @@
     /* Where the run actually happened. The daemon keeps its own journal per
        session, and finding the id meant grepping the run log for the line
        that printed it. A side listed twice was reopened, which is ordinary:
-       a rewrite invalidates the session on the new container. */
+       a rewrite invalidates the session on the target container. */
     const shells = document.createElement("section");
     shells.className = "result-summary-sessions";
     const shellHead = document.createElement("h3");

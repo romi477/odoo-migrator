@@ -69,14 +69,14 @@ stuck = Module.search_count([('state', 'in', ('to install', 'to upgrade', 'to re
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
-    """Drop the old version's migration scripts, then upgrade.
+    """Drop the source version's migration scripts, then upgrade.
 
     Here, and not in a step of its own: this is the moment the ported module
     is read by Odoo, and it runs again after every patch.
     """
     from odoo_migrator.module_paths import module_root
 
-    directory = module_root(ctx.migration, ctx.module, "new")
+    directory = module_root(ctx.migration, ctx.module, "target")
     removed = []
     if directory is not None:
         removed = prune_old_migrations(directory, ctx.migration.target_version)
@@ -97,17 +97,17 @@ def _upgrade(step: Step, ctx: StepContext) -> StepResult:
     the uncommitted writes the agent's own `exec` calls left behind, which
     `button_immediate_*` would otherwise commit along with the upgrade.
     """
-    if "new" not in ctx.session_targets:
+    if "target" not in ctx.session_targets:
 
         return StepResult(ok=False, output="no target session")
     name = ctx.module.technical_name
     try:
-        reopen_side(ctx, "new")
+        reopen_side(ctx, "target")
     except ShellerError as exc:
 
         return StepResult(ok=False, output=f"could not open a fresh target session: {exc}")
-    session_id = ctx.sessions["new"]
-    write_key = ctx.write_keys["new"]
+    session_id = ctx.sessions["target"]
+    write_key = ctx.write_keys["target"]
     try:
         executed = ctx.sheller.exec(
             session_id, _UPGRADE.format(name=name), write_key=write_key, timeout=UPGRADE_TIMEOUT
@@ -141,10 +141,10 @@ def _outlived(ctx: StepContext, name: str) -> StepResult:
     Its own answer is lost — the daemon abandons the result frame — so the
     module's state is the only account left of how it went.
     """
-    state = wait_ready(ctx, "new", time.monotonic() + UPGRADE_WAIT)
+    state = wait_ready(ctx, "target", time.monotonic() + UPGRADE_WAIT)
     if state != "ready":
         with contextlib.suppress(ShellerError):
-            ctx.sheller.interrupt(ctx.sessions["new"], write_key=ctx.write_keys["new"])
+            ctx.sheller.interrupt(ctx.sessions["target"], write_key=ctx.write_keys["target"])
 
         return _failed(
             ctx,
@@ -153,7 +153,7 @@ def _outlived(ctx: StepContext, name: str) -> StepResult:
         )
     try:
         executed = ctx.sheller.exec(
-            ctx.sessions["new"], _STATE.format(name=name), write_key=ctx.write_keys["new"]
+            ctx.sessions["target"], _STATE.format(name=name), write_key=ctx.write_keys["target"]
         )
         found, stuck = ast.literal_eval(executed.get("result") or "('unknown', 0)")
     except (ShellerError, ValueError, SyntaxError, TypeError) as exc:
@@ -184,12 +184,12 @@ def _failed(ctx: StepContext, reason: str) -> StepResult:
     """
     notes = []
     try:
-        reopen_side(ctx, "new")
-        reset = ctx.sheller.exec(ctx.sessions["new"], _RESET, write_key=ctx.write_keys["new"])
+        reopen_side(ctx, "target")
+        reset = ctx.sheller.exec(ctx.sessions["target"], _RESET, write_key=ctx.write_keys["target"])
         if reset.get("error"):
             notes.append(f"could not reset module states: {_describe(reset)}")
         else:
-            ctx.sheller.commit(ctx.sessions["new"], write_key=ctx.write_keys["new"])
+            ctx.sheller.commit(ctx.sessions["target"], write_key=ctx.write_keys["target"])
             names = ast.literal_eval(reset.get("result") or "[]") or []
             if names:
                 notes.append(f"reset the states of: {', '.join(names)}")

@@ -15,7 +15,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     prompt: port
   - step: lint
@@ -24,7 +24,7 @@ on_failure:
   pipeline:
     - step: agent
       id: patch
-      sessions: [new]
+      sessions: [target]
       tools: [write_file]
       prompt: patch
   retry:
@@ -39,14 +39,14 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     prompt: port
   - step: tests
   - step: agent
     id: probe
     when: no_tests
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     prompt: probe
   - step: verdict
@@ -67,7 +67,7 @@ on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec]
       context: [last_failure]
       raises: [needs_human]
@@ -194,12 +194,12 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: understand
-    sessions: [old]
+    sessions: [source]
     tools: [exec]
     prompt: read
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [write_file]
     prompt: port
   - step: lint
@@ -209,7 +209,7 @@ on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec]
       prompt: why
   retry:
@@ -305,7 +305,7 @@ def test_an_agent_step_does_not_own_last_failure(monkeypatch):
     )
 
     result = run_agent_step(
-        Step(kind="agent", id="diagnose", sessions=["new"], tools=[], prompt="why"), ctx
+        Step(kind="agent", id="diagnose", sessions=["target"], tools=[], prompt="why"), ctx
     )
 
     assert not result.ok

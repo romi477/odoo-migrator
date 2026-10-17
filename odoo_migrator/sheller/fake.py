@@ -95,7 +95,7 @@ class FakeShellerClient:
             {"id": "ba9876543210", "name": "odoo-new", "image": "odoo:18", "status": "Up"},
         ]
         # Containers a person switched on for agents (*agents may commit*).
-        # Both by default, as a migration is set up to run: the old side
+        # Both by default, as a migration is set up to run: the source side
         # opens with `allow_commit: false`, and the switch honours that.
         self._agent_commit: dict[str, str] = {
             name: "2026-10-16T00:00:00Z"

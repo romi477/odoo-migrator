@@ -85,11 +85,11 @@ multi-record field.
 
 Reading source is one tool call, not a shell:
 
-    source(side="old", path="integration_shopify")
-    source(side="old", path="integration_shopify/models/external.py",
+    source(side="source", path="integration_shopify")
+    source(side="source", path="integration_shopify/models/external.py",
            first=363, last=470)
-    source(side="new", model="account.move", method="action_post")
-    source(side="new", model="account.move", method="action_post",
+    source(side="target", model="account.move", method="action_post")
+    source(side="target", model="account.move", method="action_post",
            module="account")
 
 A directory lists every file under it with its line count, so "what is in

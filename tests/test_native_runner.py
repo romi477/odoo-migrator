@@ -22,7 +22,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [exec, reopen]
     prompt: port
 on_failure:
@@ -69,9 +69,9 @@ def native_job(app, fake_sheller, tmp_path):
     job = _module(tmp_path)
     model = ModelDouble(
         turns=[
-            {"name": "exec", "input": {"side": "new", "code": "1"}},
-            {"name": "reopen", "input": {"side": "new"}},
-            {"name": "exec", "input": {"side": "new", "code": "2"}},
+            {"name": "exec", "input": {"side": "target", "code": "1"}},
+            {"name": "reopen", "input": {"side": "target"}},
+            {"name": "exec", "input": {"side": "target", "code": "2"}},
             {"name": "report", "input": {"answer": "ported"}},
         ]
     )
@@ -89,7 +89,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: diagnose
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     raises: [needs_human]
     prompt: diagnose
@@ -157,7 +157,7 @@ def test_a_run_records_the_session_of_every_tool_call(client, native_job):
     with database.connection_context():
         calls = list(ToolCall.select().order_by(ToolCall.id))
 
-    new_side = {c.session_id for c in calls if c.side == "new"}
+    new_side = {c.session_id for c in calls if c.side == "target"}
     assert new_side and "" not in new_side
     assert len(new_side) >= 2
     assert all(c.command_id for c in calls if c.tool == "exec")

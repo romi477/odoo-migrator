@@ -45,9 +45,9 @@ on the container too, and is not reachable through these tools. A mount of
 path is resolved — `..` and symlinks included — before it is checked, and
 one that leaves its root is refused, not clipped back inside. Clamping
 `a/../b` into `b` is how an escape becomes a successful write. With no
-mounts known, a path relative to the old or the new project path is the
+mounts known, a path relative to the old or the target project path is the
 only form accepted, under the same rule. Writes land only inside the
-ported module's own directory on the new side.
+ported module's own directory on the target side.
 
 **Provider secrets are stored and never rendered.** A key is a
 `ProviderSetting` row. The settings page reports whether it is set. A
@@ -67,12 +67,12 @@ and `admin.key` is never read.
 
 **Sessions the migrator opens are attributable.** `owner.kind = agent`,
 label migrator-related, `migration_id` on the owner, so concurrent
-migrations stay separable. Commit is allowed on the new container and
-refused on the old one. Sheller's only hard lock is production, which
+migrations stay separable. Commit is allowed on the target container and
+refused on the source one. Sheller's only hard lock is production, which
 this tool never hits because the target container is never production.
 
 **A rewrite invalidates the new-side session.** Code on disk changed, so
-a fresh session opens after it. The old container is read-only for the
+a fresh session opens after it. The source container is read-only for the
 whole run; one session opened at the start stays valid.
 
 ## What is deliberately *not* protected

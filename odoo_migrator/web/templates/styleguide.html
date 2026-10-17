@@ -18,7 +18,7 @@
       or left out.</p>
       <ul>
         <li><strong>Build graph</strong> reads installed custom modules and
-        <span class="mono">depends</span> from the old Odoo (via Sheller) and
+        <span class="mono">depends</span> from the source Odoo (via Sheller) and
         redraws the graph and steps.</li>
         <li><strong>Step buttons</strong> above the canvas select every module
         on one wave; optional help sits under the node card.</li>
@@ -120,20 +120,20 @@
 
     <h3>Pipeline</h3>
     <ul>
-      <li><strong>understand</strong> reads the module on the old Odoo, through
+      <li><strong>understand</strong> reads the module on the source Odoo, through
       a live session on that container. It describes current behaviour, what
       the module overrides, and what will break on the target. It also builds
       the smallest set of records the module needs, proves that recipe works,
       and rolls it back. The recipe is the answer later steps replay.</li>
-      <li><strong>port</strong> writes the ported module into the new project.
+      <li><strong>port</strong> writes the ported module into the target project.
       Both sessions stay open, so it can check what the original does. It sees
       the version rules, the module source, and the understand answer.</li>
       <li><strong>lint</strong> does not touch a container. It checks that the
       new module's Python parses, its XML parses, and its manifest is a dict
       with <span class="mono">name</span> and <span class="mono">depends</span>.
       A problem fails the lap.</li>
-      <li><strong>upgrade</strong> installs the module on the new container, or
-      upgrades it if it is already installed, then commits. The old container
+      <li><strong>upgrade</strong> installs the module on the target container, or
+      upgrades it if it is already installed, then commits. The source container
       is never committed.</li>
       <li><strong>tests</strong> runs the module's own test classes on the new
       container. No test classes is a success that raises
@@ -145,7 +145,7 @@
       version is a failure of its own.</li>
       <li><strong>write_test</strong> <span class="mono">if no_tests</span> turns
       that recipe into a real test in the ported module, asserting what the
-      old version did, and runs the test before it finishes.</li>
+      source version did, and runs the test before it finishes.</li>
       <li><strong>verdict</strong> judges the lap. At strictness
       <span class="mono">strict</span> it fails when probe left no answer.
       <span class="mono">basic</span> and <span class="mono">enhanced</span> do
@@ -159,7 +159,7 @@
     <span class="mono">lint</span>: understand and port are not repeated.</p>
     <ul>
       <li><strong>diagnose</strong> works out why the lap failed, from the log,
-      the journal, the source, and a live session on the new container. It
+      the journal, the source, and a live session on the target container. It
       raises the flags that open the blocks under it:
       <span class="mono">needs_human</span>,
       <span class="mono">reexamine_old</span>,
@@ -171,12 +171,12 @@
       that was waiting is gone, the answer is kept and the job becomes
       <span class="mono">unknown</span>.</li>
       <li><strong>reprobe</strong> <span class="mono">if reexamine_old</span>
-      goes back to the old version with the question the diagnosis raised.</li>
+      goes back to the source version with the question the diagnosis raised.</li>
       <li><strong>patch</strong> <span class="mono">if small_fix</span> applies
-      that fix on the new side. It has the previous diff and is told to change
+      that fix on the target side. It has the previous diff and is told to change
       what is wrong and leave the rest.</li>
       <li><strong>rewrite</strong> <span class="mono">if start_over</span>
-      writes the module again from the old version. It is not given the
+      writes the module again from the source version. It is not given the
       previous attempt.</li>
     </ul>
     <p>The picture and nothing else. The tool calls a run made are the run

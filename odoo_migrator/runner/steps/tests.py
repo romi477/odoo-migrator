@@ -27,7 +27,7 @@ _LOG_TAIL = 60
 
 def run(step: Step, ctx: StepContext) -> StepResult:
     name = ctx.module.technical_name
-    if not ctx.sessions.get("new"):
+    if not ctx.sessions.get("target"):
 
         return StepResult(ok=False, output="no target session")
     if "no_tests" in ctx.lap_flags:
@@ -36,13 +36,13 @@ def run(step: Step, ctx: StepContext) -> StepResult:
         # one the run finds the set that was there before and says nothing
         # about the case that was just added.
         try:
-            reopen_side(ctx, "new")
+            reopen_side(ctx, "target")
         except ShellerError as exc:
 
             return StepResult(ok=False, output=f"could not reopen the target session: {exc}")
     try:
         catalogue = ctx.sheller.list_tests(
-            ctx.sessions["new"], module=name, write_key=ctx.write_keys.get("new", "")
+            ctx.sessions["target"], module=name, write_key=ctx.write_keys.get("target", "")
         )
     except ShellerError as exc:
 
@@ -183,8 +183,8 @@ def _run_one(
     """
     check_stop(ctx, "during tests")
     # Read for every run: freeing a session after a timeout can open a new one.
-    session_id = ctx.sessions.get("new", "")
-    write_key = ctx.write_keys.get("new", "")
+    session_id = ctx.sessions.get("target", "")
+    write_key = ctx.write_keys.get("target", "")
     started = time.perf_counter()
     outlived = False
     try:
@@ -199,7 +199,7 @@ def _run_one(
         problem = report_failure(report)
     said = f"{_count(report)} passed" if not problem else problem
     _record(
-        ctx, "run_test", "new", session_id, str(report.get("id") or ""),
+        ctx, "run_test", "target", session_id, str(report.get("id") or ""),
         _elapsed(started), not problem, f"{where} {spec} · {said}".lstrip(),
     )
 
@@ -211,7 +211,7 @@ def _free(ctx: StepContext) -> str:
     open a fresh one, before the next run: left alone, every run after it
     answered `session_busy`, and the step blamed the tests for each."""
     try:
-        done = ensure_usable(ctx, "new")
+        done = ensure_usable(ctx, "target")
     except ShellerError as exc:
 
         return f"; the session could not be freed: {exc}"

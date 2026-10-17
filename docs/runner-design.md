@@ -159,7 +159,7 @@ reopened here:
 - **Prompts and rules travel as resolved text**, never as paths handed to an
   executor.
 - **Sessions belong to the agent.** A rewrite invalidates a session open on
-  the new container; the old container is read-only for the whole run. (One
+  the target container; the source container is read-only for the whole run. (One
   exception is introduced below: a job parked on a human closes its
   sessions.)
 - **Peewee, not SQLAlchemy. Alpine, not React.** Every operation inside its
@@ -286,7 +286,7 @@ cannot settle it, because the graph scan reads it inside the container and
 it is a container path. The host root is searched instead, and a directory
 counts only when it holds a manifest. Where the port is *written* is a
 decision rather than a discovery — nothing is there on a first port — so
-it mirrors where the old module sits relative to its own root. Both paths
+it mirrors where the source module sits relative to its own root. Both paths
 are stored on the module at scan time, and the module's directory on each
 side goes into the system prompt, because `write_file` refuses an absolute
 path.
@@ -338,7 +338,7 @@ near-identical step implementations in Python would buy nothing and would put
 ```yaml
   - step: agent
     id: port
-    sessions: [old, new]
+    sessions: [source, target]
     tools: [exec, source, read_file, write_file]
     context: [rules, module_source, prior_answers]
     raises: []
@@ -349,12 +349,12 @@ near-identical step implementations in Python would buy nothing and would put
 | field | meaning |
 |---|---|
 | `id` | the node's name on the canvas and the key its answer is stored under; unique within the cartridge |
-| `sessions` | `old`, `new`, or both — which live containers this step may reach |
+| `sessions` | `source`, `target`, or both — which live containers this step may reach |
 | `tools` | chosen from the code-defined catalog; a cartridge picks from it and can never extend it |
 | `context` | what goes into the prompt besides the prompt, from a closed vocabulary |
 | `raises` | the flags this step may set, which later steps gate on with `when` |
 | `budget` | optional `tool_calls` / `tokens`, honoured only when **lower** than the migration's ceiling |
-| `fresh` | optional; the module's directory on the new side is emptied before the step runs. Only on an agent step that declares `write_file`. The stock `rewrite` sets it: told not to reconstruct the previous attempt, it otherwise found that attempt on disk and kept whatever it did not overwrite |
+| `fresh` | optional; the module's directory on the target side is emptied before the step runs. Only on an agent step that declares `write_file`. The stock `rewrite` sets it: told not to reconstruct the previous attempt, it otherwise found that attempt on disk and kept whatever it did not overwrite |
 
 **The context vocabulary is closed**, for the same reason the flags are: a
 cartridge author selects from a list, never writes an expression.
@@ -362,8 +362,8 @@ cartridge author selects from a list, never writes an expression.
 | context item | what it puts in the prompt |
 |---|---|
 | `rules` | the assembled per-version rules stack for this migration |
-| `project_notes` | `AGENTS.md`, `CLAUDE.md`, `README.md`/`.rst` on the old side: the project directory, each addons directory of the plan, the module's own; clipped per file and in total |
-| `module_source` | the module as it exists on the old version |
+| `project_notes` | `AGENTS.md`, `CLAUDE.md`, `README.md`/`.rst` on the source side: the project directory, each addons directory of the plan, the module's own; clipped per file and in total |
+| `module_source` | the module as it exists on the source version |
 | `prior_answers` | what earlier agent steps in this job answered |
 | `previous_diff` | everything written to the module since the job began: the module now, against the module as the job found it |
 | `hand_changes` | what a person committed in the module's target directory since the app's last commit there, as the commits and their diff; `(none)` when nothing |
@@ -397,7 +397,7 @@ model:
 pipeline:
   - step: agent
     id: understand
-    sessions: [old]
+    sessions: [source]
     tools: [exec, source, run_test, list_tests, journal, read_file]
     context: [rules, project_notes, module_source]
     prompt: |
@@ -407,11 +407,11 @@ pipeline:
 
       Of the modules, the notes cover this one only. When it builds on a
       module in its `depends` and you need to know what that one does,
-      read its README: source(side='old', path='<module>/README.rst'), or
+      read its README: source(side='source', path='<module>/README.rst'), or
       README.md. Only the ones you need — a neighbour you do not depend on
       is not context for this module.
 
-      You are reading a module on the old Odoo version. A live session is
+      You are reading a module on the source Odoo version. A live session is
       open: do not guess from source alone — call methods and look at what
       comes back. Describe current behaviour, what the module overrides,
       and what will break on the target version.
@@ -423,16 +423,16 @@ pipeline:
 
   - step: agent
     id: port
-    sessions: [old, new]
+    sessions: [source, target]
     tools: [exec, source, read_file, write_file]
     context: [rules, module_source, prior_answers, hand_changes]
     prompt: |
       Port the module to the target version. Write files into the new
-      project. The old container's session stays open — use it whenever
+      project. The source container's session stays open — use it whenever
       you need to check what the original actually does.
 
-      Hand changes are what a person committed in the new project since
-      the last port of this module. They are not in the old version:
+      Hand changes are what a person committed in the target project since
+      the last port of this module. They are not in the source version:
       carry them into this port, unless the rules make one of them wrong —
       then say which, and why.
 
@@ -443,7 +443,7 @@ pipeline:
   - step: agent
     id: probe
     when: no_tests
-    sessions: [old, new]
+    sessions: [source, target]
     tools: [exec, source, reopen, rollback]
     context: [rules, prior_answers]
     raises: [behaviour_differs]
@@ -463,12 +463,12 @@ pipeline:
   - step: agent
     id: write_test
     when: no_tests
-    sessions: [new]
+    sessions: [target]
     tools: [exec, source, run_test, list_tests, read_file, write_file, reopen]
     context: [prior_answers]
     prompt: |
       Turn the recipe you just replayed into a real test in the ported
-      module, asserting what the old version actually did. Run it before
+      module, asserting what the source version actually did. Run it before
       you finish.
 
       Read a test of a module that has one with `source` before writing
@@ -488,7 +488,7 @@ on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec, source, journal, history, read_file, run_test, list_tests]
       context: [rules, previous_diff, last_failure, prior_answers]
       raises: [needs_human, reexamine_old, small_fix, start_over]
@@ -497,7 +497,7 @@ on_failure:
         session are all available. When a test failed and its log does not
         say why, run that one spec again on its own — not the module.
         Decide whether a targeted fix is enough or the port should be
-        started over, whether you need to look at the old version again,
+        started over, whether you need to look at the source version again,
         and whether this needs a human.
 
     - step: ask_human
@@ -506,17 +506,17 @@ on_failure:
     - step: agent
       id: reprobe
       when: reexamine_old
-      sessions: [old]
+      sessions: [source]
       tools: [exec, source, read_file]
       context: [prior_answers, last_failure]
       prompt: |
-        Go back to the old version with the specific question the
+        Go back to the source version with the specific question the
         diagnosis raised.
 
     - step: agent
       id: patch
       when: small_fix
-      sessions: [new]
+      sessions: [target]
       tools: [exec, source, read_file, write_file, reopen, run_test]
       context: [rules, previous_diff, last_failure, prior_answers]
       prompt: |
@@ -532,12 +532,12 @@ on_failure:
       id: rewrite
       when: start_over
       fresh: true
-      sessions: [old, new]
+      sessions: [source, target]
       tools: [exec, source, read_file, write_file, reopen]
       context: [rules, module_source, prior_answers, hand_changes]
       prompt: |
         The previous port was judged unsound, for the reason in the
-        diagnosis. Write the module again from the old version. You are
+        diagnosis. Write the module again from the source version. You are
         not given the previous attempt; do not reconstruct it. Hand
         changes are a person's, not the previous attempt: carry them.
 
@@ -558,7 +558,7 @@ rejoins the main line at the first check after the code changed.
 ```yaml
   - step: agent
     id: check_reports
-    sessions: [new]
+    sessions: [target]
     tools: [exec, source]
     context: [prior_answers]
     raises: [reports_broken]
@@ -587,7 +587,7 @@ survive editing:
   appears in.
 - **`patch` against `rewrite`.** Both write files. The difference is entirely
   in `context`: `patch` is handed the previous diff and changes what the
-  diagnosis named; `rewrite` is handed the old module instead and told the
+  diagnosis named; `rewrite` is handed the source module instead and told the
   last attempt was unsound. The human answer that says "this code is bad, do
   it again" has a step to land in, and the canvas shows which one the
   diagnosis chose.
@@ -641,7 +641,7 @@ at load time with a message naming the alternatives, never a crash mid-run:
    cartridge — `resume_at` would be ambiguous and the canvas would draw two
    nodes with one name.
 3. A tool not in the code-defined catalog, or a tool a step's `sessions` do
-   not allow (`exec` on `[new]` when only `old` is declared).
+   not allow (`exec` on `[target]` when only `source` is declared).
 4. An unknown item in `context`.
 5. Unknown flag in `when` — where "known" means built-in or declared in some
    step's `raises` **in this file**. This catches the likeliest error such a
@@ -747,7 +747,7 @@ Both sessions are open during agent steps. That is what makes differential
 probing possible: run the same expression on the source and the target and
 compare the two answers. "The tests pass" is a weaker claim than "this method
 returned the same thing on both versions", and the second one is only
-available because a live old container is part of the design.
+available because a live source container is part of the design.
 
 ### Comparable data: a fixture recipe, not a dump
 
@@ -768,7 +768,7 @@ So the data is built, not copied, and the recipe for it comes out of
    recipe by running it: create the records, call the methods, see that they
    respond, roll back.
 2. Its output is therefore two things: a description of current behaviour,
-   and a fixture recipe that has been proven to work on the old version.
+   and a fixture recipe that has been proven to work on the source version.
 3. `probe` replays that same recipe on both sides and compares. The
    comparison is honest by construction — one scenario, already known to run,
    not two improvisations.
@@ -800,7 +800,7 @@ by then, and `patch` would be handed an empty diff.
 ### Containment
 
 The agent is confined to two containers by the shape of its tools, not by a
-permission on the daemon. Tools take `side: old | new`; the container name
+permission on the daemon. Tools take `side: source | target`; the container name
 comes from the migration row. There is no verb for listing containers and no
 verb for naming one. A daemon-side scope was considered and rejected: a
 daemon answering on 8765 may not be ours, so a process-wide restriction is
@@ -1181,7 +1181,7 @@ One line per tool call:
 port · exec · new · env['sale.order'].browse(ids)._compute…   1.2s
 ```
 
-The side chip — `old` or `new` — is coloured, so a `probe` step reads as two
+The side chip — `source` or `target` — is coloured, so a `probe` step reads as two
 interleaved conversations: the same calls, the two answers. Clicking a line
 fetches that cell from Sheller's journal and expands it in place, with "open
 the session in Sheller" beside it.

@@ -16,8 +16,8 @@ def _named(migration_id, name):
 
 def _prepared(client, name="Acme"):
     row = _open(client, name)
-    save_side_container(row.id, "old", "odoo-old")
-    save_side_container(row.id, "new", "odoo-new")
+    save_side_container(row.id, "source", "odoo-old")
+    save_side_container(row.id, "target", "odoo-new")
     client.post("/tree/resolve", follow_redirects=True)
     helper = _named(row.id, "web_enterprise_helper")
     # Resolve puts the helper on step 1 with sale_custom. Tests that then

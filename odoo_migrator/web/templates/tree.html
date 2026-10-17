@@ -36,13 +36,13 @@
     <div class="tree-workbench-row">
       <form method="post" action="/tree/resolve" class="tree-build-form">
         <button type="submit" class="tree-build-btn primary"
-                title="Build the module graph from the old container"
-                aria-label="Build the module graph from the old container">Build graph</button>
+                title="Build the module graph from the source container"
+                aria-label="Build the module graph from the source container">Build graph</button>
       </form>
       <ul id="step-legend" class="step-legend" hidden></ul>
       <details class="tree-help">
         <summary>Help</summary>
-        <p><strong>Build graph</strong> re-reads the old Odoo. Click a module,
+        <p><strong>Build graph</strong> re-reads the source Odoo. Click a module,
         then <strong>Exclude</strong> or <strong>Include</strong>.
         Step buttons select a wave; runs start on Pipeline, wave by wave.
         A changed compose file needs

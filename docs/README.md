@@ -20,7 +20,7 @@ These pages describe the software as it behaves.
 
 - **Just want to run it?** The [README](../README.md).
 - **Want to understand what you're running before you trust it with a
-  database and a write to the new project?** [security.md](security.md),
+  database and a write to the target project?** [security.md](security.md),
   then [architecture.md](architecture.md).
 - **Confused by something in the UI?** [ui-guide.md](ui-guide.md).
   [faq.md](faq.md) / [faq-ru.md](faq-ru.md) answer the questions people

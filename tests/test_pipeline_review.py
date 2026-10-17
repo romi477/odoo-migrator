@@ -71,7 +71,7 @@ def ctx_for(tmp_path, sheller):
                 "odoo_bin": "/opt/odoo/odoo-bin",
                 "owner": {"kind": "agent", "migration_id": migration.id},
             }
-            for side, container in (("old", "odoo-old"), ("new", "odoo-new"))
+            for side, container in (("source", "odoo-old"), ("target", "odoo-new"))
         }
         ctx = StepContext(
             job_id="job-1",
@@ -173,10 +173,10 @@ def test_busy_and_the_daemons_own_timeout_are_their_own_errors():
 
 def test_source_runs_the_read_snippet_and_parses_it(ctx_for, sheller):
     ctx = ctx_for()
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["source"], prompt="p")
     (source,) = tools_for(step, ctx)
 
-    answer = source(side="new", model="sale.order", method="action_confirm")
+    answer = source(side="target", model="sale.order", method="action_confirm")
 
     sent = sheller.execs[-1]
     assert "_os_read()" in sent
@@ -187,11 +187,11 @@ def test_source_runs_the_read_snippet_and_parses_it(ctx_for, sheller):
 
 def test_source_refuses_what_the_daemon_would_refuse(ctx_for):
     ctx = ctx_for()
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["source"], prompt="p")
     (source,) = tools_for(step, ctx)
 
-    assert "nothing_to_read" in source(side="new")
-    assert "method_without_model" in source(side="new", path="sale", method="x")
+    assert "nothing_to_read" in source(side="target")
+    assert "method_without_model" in source(side="target", path="sale", method="x")
 
 
 def test_source_says_why_a_read_failed(ctx_for, sheller):
@@ -199,10 +199,10 @@ def test_source_says_why_a_read_failed(ctx_for, sheller):
         "error": {"type": "KeyError", "message": "'no.such.model'", "traceback": ""}
     }
     ctx = ctx_for()
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["source"], prompt="p")
     (source,) = tools_for(step, ctx)
 
-    answer = source(side="new", model="no.such.model")
+    answer = source(side="target", model="no.such.model")
 
     assert "unreadable" in answer
     assert "KeyError" in answer
@@ -214,17 +214,17 @@ def test_source_says_why_a_read_failed(ctx_for, sheller):
 def test_upgrade_runs_in_a_fresh_session(ctx_for, sheller):
     """The session open since the job started imported the old Python."""
     ctx = ctx_for()
-    before = ctx.sessions["new"]
+    before = ctx.sessions["target"]
 
     result = upgrade.run(Step(kind="upgrade"), ctx)
 
     assert result.ok is True
-    assert ctx.sessions["new"] != before
+    assert ctx.sessions["target"] != before
     assert before in sheller.closes
     code = next(code for code in sheller.execs if "button_immediate" in code)
     assert "update_list()" in code
     assert code.index("update_list()") < code.index("button_immediate")
-    assert ctx.sessions["new"] in sheller.commits
+    assert ctx.sessions["target"] in sheller.commits
 
 
 def test_upgrade_drops_the_old_versions_migration_scripts_first(ctx_for, tmp_path):
@@ -245,8 +245,8 @@ def test_upgrade_does_not_commit_what_the_agent_left_pending(ctx_for, sheller):
     """Closing the old session is what discards it; the upgrade's own commit
     then has nothing of the agent's to carry."""
     ctx = ctx_for()
-    sheller.exec(ctx.sessions["new"], "env['res.partner'].create({})", write_key=ctx.write_keys["new"])
-    stale = ctx.sessions["new"]
+    sheller.exec(ctx.sessions["target"], "env['res.partner'].create({})", write_key=ctx.write_keys["target"])
+    stale = ctx.sessions["target"]
 
     upgrade.run(Step(kind="upgrade"), ctx)
 
@@ -272,7 +272,7 @@ def test_a_failed_upgrade_puts_the_module_states_back(ctx_for, sheller):
     assert "ParseError: field 'x' does not exist" in result.output
     assert "reset the states of: sale_custom" in result.output
     # The failed process is not the one diagnose gets.
-    reset_session = ctx.sessions["new"]
+    reset_session = ctx.sessions["target"]
     assert reset_session in sheller.commits
     assert ctx.log_errors
 
@@ -306,38 +306,38 @@ def test_an_upgrade_that_outlives_the_call_and_did_not_finish_fails(ctx_for, she
 
 def test_a_dead_session_is_reopened(ctx_for, sheller):
     ctx = ctx_for()
-    dead = ctx.sessions["new"]
+    dead = ctx.sessions["target"]
     sheller.kill(dead)
     with pytest.raises(ShellerSessionDead):
-        sheller.exec(dead, "1", write_key=ctx.write_keys["new"])
+        sheller.exec(dead, "1", write_key=ctx.write_keys["target"])
 
-    done = session_helpers.ensure_usable(ctx, "new")
+    done = session_helpers.ensure_usable(ctx, "target")
 
     assert "dead" in done
-    assert ctx.sessions["new"] != dead
-    assert sheller.exec(ctx.sessions["new"], "1", write_key=ctx.write_keys["new"])["error"] is None
+    assert ctx.sessions["target"] != dead
+    assert sheller.exec(ctx.sessions["target"], "1", write_key=ctx.write_keys["target"])["error"] is None
 
 
 def test_a_busy_session_is_interrupted_and_kept(ctx_for, sheller):
     ctx = ctx_for()
     sheller.hangs_on = "search([])"
     with pytest.raises(ShellerTimeout):
-        sheller.exec(ctx.sessions["new"], "env['x'].search([])", write_key=ctx.write_keys["new"])
-    kept = ctx.sessions["new"]
+        sheller.exec(ctx.sessions["target"], "env['x'].search([])", write_key=ctx.write_keys["target"])
+    kept = ctx.sessions["target"]
 
-    done = session_helpers.ensure_usable(ctx, "new")
+    done = session_helpers.ensure_usable(ctx, "target")
 
     assert "interrupted" in done
-    assert ctx.sessions["new"] == kept
+    assert ctx.sessions["target"] == kept
     assert kept in sheller.interrupts
 
 
 def test_a_ready_session_is_left_alone(ctx_for):
     ctx = ctx_for()
-    kept = ctx.sessions["new"]
+    kept = ctx.sessions["target"]
 
-    assert session_helpers.ensure_usable(ctx, "new") == ""
-    assert ctx.sessions["new"] == kept
+    assert session_helpers.ensure_usable(ctx, "target") == ""
+    assert ctx.sessions["target"] == kept
 
 
 # -- verdict: the baseline is no errors in the log ---------------------------
@@ -465,17 +465,17 @@ def test_a_project_path_with_a_tilde_is_the_home_directory(ctx_for, monkeypatch,
     monkeypatch.setenv("HOME", str(home))
     ctx = ctx_for()
     ctx.migration.new_project_path = "~/proj"
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["write_file"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["write_file"], prompt="p")
     (write,) = tools_for(step, ctx)
 
-    written = write(side="new", path="sale_custom/x.py", content="x = 1\n")
+    written = write(side="target", path="sale_custom/x.py", content="x = 1\n")
 
     assert written == str((home / "proj" / "sale_custom" / "x.py").resolve())
 
 
 def test_our_own_value_error_is_not_handed_to_the_model(ctx_for, monkeypatch):
     ctx = ctx_for()
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["exec"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["exec"], prompt="p")
     (run,) = tools_for(step, ctx)
 
     def broken(*_args, **_kwargs):
@@ -484,7 +484,7 @@ def test_our_own_value_error_is_not_handed_to_the_model(ctx_for, monkeypatch):
     monkeypatch.setattr("odoo_migrator.runner.tools._dispatch", broken)
 
     with pytest.raises(ValueError, match="a bug in the runner"):
-        run(side="new", code="1")
+        run(side="target", code="1")
 
 
 def test_reading_a_binary_file_is_an_answer_not_a_crash(ctx_for):
@@ -492,10 +492,10 @@ def test_reading_a_binary_file_is_an_answer_not_a_crash(ctx_for):
 
     ctx = ctx_for()
     (Path(ctx.module.new_path) / "logo.png").write_bytes(b"\x89PNG\xff\xfe")
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["read_file"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["read_file"], prompt="p")
     (read,) = tools_for(step, ctx)
 
-    assert read(side="new", path="sale_custom/logo.png").startswith("error:")
+    assert read(side="target", path="sale_custom/logo.png").startswith("error:")
 
 
 # -- the loop: a person's answer, the lane's failures, repeats ---------------
@@ -508,7 +508,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     context: [prior_answers]
     prompt: port
@@ -516,7 +516,7 @@ on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec]
       context: [prior_answers]
       raises: [needs_human]
@@ -575,14 +575,14 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     prompt: port
 on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec]
       prompt: why
   retry:
@@ -667,7 +667,7 @@ def _turn(*, inp=0, out=0, read=0, written=0, content=()):
 def _run(provider, budget=None):
     from odoo_migrator.runner.tools import report_tool
 
-    step = Step(kind="agent", id="port", sessions=["new"], raises=[], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], raises=[], prompt="p")
 
     return provider.run_step(
         system="s", prompt="p", tools=[], report=report_tool(step),
@@ -805,7 +805,7 @@ def test_two_jobs_on_one_database_share_one_lock(ctx_for, tmp_path):
     first = ctx_for(project="a")
     second = ctx_for(project="b")
     other = ctx_for(project="c")
-    other.session_targets["new"] = {**other.session_targets["new"], "database": "elsewhere"}
+    other.session_targets["target"] = {**other.session_targets["target"], "database": "elsewhere"}
 
     assert _target_lock(first) is _target_lock(second)
     assert _target_lock(first) is not _target_lock(other)
@@ -842,7 +842,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     prompt: port
 on_failure:
@@ -1045,7 +1045,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [write_file]
     prompt: port
 on_failure:
@@ -1059,7 +1059,7 @@ on_failure:
 
     model = ModelDouble(
         turns=[
-            {"name": "write_file", "input": {"side": "new", "path": "sale_custom/models.py", "content": "x = 2\n"}},
+            {"name": "write_file", "input": {"side": "target", "path": "sale_custom/models.py", "content": "x = 2\n"}},
             {"name": "report", "input": {"answer": "ported"}},
         ]
     )
@@ -1111,7 +1111,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: probe
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     raises: [behaviour_differs]
     prompt: probe
@@ -1135,7 +1135,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: probe
-    sessions: [new]
+    sessions: [target]
     tools: [exec]
     raises: [behaviour_differs]
     prompt: probe
@@ -1207,16 +1207,16 @@ def test_a_port_cannot_be_written_beside_the_addons_directory(ctx_for, tmp_path)
         module.new_path = str(inside)
         module.save()
     ctx.module = module
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["write_file"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["write_file"], prompt="p")
     (write,) = tools_for(step, ctx)
 
     with pytest.raises(ToolRefused) as refused:
-        write(side="new", path="mig_test_base/__manifest__.py", content="{}")
+        write(side="target", path="mig_test_base/__manifest__.py", content="{}")
 
     assert "project/mig_test_base" in str(refused.value)
 
     written = write(
-        side="new", path="project/mig_test_base/models/x.py", content="x = 1\n"
+        side="target", path="project/mig_test_base/models/x.py", content="x = 1\n"
     )
 
     assert written == str(inside / "models" / "x.py")
@@ -1262,14 +1262,14 @@ def test_a_rerun_after_a_write_opens_a_fresh_session(ctx_for, sheller):
     opened. A run before a reopen finds the set that was there before."""
     ctx = ctx_for()
     ctx.lap_flags = {"no_tests"}
-    before = ctx.sessions["new"]
+    before = ctx.sessions["target"]
     name = ctx.module.technical_name
     sheller.tests_for(name, sheller.catalogue(name, {"TestThing": ["test_one"]}))
 
     result = tests.run(Step(kind="tests", id="retest"), ctx)
 
     assert result.ok is True
-    assert ctx.sessions["new"] != before
+    assert ctx.sessions["target"] != before
     assert before in sheller.closes
 
 
@@ -1277,13 +1277,13 @@ def test_the_first_run_of_a_lap_does_not_reopen(ctx_for, sheller):
     """`upgrade` opened this session a moment ago. Another odoo-bin start per
     lap buys nothing."""
     ctx = ctx_for()
-    before = ctx.sessions["new"]
+    before = ctx.sessions["target"]
     name = ctx.module.technical_name
     sheller.tests_for(name, sheller.catalogue(name, {"TestThing": ["test_one"]}))
 
     tests.run(Step(kind="tests"), ctx)
 
-    assert ctx.sessions["new"] == before
+    assert ctx.sessions["target"] == before
 
 
 def test_a_source_read_can_be_opened_in_the_journal(ctx_for, sheller):
@@ -1291,12 +1291,12 @@ def test_a_source_read_can_be_opened_in_the_journal(ctx_for, sheller):
     parsed the answer and dropped the id with the envelope, so a source line
     was the only one of the daemon's commands with nothing to open."""
     ctx = ctx_for()
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["source"], prompt="p")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["source"], prompt="p")
     (read,) = tools_for(step, ctx)
     seen = []
     ctx.record_tool = lambda *args: seen.append(args)
 
-    read(side="new", path="sale/models/sale_order.py")
+    read(side="target", path="sale/models/sale_order.py")
 
     # (tool, side, session, command_id, ...)
     assert seen[0][0] == "source"

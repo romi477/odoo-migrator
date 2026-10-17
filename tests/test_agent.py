@@ -31,7 +31,7 @@ def _run(step, ctx, model, budget):
 AGENT_STEP = Step(
     kind="agent",
     id="probe",
-    sessions=["new"],
+    sessions=["target"],
     tools=["exec"],
     prompt="x",
 )
@@ -74,8 +74,8 @@ def step_context(tmp_path):
             module=module,
             cartridge=None,
             sheller=sheller,
-            sessions={"new": opened["id"]},
-            write_keys={"new": opened["write_key"]},
+            sessions={"target": opened["id"]},
+            write_keys={"target": opened["write_key"]},
             emit=lambda _event: None,
         )
 
@@ -96,14 +96,14 @@ def test_a_step_that_never_converges_ends_at_the_budget(step_context):
 def test_a_report_ends_the_step_with_its_flags(step_context):
     model = ModelDouble(
         turns=[
-            {"name": "exec", "input": {"side": "new", "code": "1"}},
+            {"name": "exec", "input": {"side": "target", "code": "1"}},
             {"name": "report", "input": {"answer": "done", "small_fix": True}},
         ]
     )
     step = Step(
         kind="agent",
         id="diagnose",
-        sessions=["new"],
+        sessions=["target"],
         tools=["exec"],
         raises=["small_fix"],
         prompt="x",

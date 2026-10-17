@@ -66,7 +66,7 @@ def _toplevel(directory: Path) -> Path | None:
 
 
 def ensure_repository(migration_id: str) -> str | None:
-    """Put the new project directory under git if nothing holds it yet.
+    """Put the target project directory under git if nothing holds it yet.
 
     The baseline holds the plan's module directories only. The rest of the
     directory — a database volume, a filestore, files this user cannot read
@@ -84,7 +84,7 @@ def ensure_repository(migration_id: str) -> str | None:
                 (Module.migration == migration_id) & (Module.struck_out == False)
             )
         )
-        directories = [module_root(migration, module, "new") for module in modules]
+        directories = [module_root(migration, module, "target") for module in modules]
         raw = (migration.new_project_path or "").strip()
     if not raw:
 
@@ -131,7 +131,7 @@ def commit_module(module: Module, *, job_id: str) -> str | None:
     """
     with database.connection_context():
         migration = Migration.get_by_id(module.migration_id)
-        directory = module_root(migration, module, "new")
+        directory = module_root(migration, module, "target")
         target = migration.target_version
     if directory is None or not Path(directory).is_dir():
 

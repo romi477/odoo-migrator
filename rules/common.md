@@ -52,7 +52,7 @@ version file is the instruction.
 - `cr.execute` with a string is the 16.0 form and still runs on later
   versions until a version file says otherwise. `SQL` exists from 17.0
   for composing queries. Do not rewrite a working string unless the
-  target file says to, or the new container rejects it.
+  target file says to, or the target container rejects it.
 - Enterprise modules are a reference. Do not copy them into the port
   unless the module already depends on them.
 - Upgrade scripts live in `migrations/<version>/`. Prefer that layout

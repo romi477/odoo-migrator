@@ -27,7 +27,7 @@ class ModelDouble:
         if self.always_calls:
             return {
                 "name": self.always_calls,
-                "input": {"side": "new", "code": "1"},
+                "input": {"side": "target", "code": "1"},
             }
         if self.always_reports:
             return {"name": "report", "input": {"answer": "noted"}}

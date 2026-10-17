@@ -49,8 +49,8 @@ def step_context(tmp_path):
             module=module,
             cartridge=None,
             sheller=sheller,
-            sessions={"old": opened["id"], "new": opened["id"]},
-            write_keys={"old": opened["write_key"], "new": opened["write_key"]},
+            sessions={"source": opened["id"], "target": opened["id"]},
+            write_keys={"source": opened["write_key"], "target": opened["write_key"]},
             emit=lambda _event: None,
         )
 
@@ -58,21 +58,21 @@ def step_context(tmp_path):
 
 
 def test_a_tool_cannot_reach_a_session_the_step_did_not_declare(step_context):
-    step = Step(kind="agent", id="probe", sessions=["new"], tools=["exec"], prompt="x")
+    step = Step(kind="agent", id="probe", sessions=["target"], tools=["exec"], prompt="x")
     tools = tools_for(step, step_context())
     exec_tool = next(t for t in tools if t.name == "exec")
 
     with pytest.raises(ToolRefused) as refused:
-        exec_tool(side="old", code="env.cr.execute('select 1')")
+        exec_tool(side="source", code="env.cr.execute('select 1')")
 
-    assert "old" in str(refused.value)
+    assert "source" in str(refused.value)
 
 
 def test_the_report_tool_schema_is_the_declared_flags():
     step = Step(
         kind="agent",
         id="diagnose",
-        sessions=["new"],
+        sessions=["target"],
         tools=["exec"],
         raises=["needs_human", "small_fix"],
         prompt="x",
@@ -84,12 +84,12 @@ def test_the_report_tool_schema_is_the_declared_flags():
 
 
 def test_write_file_refuses_a_path_that_escapes_the_project(step_context):
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["write_file"], prompt="x")
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["write_file"], prompt="x")
     tools = tools_for(step, step_context())
     write = next(t for t in tools if t.name == "write_file")
 
     with pytest.raises(ToolRefused) as refused:
-        write(side="new", path="../outside.py", content="x = 1\n")
+        write(side="target", path="../outside.py", content="x = 1\n")
 
     assert "escapes" in str(refused.value)
 

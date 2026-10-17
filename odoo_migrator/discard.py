@@ -2,12 +2,12 @@
 
 Dismiss marks a failed run as read and keeps all of it. This deletes the
 run: every job of the module with the logs, findings and thread that hang
-off them, the module's directory in the new project back to its last
+off them, the module's directory in the target project back to its last
 commit, and the module queued again. A module that passed is refused: the
 app committed that port, and taking a commit back is not this button's job
 (Reopen is).
 
-The new container's database is not touched. A run that got as far as
+The target container's database is not touched. A run that got as far as
 committing an upgrade there leaves it.
 """
 
@@ -44,7 +44,7 @@ def discard_preview(module: Module) -> int | None:
     the question asked first. None when it cannot say (not a git checkout)."""
     with database.connection_context():
         migration = Migration.get_by_id(module.migration_id)
-        directory = module_root(migration, module, "new")
+        directory = module_root(migration, module, "target")
     if not _exists(directory):
 
         return 0
@@ -72,7 +72,7 @@ def discard_run(module_id: int, migration_id: str, hub: EventHub | None = None) 
         if busy:
             raise ContractError(f"{module.technical_name} is running. Stop it first.")
         migration = Migration.get_by_id(migration_id)
-        directory = module_root(migration, module, "new")
+        directory = module_root(migration, module, "target")
     # The files first: it is the step that can refuse, and a refusal must
     # leave the run exactly as it was.
     if _exists(directory):

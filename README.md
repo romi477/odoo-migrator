@@ -3,8 +3,8 @@
 Automatic migration of Odoo addon projects between framework versions
 (17.0 → 18.0, and multi-version jumps). Input: a project with dozens or
 hundreds of custom modules. Output: the same project ported, module by
-module, verified against two live Odoo containers — the old version to
-learn from, the new one to land in.
+module, verified against two live Odoo containers — the source version to
+learn from, the target one to land in.
 
 The app owns the queue, the batches, the rules and the review. A cartridge
 executes one module inside this process. odoo-sheller is how both sides
@@ -17,11 +17,11 @@ FastAPI app ── SQLite: queue, batches, notes, findings, assembled rules
  │
  ├─ runner (stub, or native when ODOO_MIGRATOR_RUNNER=native)
  │
- └─> Sheller daemon 127.0.0.1:8765 ──> old container / new container
+ └─> Sheller daemon 127.0.0.1:8765 ──> source container / target container
 ```
 
-Per module: understand the old version, rewrite, install the upgrade on the
-new container, test, judge, retry. The retry loop is the cartridge's
+Per module: understand the source version, rewrite, install the upgrade on the
+target container, test, judge, retry. The retry loop is the cartridge's
 failure lane. The default executor is a stub, so the UI and the suite run
 with nothing else up. `ODOO_MIGRATOR_RUNNER=native` selects the live runner.
 
@@ -80,7 +80,7 @@ The reasoning behind each of these is in [docs/security.md](docs/security.md).
 | Python | 3.12 or newer |
 | Package manager | [uv](https://docs.astral.sh/uv/) (preferred) or pip + venv |
 | Docker | Docker Engine, for the two Odoo compose projects |
-| Odoo | two live containers — old version and new — each with its own compose project |
+| Odoo | two live containers — source version and new — each with its own compose project |
 | [odoo-sheller](https://github.com/romi477/odoo-sheller) | a daemon on `127.0.0.1:8765`, or one the app can spawn |
 
 Without `ODOO_MIGRATOR_RUNNER=native` the app uses an in-process stub
@@ -146,7 +146,7 @@ watch — reload the browser page instead.
 Then open <http://127.0.0.1:8000/>. Typical loop:
 
 1. **Create a migration** on Overview — name, accent, source and target
-   versions, old and new project paths. Same-version and downgrade are
+   versions, old and target project paths. Same-version and downgrade are
    refused here, where they were typed.
 2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`),
    the image tag when the app must spawn the daemon, and a provider
@@ -155,7 +155,7 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
 3. **This migration** — attach or Up the two compose projects, pin a
    flow and optionally override its model, smoke-run one module before
    a batch.
-4. **Tree** — Resolve the graph from the live old Odoo. Skip, group,
+4. **Tree** — Resolve the graph from the live source Odoo. Skip, group,
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, observe Sheller without a write key.
    At checkpoint: diffs, attempts, findings to promote, Continue or

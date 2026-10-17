@@ -48,7 +48,7 @@ class StepScript:
         if step == "port":
             write = next(tool for tool in tools if tool.name == "write_file")
             for name, body in (("__manifest__.py", MANIFEST), ("models.py", "X = 1\n")):
-                self.wrote.append(write(side="new", path=f"project/sale_custom/{name}", content=body))
+                self.wrote.append(write(side="target", path=f"project/sale_custom/{name}", content=body))
 
         return StepResult(ok=True, answer=f"{step} done")
 

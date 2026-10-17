@@ -57,7 +57,7 @@ def tool_call(client, sheller_fake, tmp_path):
         call = ToolCall.create(
             step_run=step,
             tool="exec",
-            side="new",
+            side="target",
             session_id=opened["id"],
             command_id="1",
             preview="1",
@@ -76,7 +76,7 @@ def finished_job(client, tmp_path):
         ToolCall.create(
             step_run=step,
             tool="exec",
-            side="new",
+            side="target",
             session_id="sess-new",
             command_id="7",
             preview="env['res.partner'].search([])",
@@ -186,7 +186,7 @@ def test_a_body_is_read_through_the_resolved_client(tmp_path):
             job = Job.create(batch=batch, module=module, status="passed")
             step = StepRun.create(job=job, attempt=1, step_id="port", kind="agent")
             call = ToolCall.create(
-                step_run=step, tool="exec", side="new",
+                step_run=step, tool="exec", side="target",
                 session_id="sess-1", command_id="1", preview="1", ok=True,
             )
             line = _line(job, call)
@@ -209,7 +209,7 @@ def test_a_host_tool_offers_no_body(client, tool_call):
         job = tool_call.step_run.job
         read = RunLog.create(
             job=job, level="info", source="write_test",
-            text="read_file(new) 0ms ok: from odoo import models",
+            text="read_file(target) 0ms ok: from odoo import models",
         )
 
     lines = {row["id"]: row for row in runlog.lines(job.job_id)}

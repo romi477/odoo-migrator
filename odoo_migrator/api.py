@@ -351,7 +351,7 @@ def create_app(
             {
                 "modules": modules,
                 "error": error,
-                # When the error is about the old container, the fix is on the
+                # When the error is about the source container, the fix is on the
                 # migration's card; the template turns this into a link there.
                 "error_settings": error_settings,
                 "selected": selected,
@@ -363,7 +363,7 @@ def create_app(
         )
 
     def _link_old_container(request: Request, migration: dict) -> str | None:
-        """Record the old container the app will talk to, from the one already
+        """Record the source container the app will talk to, from the one already
         running for its project. Resolve never *starts* a container — that is
         Up on the card — so a stopped side is an error the human resolves
         there, not silent magic here. Returns an error message, or None."""
@@ -373,19 +373,19 @@ def create_app(
             side = describe_side(request.app.state.compose, old, sibling_path=new)
         except DockerUnavailable as exc:
 
-            return f"The old container can't be linked; Docker is not reachable: {exc}"
+            return f"The source container can't be linked; Docker is not reachable: {exc}"
         if side.state == "running" and side.container:
-            save_side_container(migration["id"], "old", side.container)
+            save_side_container(migration["id"], "source", side.container)
 
             return None
         if side.state == "stopped":
 
             return (
-                "The old container is not running yet. Press Up on its card, "
+                "The source container is not running yet. Press Up on its card, "
                 "then Resolve."
             )
 
-        return f"The old container can't be linked: {side.detail or side.state}"
+        return f"The source container can't be linked: {side.detail or side.state}"
 
     @app.get("/")
     def overview(request: Request, settings: str = "", create: str = ""):
@@ -461,7 +461,7 @@ def create_app(
         if current is None:
 
             return RedirectResponse("/tree", status_code=303)
-        # Link to the already-running old container instead of making the
+        # Link to the already-running source container instead of making the
         # human press Attach on another screen first. resolve_graph re-reads
         # the recorded container from the row.
         if not current["old_container"]:
@@ -1427,16 +1427,16 @@ def create_app(
         try:
 
             return {
-                "old": describe_side(engine, old_path, sibling_path=new_path),
-                "new": describe_side(engine, new_path, sibling_path=old_path),
+                "source": describe_side(engine, old_path, sibling_path=new_path),
+                "target": describe_side(engine, new_path, sibling_path=old_path),
                 "resources": count_running(engine, _known_project_paths()),
             }, None
         except DockerUnavailable as exc:
             detail = str(exc)
 
             return {
-                "old": describe_side_without_listing(old_path, detail=detail),
-                "new": describe_side_without_listing(new_path, detail=detail),
+                "source": describe_side_without_listing(old_path, detail=detail),
+                "target": describe_side_without_listing(new_path, detail=detail),
                 "resources": None,
             }, detail
 
@@ -1504,7 +1504,7 @@ def create_app(
                 "addons_roots": (
                     addon_directories(migration["id"])
                     if migration
-                    else {"old": [], "new": []}
+                    else {"source": [], "target": []}
                 ),
                 "error": error,
             },
@@ -1644,7 +1644,7 @@ def create_app(
 
             return _overview(request, error="No such migration.")
         handler = PROVISION_ACTIONS.get(action)
-        if side not in ("old", "new") or handler is None:
+        if side not in ("source", "target") or handler is None:
 
             return _overview(
                 request,
@@ -1653,12 +1653,12 @@ def create_app(
             )
         path = Path(
             migration["old_project_path"]
-            if side == "old"
+            if side == "source"
             else migration["new_project_path"]
         )
         sibling = Path(
             migration["new_project_path"]
-            if side == "old"
+            if side == "source"
             else migration["old_project_path"]
         )
         try:

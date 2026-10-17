@@ -52,7 +52,7 @@ class StepContext:
     # step's diff: after `write_test` that was the test, and `patch` could
     # not see the port it was asked to fix.
     previous_diff: str = ""
-    # The new side's module files when the job began; `previous_diff` is
+    # The target side's module files when the job began; `previous_diff` is
     # measured from here.
     baseline_files: dict[str, str] = field(default_factory=dict)
     last_failure: str = ""

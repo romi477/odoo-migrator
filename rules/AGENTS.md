@@ -45,7 +45,7 @@ A new major is a file and nothing else. No registry, no list to extend:
 
 - A name that is not in these files is not a fact. That is what the agent is
   told, so a rule here has to earn it: check it against the target version's
-  own code (`source` on the new container) or the release changelog before
+  own code (`source` on the target container) or the release changelog before
   writing it, and say so where you could not.
 - Lines that change a decision. Background costs tokens on every step that
   carries rules, and 17.0 → 20.0 is already around 5k tokens of stack.

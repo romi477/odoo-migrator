@@ -92,7 +92,7 @@
     <li class="run-log-line warn">
       <span class="run-log-at mono">13:26:41</span>
       <span class="run-log-source mono">understand</span>
-      <span class="run-log-text">exec(old) 812ms failed: session_busy</span>
+      <span class="run-log-text">exec(source) 812ms failed: session_busy</span>
     </li>
     <li class="run-log-line error is-open">
       <span class="run-log-at mono">13:27:06</span>
@@ -221,7 +221,7 @@ tools offered: exec, read_file, report, source</pre>
       <li class="mono">read_file</li>
     </ul>
     <h3>Prompt</h3>
-    <pre class="flow-inspect-prompt">You are reading a module on the old Odoo version.</pre>
+    <pre class="flow-inspect-prompt">You are reading a module on the source Odoo version.</pre>
   </aside>
   <div class="flow-canvas">
     <p class="flow-unavailable field-hint">The flow could not be drawn: the app did not hand over its graph. Reload the page.</p>
@@ -507,7 +507,7 @@ tools offered: exec, read_file, report, source</pre>
         <button type="submit" title="Mark this run as read. Nothing is deleted.">Dismiss</button>
         <button type="submit" title="Go on to the next batch.">Continue</button>
         <button type="submit" class="discard-run" title="Delete this run and queue the module again.">Discard run</button>
-        <button type="button" class="discard-run" disabled title="Its directory in the new project is not a git checkout, so its files cannot be put back.">Discard run</button>
+        <button type="button" class="discard-run" disabled title="Its directory in the target project is not a git checkout, so its files cannot be put back.">Discard run</button>
       </div>
       <p>attempt 2 &middot; retry</p>
       <p class="diagnosis">The tax mapping moved to account.tax; the rewrite
@@ -783,7 +783,7 @@ tools offered: exec, read_file, report, source</pre>
   <h2>Confirm dialog</h2>
   <dialog class="confirm-dialog is-specimen" open>
     <h2>Reopen sale_custom?</h2>
-    <p>The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and files already written to the new project are left as they are.</p>
+    <p>The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and files already written to the target project are left as they are.</p>
     <div class="confirm-actions">
       <button type="button">Cancel</button>
       <button type="button" class="primary">Reopen</button>
@@ -883,7 +883,7 @@ tools offered: exec, read_file, report, source</pre>
     migration is started here, or later from the switcher.</p>
     <div class="empty-state">
       <p class="empty-lead">No migrations yet.</p>
-      <p class="empty-help">A migration is an old project and its version, a new
+      <p class="empty-help">A migration is a source project and its version, a new
       project and its version — everything else grows from that pair.</p>
       <a class="button-link primary" href="#">Create migration</a>
     </div>

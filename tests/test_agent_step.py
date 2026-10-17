@@ -80,7 +80,7 @@ def test_rewrite_is_not_given_the_previous_attempt(agent_ctx):
     step = Step(
         kind="agent",
         id="rewrite",
-        sessions=["old", "new"],
+        sessions=["source", "target"],
         tools=["write_file"],
         context=["rules", "module_source"],
         prompt="again",
@@ -96,7 +96,7 @@ def test_patch_is_given_it(agent_ctx):
     step = Step(
         kind="agent",
         id="patch",
-        sessions=["new"],
+        sessions=["target"],
         tools=["write_file"],
         context=["previous_diff"],
         prompt="fix",
@@ -173,9 +173,9 @@ def loop_ctx(tmp_path):
             module=module,
             cartridge=load_cartridge(_MINIMAL),
             sheller=sheller,
-            sessions={"old": old["id"], "new": new["id"]},
-            write_keys={"old": old["write_key"], "new": new["write_key"]},
-            # What the runner records: `upgrade` reopens the new side on it.
+            sessions={"source": old["id"], "target": new["id"]},
+            write_keys={"source": old["write_key"], "target": new["write_key"]},
+            # What the runner records: `upgrade` reopens the target side on it.
             session_targets={
                 side: {
                     "container": container,
@@ -183,7 +183,7 @@ def loop_ctx(tmp_path):
                     "odoo_bin": "/opt/odoo/odoo-bin",
                     "owner": {"kind": "agent", "migration_id": migration.id},
                 }
-                for side, container in (("old", "odoo-old"), ("new", "odoo-new"))
+                for side, container in (("source", "odoo-old"), ("target", "odoo-new"))
             },
             emit=lambda _event: None,
             provider=ScriptedProvider(ModelDouble(always_reports=True)),

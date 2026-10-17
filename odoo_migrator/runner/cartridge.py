@@ -26,7 +26,7 @@ CONTEXT_ITEMS = (
     "last_failure",
 )
 SCHEMA_VERSION = 1
-SIDES = frozenset({"old", "new"})
+SIDES = frozenset({"source", "target"})
 
 
 class CartridgeError(Exception):
@@ -60,7 +60,7 @@ class Step(BaseModel):
     prompt: str = ""
     model: ModelRef | None = None
     budget: Budget | None = None
-    # Start from an empty module directory on the new side. For a step that
+    # Start from an empty module directory on the target side. For a step that
     # writes the module again: told not to reconstruct the previous attempt,
     # it otherwise found that attempt on disk, and kept what it did not
     # overwrite.
@@ -170,7 +170,9 @@ def _refuse_invalid(loaded: Cartridge) -> None:
             raise CartridgeError(f"deterministic step '{label}' must not carry a prompt")
         for side in step.sessions:
             if side not in SIDES:
-                raise CartridgeError(f"unknown session '{side}'")
+                raise CartridgeError(
+                    f"unknown session '{side}'; the sides are 'source' and 'target'"
+                )
         opened = set(step.sessions)
         for tool in step.tools:
             sides = TOOL_SIDES.get(tool)

@@ -79,8 +79,8 @@ def step_context(tmp_path, sheller_fake):
             module=module,
             cartridge=load_cartridge(_CARTRIDGE),
             sheller=sheller_fake,
-            sessions={"old": opened["id"], "new": opened["id"]},
-            write_keys={"old": opened["write_key"], "new": opened["write_key"]},
+            sessions={"source": opened["id"], "target": opened["id"]},
+            write_keys={"source": opened["write_key"], "target": opened["write_key"]},
             emit=lambda _event: None,
         )
 
@@ -209,8 +209,8 @@ def test_each_run_is_a_line_in_the_run_log(step_context, sheller_fake):
     tests.run(Step(kind="tests"), ctx)
 
     assert [(call[0], call[1], call[5]) for call in recorded] == [
-        ("run_test", "new", True),
-        ("run_test", "new", True),
+        ("run_test", "target", True),
+        ("run_test", "target", True),
     ]
     assert recorded[0][6].startswith("1/2 sale_custom.TestA")
     assert recorded[1][6].startswith("2/2 sale_custom.TestB")
@@ -268,7 +268,7 @@ def test_a_stop_ends_the_tests_between_two_runs(step_context, sheller_fake):
 def _with_target(ctx):
     # What the runner records, so a session can be freed or opened again.
     ctx.session_targets = {
-        "new": {
+        "target": {
             "container": "odoo-new",
             "database": "acme",
             "odoo_bin": "/opt/odoo/odoo-bin",
@@ -343,7 +343,7 @@ def test_the_double_runs_a_whole_module_and_lists_what_failed(step_context, shel
     ctx = step_context()
 
     report = sheller_fake.run_test(
-        ctx.sessions["new"], "sale_custom", write_key=ctx.write_keys["new"]
+        ctx.sessions["target"], "sale_custom", write_key=ctx.write_keys["target"]
     )
 
     assert report["test"]["tests_run"] == 3
@@ -359,9 +359,9 @@ def test_the_double_before_module_runs_refuses_a_bare_module(step_context, shell
     ctx = step_context()
 
     with pytest.raises(ShellerError, match="invalid_test_spec"):
-        sheller_fake.run_test(ctx.sessions["new"], "sale_custom", write_key=ctx.write_keys["new"])
+        sheller_fake.run_test(ctx.sessions["target"], "sale_custom", write_key=ctx.write_keys["target"])
     report = sheller_fake.run_test(
-        ctx.sessions["new"], "sale_custom.TestA", write_key=ctx.write_keys["new"]
+        ctx.sessions["target"], "sale_custom.TestA", write_key=ctx.write_keys["target"]
     )
     assert "failed" not in report
 

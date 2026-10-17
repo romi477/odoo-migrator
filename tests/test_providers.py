@@ -18,7 +18,7 @@ def _step(**extra) -> Step:
     fields = {
         "kind": "agent",
         "id": "port",
-        "sessions": ["new"],
+        "sessions": ["target"],
         "tools": ["exec"],
         "prompt": "port it",
     }
@@ -36,7 +36,7 @@ def _ctx() -> StepContext:
         module=None,
         cartridge=None,
         sheller=None,
-        sessions={"new": "sess"},
+        sessions={"target": "sess"},
         emit=lambda _event: None,
     )
 
@@ -122,14 +122,14 @@ def test_scripted_stops_at_the_tool_budget():
 
 
 def test_scripted_returns_a_refused_tool():
-    step = _step(sessions=["new"], tools=["exec"])
+    step = _step(sessions=["target"], tools=["exec"])
 
     def refuse(**_payload):
-        raise ToolRefused("side old is not declared")
+        raise ToolRefused("side source is not declared")
 
     tools = tools_for(step, _ctx())
     tools[0]._fn = refuse
-    client = ModelDouble(turns=[{"name": "exec", "input": {"side": "old", "code": "1"}}])
+    client = ModelDouble(turns=[{"name": "exec", "input": {"side": "source", "code": "1"}}])
 
     result = ScriptedProvider(client).run_step(
         system="",
@@ -141,7 +141,7 @@ def test_scripted_returns_a_refused_tool():
     )
 
     assert not result.ok
-    assert "old" in result.output
+    assert "source" in result.output
 
 
 def test_a_bound_tool_carries_its_schema():
@@ -183,7 +183,7 @@ def test_cursor_hands_the_catalog_to_custom_tools_and_reports(monkeypatch):
         reports = ({"answer": "ported"},)
 
         def wait(self):
-            captured["custom"]["exec"].execute({"side": "new", "code": "1"}, None)
+            captured["custom"]["exec"].execute({"side": "target", "code": "1"}, None)
             captured["answers"] = [
                 captured["custom"]["report"].execute(dict(payload), None)
                 for payload in _Run.reports

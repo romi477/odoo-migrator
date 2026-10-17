@@ -33,8 +33,8 @@ def _migration(tmp_path, old_mounts, new_mounts, *, old_project="/opt/sandbox/17
         old_project_path=old_project,
         new_project_path="/opt/sandbox/18",
     )
-    save_side_container(created["id"], "old", "odoo-old")
-    save_side_container(created["id"], "new", "odoo-new")
+    save_side_container(created["id"], "source", "odoo-old")
+    save_side_container(created["id"], "target", "odoo-new")
     engine = FakeComposeEngine()
     engine.add_container(name="odoo-old", image="odoo:17", status="running", labels={},
                          host_ports=[], mounts=old_mounts)
@@ -69,7 +69,7 @@ def test_a_directory_both_sides_mount_from_one_checkout_is_not_ported_in_place(t
     resolve_graph(_with(FakeShellerClient(), ("queue_x", "/opt/external-addons", {})), created["id"])
 
     queue = _module("queue_x")
-    assert queue.path_problem == "shared with the old side"
+    assert queue.path_problem == "shared with the source side"
     assert queue.new_path == ""
 
 
@@ -128,9 +128,9 @@ def test_a_relative_write_cannot_reach_a_guessed_directory_when_mounts_are_known
     ctx.migration, ctx.module = migration, module
 
     with pytest.raises(ToolRefused):
-        _write_file(ctx, "new", "sale_x/models/x.py", "")
+        _write_file(ctx, "target", "sale_x/models/x.py", "")
     assert not (new_project / "sale_x" / "models").exists()
-    _write_file(ctx, "new", "/opt/external-addons/sale_x/models/x.py", "X = 1\n")
+    _write_file(ctx, "target", "/opt/external-addons/sale_x/models/x.py", "X = 1\n")
     assert (ext18 / "sale_x" / "models" / "x.py").read_text() == "X = 1\n"
 
 
@@ -176,10 +176,10 @@ def test_the_card_names_addons_directories_not_mount_points(tmp_path):
 
     found = addon_directories(created["id"])
 
-    assert "/opt/int/19/odoo-sh/connectors-extensions" in found["old"]
-    assert "/opt/int/19/odoo-sh" not in found["old"]
-    assert "/opt/sandbox/17/project" in found["old"]
-    assert "/opt/int/20/odoo-sh/connectors-extensions" in found["new"]
+    assert "/opt/int/19/odoo-sh/connectors-extensions" in found["source"]
+    assert "/opt/int/19/odoo-sh" not in found["source"]
+    assert "/opt/sandbox/17/project" in found["source"]
+    assert "/opt/int/20/odoo-sh/connectors-extensions" in found["target"]
 
 
 def test_a_module_the_target_does_not_load_is_stopped_at_build_graph(tmp_path):

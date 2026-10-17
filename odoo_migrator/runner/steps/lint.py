@@ -43,7 +43,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
 def _module_root(ctx: StepContext) -> Path | None:
 
-    return module_root(ctx.migration, ctx.module, "new")
+    return module_root(ctx.migration, ctx.module, "target")
 
 
 def _python(path: Path, relative: str, target: str = "") -> list[str]:

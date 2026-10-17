@@ -339,22 +339,22 @@ def test_the_summary_says_what_happened_to_the_tests(client):
     with database.connection_context():
         step = StepRun.get(StepRun.step_id == "port")
         ToolCall.create(
-            step_run=step, tool="list_tests", side="old", ok=True,
+            step_run=step, tool="list_tests", side="source", ok=True,
             preview="no tests on disk",
         )
         ToolCall.create(
-            step_run=step, tool="write_file", side="new", ok=True,
+            step_run=step, tool="write_file", side="target", ok=True,
             preview="/p/mig_test_account/tests/test_mig_test_account.py",
         )
         ToolCall.create(
-            step_run=step, tool="write_file", side="new", ok=True,
+            step_run=step, tool="write_file", side="target", ok=True,
             preview="/p/mig_test_account/models/account_move.py",
         )
         ToolCall.create(
-            step_run=step, tool="run_test", side="new", ok=True,
+            step_run=step, tool="run_test", side="target", ok=True,
             preview="passed: 3 test(s), 0 failure(s), 0 error(s)",
         )
-        ToolCall.create(step_run=step, tool="exec", side="new", ok=True, preview="1")
+        ToolCall.create(step_run=step, tool="exec", side="target", ok=True, preview="1")
 
     testing = client.get(f"/api/result/modules/{module.id}/summary").json()["testing"]
 
@@ -376,38 +376,38 @@ def test_the_summary_names_the_sheller_sessions_the_run_worked_in(client):
         port = StepRun.get(StepRun.step_id == "port")
         tests = StepRun.get(StepRun.step_id == "tests")
         ToolCall.create(
-            step_run=port, tool="exec", side="old", session_id="old1", command_id="1", ok=True
+            step_run=port, tool="exec", side="source", session_id="old1", command_id="1", ok=True
         )
         ToolCall.create(
-            step_run=port, tool="exec", side="new", session_id="new1", command_id="1", ok=True
+            step_run=port, tool="exec", side="target", session_id="new1", command_id="1", ok=True
         )
         # No session: these are the host's, not the daemon's.
-        ToolCall.create(step_run=port, tool="write_file", side="new", ok=True)
+        ToolCall.create(step_run=port, tool="write_file", side="target", ok=True)
         # Once stamped with one. A run that read eight files and wrote five
         # showed thirteen "calls" the daemon never heard of; its journal had
         # five commands and the summary said eighteen.
         for tool in ("read_file", "read_file", "write_file"):
-            ToolCall.create(step_run=port, tool=tool, side="new", session_id="new1", ok=True)
+            ToolCall.create(step_run=port, tool=tool, side="target", session_id="new1", ok=True)
         # A route, and a call the daemon refused: neither became a command.
-        ToolCall.create(step_run=port, tool="list_tests", side="new", session_id="new1", ok=True)
-        ToolCall.create(step_run=port, tool="exec", side="new", session_id="new1", ok=False)
+        ToolCall.create(step_run=port, tool="list_tests", side="target", session_id="new1", ok=True)
+        ToolCall.create(step_run=port, tool="exec", side="target", session_id="new1", ok=False)
         # The same side again, reopened after the rewrite.
         ToolCall.create(
-            step_run=tests, tool="exec", side="new", session_id="new2", command_id="1", ok=True
+            step_run=tests, tool="exec", side="target", session_id="new2", command_id="1", ok=True
         )
         ToolCall.create(
-            step_run=tests, tool="run_test", side="new", session_id="new2", command_id="2", ok=True
+            step_run=tests, tool="run_test", side="target", session_id="new2", command_id="2", ok=True
         )
         ToolCall.create(
-            step_run=tests, tool="read_file", side="new", session_id="new2", ok=True
+            step_run=tests, tool="read_file", side="target", session_id="new2", ok=True
         )
 
     sessions = client.get(f"/api/result/modules/{module.id}/summary").json()["sessions"]
 
     assert [(row["side"], row["session_id"]) for row in sessions] == [
-        ("old", "old1"),
-        ("new", "new1"),
-        ("new", "new2"),
+        ("source", "old1"),
+        ("target", "new1"),
+        ("target", "new2"),
     ]
     assert sessions[1]["calls"] == 1
     assert sessions[2]["calls"] == 2

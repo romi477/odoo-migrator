@@ -21,7 +21,7 @@
   {% if not migrations and not creating %}
   <div class="empty-state">
     <p class="empty-lead">No migrations yet.</p>
-    <p class="empty-help">A migration is an old project and its version, a new
+    <p class="empty-help">A migration is a source project and its version, a new
     project and its version — everything else grows from that pair.</p>
     <a class="button-link primary" href="/?create=1#create">Create migration</a>
   </div>
@@ -85,7 +85,7 @@
       <div class="row-archive">
         <form method="post" action="/migrations/{{ migration.id }}/reopen"
               data-confirm-title="Reopen every finished module of {{ migration.name }}?"
-              data-confirm-text="Passed, failed, stopped and unknown modules go back to queued. Nothing runs now: they run the next time you start them from Pipeline. Their earlier jobs stay on record. Files already written to the new project are left as they are, and neither container is touched."
+              data-confirm-text="Passed, failed, stopped and unknown modules go back to queued. Nothing runs now: they run the next time you start them from Pipeline. Their earlier jobs stay on record. Files already written to the target project are left as they are, and neither container is touched."
               data-confirm-go="Reopen all">
           <button type="submit" class="icon-danger"
                   title="Reopen every finished module of {{ migration.name }}"
@@ -116,7 +116,7 @@
   {% if not creating %}
   <div class="empty-state">
     <p class="empty-lead">Add another migration.</p>
-    <p class="empty-help">A migration is an old project and its version, a new
+    <p class="empty-help">A migration is a source project and its version, a new
     project and its version — everything else grows from that pair.</p>
     <a class="button-link primary" href="/?create=1#create">Create migration</a>
   </div>

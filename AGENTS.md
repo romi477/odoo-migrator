@@ -3,8 +3,8 @@
 Automatic migration of Odoo addon projects between framework versions
 (17.0 → 18.0, and multi-version jumps). Input: a project with dozens or
 hundreds of custom modules. Output: the same project ported, module by
-module, verified against two live Odoo containers — the old version to
-learn from, the new one to land in.
+module, verified against two live Odoo containers — the source version to
+learn from, the target one to land in.
 
 **Status: native runner in the tree, stub by default.** Tasks 1–12 of the
 native-runner plan are done. The live gate — one real module against two
@@ -42,11 +42,11 @@ FastAPI app ── SQLite            the source of truth: queue, batches,
    │     one job, one thread; a provider runs one model turn
    │     tools call Sheller and write files under the project roots
    │
-   └─> Sheller daemon 127.0.0.1:8765 ──> old container / new container
+   └─> Sheller daemon 127.0.0.1:8765 ──> source container / target container
 ```
 
-Per module: understand the old version, rewrite, install the upgrade on
-the new container, test, judge, retry. The retry loop is the cartridge's
+Per module: understand the source version, rewrite, install the upgrade on
+the target container, test, judge, retry. The retry loop is the cartridge's
 failure lane, not another turn inside one model call.
 
 ## Decisions that are settled
@@ -71,7 +71,7 @@ own question if you think one is wrong.
   possible at all.
 - **Sessions belong to the agent, not the app.** A rewrite invalidates
   any session open on the *new* container, so a fresh one opens after it.
-  The old container is read-only. Both sessions close while the job is
+  The source container is read-only. Both sessions close while the job is
   parked on a person, and open again when the same thread gets the
   answer.
 - **Peewee, not SQLAlchemy. Alpine, not React. No Celery, no LiteLLM.**
@@ -145,10 +145,10 @@ Python loops where `mapped` is one call.
 
 Sessions the migrator opens are `owner.kind = agent` and carry the
 `migration_id`, so concurrent migrations stay attributable. Commit is
-allowed on the new container and refused on the old one. Since Sheller
+allowed on the target container and refused on the source one. Since Sheller
 1.8.3 an agent cannot be handed commit at open; from 1.11.0 a person turns
-on *agents may commit* on the new container's card in Sheller, and the
-runner's target side opens with the right. The old side opens with
+on *agents may commit* on the target container's card in Sheller, and the
+runner's target side opens with the right. The source side opens with
 `allow_commit: false`, an opt-out the switch honours. Sheller's only
 hard lock is production, which we never touch because the target
 container is never production.

@@ -30,7 +30,7 @@ def open_side(ctx, side: str) -> str:
         database=target["database"],
         odoo_bin=target["odoo_bin"],
         owner=target.get("owner") or {"kind": "agent"},
-        allow_commit=side == "new",
+        allow_commit=side == "target",
     )
     ctx.sessions[side] = opened["id"]
     ctx.write_keys[side] = opened["write_key"]

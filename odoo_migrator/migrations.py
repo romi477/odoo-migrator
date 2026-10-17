@@ -269,17 +269,17 @@ def get_active(migration_id: str | None) -> dict | None:
 
 
 class ProjectPathsError(ValueError):
-    """The two project roots overlap. The old one is the only copy of the source."""
+    """The two project roots overlap. The source one is the only copy of the source."""
 
 
 def check_project_paths(old: str, new: str) -> None:
     """Refuse two roots that are the same directory, or where one holds the other.
 
-    Nothing compared them while nothing wrote to the old side. A step marked
-    `fresh` empties the module's directory on the new side, and the module is
-    looked up under the new root: with equal roots, or a new root above the
-    old one, that directory is the old module — the only copy of its source.
-    `write_file` on the new side lands in it just the same.
+    Nothing compared them while nothing wrote to the source side. A step marked
+    `fresh` empties the module's directory on the target side, and the module is
+    looked up under the target root: with equal roots, or a target root above the
+    source one, that directory is the source module — the only copy of its source.
+    `write_file` on the target side lands in it just the same.
     """
     old, new = (old or "").strip(), (new or "").strip()
     if not old or not new:
@@ -288,11 +288,11 @@ def check_project_paths(old: str, new: str) -> None:
     old_root = Path(old).expanduser().resolve()
     new_root = Path(new).expanduser().resolve()
     if old_root == new_root:
-        raise ProjectPathsError("The old and the new project are the same directory.")
+        raise ProjectPathsError("The source and the target project are the same directory.")
     if old_root.is_relative_to(new_root) or new_root.is_relative_to(old_root):
         raise ProjectPathsError(
             "One project directory is inside the other. The port writes under the "
-            "new one, and must not be able to reach the old module's source."
+            "target one, and must not be able to reach the source module's code."
         )
 
 
@@ -407,7 +407,7 @@ def save_migration_settings(
 
 
 def save_side_container(migration_id: str, side: str, container: str) -> None:
-    if side not in ("old", "new"):
+    if side not in ("source", "target"):
 
         return
     with database.connection_context():
@@ -417,7 +417,7 @@ def save_side_container(migration_id: str, side: str, container: str) -> None:
         if row is None:
 
             return
-        if side == "old":
+        if side == "source":
             row.old_container = container
         else:
             row.new_container = container

@@ -49,13 +49,13 @@ def test_project_setup_names_the_migration_on_every_container_action(client, tmp
     # what the card heading and the page heading already say.
     for action in ("Up", "Stop", "Attach", "Restart", "Rebuild"):
 
-        assert f'aria-label="{action} the old container of Acme"' in page
+        assert f'aria-label="{action} the source container of Acme"' in page
         assert f">{action}<" in page
 
-    assert 'aria-label="Up the new container of Acme"' in page
-    assert 'aria-label="Stop the new container of Acme"' in page
+    assert 'aria-label="Up the target container of Acme"' in page
+    assert 'aria-label="Stop the target container of Acme"' in page
     assert "containers on this machine" in page
-    # The card headings are the roles, not "old container" / "new container".
+    # The card headings are the roles, not "source container" / "target container".
     assert ">source<" in page
     assert ">target<" in page
 
@@ -68,7 +68,7 @@ def test_up_persists_the_container_name_on_the_migration(client, tmp_path, compo
     _, row = _open_migration(client, old=old, new=new)
 
     page = client.post(
-        f"/migrations/{row.id}/containers/old/up",
+        f"/migrations/{row.id}/containers/source/up",
         follow_redirects=True,
     )
 
@@ -96,7 +96,7 @@ def test_up_says_so_when_the_port_belongs_to_someone_else(client, tmp_path, comp
     )
 
     page = client.post(
-        f"/migrations/{row.id}/containers/old/up",
+        f"/migrations/{row.id}/containers/source/up",
         follow_redirects=True,
     )
 
@@ -116,7 +116,7 @@ def test_missing_compose_is_loud_not_silent(client, tmp_path):
     _, row = _open_migration(client, old=old, new=new)
 
     page = client.post(
-        f"/migrations/{row.id}/containers/old/up",
+        f"/migrations/{row.id}/containers/source/up",
         follow_redirects=True,
     )
 
@@ -143,7 +143,7 @@ def test_actions_that_take_a_container_away_ask_first(client, tmp_path):
     page = client.get(f"/?settings={row.id}").text
 
     for action in ("stop", "restart", "rebuild"):
-        form = page[page.index(f'containers/old/{action}"') :]
+        form = page[page.index(f'containers/source/{action}"') :]
         assert "data-confirm-text" in form[: form.index(">")]
-    up = page[page.index('containers/old/up"') :]
+    up = page[page.index('containers/source/up"') :]
     assert "data-confirm-text" not in up[: up.index(">")]

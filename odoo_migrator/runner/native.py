@@ -87,7 +87,7 @@ def _forget_stop(job_id: str) -> None:
 
 
 def _target_lock(ctx) -> threading.Lock | None:
-    target = ctx.session_targets.get("new")
+    target = ctx.session_targets.get("target")
     if not target:
 
         return None
@@ -338,8 +338,8 @@ class NativeRunner:
             )
             self._log(job_id, "runner", _where_line(ctx), detail=_where_detail(ctx))
             # Opened here rather than inside `_context`, so `ctx` is already
-            # bound when it happens. Opening the old side and then failing on
-            # the new one used to leave `ctx` unassigned, and the `finally`
+            # bound when it happens. Opening the source side and then failing on
+            # the target one used to leave `ctx` unassigned, and the `finally`
             # below closed nothing: a live odoo-bin stayed on the host.
             ctx.baseline_files = snapshot(_module_root(ctx))
             self._await_commit_switch(ctx)
@@ -537,10 +537,10 @@ class NativeRunner:
         refuses the target there, and the job parks again with the daemon's
         own words.
         """
-        if "new" not in ctx.session_targets:
+        if "target" not in ctx.session_targets:
 
             return
-        container = ctx.session_targets["new"]["container"]
+        container = ctx.session_targets["target"]["container"]
         while True:
             question = _commit_switch_question(ctx.sheller, container)
             if question is None:
@@ -575,22 +575,22 @@ class NativeRunner:
                 self._log(ctx.job_id, label, done, level="warn")
 
     def _clear_module(self, ctx: StepContext, label: str) -> None:
-        """Empty the module's directory on the new side, for a step that starts over.
+        """Empty the module's directory on the target side, for a step that starts over.
 
         `rewrite` is told not to reconstruct the previous attempt, and then
         found it on disk: whatever it did not overwrite stayed in the module
         and was imported with the rest. Only a directory strictly inside the
-        new project root, holding a manifest, is cleared, and what is hidden
+        target project root, holding a manifest, is cleared, and what is hidden
         in it stays.
         """
         from odoo_migrator.module_paths import allowed_roots
 
         root = _module_root(ctx)
-        # The new side's addons directories when its mounts are known, and the
-        # new project otherwise. Strictly inside one of them, never the root.
+        # The target side's addons directories when its mounts are known, and the
+        # target project otherwise. Strictly inside one of them, never the root.
         roots = [
             Path(mount["host"]).expanduser().resolve()
-            for mount in allowed_roots(ctx.migration, "new")
+            for mount in allowed_roots(ctx.migration, "target")
         ]
         if not roots and str(ctx.migration.new_project_path or "").strip():
             roots = [Path(ctx.migration.new_project_path).expanduser().resolve()]
@@ -607,8 +607,8 @@ class NativeRunner:
             )
 
             return
-        # A directory the old container mounts is the source it runs, even
-        # when the new one mounts it too. Emptying it would delete the 17.0
+        # A directory the source container mounts is the source it runs, even
+        # when the target one mounts it too. Emptying it would delete the 17.0
         # code the port is read from.
         from odoo_migrator.mounts import load as load_mounts
 
@@ -618,14 +618,14 @@ class NativeRunner:
                 self._log(
                     ctx.job_id,
                     label,
-                    f"not clearing {root}: the old container mounts {old_host}",
+                    f"not clearing {root}: the source container mounts {old_host}",
                     level="error",
                 )
 
                 return
         # A migration created before the roots were checked against each
         # other can still have them overlap, and the directory found under
-        # the new root is then the old module itself.
+        # the target root is then the source module itself.
         old_raw = str(ctx.migration.old_project_path or "").strip()
         if old_raw:
             old = Path(old_raw).expanduser().resolve()
@@ -633,7 +633,7 @@ class NativeRunner:
                 self._log(
                     ctx.job_id,
                     label,
-                    f"not clearing {root}: it is inside the old project {old}",
+                    f"not clearing {root}: it is inside the source project {old}",
                     level="error",
                 )
 
@@ -662,7 +662,7 @@ class NativeRunner:
 
             return
         if not lock.acquire(blocking=False):
-            target = ctx.session_targets["new"]
+            target = ctx.session_targets["target"]
             where = f"{target['container']}/{target['database']}"
             self._log(
                 ctx.job_id,
@@ -847,8 +847,8 @@ class NativeRunner:
         owner = {"kind": "agent", "migration_id": migration.id}
         targets = {}
         for side, container, chosen in (
-            ("old", migration.old_container, migration.old_database),
-            ("new", migration.new_container, migration.new_database),
+            ("source", migration.old_container, migration.old_database),
+            ("target", migration.new_container, migration.new_database),
         ):
             if not container:
                 raise RuntimeError(f"the {side} container of this migration is not up")
@@ -994,7 +994,7 @@ def _where_detail(ctx: StepContext) -> str:
     from odoo_migrator.module_paths import module_root
 
     rows = [f"module: {ctx.module.technical_name}"]
-    for side in ("old", "new"):
+    for side in ("source", "target"):
         target = ctx.session_targets.get(side) or {}
         rows.append(
             f"{side}: container={target.get('container', '')} "
@@ -1009,4 +1009,4 @@ def _where_detail(ctx: StepContext) -> str:
 def _module_root(ctx: StepContext) -> Path | None:
     """Where this module lives inside the target project."""
 
-    return module_root(ctx.migration, ctx.module, "new")
+    return module_root(ctx.migration, ctx.module, "target")

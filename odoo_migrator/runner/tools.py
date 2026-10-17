@@ -1,6 +1,6 @@
 """Tool catalog. A cartridge picks from this and cannot extend it.
 
-``run_test`` is allowed on the old session as well as the new one: the stock
+``run_test`` is allowed on the source session as well as the target one: the stock
 flow lists it while reading the module on the source container.
 
 Every tool takes ``side`` and never a container name. The container comes
@@ -28,18 +28,18 @@ READ_FILE_CHARS = 120_000
 MODULE_TEST_TIMEOUT = 1800.0
 
 TOOL_SIDES = {
-    "exec": ("old", "new"),
-    "source": ("old", "new"),
-    "journal": ("old", "new"),
-    "history": ("old", "new"),
-    "run_test": ("old", "new"),
-    "list_tests": ("old", "new"),
-    "test_result": ("new",),
-    "interrupt": ("old", "new"),
-    "rollback": ("old", "new"),
-    "reopen": ("new",),
-    "read_file": ("old", "new"),
-    "write_file": ("new",),
+    "exec": ("source", "target"),
+    "source": ("source", "target"),
+    "journal": ("source", "target"),
+    "history": ("source", "target"),
+    "run_test": ("source", "target"),
+    "list_tests": ("source", "target"),
+    "test_result": ("target",),
+    "interrupt": ("source", "target"),
+    "rollback": ("source", "target"),
+    "reopen": ("target",),
+    "read_file": ("source", "target"),
+    "write_file": ("target",),
 }
 
 
@@ -142,7 +142,7 @@ TOOL_DESCRIPTIONS = {
     ),
     "write_file": (
         "Write a file inside the module's directory, by its path inside the "
-        "new container. A path relative to the new project's root works where "
+        "target container. A path relative to the target project's root works where "
         "no container path was given."
     ),
 }
@@ -304,7 +304,12 @@ def _record(
 
 def _require_side(step, name: str, side: str) -> None:
     if side not in TOOL_SIDES[name] or side not in step.sessions:
-        raise ToolRefused(f"side {side!r} is not a session this step declared for {name}")
+        declared = ", ".join(repr(one) for one in step.sessions) or "none"
+        raise ToolRefused(
+            f"side {side!r} is not a session this step declared for {name}; "
+            f"it declared: {declared}. The sides are 'source' (the version the "
+            "module is ported from) and 'target' (the version it is ported to)."
+        )
 
 
 def _dispatch(name: str, ctx, side: str, kwargs: dict):
@@ -421,7 +426,7 @@ def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:
 
 def _project_root(ctx, side: str) -> Path:
     migration = ctx.migration
-    raw = (migration.old_project_path if side == "old" else migration.new_project_path) or ""
+    raw = (migration.old_project_path if side == "source" else migration.new_project_path) or ""
     if not raw.strip():
         # `Path("")` is the server's working directory, which is no project.
         raise ToolRefused(f"this migration names no {side} project directory")
@@ -541,11 +546,11 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
     # current root implies. They are the same in a live run; they differ when
     # the root was changed after the tree was read, and a write that is right
     # by either of them is not the mistake this guards against.
-    # With the new side's mounts known, the placed directory is the only
+    # With the target side's mounts known, the placed directory is the only
     # answer: the project-root guess is where a port lands and is never
     # loaded. With none placed, nothing is writable.
-    mounted = bool(allowed_roots(ctx.migration, "new"))
-    allowed = [module_root(ctx.migration, ctx.module, "new")]
+    mounted = bool(allowed_roots(ctx.migration, "target"))
+    allowed = [module_root(ctx.migration, ctx.module, "target")]
     if not mounted:
         allowed.append(host_paths(ctx.migration, ctx.module.technical_name)[1] or None)
     roots = [Path(one).expanduser().resolve() for one in allowed if one]
@@ -554,15 +559,15 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
         # used to go wherever the path said.
         raise ToolRefused(
             f"{relative}: the app does not know where this module is on the "
-            "new side, so nothing is written for it."
+            "target side, so nothing is written for it."
         )
     if any(path.is_relative_to(one) for one in roots):
 
         return
-    wanted = agent_path(ctx.migration, ctx.module, "new")
+    wanted = agent_path(ctx.migration, ctx.module, "target")
     raise ToolRefused(
         f"{relative} is outside the module's directory. This module is "
-        f"{wanted} on the new side: write {wanted}/{Path(relative).name}, "
+        f"{wanted} on the target side: write {wanted}/{Path(relative).name}, "
         "and everything else under that directory."
     )
 

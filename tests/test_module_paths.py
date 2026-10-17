@@ -89,7 +89,7 @@ def test_a_stored_path_is_not_searched_for_again(tmp_path):
         new_path="",
     )
 
-    assert module_root(_migration(tmp_path, tmp_path), module, "old") == (
+    assert module_root(_migration(tmp_path, tmp_path), module, "source") == (
         tmp_path / "somewhere" / "sale_custom"
     )
 
@@ -100,7 +100,7 @@ def test_the_prompt_gets_the_path_write_file_wants(tmp_path):
     _module(old / "project", "sale_custom")
     module = SimpleNamespace(technical_name="sale_custom", old_path="", new_path="")
 
-    assert relative_to_root(_migration(old, old), module, "old") == "project/sale_custom"
+    assert relative_to_root(_migration(old, old), module, "source") == "project/sale_custom"
 
 
 def test_the_scan_stores_both_paths(app, tmp_path):

@@ -46,7 +46,7 @@ def note_new_write(migration_id: str, relative: str, before: str, after: str) ->
         )
         for job in jobs:
             name = job.module.technical_name
-            # A module does not always sit at the root of the new project:
+            # A module does not always sit at the root of the target project:
             # addons/sale_custom/models.py is an ordinary layout, and a
             # prefix test dropped its diff without saying anything.
             folders = relative.split("/")[:-1]

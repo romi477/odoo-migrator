@@ -10,7 +10,7 @@ model: {provider: anthropic, name: claude-sonnet-5-5}
 pipeline:
   - step: agent
     id: port
-    sessions: [new]
+    sessions: [target]
     tools: [write_file]
     context: [rules]
     prompt: write it
@@ -19,7 +19,7 @@ on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec]
       context: [last_failure]
       raises: [small_fix]
@@ -27,7 +27,7 @@ on_failure:
     - step: agent
       id: patch
       when: small_fix
-      sessions: [new]
+      sessions: [target]
       tools: [write_file]
       context: [previous_diff]
       prompt: fix it

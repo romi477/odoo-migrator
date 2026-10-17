@@ -17,7 +17,7 @@ MODEL = "gpt-6-sol"
 
 
 def _step(**extra) -> Step:
-    fields = {"kind": "agent", "id": "port", "sessions": ["new"], "tools": ["exec"], "prompt": "port"}
+    fields = {"kind": "agent", "id": "port", "sessions": ["target"], "tools": ["exec"], "prompt": "port"}
     fields.update(extra)
 
     return Step(**fields)
@@ -46,7 +46,7 @@ def test_a_step_runs_a_tool_and_ends_at_report():
 
     server = OpenAIServer(
         [
-            reply(tool_call("exec", {"side": "new", "code": "6 * 7"}, "call_a")),
+            reply(tool_call("exec", {"side": "target", "code": "6 * 7"}, "call_a")),
             reply(tool_call("report", {"answer": "ported"}, "call_b")),
         ],
         api_key=KEY,
@@ -56,7 +56,7 @@ def test_a_step_runs_a_tool_and_ends_at_report():
 
     assert result.ok
     assert result.answer == "ported"
-    assert seen == [{"side": "new", "code": "6 * 7"}]
+    assert seen == [{"side": "target", "code": "6 * 7"}]
     assert server.requests[0]["model"] == MODEL
 
 
@@ -154,7 +154,7 @@ def test_a_stop_ends_the_step_between_two_turns():
     from odoo_migrator.runner.context import Stopped
 
     server = OpenAIServer(
-        [reply(tool_call("exec", {"side": "new", "code": "1"}, f"c{n}")) for n in range(3)],
+        [reply(tool_call("exec", {"side": "target", "code": "1"}, f"c{n}")) for n in range(3)],
         api_key=KEY,
     )
 

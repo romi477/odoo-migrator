@@ -42,8 +42,8 @@ def _migration(tmp_path):
         old_project_path="/tmp/old",
         new_project_path="/tmp/new",
     )
-    save_side_container(created["id"], "old", "odoo-old")
-    save_side_container(created["id"], "new", "odoo-new")
+    save_side_container(created["id"], "source", "odoo-old")
+    save_side_container(created["id"], "target", "odoo-new")
 
     return created
 
@@ -63,7 +63,7 @@ def test_build_graph_stores_both_sides_mounts(tmp_path):
 
     snapshot = snapshot_mounts(_engine(), created["id"])
 
-    assert snapshot == {"old": OLD_MOUNTS, "new": NEW_MOUNTS}
+    assert snapshot == {"source": OLD_MOUNTS, "target": NEW_MOUNTS}
     with database.connection_context():
         row = Migration.get_by_id(created["id"])
         assert json.loads(row.old_mounts) == OLD_MOUNTS
@@ -77,7 +77,7 @@ def test_an_unreachable_engine_stores_not_known(tmp_path):
         def list_containers(self):
             raise DockerUnavailable("Docker Engine is not reachable")
 
-    assert snapshot_mounts(Down(), created["id"]) == {"old": [], "new": []}
+    assert snapshot_mounts(Down(), created["id"]) == {"source": [], "target": []}
     # And the graph still builds, from the project directory as before.
     rows = resolve_graph(FakeShellerClient(), created["id"])
     assert {row["technical_name"] for row in rows} >= {"sale_custom", "stock_custom"}
@@ -260,8 +260,8 @@ def test_the_card_names_the_addons_directories_found(client, tmp_path):
     with database.connection_context():
         row = Migration.get(Migration.name == "Acme")
     client.post(f"/migrations/{row.id}/open", follow_redirects=True)
-    save_side_container(row.id, "old", "odoo-old")
-    save_side_container(row.id, "new", "odoo-new")
+    save_side_container(row.id, "source", "odoo-old")
+    save_side_container(row.id, "target", "odoo-new")
     engine = client.app.state.compose
     engine.add_container(name="odoo-old", image="odoo:17", status="running", labels={}, host_ports=[],
                          mounts=OLD_MOUNTS)

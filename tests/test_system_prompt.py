@@ -20,7 +20,7 @@ from odoo_migrator.runner.tools import report_tool
 
 
 def _step(**extra) -> Step:
-    fields = {"kind": "agent", "id": "port", "sessions": ["new"], "tools": [], "prompt": "port it"}
+    fields = {"kind": "agent", "id": "port", "sessions": ["target"], "tools": [], "prompt": "port it"}
     fields.update(extra)
 
     return Step(**fields)

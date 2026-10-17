@@ -37,7 +37,7 @@ def test_tree_without_a_migration_asks_to_open_one(client):
 
 def test_resolve_from_the_tree_shows_modules_from_odoo(client):
     row = _open(client)
-    save_side_container(row.id, "old", "odoo-old")
+    save_side_container(row.id, "source", "odoo-old")
 
     page = client.post("/tree/resolve", follow_redirects=True)
 
@@ -56,7 +56,7 @@ def test_resolve_without_old_container_is_loud_on_the_tree(client):
 
     assert page.status_code == 200
     assert "form-error" in page.text
-    assert "old container" in page.text
+    assert "source container" in page.text
 
 
 def _open_with_projects(client, tmp_path, name="Linked", *, compose=True):
@@ -117,7 +117,7 @@ def test_resolve_auto_links_a_running_source_container(client, tmp_path):
 
 def test_resolve_when_source_is_down_points_to_the_card(client, tmp_path):
     """Nothing running: the error names Up and links to the migration's card,
-    rather than the old cryptic 'Attach the old container first.'"""
+    rather than the old cryptic 'Attach the source container first.'"""
     row, _old = _open_with_projects(client, tmp_path)
 
     page = client.post("/tree/resolve", follow_redirects=True)
@@ -174,7 +174,7 @@ def test_restore_json_brings_ancestors_before_dependents(client):
 
 def test_strike_persists_across_a_reload(client):
     row = _open(client)
-    save_side_container(row.id, "old", "odoo-old")
+    save_side_container(row.id, "source", "odoo-old")
     client.post("/tree/resolve", follow_redirects=True)
     tree = client.get("/tree").text
     # The graph JSON is the source of truth the canvas reads; a struck flag
@@ -193,7 +193,7 @@ def test_strike_persists_across_a_reload(client):
 
 def test_batch_group_assignment_persists(client):
     row = _open(client)
-    save_side_container(row.id, "old", "odoo-old")
+    save_side_container(row.id, "source", "odoo-old")
     client.post("/tree/resolve", follow_redirects=True)
     from odoo_migrator.graph import list_modules
 
@@ -210,11 +210,11 @@ def test_batch_group_assignment_persists(client):
 
 def test_build_graph_button_visible_text(client):
     row = _open(client)
-    save_side_container(row.id, "old", "odoo-old")
+    save_side_container(row.id, "source", "odoo-old")
     html = client.get("/tree").text
 
     assert ">Build graph<" in html
-    assert 'aria-label="Build the module graph from the old container"' in html
+    assert 'aria-label="Build the module graph from the source container"' in html
 
 
 def test_cytoscape_is_vendored_with_a_hash(client):
@@ -356,7 +356,7 @@ def test_focus_opens_the_node_card_for_that_module(client):
 
 def _resolved(client):
     row = _open(client)
-    save_side_container(row.id, "old", "odoo-old")
+    save_side_container(row.id, "source", "odoo-old")
     client.post("/tree/resolve", follow_redirects=True)
     from odoo_migrator.graph import list_modules
 

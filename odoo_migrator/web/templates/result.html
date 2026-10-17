@@ -145,7 +145,7 @@
                 <form method="post" action="/result/modules/{{ module.id }}/reopen" class="result-reopen" data-result-reopen
                       data-confirm-title="Reopen {{ module.technical_name }}?"
                       data-confirm-go="Reopen"
-                      data-confirm-text="The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and files already written to the new project are left as they are.{% if module.review_count %} {{ module.review_count }} module{% if module.review_count != 1 %}s{% endif %} that depend{% if module.review_count == 1 %}s{% endif %} on it will be marked for review.{% endif %}">
+                      data-confirm-text="The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and files already written to the target project are left as they are.{% if module.review_count %} {{ module.review_count }} module{% if module.review_count != 1 %}s{% endif %} that depend{% if module.review_count == 1 %}s{% endif %} on it will be marked for review.{% endif %}">
                   <button type="submit" class="result-card-icon"
                           title="Put this module back in the queue"
                           aria-label="Reopen {{ module.technical_name }}">

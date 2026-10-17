@@ -91,24 +91,24 @@ Settings and Tree.
 The dependency graph for the open migration. The canvas is the list.
 
 **Build graph** reads installed custom modules and `depends`
-from the old Odoo (through Sheller) and assigns **steps**: in-graph edges
+from the source Odoo (through Sheller) and assigns **steps**: in-graph edges
 from a root, plus one — the same wave the canvas draws. A later step
 cannot start until every module on an earlier step is passed, migrated or
 struck.
 
-It then reads the new container, when one is attached. A module already
+It then reads the target container, when one is attached. A module already
 installed in the target database, that this app has not run and that is
 still queued, is marked **migrated**: done, but not checked here. The queue
 skips it, it counts toward the green bar with its own "already in target"
 counter, and **Reopen** on Result puts it back to queued. A target that is
 not attached or does not answer is named above the canvas; the graph from
-the old side stands and nothing is marked.
+the source side stands and nothing is marked.
 
 **Where the addons are.** Build graph also reads each container's bind
 mounts from Docker and keeps them until the next Build graph — a changed
 compose file needs one. Every module is placed from them: its directory on
 the host, and inside each container. A port goes into the target directory
-mounted at the same container path; failing that, under the new project's
+mounted at the same container path; failing that, under the target project's
 mount. The card on Overview names the addons directories the plan's modules
 are in, under each project path ("Addons found in …") — the addons_path
 entries, not the mounts they come through. A module that cannot be placed keeps
@@ -127,7 +127,7 @@ agent's own uncommitted port from an earlier run of the same module does
 not count: each run fingerprints what it left. Only the module's own
 directory is checked.
 
-**The target is kept under git.** A new project directory that is in no
+**The target is kept under git.** A target project directory that is in no
 repository is put under one on the first start: `git init`, a `.gitignore`
 for bytecode, and a baseline commit of the plan's module directories as
 they were — not the rest of the directory, which can hold a database volume
@@ -143,7 +143,7 @@ starts with a warning there that nothing can undo the port.
 
 **A person's commits stop a re-run too.** A fix committed in a module's
 directory after the agent's last commit there (a port, or the baseline)
-leaves it clean, and a new port is written from the old version, which
+leaves it clean, and a new port is written from the source version, which
 does not have the fix. So the module does not start while such commits
 are there and nobody has chosen to run over them. In a repository you
 brought, commits made before the agent's first commit in that directory
@@ -200,7 +200,7 @@ the tree.
 
 | Control | What it does |
 |---|---|
-| **Build graph** | Re-reads the module graph from the old container: new project
+| **Build graph** | Re-reads the module graph from the source container: target project
 modules appear, vanished ones drop (or stay flagged if you already worked
 on them). **Exclude**, status, and notes on surviving rows stay as they
 were. Uninstalled addons under the source project path count once Odoo
@@ -252,9 +252,9 @@ itself for the review while you are looking at a live stage.
 **Flow** (`/flow`) draws the pinned cartridge. The picture is computed
 from the file each time the page is opened; nothing about it is stored.
 Stock is two frames. **Pipeline** is the lap: `understand` (old session,
-behaviour and a fixture recipe), `port` (writes the new project, both
+behaviour and a fixture recipe), `port` (writes the target project, both
 sessions), `lint` (Python, XML, manifest — no container), `upgrade`
-(install or upgrade on the new container, then commit), `tests` (one
+(install or upgrade on the target container, then commit), `tests` (one
 run of the module's standard tests, then each test it lists as failed
 again on its own, for the log that says why — ten at most, the rest
 named; a run that outlives its timeout is interrupted and not run again;
@@ -265,7 +265,7 @@ line in the run log; no classes raises `no_tests` and is not a failure),
 **On failure** is entered when any pipeline step fails. `diagnose` raises
 `needs_human`, `reexamine_old`, `small_fix`, or `start_over`, and only the
 block for that flag runs: `ask_human` parks the job, `reprobe` returns to
-the old version, `patch` edits the previous diff, `rewrite` starts the
+the source version, `patch` edits the previous diff, `rewrite` starts the
 port again without the previous attempt (the module's directory is
 emptied first; hidden entries such as `.git` stay). The lane then resumes once, at
 `lint`. Orange blocks are a model turn; quiet blocks are the app; a dashed
@@ -293,7 +293,7 @@ struck through. SSE
 updates badges while this screen is open. **Reopen** on a finished card,
 or **Reopen finished modules…** in the migration's settings on Overview (behind a confirmation), puts `passed`, `failed`,
 `stopped` and `unknown` modules back to `queued` so Selection can queue them again.
-The old jobs stay. Files in the new project are not touched. With no
+The old jobs stay. Files in the target project are not touched. With no
 graph yet, the page points you at Tree → Resolve.
 
 ### Checkpoint
@@ -308,7 +308,7 @@ review.
 | **Override** | Continues anyway. Named, not hidden in Continue. |
 | **Dismiss** | Marks one stalled job reviewed so Continue can enable. Only failed or waiting jobs. Nothing is deleted. |
 | **Continue** (on a card) | The same Continue as the one above the cards, beside Dismiss and Discard run so the next step is not outside the card being read. White, like the one above; it stays off until every failed or waiting run is read. |
-| **Discard run** | The word is orange, the only button that deletes; the outline is plain until the pointer is over it, then cyan like every button. Forgets the module's runs as if it had never started, after a question that says what goes. Deletes every job of the module with its log, findings and checkpoint thread; puts the module's directory in the new project back to its last commit (changed files restored, files git does not know removed; other modules and ignored files are not touched); queues the module again; closes the batch if it was the last job in it. Offered for stopped, failed and unknown runs; a module that passed is Reopen's, because the app committed its port. Off, with the reason on hover, when the directory is not a git checkout: half a discard is not offered. The new container's database is not touched. |
+| **Discard run** | The word is orange, the only button that deletes; the outline is plain until the pointer is over it, then cyan like every button. Forgets the module's runs as if it had never started, after a question that says what goes. Deletes every job of the module with its log, findings and checkpoint thread; puts the module's directory in the target project back to its last commit (changed files restored, files git does not know removed; other modules and ignored files are not touched); queues the module again; closes the batch if it was the last job in it. Offered for stopped, failed and unknown runs; a module that passed is Reopen's, because the app committed its port. Off, with the reason on hover, when the directory is not a git checkout: half a discard is not offered. The target container's database is not touched. |
 | **Promote** | Appends a finding to a `rules/<version>.md`. You pick the version file; the app does not guess. A 17→19 finding that belongs in 18.0.md must not land in 19.0.md by default. |
 
 Each job lists attempts (iteration, verdict, diagnosis, unified diff,

@@ -33,7 +33,7 @@ def _migration(tmp_path, *, old_container="odoo-old"):
         new_project_path="/tmp/new",
     )
     if old_container:
-        save_side_container(created["id"], "old", old_container)
+        save_side_container(created["id"], "source", old_container)
 
     return created
 
@@ -776,7 +776,7 @@ def test_resolve_without_old_container_is_loud(tmp_path):
     created = _migration(tmp_path, old_container="")
     fake = FakeShellerClient()
 
-    with pytest.raises(GraphError, match="old container"):
+    with pytest.raises(GraphError, match="source container"):
         resolve_graph(fake, created["id"])
 
     assert fake.opens == []
@@ -797,7 +797,7 @@ def test_resolve_closes_the_session_even_when_exec_fails(tmp_path):
 
 @pytest.mark.live
 def test_live_graph_from_old_odoo(tmp_path):
-    """Review gate: the tree appears from a running old Odoo. Skip if none."""
+    """Review gate: the tree appears from a running source Odoo. Skip if none."""
     from odoo_migrator.sheller import HttpShellerClient, ShellerUnreachable
 
     client = HttpShellerClient("http://127.0.0.1:8765", timeout=180.0)

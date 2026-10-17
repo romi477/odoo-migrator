@@ -74,10 +74,10 @@ def _children(parent: Path) -> list[Path]:
 
 
 def host_paths(migration, technical_name: str) -> tuple[str, str]:
-    """Where this module is on the old side, and where it belongs on the new.
+    """Where this module is on the source side, and where it belongs on the new.
 
-    The new side is a decision, not a discovery: on a first port nothing is
-    there yet. It mirrors the old module's position relative to its own
+    The target side is a decision, not a discovery: on a first port nothing is
+    there yet. It mirrors the source module's position relative to its own
     root, so a project that keeps addons in ``project/`` gets the port
     written to ``project/`` and not beside it.
     """
@@ -105,12 +105,12 @@ def module_root(migration, module, side: str) -> Path | None:
     if getattr(module, "path_problem", ""):
 
         return None
-    stored = (module.old_path if side == "old" else module.new_path) or ""
+    stored = (module.old_path if side == "source" else module.new_path) or ""
     if stored:
 
         return Path(stored)
     old_path, new_path = host_paths(migration, module.technical_name)
-    chosen = old_path if side == "old" else new_path
+    chosen = old_path if side == "source" else new_path
 
     return Path(chosen) if chosen else None
 
@@ -122,7 +122,7 @@ def relative_to_root(migration, module, side: str) -> str:
     name would write to the wrong place whenever the addons sit in a
     subdirectory.
     """
-    root = (migration.old_project_path if side == "old" else migration.new_project_path) or ""
+    root = (migration.old_project_path if side == "source" else migration.new_project_path) or ""
     directory = module_root(migration, module, side)
     if directory is None or not root:
 
@@ -140,10 +140,10 @@ def place(
 ) -> dict:
     """Where module `name` is on each side, on the host and in the container.
 
-    `framework` holds the old side's mount points that carry Odoo's own code
+    `framework` holds the source side's mount points that carry Odoo's own code
     (Enterprise, a mounted Odoo). A module kept from one of them is never
     ported into the same mount on the target — that is Odoo's checkout for
-    the new version — but into the new project.
+    the target version — but into the target project.
 
     A side whose mounts are not known answers as `host_paths` does, and
     raises no problem. A side whose mounts are known and do not place the
@@ -192,11 +192,11 @@ def place(
             return placed
         new_path = str(to_host(new_mounts, target))
         # One checkout mounted by both containers: porting "into the target"
-        # would rewrite the source the old side runs, and a start-over would
+        # would rewrite the source the source side runs, and a start-over would
         # empty it first.
         if placed["old_path"] and _overlap(placed["old_path"], new_path):
             placed["new_path"] = ""
-            placed["path_problem"] = "shared with the old side"
+            placed["path_problem"] = "shared with the source side"
 
             return placed
         placed["new_container_path"] = target
@@ -206,7 +206,7 @@ def place(
 
 
 def _project_point(mounts: list[dict], project: str) -> str | None:
-    """Where the new project's addons are inside the target container.
+    """Where the target project's addons are inside the target container.
 
     The project directory holds the compose file, and the addons are usually
     a directory under it (`./project:/opt/project`), so a mount *inside* the
@@ -246,7 +246,7 @@ def _new_container_path(
 ) -> str:
     """Where the port goes inside the target container.
 
-    An existing port under the new project wins. Then the same container
+    An existing port under the target project wins. Then the same container
     directory, when the target mounts it. Then directly inside the new
     project's own mount.
     """
@@ -270,7 +270,7 @@ def _new_container_path(
         return ""
     # Straight under the project's addons directory. Addons directories are
     # flat: a module sits directly inside an addons_path entry, so keeping an
-    # intermediate directory from the old side (integration-queue/) would put
+    # intermediate directory from the source side (integration-queue/) would put
     # the port where no entry reaches it.
 
     return str(PurePosixPath(root) / name)
@@ -280,7 +280,7 @@ def _side_mounts(migration, side: str) -> list[dict]:
     # getattr: a migration read before these columns existed, or a stand-in
     # in a test, has no mounts, which is "not known".
 
-    return load(getattr(migration, f"{side}_mounts", "[]"))
+    return load(getattr(migration, "old_mounts" if side == "source" else "new_mounts", "[]"))
 
 
 def allowed_roots(migration, side: str) -> list[dict]:
@@ -297,7 +297,7 @@ def allowed_roots(migration, side: str) -> list[dict]:
     if not mounts:
 
         return []
-    column = Module.old_container_path if side == "old" else Module.new_container_path
+    column = Module.old_container_path if side == "source" else Module.new_container_path
     with database.connection_context():
         paths = [
             value
@@ -325,7 +325,7 @@ def agent_path(migration, module, side: str) -> str:
     A container path when that side's mounts are known — the path Odoo and
     its tracebacks use — and the project-relative path otherwise.
     """
-    stored = getattr(module, f"{side}_container_path", "")
+    stored = getattr(module, "old_container_path" if side == "source" else "new_container_path", "")
     if stored and _side_mounts(migration, side):
 
         return stored
@@ -348,21 +348,21 @@ def addon_directories(migration_id: str) -> dict[str, list[str]]:
         migration = Migration.get_or_none(Migration.id == migration_id)
         if migration is None:
 
-            return {"old": [], "new": []}
+            return {"source": [], "target": []}
         modules = list(
             Module.select().where(
                 (Module.migration == migration_id) & (Module.struck_out == False)
             )
         )
     found: dict[str, list[str]] = {}
-    for side in ("old", "new"):
+    for side in ("source", "target"):
         if not _side_mounts(migration, side):
             found[side] = []
             continue
         parents = {
             str(Path(path).parent)
             for path in (
-                module.old_path if side == "old" else module.new_path for module in modules
+                module.old_path if side == "source" else module.new_path for module in modules
             )
             if path
         }

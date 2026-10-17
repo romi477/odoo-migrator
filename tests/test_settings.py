@@ -71,7 +71,7 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
 
     assert 'name="strictness_default"' in expanded
     assert f'action="/migrations/{row.id}/settings"' in expanded
-    assert f'action="/migrations/{row.id}/containers/old/up"' in expanded
+    assert f'action="/migrations/{row.id}/containers/source/up"' in expanded
     assert 'name="sheller_base_url"' not in expanded
     assert ">Settings<" not in expanded
     assert "row-card expanded" in expanded

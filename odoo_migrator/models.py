@@ -222,7 +222,7 @@ class Job(BaseModel):
     # not rewrite a job that already ran.
     provider = CharField(default="")
     model_name = CharField(default="")
-    # Unified diffs of File API writes on the new side, keyed by attempt.
+    # Unified diffs of File API writes on the target side, keyed by attempt.
     # The cartridge callback's attempt.diff is often empty; this is what
     # the checkpoint actually has to show.
     file_diffs = TextField(default="{}")

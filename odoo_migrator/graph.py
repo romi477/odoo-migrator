@@ -1,4 +1,4 @@
-"""Module graph from live Odoo, via a read-only Sheller session on the old container."""
+"""Module graph from live Odoo, via a read-only Sheller session on the source container."""
 
 import ast
 import json
@@ -36,7 +36,7 @@ def build_graph_snippet(project_path: str, container_roots: list[str] | None = N
     when their path sits under the project's own addons directories — so a
     Resolve after copying addons in picks them up once Apps is updated,
     without flooding the tree with every uninstalled core module. Those
-    directories are the container directories of the old side's bind mounts
+    directories are the container directories of the source side's bind mounts
     when they are known — compared against paths inside the container, where
     they mean something — and the host project roots otherwise. A root that
     contains, or is inside, Odoo's own tree is dropped: keeping it would list
@@ -107,7 +107,7 @@ DONE = ("passed", "migrated")
 
 
 class GraphError(Exception):
-    """The module graph could not be resolved from the old container."""
+    """The module graph could not be resolved from the source container."""
 
 
 def parse_graph_payload(executed: dict) -> list[dict]:
@@ -408,7 +408,7 @@ def _container_path(row: dict) -> str:
 
 
 def _framework_mounts(migration: Migration, rows: list[dict]) -> frozenset[str]:
-    """Old-side mount points that hold any of Odoo's own modules."""
+    """Source-side mount points that hold any of Odoo's own modules."""
     old_mounts = load_mounts(migration.old_mounts)
     found = set()
     for row in rows:
@@ -422,7 +422,7 @@ def _framework_mounts(migration: Migration, rows: list[dict]) -> frozenset[str]:
 
 
 def _project_mount_points(migration: Migration) -> list[str]:
-    """Old-side mount points inside the old project directory.
+    """Source-side mount points inside the source project directory.
 
     Where the graph keeps uninstalled modules. A mounted OCA or Enterprise
     checkout holds dozens nobody installed, and listing them put each in
@@ -940,15 +940,15 @@ def snapshot_mounts(engine, migration_id: str) -> dict[str, list[dict]]:
 
     with database.connection_context():
         migration = Migration.get_by_id(migration_id)
-        containers = {"old": migration.old_container, "new": migration.new_container}
+        containers = {"source": migration.old_container, "target": migration.new_container}
     snapshot = {}
     for side, name in containers.items():
         found = container_mounts(engine, name) if name else None
         snapshot[side] = found or []
     with database.connection_context():
         Migration.update(
-            old_mounts=json.dumps(snapshot["old"]),
-            new_mounts=json.dumps(snapshot["new"]),
+            old_mounts=json.dumps(snapshot["source"]),
+            new_mounts=json.dumps(snapshot["target"]),
         ).where(Migration.id == migration_id).execute()
 
     return snapshot
@@ -966,13 +966,13 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         old_mounts = load_mounts(migration.old_mounts)
         project_points = _project_mount_points(migration)
     if not old_container:
-        raise GraphError("Attach the old container first.")
+        raise GraphError("Attach the source container first.")
     try:
         probed = client.probe(old_container)
     except ShellerError as exc:
         raise GraphError(str(exc)) from exc
     if not probed.get("ok") or not probed.get("db_name") or not probed.get("odoo_bin"):
-        raise GraphError("the old container could not be probed")
+        raise GraphError("the source container could not be probed")
     try:
         executed = _read_only_exec(
             client,

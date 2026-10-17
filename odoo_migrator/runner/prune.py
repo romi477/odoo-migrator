@@ -1,4 +1,4 @@
-"""Remove the old version's migration scripts from a ported module.
+"""Remove the source version's migration scripts from a ported module.
 
 Odoo runs `migrations/<version>/` (and `upgrades/<version>/`) when a module
 moves to that version. The old series' scripts were written for the old

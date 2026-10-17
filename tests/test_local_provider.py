@@ -18,7 +18,7 @@ MODEL = "qwen/qwen3.8-27b"
 
 
 def _step(**extra) -> Step:
-    fields = {"kind": "agent", "id": "port", "sessions": ["new"], "tools": ["exec"], "prompt": "port"}
+    fields = {"kind": "agent", "id": "port", "sessions": ["target"], "tools": ["exec"], "prompt": "port"}
     fields.update(extra)
 
     return Step(**fields)
@@ -47,7 +47,7 @@ def test_a_step_runs_a_tool_and_ends_at_report():
 
     server = OpenAIServer(
         [
-            reply(tool_call("exec", {"side": "new", "code": "6 * 7"}, "call_a")),
+            reply(tool_call("exec", {"side": "target", "code": "6 * 7"}, "call_a")),
             reply(tool_call("report", {"answer": "ported", "needs_human": True}, "call_b")),
         ]
     )
@@ -57,7 +57,7 @@ def test_a_step_runs_a_tool_and_ends_at_report():
     assert result.ok
     assert result.answer == "ported"
     assert result.flags == {"needs_human"}
-    assert seen == [{"side": "new", "code": "6 * 7"}]
+    assert seen == [{"side": "target", "code": "6 * 7"}]
     first, second = server.requests
     assert first["model"] == MODEL
     assert first["messages"][0] == {"role": "system", "content": "be an agent"}
@@ -88,11 +88,11 @@ def test_a_refused_report_goes_back_to_the_model():
 
 def test_a_refused_tool_is_told_to_the_model_not_the_end_of_the_step():
     def refuse(**_payload):
-        raise ToolRefused("side old is not declared")
+        raise ToolRefused("side source is not declared")
 
     server = OpenAIServer(
         [
-            reply(tool_call("exec", {"side": "old", "code": "1"})),
+            reply(tool_call("exec", {"side": "source", "code": "1"})),
             reply(tool_call("report", {"answer": "done"}, "call_2")),
         ]
     )
@@ -100,7 +100,7 @@ def test_a_refused_tool_is_told_to_the_model_not_the_end_of_the_step():
     result = _run(server, tools=[BoundTool("exec", refuse)])
 
     assert result.ok
-    assert "side old is not declared" in server.requests[1]["messages"][-1]["content"]
+    assert "side source is not declared" in server.requests[1]["messages"][-1]["content"]
 
 
 def test_arguments_that_are_not_json_are_told_to_the_model():
@@ -118,7 +118,7 @@ def test_arguments_that_are_not_json_are_told_to_the_model():
 
 
 def test_a_step_stops_at_the_tool_call_budget():
-    calls = [reply(tool_call("exec", {"side": "new", "code": "1"}, f"c{n}")) for n in range(5)]
+    calls = [reply(tool_call("exec", {"side": "target", "code": "1"}, f"c{n}")) for n in range(5)]
     server = OpenAIServer(calls)
 
     result = _run(server, tools=[BoundTool("exec", lambda **_kw: "ok")], budget=Budget(tool_calls=2))
@@ -152,7 +152,7 @@ def test_usage_counts_only_what_is_new_each_turn():
     budget with the square of the turns, as it once did for Anthropic."""
     server = OpenAIServer(
         [
-            reply(tool_call("exec", {"side": "new", "code": "1"}), prompt=1000, completion=50),
+            reply(tool_call("exec", {"side": "target", "code": "1"}), prompt=1000, completion=50),
             reply(tool_call("report", {"answer": "done"}, "call_2"), prompt=1100, completion=20),
         ]
     )
@@ -222,7 +222,7 @@ def test_the_server_url_is_a_setting_shown_as_written(client):
 def test_a_stop_ends_the_step_between_two_turns():
     from odoo_migrator.runner.context import Stopped
 
-    calls = [reply(tool_call("exec", {"side": "new", "code": "1"}, f"c{n}")) for n in range(3)]
+    calls = [reply(tool_call("exec", {"side": "target", "code": "1"}, f"c{n}")) for n in range(3)]
     server = OpenAIServer(calls)
     asked = []
 

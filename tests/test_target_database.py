@@ -58,8 +58,8 @@ def test_the_card_beats_the_container_config(client, tmp_path):
 
     targets = NativeRunner(sheller=sheller, hub=None)._targets(migration)
 
-    assert targets["old"]["database"] == "mig_test_17"
-    assert targets["new"]["database"] == "mig_test_18"
+    assert targets["source"]["database"] == "mig_test_17"
+    assert targets["target"]["database"] == "mig_test_18"
 
 
 def test_a_blank_card_still_uses_the_container_config(client, tmp_path):
@@ -69,7 +69,7 @@ def test_a_blank_card_still_uses_the_container_config(client, tmp_path):
 
     targets = NativeRunner(sheller=sheller, hub=None)._targets(migration)
 
-    assert targets["old"]["database"] == "mig_test_17"
+    assert targets["source"]["database"] == "mig_test_17"
 
 
 def test_a_container_with_no_db_name_can_still_be_used(client, tmp_path):
@@ -80,7 +80,7 @@ def test_a_container_with_no_db_name_can_still_be_used(client, tmp_path):
 
     targets = NativeRunner(sheller=sheller, hub=None)._targets(migration)
 
-    assert targets["new"]["database"] == "mig_test_18"
+    assert targets["target"]["database"] == "mig_test_18"
 
 
 def test_nothing_anywhere_says_so_and_lists_what_there_is(client, tmp_path):

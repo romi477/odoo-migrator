@@ -28,7 +28,7 @@ def _turn(inp: int, out: int, cached: int = 0):
 
 def _step() -> Step:
 
-    return Step(kind="agent", id="port", sessions=["new"], tools=[], prompt="port")
+    return Step(kind="agent", id="port", sessions=["target"], tools=[], prompt="port")
 
 
 def _provider(monkeypatch, turns, *, reports=None):

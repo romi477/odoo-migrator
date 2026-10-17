@@ -12,7 +12,7 @@ model:
 pipeline:
   - step: agent
     id: understand
-    sessions: [old]
+    sessions: [source]
     tools: [exec, source, run_test, list_tests, journal, read_file]
     context: [rules, project_notes, module_source]
     prompt: |
@@ -22,11 +22,11 @@ pipeline:
 
       Of the modules, the notes cover this one only. When it builds on a
       module in its `depends` and you need to know what that one does,
-      read its README: source(side='old', path='<module>/README.rst'), or
+      read its README: source(side='source', path='<module>/README.rst'), or
       README.md. Only the ones you need — a neighbour you do not depend on
       is not context for this module.
 
-      You are reading a module on the old Odoo version. A live session is
+      You are reading a module on the source Odoo version. A live session is
       open: do not guess from source alone — call methods and look at what
       comes back. Describe current behaviour, what the module overrides,
       and what will break on the target version.
@@ -38,16 +38,16 @@ pipeline:
 
   - step: agent
     id: port
-    sessions: [old, new]
+    sessions: [source, target]
     tools: [exec, source, read_file, write_file]
     context: [rules, module_source, prior_answers, hand_changes]
     prompt: |
       Port the module to the target version. Write files into the new
-      project. The old container's session stays open — use it whenever
+      project. The source container's session stays open — use it whenever
       you need to check what the original actually does.
 
-      Hand changes are what a person committed in the new project since
-      the last port of this module. They are not in the old version:
+      Hand changes are what a person committed in the target project since
+      the last port of this module. They are not in the source version:
       carry them into this port, unless the rules make one of them wrong —
       then say which, and why.
 
@@ -58,7 +58,7 @@ pipeline:
   - step: agent
     id: probe
     when: no_tests
-    sessions: [old, new]
+    sessions: [source, target]
     tools: [exec, source, reopen, rollback]
     context: [rules, prior_answers]
     raises: [behaviour_differs]
@@ -78,12 +78,12 @@ pipeline:
   - step: agent
     id: write_test
     when: no_tests
-    sessions: [new]
+    sessions: [target]
     tools: [exec, source, run_test, list_tests, read_file, write_file, reopen]
     context: [prior_answers]
     prompt: |
       Turn the recipe you just replayed into a real test in the ported
-      module, asserting what the old version actually did. Run it before
+      module, asserting what the source version actually did. Run it before
       you finish.
 
       Read a test of a module that has one with `source` before writing
@@ -103,7 +103,7 @@ on_failure:
   pipeline:
     - step: agent
       id: diagnose
-      sessions: [new]
+      sessions: [target]
       tools: [exec, source, journal, history, read_file, run_test, list_tests]
       context: [rules, previous_diff, last_failure, prior_answers]
       raises: [needs_human, reexamine_old, small_fix, start_over]
@@ -112,7 +112,7 @@ on_failure:
         session are all available. When a test failed and its log does not
         say why, run that one spec again on its own — not the module.
         Decide whether a targeted fix is enough or the port should be
-        started over, whether you need to look at the old version again,
+        started over, whether you need to look at the source version again,
         and whether this needs a human.
 
     - step: ask_human
@@ -121,17 +121,17 @@ on_failure:
     - step: agent
       id: reprobe
       when: reexamine_old
-      sessions: [old]
+      sessions: [source]
       tools: [exec, source, read_file]
       context: [prior_answers, last_failure]
       prompt: |
-        Go back to the old version with the specific question the
+        Go back to the source version with the specific question the
         diagnosis raised.
 
     - step: agent
       id: patch
       when: small_fix
-      sessions: [new]
+      sessions: [target]
       tools: [exec, source, read_file, write_file, reopen, run_test]
       context: [rules, previous_diff, last_failure, prior_answers]
       prompt: |
@@ -147,12 +147,12 @@ on_failure:
       id: rewrite
       when: start_over
       fresh: true
-      sessions: [old, new]
+      sessions: [source, target]
       tools: [exec, source, read_file, write_file, reopen]
       context: [rules, module_source, prior_answers, hand_changes]
       prompt: |
         The previous port was judged unsound, for the reason in the
-        diagnosis. Write the module again from the old version. You are
+        diagnosis. Write the module again from the source version. You are
         not given the previous attempt; do not reconstruct it. Hand
         changes are a person's, not the previous attempt: carry them.
 

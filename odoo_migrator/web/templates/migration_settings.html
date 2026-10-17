@@ -41,7 +41,7 @@
     {% endif %}
   </p>
   <div class="migration-settings-cols">
-    {% for side, role, status in [("old", "source", provision.old), ("new", "target", provision.new)] %}
+    {% for side, role, status in [("source", "source", provision.source), ("target", "target", provision.target)] %}
     <div class="migration-settings-col">
       <div class="card container-side">
         {# Role, then the state, on one line. The path sits right under it. The
@@ -53,7 +53,7 @@
           <span class="mono side-container">{{ status.container }}</span>
           {% endif %}
         </div>
-        <p class="mono side-path">{{ expanded.old_project_path if side == "old" else expanded.new_project_path }}</p>
+        <p class="mono side-path">{{ expanded.old_project_path if side == "source" else expanded.new_project_path }}</p>
         {% set found = addons_roots[side] %}
         {% if found %}
         <p class="field-hint side-addons">Addons found in <span class="mono">{{ found | join(", ") }}</span></p>
@@ -85,7 +85,7 @@
           {% endfor %}
         </div>
       </div>
-      {% if side == "old" %}
+      {% if side == "source" %}
       {# One numbered setting per row, each with a plain-language line under it,
          so the form explains itself instead of being five bare selects. #}
       <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">

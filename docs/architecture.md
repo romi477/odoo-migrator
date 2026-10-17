@@ -16,7 +16,7 @@ FastAPI app ── SQLite the source of truth: queue, batches,
  ├─ native runner (one job, one thread) ── model provider
  │     tools call Sheller and write files under the mounted addons dirs
  │
- └─> Sheller daemon 127.0.0.1:8765 ──> old container / new container
+ └─> Sheller daemon 127.0.0.1:8765 ──> source container / target container
 ```
 
 - **The app** is the only piece that accumulates anything across jobs.
@@ -31,7 +31,7 @@ FastAPI app ── SQLite the source of truth: queue, batches,
   the records.
 - **Sheller** is a sibling daemon. The migrator is its client. Sessions
   it opens are `owner.kind = agent` and carry the `migration_id`. Commit
-  is allowed on the new container and refused on the old one. The daemon
+  is allowed on the target container and refused on the source one. The daemon
   publishes to `127.0.0.1` only, and nothing else in this process needs
   to reach it.
 
@@ -49,18 +49,18 @@ crosses a thread boundary.
 
 One job is one module, on one background thread. The stock flow:
 
-1. **Understand** the old version (read-only session).
-2. **Port** into the new project by writing files under the target root.
-3. **Lint**, then **upgrade** on the new container (commit allowed),
+1. **Understand** the source version (read-only session).
+2. **Port** into the target project by writing files under the target root.
+3. **Lint**, then **upgrade** on the target container (commit allowed),
    then **tests**.
 4. **Probe** and **write_test** only when the module has no tests.
 5. **Verdict**.
 6. On failure, a side lane: diagnose, optionally ask a human, reprobe
-   the old version, patch, or rewrite. The lane then resumes at lint.
+   the source version, patch, or rewrite. The lane then resumes at lint.
    `retry_limit` bounds the laps.
 
 A step that rewrites code reopens the new-side session afterwards. The
-old container is read-only for the run. While a job is parked on a
+source container is read-only for the run. While a job is parked on a
 human, both sessions are closed; they open again when the answer
 releases the same thread. An answer that arrives after that thread is
 gone is stored, and the job becomes `unknown` rather than `running`.

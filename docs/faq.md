@@ -16,11 +16,11 @@ file.
 You can, and for one module there is no reason not to. The problem shows
 up on a project with dozens or hundreds of them: the same class of
 breakage (attrs, views, `_sql_constraints`, cron signatures) repeats,
-the old version has to stay reachable to answer "what did this actually
+the source version has to stay reachable to answer "what did this actually
 do?", and a failed upgrade on module 40 should not require re-deriving
 the rules that module 3 already taught you.
 
-odoo-migrator keeps the old container read-only, writes the new tree
+odoo-migrator keeps the source container read-only, writes the new tree
 through the catalog's file tools, installs the upgrade on the new
 container, runs the tests, and stops at a checkpoint with the diffs.
 
@@ -49,13 +49,13 @@ The app is the only client of Sheller.
 
 **Does it reimplement Odoo's upgrade?**
 
-No. The new container's Odoo installs and upgrades the module the
+No. The target container's Odoo installs and upgrades the module the
 rewrite wrote. Tests are Odoo's tests. Sheller is a persistent shell,
 not a second ORM.
 
 **Where does the rewrite actually happen?**
 
-On disk, in the new project path, through the `write_file` tool. A
+On disk, in the target project path, through the `write_file` tool. A
 path that leaves the configured root is refused.
 
 ## Migrations, batches, jobs
@@ -92,7 +92,7 @@ with the app and needs no smoke-run.
 **A module passed and the checkpoint diff is empty.**
 
 No step that was allowed to call `write_file` changed a file under the
-module. Writes to the old project are not this job's diff.
+module. Writes to the source project are not this job's diff.
 
 **Exclude vs archive?**
 
@@ -170,7 +170,7 @@ a daemon already on 8765 may not be ours and is never stopped.
 
 **Will it commit on the old database?**
 
-No. Commit is allowed on the new container and refused on the old one.
+No. Commit is allowed on the target container and refused on the source one.
 The old session stays for the run, except while the job is parked on a
 person: both sessions close then, and open again if the same thread
 gets the answer.

@@ -37,7 +37,7 @@ class Ctx:
         self.session_targets = {
             side: {"container": name, "database": "acme", "odoo_bin": "/opt/odoo/odoo-bin",
                    "owner": {"kind": "agent"}}
-            for side, name in (("old", "odoo-old"), ("new", "odoo-new"))
+            for side, name in (("source", "odoo-old"), ("target", "odoo-new"))
         }
 
 
@@ -59,7 +59,7 @@ def test_a_container_that_comes_back_in_time_is_waited_for():
     failure = open_sides_patiently(ctx, wait=120, poll=5, clock=clock)
 
     assert failure is None
-    assert ctx.sessions["old"] and ctx.sessions["new"]
+    assert ctx.sessions["source"] and ctx.sessions["target"]
     assert clock.now == 15
 
 

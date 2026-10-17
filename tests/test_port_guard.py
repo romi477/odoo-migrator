@@ -355,7 +355,7 @@ def _dirty_sale_custom(client, tmp_path):
     (checkout / "sale_custom" / "models.py").write_text("OLD = 17\n")
     _git(checkout, "init", "-q")
     _git(checkout, "add", ".")
-    _git(checkout, "commit", "-qm", "old")
+    _git(checkout, "commit", "-qm", "source")
     (checkout / "sale_custom" / "models.py").write_text("PORTED = 18\n")
     with database.connection_context():
         Module.update(new_path=str(checkout / "sale_custom"), path_problem="").where(

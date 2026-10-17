@@ -59,10 +59,10 @@ def _ctx(tmp_path, sheller, **extra) -> StepContext:
         "module": module,
         "cartridge": None,
         "sheller": sheller,
-        "sessions": {"new": opened["id"]},
-        "write_keys": {"new": opened["write_key"]},
+        "sessions": {"target": opened["id"]},
+        "write_keys": {"target": opened["write_key"]},
         "session_targets": {
-            "new": {
+            "target": {
                 "container": "odoo-new",
                 "database": "acme_17",
                 "odoo_bin": "/opt/odoo/odoo-bin",
@@ -101,13 +101,13 @@ def test_the_fake_describes_a_session_the_way_the_daemon_does():
 def test_reopen_uses_the_target_the_runner_remembered(app, tmp_path):
     sheller = FakeShellerClient()
     ctx = _ctx(tmp_path, sheller)
-    first = ctx.sessions["new"]
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["reopen"], prompt="x")
+    first = ctx.sessions["target"]
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["reopen"], prompt="x")
     reopen = next(tool for tool in tools_for(step, ctx) if tool.name == "reopen")
 
-    reopen(side="new")
+    reopen(side="target")
 
-    assert ctx.sessions["new"] != first
+    assert ctx.sessions["target"] != first
     assert first in sheller.closes
 
 
@@ -120,11 +120,11 @@ def test_a_tool_call_records_the_session_it_actually_ran_in(app, tmp_path):
         sheller,
         record_tool=lambda *row: seen.append(row),
     )
-    before = ctx.sessions["new"]
-    step = Step(kind="agent", id="port", sessions=["new"], tools=["reopen"], prompt="x")
+    before = ctx.sessions["target"]
+    step = Step(kind="agent", id="port", sessions=["target"], tools=["reopen"], prompt="x")
     reopen = next(tool for tool in tools_for(step, ctx) if tool.name == "reopen")
 
-    reopen(side="new")
+    reopen(side="target")
 
     assert seen[0][2] == before
 
@@ -134,7 +134,7 @@ def test_a_budget_larger_than_the_ceiling_is_clamped():
     step = Step(
         kind="agent",
         id="greedy",
-        sessions=["new"],
+        sessions=["target"],
         tools=["exec"],
         prompt="x",
         budget=Budget(tool_calls=100_000, tokens=10_000_000),
@@ -150,7 +150,7 @@ def test_a_smaller_budget_is_honoured():
     step = Step(
         kind="agent",
         id="modest",
-        sessions=["new"],
+        sessions=["target"],
         tools=["exec"],
         prompt="x",
         budget=Budget(tool_calls=3),
@@ -236,11 +236,11 @@ on_failure:
 def test_a_tool_still_refuses_a_side_the_step_did_not_declare(app, tmp_path):
     sheller = FakeShellerClient()
     ctx = _ctx(tmp_path, sheller)
-    step = Step(kind="agent", id="probe", sessions=["new"], tools=["exec"], prompt="x")
+    step = Step(kind="agent", id="probe", sessions=["target"], tools=["exec"], prompt="x")
     exec_tool = next(tool for tool in tools_for(step, ctx) if tool.name == "exec")
 
     with pytest.raises(ToolRefused):
-        exec_tool(side="old", code="1 + 1")
+        exec_tool(side="source", code="1 + 1")
 
 
 def test_a_step_this_build_never_heard_of_can_report_progress():
@@ -292,10 +292,10 @@ def test_a_command_that_outlives_its_timeout_is_interrupted(app, tmp_path):
     sheller = FakeShellerClient()
     sheller.hangs_on = "search([])"
     ctx = _ctx(tmp_path, sheller, command_timeout=0.5)
-    step = Step(kind="agent", id="probe", sessions=["new"], tools=["exec"], prompt="x")
+    step = Step(kind="agent", id="probe", sessions=["target"], tools=["exec"], prompt="x")
     exec_tool = next(tool for tool in tools_for(step, ctx) if tool.name == "exec")
 
-    answer = exec_tool(side="new", code="env['res.partner'].search([])")
+    answer = exec_tool(side="target", code="env['res.partner'].search([])")
 
     assert "interrupted" in answer
     assert sheller.interrupts
@@ -309,7 +309,7 @@ def test_a_huge_diff_does_not_go_into_the_prompt_whole(app, tmp_path):
     step = Step(
         kind="agent",
         id="patch",
-        sessions=["new"],
+        sessions=["target"],
         tools=["write_file"],
         context=["previous_diff"],
         prompt="fix",
@@ -351,7 +351,7 @@ def test_a_session_opened_before_a_failed_open_is_still_closed(app, tmp_path, fa
 
     def open_once(**kwargs):
         if opened:
-            raise ShellerError("the new container refused a session", status=409)
+            raise ShellerError("the target container refused a session", status=409)
         row = real_open(**kwargs)
         opened.append(row["id"])
 
@@ -388,14 +388,14 @@ def test_a_test_run_that_outlives_its_call_is_interrupted(app, tmp_path):
     sheller.tests_for("sale_custom", sheller.catalogue("sale_custom", {"TestSlow": ["test_a"]}))
     sheller.test_hangs.add("sale_custom.TestSlow")
     ctx = _ctx(tmp_path, sheller)
-    step = Step(kind="agent", id="probe", sessions=["new"], tools=["run_test", "exec"], prompt="x")
+    step = Step(kind="agent", id="probe", sessions=["target"], tools=["run_test", "exec"], prompt="x")
     bound = {tool.name: tool for tool in tools_for(step, ctx)}
 
-    answer = bound["run_test"](side="new", test="sale_custom.TestSlow")
+    answer = bound["run_test"](side="target", test="sale_custom.TestSlow")
 
     assert "interrupted" in answer
     assert sheller.interrupts
-    after = bound["exec"](side="new", code="1")
+    after = bound["exec"](side="target", code="1")
     assert not after.startswith("error:"), after
 
 
@@ -407,7 +407,7 @@ def _bound_run_test(tmp_path, sheller, seen=None):
     ctx = _ctx(tmp_path, sheller)
     if seen is not None:
         ctx.record_tool = lambda *args: seen.append(args)
-    step = Step(kind="agent", id="patch", sessions=["new"], tools=["run_test"], prompt="x")
+    step = Step(kind="agent", id="patch", sessions=["target"], tools=["run_test"], prompt="x")
 
     return {tool.name: tool for tool in tools_for(step, ctx)}["run_test"]
 
@@ -418,7 +418,7 @@ def test_the_agent_can_run_a_whole_module(app, tmp_path):
     sheller = FakeShellerClient()
     run_test = _bound_run_test(tmp_path, sheller)
 
-    answer = json.loads(run_test(side="new", test="sale_custom"))
+    answer = json.loads(run_test(side="target", test="sale_custom"))
 
     assert answer["test"]["tests_run"] == 2
     assert sheller.tests_run[-1]["timeout"] == 1800.0
@@ -435,12 +435,12 @@ def test_a_module_run_hands_the_agent_a_count_of_log_lines(app, tmp_path):
         "stderr": ["line"] * 500,
     }
 
-    answer = json.loads(run_test(side="new", test="sale_custom"))
+    answer = json.loads(run_test(side="target", test="sale_custom"))
 
     assert "stderr" not in answer
     assert answer["stderr_lines"] == 500
     assert answer["failed"] == [{"test": "sale_custom.TestA.test_two", "kind": "failure"}]
-    one = json.loads(run_test(side="new", test="sale_custom.TestA.test_two"))
+    one = json.loads(run_test(side="target", test="sale_custom.TestA.test_two"))
     assert one["stderr"] == ["line"] * 500
 
 
@@ -450,6 +450,6 @@ def test_the_run_log_names_what_failed(app, tmp_path):
     run_test = _bound_run_test(tmp_path, sheller, seen)
     sheller.test_outcomes["sale_custom.TestA.test_two"] = {"success": False, "failures": 1}
 
-    run_test(side="new", test="sale_custom")
+    run_test(side="target", test="sale_custom")
 
     assert seen[-1][6].endswith("failed: sale_custom.TestA.test_two")
