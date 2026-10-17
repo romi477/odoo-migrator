@@ -252,7 +252,10 @@ itself for the review while you are looking at a live stage.
 **Flow** (`/flow`) draws the pinned cartridge. The picture is computed
 from the file each time the page is opened; nothing about it is stored.
 Stock is two frames. **Pipeline** is the lap: `understand` (source session,
-behaviour and a fixture recipe), `port` (writes the target project, both
+behaviour and a fixture recipe, and whether a module with no tests needs
+some), `characterize` (only then: a test written into the source module on a
+branch `migrator/<name>-<id>` of the source project, and run there until it
+passes), `port` (writes the target project, both
 sessions), `lint` (Python, XML, manifest — no container), `upgrade`
 (install or upgrade on the target container, then commit), `tests` (one
 run of the module's standard tests, then each test it lists as failed

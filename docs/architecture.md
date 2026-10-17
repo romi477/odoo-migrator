@@ -49,7 +49,10 @@ crosses a thread boundary.
 
 One job is one module, on one background thread. The stock flow:
 
-1. **Understand** the source version (read-only session).
+1. **Understand** the source version (read-only session). It decides whether
+   a module with no tests needs one.
+   **Characterize**, only then: write a test into the source module, on a
+   branch of its own in the source project, and run it there until it passes.
 2. **Port** into the target project by writing files under the target root.
 3. **Lint**, then **upgrade** on the target container (commit allowed),
    then **tests**.
@@ -60,7 +63,7 @@ One job is one module, on one background thread. The stock flow:
    `retry_limit` bounds the laps.
 
 A step that rewrites code reopens the new-side session afterwards. The
-source container is read-only for the run. While a job is parked on a
+source container is read-only for the run, except for the test `characterize` writes. While a job is parked on a
 human, both sessions are closed; they open again when the answer
 releases the same thread. An answer that arrives after that thread is
 gone is stored, and the job becomes `unknown` rather than `running`.
@@ -138,6 +141,7 @@ it clips module source.
 | `odoo_migrator/jobs.py` | Start a job, apply results, resume, checkpoint |
 | `odoo_migrator/runner/` | Cartridge language, loop, tools, providers, native thread |
 | `odoo_migrator/cartridges.py` | Import, fork, pin, smoke-run |
+| `odoo_migrator/source_git.py` | The migration's branch in the source project; commit or delete of a characterization test |
 | `odoo_migrator/sheller/` | HTTP client and the fake that answers like the daemon |
 | `odoo_migrator/provision/` | Docker SDK compose up / attach / rebuild |
 | `cartridges/stock.yaml` | The stock flow |

@@ -73,7 +73,36 @@ this tool never hits because the target container is never production.
 
 **A rewrite invalidates the new-side session.** Code on disk changed, so
 a fresh session opens after it. The source container is read-only for the
-whole run; one session opened at the start stays valid.
+whole run (but for the test written on it, below); one session opened at the start stays valid.
+
+## Writing a test on the source side
+
+The source is the one copy of the code a person is porting from, so the agent
+does not write it. One exception exists: a module with no tests can get a
+characterization test written on the source and proved green there, which the
+port then carries. It is held by five things, none of which is the prompt:
+
+- **A tool of its own.** `write_source_test` is valid on the source side only.
+  `write_file` stays target-only, so `port` and `rewrite`, which open both
+  sides and declare it, cannot write the source.
+- **One directory.** The path must lie inside `tests/` of the source module. A
+  path that leaves it (`..`, `models/`, the manifest) is refused, not clamped.
+- **Create-only.** It refuses when the module had a `tests/` directory or any
+  `test_*.py` when the step began. The snapshot is taken once, before the first
+  write, so the step can write its own files but never extend a person's.
+- **A branch of its own.** The source checkout is put on
+  `migrator/<name>-<id>`, made from where it was. The default branch is not
+  touched. A project that is not a git repository is refused; nothing here runs
+  `git init`.
+- **Delete if red.** A test that is not green on the source when the step ends,
+  or a step that was stopped or raised, has its `tests/` removed and nothing
+  committed. A green one is committed with the migrator's fixed author and a
+  title naming the Sheller session (`[sheller:<12 characters>]`); the body has
+  the whole id and the command. The session's write key is never written.
+
+A commit's author and title are a claim, not a signature: a person with access
+can type both. `migrator_test_commits` accepts a commit only when both match,
+and the session id lets a person check the run in Sheller's journal.
 
 ## What is deliberately *not* protected
 

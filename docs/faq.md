@@ -60,6 +60,17 @@ path that leaves the configured root is refused.
 
 ## Migrations, batches, jobs
 
+**Why did a `migrator/...` branch appear in my source project?**
+
+For a module with no tests, the migrator can write a test on the source version
+first, prove it green there, and let the port carry it to the target. That file
+must not land on the branch you work on, so the source checkout is put on
+`migrator/<migration>-<id>`, made from where it was, and stays there while the
+migration runs. Your default branch is untouched. A green test is one commit
+per module, titled `odoo-migrator: characterization tests for <module>
+[sheller:<session>]`, so it can be told from a test a person wrote; a test that
+did not pass is deleted. A project that is not a git repository is left alone.
+
 **Does opening a second migration stop the first?**
 
 No. The switcher only changes the screen. The running count in the

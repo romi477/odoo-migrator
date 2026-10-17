@@ -60,21 +60,21 @@ def test_the_outline_covers_the_top_level_and_names_each_step():
     assert [node["label"] for node in outline][:3] == ["cartridge", "version", "schema"]
     assert {"model", "pipeline", "on_failure"} <= {node["label"] for node in outline}
     steps = _find(outline, "pipeline")["children"]
-    assert [step["label"] for step in steps][:3] == ["agent · understand", "agent · port", "lint"]
+    assert [step["label"] for step in steps][:3] == ["agent · understand", "agent · characterize", "agent · port"]
     assert steps[0]["path"] == ["pipeline", 0]
 
 
 def test_a_nodes_lines_start_at_its_own_key_and_stop_before_the_next():
     outline = flow_outline(STOCK)
-    port = _find(outline, "pipeline", 1)
-    prompt = _find(outline, "pipeline", 1, "prompt")
+    port = _find(outline, "pipeline", 2)
+    prompt = _find(outline, "pipeline", 2, "prompt")
 
     assert _lines(STOCK, port)[0].strip() == "- step: agent"
     assert "id: port" in "\n".join(_lines(STOCK, port))
     assert _lines(STOCK, prompt)[0].strip() == "prompt: |"
     # The prompt is a block of its own, and the step after it is not in it.
     assert "- step: lint" not in "\n".join(_lines(STOCK, port))
-    assert _lines(STOCK, _find(outline, "pipeline", 2))[0].strip() == "- step: lint"
+    assert _lines(STOCK, _find(outline, "pipeline", 3))[0].strip() == "- step: lint"
     # A block does not carry the blank lines that separate it from the next.
     assert _lines(STOCK, prompt)[-1].strip() != ""
 
@@ -83,7 +83,7 @@ def test_a_scalar_shows_a_short_preview_and_a_block_shows_its_first_line():
     outline = flow_outline(STOCK)
 
     assert _find(outline, "model", "name")["preview"] == "claude-sonnet-5-5"
-    assert _find(outline, "pipeline", 1, "prompt")["preview"].startswith("Port the module")
+    assert _find(outline, "pipeline", 2, "prompt")["preview"].startswith("Port the module")
     assert _find(outline, "model")["preview"] == ""
 
 

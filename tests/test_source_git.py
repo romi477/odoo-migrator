@@ -269,3 +269,28 @@ def test_no_commit_of_the_migrators_means_an_empty_answer(repo):
 
     assert migrator_test_commits(source / "sale_x") == []
     assert migrator_test_commits(source / "missing") == []
+
+
+def test_a_module_deeper_in_the_project_is_committed_too(repo):
+    """git adds nothing for a directory it has never seen when an exclude
+    pathspec sits beside its path, which only showed at this depth."""
+    source, migration, _ = repo
+    deep = source / "project" / "deep_x"
+    deep.mkdir(parents=True)
+    (deep / "__manifest__.py").write_text("{'name': 'D'}\n")
+    git(source, "add", "-A")
+    git(source, "commit", "-q", "-m", "a module in project/")
+    with database.connection_context():
+        module = Module.create(migration=migration, technical_name="deep_x", old_path=str(deep))
+    ensure_branch(migration)
+    (deep / "tests").mkdir()
+    (deep / "tests" / "__init__.py").write_text("from . import test_x\n")
+    (deep / "tests" / "test_x.py").write_text("# t\n")
+
+    line = settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+    assert line.startswith("committed the characterization tests of deep_x as ")
+    assert sorted(git(source, "show", "--name-only", "--format=", "HEAD").splitlines()) == [
+        "project/deep_x/tests/__init__.py",
+        "project/deep_x/tests/test_x.py",
+    ]

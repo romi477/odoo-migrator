@@ -106,22 +106,22 @@ def settle_tests(
     if top is None or _too_broad(top):
 
         return f"the characterization tests of {name} could not be committed: no repository"
-    # Git reports its top level with symlinks resolved; the module's path may
-    # not be (`/var` is `/private/var` on a Mac).
-    relative = tests.resolve().relative_to(top.resolve()).as_posix()
+    # From inside `tests/` with `.`, as `commit_module` does: git adds nothing
+    # when an exclude pathspec sits beside the path of a directory it has
+    # never seen, which is exactly what this is.
     with _LOCK:
         try:
-            _git(top, "add", "-A", "--", relative, *_EXCLUDED)
-            staged = _git(top, "diff", "--cached", "--quiet", "--", relative, check=False)
+            _git(tests, "add", "-A", "--", ".", *_EXCLUDED)
+            staged = _git(tests, "diff", "--cached", "--quiet", "--", ".", check=False)
             if staged.returncode == 0:
 
                 return None
             _git(
-                top, "commit", "-q", "--no-verify", "-m",
+                tests, "commit", "-q", "--no-verify", "-m",
                 _message(name, job_id, session, command),
-                "--", relative,
+                "--", ".",
             )
-            head = _git(top, "rev-parse", "--short", "HEAD", check=False).stdout.strip()
+            head = _git(tests, "rev-parse", "--short", "HEAD", check=False).stdout.strip()
         except (OSError, subprocess.SubprocessError) as exc:
 
             return f"the characterization tests of {name} could not be committed: {_why(exc)}"

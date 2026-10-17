@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 import shutil
+import subprocess
 import threading
 import traceback
 from datetime import UTC, datetime
@@ -282,6 +283,13 @@ class NativeRunner:
                 self._mend_sessions(current, label)
                 writes = "write_file" in (step.tools or ())
                 before = snapshot(_module_root(current)) if writes else {}
+                settles = "write_source_test" in (step.tools or ())
+                if settles:
+                    current.source_tests_had = None
+                    current.source_tests_written = False
+                    current.source_green = False
+                    current.source_green_session = ""
+                    current.source_green_command = ""
                 try:
                     if step.fresh:
                         self._clear_module(current, label)
@@ -295,6 +303,11 @@ class NativeRunner:
                         StepResult(ok=False, output=f"{type(exc).__name__}: {exc}"),
                     )
                     raise
+                finally:
+                    # A step that was stopped or raised is not green, so what
+                    # it wrote is removed, not committed.
+                    if settles:
+                        self._settle_source_tests(current, label)
                 if writes:
                     self._note_diff(current, before)
                 self._close_step(step_run, result)
@@ -554,6 +567,23 @@ class NativeRunner:
             if ctx.sessions.get(side):
                 continue
             open_side(ctx, side)
+
+    def _settle_source_tests(self, ctx: StepContext, label: str) -> None:
+        """Keep what a green step wrote on the source's branch; delete the rest."""
+        from odoo_migrator.source_git import settle_tests
+
+        if not ctx.source_tests_written:
+
+            return
+        try:
+            line = settle_tests(
+                ctx.migration, ctx.module, ctx.job_id, ctx.source_green,
+                ctx.source_green_session, ctx.source_green_command,
+            )
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            line = f"the characterization tests could not be settled: {exc}"
+        if line:
+            self._log(ctx.job_id, label, line, level="info" if ctx.source_green else "warn")
 
     def _mend_sessions(self, ctx: StepContext, label: str) -> None:
         """A session that died or is stuck on an old command is fixed here.

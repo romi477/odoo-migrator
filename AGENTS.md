@@ -71,7 +71,9 @@ own question if you think one is wrong.
   possible at all.
 - **Sessions belong to the agent, not the app.** A rewrite invalidates
   any session open on the *new* container, so a fresh one opens after it.
-  The source container is read-only. Both sessions close while the job is
+  The source container is read-only, with one exception: a characterization
+  test for a module that ships none, on a branch of its own (`write_source_test`,
+  `docs/runner-design.md` override 6). Both sessions close while the job is
   parked on a person, and open again when the same thread gets the
   answer.
 - **Peewee, not SQLAlchemy. Alpine, not React. No Celery, no LiteLLM.**

@@ -19,6 +19,13 @@ _HINTS = {
         "and what will break, then builds a fixture recipe and rolls it back. "
         "Later steps replay that recipe."
     ),
+    "characterize": (
+        "Only when understand found no tests and judged the module worth "
+        "pinning. Writes a test into tests/ of the module on the source side, "
+        "on a branch the app made in the source project, and runs it there "
+        "until it passes. A test that never passes is deleted. The port "
+        "carries it to the target."
+    ),
     "port": (
         "Writes the ported module into the target project. Both sessions stay "
         "open. It sees the version rules, the module source, and the "
