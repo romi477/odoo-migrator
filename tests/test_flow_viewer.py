@@ -185,3 +185,25 @@ def test_the_script_writes_no_markup(name):
     text = (static_dir() / name).read_text(encoding="utf-8")
 
     assert not re.search(r"\.innerHTML\s*=\s*(?![\"']{2})", text)
+
+
+def test_the_dialog_is_a_tenth_narrower_than_the_card_it_opened_from():
+    """At the card's own width its edges ran on into the dialog's, and the
+    two read as one window."""
+    script = (static_dir() / "flow_viewer.js").read_text(encoding="utf-8")
+    sheet = (static_dir() / "style.css").read_text(encoding="utf-8")
+
+    assert 'closest(".row-card")' in script
+    assert "getBoundingClientRect().width * 0.9" in script
+    assert 'setProperty("--flow-width"' in script
+    block = sheet[sheet.index(".flow-dialog {") :].split("}", 1)[0]
+    assert "var(--flow-width" in block
+    # Never wider than the window it sits in.
+    assert "100vw" in block
+
+
+def test_the_page_behind_the_flow_dialog_is_blurred():
+    sheet = (static_dir() / "style.css").read_text(encoding="utf-8")
+    block = sheet[sheet.index(".flow-dialog::backdrop") :].split("}", 1)[0]
+
+    assert "backdrop-filter: blur(" in block

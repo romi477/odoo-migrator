@@ -45,9 +45,22 @@
   document.addEventListener("click", function (event) {
     const eye = event.target.closest("[data-flow-view]");
     if (eye) {
+      narrower(eye);
       open(eye.getAttribute("data-flow-url"), eye.getAttribute("data-flow-name") || "");
     }
   });
+
+  /* A tenth narrower than the card it opened from. At the card's own width
+     its edges ran on into the dialog's, and the two read as one window. A
+     custom property: the width is the card's, which is per-page data. */
+  function narrower(eye) {
+    const card = eye.closest(".row-card");
+    if (card) {
+      dialog.style.setProperty("--flow-width", card.getBoundingClientRect().width * 0.9 + "px");
+    } else {
+      dialog.style.removeProperty("--flow-width");
+    }
+  }
 
   dialog.querySelector("[data-flow-close]").addEventListener("click", function () {
     dialog.close();
