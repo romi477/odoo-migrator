@@ -98,7 +98,7 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
     in prose, never calls a tool, and the step ends with nothing reported.
     """
     standing = load_system_prompt().strip()
-    shell = load_shell_notes().strip()
+    shell = (getattr(ctx, "shell_notes", "") or load_shell_notes()).strip()
     facts = (
         f"## This run\n"
         f"Module: {ctx.module.technical_name}\n"

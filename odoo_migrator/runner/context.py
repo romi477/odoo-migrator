@@ -56,6 +56,10 @@ class StepContext:
     # measured from here.
     baseline_files: dict[str, str] = field(default_factory=dict)
     last_failure: str = ""
+    # What the agent is told the Odoo shell can do, fixed when the job starts:
+    # a Sheller upgraded halfway must not change the briefing of a running job.
+    # Empty is a context built without a job (a test), which gets the copy.
+    shell_notes: str = ""
     # A provider to use instead of the one the cartridge names. Only a test
     # sets this, and what it sets is a real `Provider`, so the step runs the
     # same code a live turn does.

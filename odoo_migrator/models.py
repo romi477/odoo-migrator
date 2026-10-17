@@ -217,6 +217,11 @@ class Job(BaseModel):
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)
     cartridge_sha256 = CharField(default="")
+    # What the agent was told the Odoo shell can do: sha256 of the text every
+    # step of this job was briefed with, and where it came from (`daemon
+    # 1.11.0`, or `vendored` for the copy in prompts/sheller.md).
+    shell_notes_hash = CharField(default="")
+    shell_notes_source = CharField(default="")
     # The pair the card was showing when this job started: the flow's default,
     # unless the migration settings replaced it. A later edit of the card does
     # not rewrite a job that already ran.

@@ -29,6 +29,7 @@ from odoo_migrator.runner.sessions import (
 )
 from odoo_migrator.runner.snapshot import diff as diff_snapshots
 from odoo_migrator.runner.snapshot import snapshot
+from odoo_migrator.shell_guidance import shell_notes
 from odoo_migrator.sheller.errors import ShellerError
 
 # job_id -> event the human's answer releases. The thread that parked is
@@ -352,6 +353,7 @@ class NativeRunner:
                 f"({cartridge.sha256[:12]}), model {_model_line(cartridge, ctx)}",
             )
             self._log(job_id, "runner", _where_line(ctx), detail=_where_detail(ctx))
+            self._brief_with_shell_notes(job_id, ctx)
             # Opened here rather than inside `_context`, so `ctx` is already
             # bound when it happens. Opening the source side and then failing on
             # the target one used to leave `ctx` unassigned, and the `finally`
@@ -867,6 +869,34 @@ class NativeRunner:
         )
 
         return ctx
+
+    def _brief_with_shell_notes(self, job_id: str, ctx: StepContext) -> None:
+        """Fix what the agent is told about the Odoo shell, for the whole job.
+
+        Asked once here, not per step: the text is the daemon's, a Sheller
+        upgraded halfway would otherwise brief the last steps differently from
+        the first. What it was is recorded on the job.
+        """
+        notes = shell_notes(ctx.sheller)
+        ctx.shell_notes = notes.text
+        with database.connection_context():
+            Job.update(
+                shell_notes_hash=notes.hash, shell_notes_source=notes.source
+            ).where(Job.job_id == job_id).execute()
+        parts = [
+            (
+                f"shell notes: {notes.source}, {len(notes.taken)} taken, "
+                f"hash {notes.hash[:12]}"
+            )
+        ]
+        if notes.overlaid:
+            parts.append(f"overlaid: {', '.join(notes.overlaid)}")
+        if notes.left_out:
+            parts.append(f"left out: {', '.join(sorted(notes.left_out))}")
+        detail = "\n".join(f"{topic}: {why}" for topic, why in sorted(notes.left_out.items()))
+        self._log(job_id, "runner", "; ".join(parts), detail=detail)
+        for warning in notes.warnings:
+            self._log(job_id, "runner", f"shell notes: {warning}", level="warn")
 
     def _targets(self, migration, sheller=None) -> dict[str, dict]:
         """Where each side runs, as ``open_session`` wants it.
