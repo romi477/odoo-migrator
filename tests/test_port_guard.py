@@ -315,6 +315,27 @@ def test_discard_restores_the_module_and_leaves_its_neighbour(migration, repo):
     assert (repo / "stock_x" / "models.py").read_text() == "PORTED = 20\n"
 
 
+def test_discard_works_on_a_module_git_has_never_seen(migration, repo):
+    """The first port of a module writes a directory git does not know yet.
+    `git restore -- .` answers `pathspec '.' did not match` there, and the
+    button, active and counting the files, failed on the commonest case: the
+    first port went wrong."""
+    from odoo_migrator.port_guard import discard_hand_edits
+
+    fresh = repo / "fresh_x"
+    fresh.mkdir()
+    (fresh / "__manifest__.py").write_text("{'name': 'fresh_x'}\n")
+    (fresh / "models.py").write_text("PORTED = 20\n")
+    with database.connection_context():
+        Module.create(migration=migration["id"], technical_name="fresh_x", new_path=str(fresh))
+
+    discard_hand_edits(migration["id"], _module("fresh_x").id)
+
+    assert not (fresh / "models.py").exists()
+    assert not (fresh / "__manifest__.py").exists()
+    assert (repo / "sale_x" / "models.py").read_text() == "OLD = 19\n"
+
+
 def test_discard_is_refused_outside_git_and_while_running(tmp_path, migration, repo):
     from odoo_migrator.port_guard import discard_hand_edits
 

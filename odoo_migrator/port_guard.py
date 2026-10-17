@@ -271,10 +271,14 @@ def discard_hand_edits(migration_id: str, module_id: int) -> None:
             f"{module.technical_name} is not in a git repository; there is no "
             "commit to go back to."
         )
-    for command in (
-        ["git", "restore", "--source=HEAD", "--staged", "--worktree", "--", "."],
-        ["git", "clean", "-fdq", "--", "."],
-    ):
+    # `restore` has nothing to do, and says so as an error, in a directory git
+    # has never seen: the first port of a module writes exactly that.
+    commands = [["git", "clean", "-fdq", "--", "."]]
+    if _known_to_git(directory):
+        commands.insert(
+            0, ["git", "restore", "--source=HEAD", "--staged", "--worktree", "--", "."]
+        )
+    for command in commands:
         answer = subprocess.run(
             command, cwd=directory, capture_output=True, text=True, timeout=60, check=False
         )
@@ -282,6 +286,22 @@ def discard_hand_edits(migration_id: str, module_id: int) -> None:
             raise ContractError(
                 f"{' '.join(command[:2])} failed in {directory}: {answer.stderr.strip()}"
             )
+
+
+def _known_to_git(directory: Path) -> bool:
+    """Whether the index or the last commit holds anything under `directory`."""
+    for command in (
+        ["git", "ls-files", "--", "."],
+        ["git", "ls-tree", "-r", "--name-only", "HEAD", "--", "."],
+    ):
+        answer = subprocess.run(
+            command, cwd=directory, capture_output=True, text=True, timeout=60, check=False
+        )
+        if answer.returncode == 0 and answer.stdout.strip():
+
+            return True
+
+    return False
 
 
 def keep_hand_edits(migration_id: str, module_id: int) -> None:
