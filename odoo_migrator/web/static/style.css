@@ -2873,13 +2873,15 @@ h2 {
   margin: 0;
 }
 
-/* `.primary` draws its border transparent, which suits Save and Up inside a
-   card. Continue stands alone on the screen and read as a bare word. */
-.checkpoint .row .primary {
-  border-color: var(--border);
+/* The one button that deletes. Orange; Continue beside it is white, and the
+   colour is what tells the two apart. */
+.discard-run {
+  color: var(--amber);
+  border-color: var(--amber);
 }
 
-.checkpoint .row .primary:hover:not(:disabled) {
+.discard-run:hover:not(:disabled) {
+  color: var(--amber);
   border-color: var(--cyan);
 }
 

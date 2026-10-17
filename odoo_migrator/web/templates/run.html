@@ -478,7 +478,7 @@
   <div class="checkpoint">
     <div class="row">
       <form method="post" action="/run/continue">
-        <button type="submit" class="primary"{% if checkpoint.unread %} disabled{% endif %}
+        <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
                 aria-label="Continue {{ current.name }}">Continue</button>
       </form>
       {% if checkpoint.unread %}
@@ -513,9 +513,17 @@
                 title="Mark this run as read. Nothing is deleted.">Dismiss</button>
       </form>
       {% endif %}
+      {# The same Continue as the one above the cards, here so the next step is
+         beside the one that forgets the run and not outside the card. White:
+         orange is the one that deletes. #}
+      <form method="post" action="/run/continue">
+        <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
+                aria-label="Continue after {{ job.module }}"
+                title="Go on to the next batch.">Continue</button>
+      </form>
       {% if job.discard and job.discard.files is none %}
       {# Its files cannot be put back, so the run is not forgotten half way. #}
-      <button type="button" disabled aria-label="Discard the run of {{ job.module }}"
+      <button type="button" class="discard-run" disabled aria-label="Discard the run of {{ job.module }}"
               title="Its directory in the new project is not a git checkout, so its files cannot be put back.">Discard run</button>
       {% elif job.discard %}
       <form method="post" action="/run/modules/{{ job.module_id }}/discard-run"
@@ -524,7 +532,7 @@
             {%- if job.discard.files %} {{ job.discard.files }} changed file{{ '' if job.discard.files == 1 else 's' }} in its directory in the new project {{ 'is' if job.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
             {%- else %} Its directory in the new project has no changes.{% endif %} The new container's database is not touched."
             data-confirm-go="Discard run">
-        <button type="submit" aria-label="Discard the run of {{ job.module }}"
+        <button type="submit" class="discard-run" aria-label="Discard the run of {{ job.module }}"
                 title="Delete this run and queue the module again.">Discard run</button>
       </form>
       {% endif %}

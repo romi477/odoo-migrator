@@ -267,13 +267,55 @@ def test_a_refused_discard_says_why_on_the_page(client, tmp_path):
     assert "passed" in page.text
 
 
-def test_continue_has_an_outline_like_the_buttons_beside_it():
-    """`.primary` draws its border transparent, which is right for Save and
-    Up inside a card and left Continue looking like a bare word."""
-    sheet = (static_dir() / "style.css").read_text(encoding="utf-8")
-    block = sheet[sheet.index(".checkpoint .row .primary") :].split("}", 1)[0]
+def _actions(page):
+    """The row of buttons on a job card."""
+    start = page.index('class="row job-review-actions"')
 
-    assert "border-color: var(--border)" in block
+    return page[start : page.index("</div>", start)]
+
+
+def test_the_card_carries_continue_next_to_discard_run(client, tmp_path):
+    """Continue was a single button above every card, outside the one a person
+    was reading."""
+    _row, sale = _failed_checkpoint(client)
+    _in_git(sale, tmp_path)
+
+    row = _actions(client.get("/run").text)
+
+    assert 'action="/run/continue"' in row
+    assert row.index(">Continue<") < row.index(">Discard run<")
+
+
+def test_continue_waits_for_the_run_to_be_read_like_the_one_above(client, tmp_path):
+    _row, sale = _failed_checkpoint(client)
+    _in_git(sale, tmp_path)
+
+    unread = _actions(client.get("/run").text)
+
+    assert "disabled" in unread.split("Continue")[0].rsplit("<button", 1)[1]
+    with database.connection_context():
+        job = Job.get()
+    client.post(f"/run/jobs/{job.id}/dismiss")
+    read = _actions(client.get("/run").text)
+
+    assert "disabled" not in read.split("Continue")[0].rsplit("<button", 1)[1]
+
+
+def test_continue_is_a_plain_button_and_discard_run_is_the_orange_one(client, tmp_path):
+    """Orange means a deletion, so nothing that only moves on is orange."""
+    _row, sale = _failed_checkpoint(client)
+    _in_git(sale, tmp_path)
+
+    page = client.get("/run").text
+    start = page.index('class="checkpoint"')
+    checkpoint = page[start : page.index("data-confirm-dialog", start)]
+    sheet = (static_dir() / "style.css").read_text(encoding="utf-8")
+    block = sheet[sheet.index(".discard-run {") :].split("}", 1)[0]
+
+    assert 'class="primary"' not in checkpoint
+    assert 'class="discard-run"' in _actions(page)
+    assert "color: var(--amber)" in block
+    assert "border-color: var(--amber)" in block
 
 
 def test_a_module_that_never_got_a_directory_is_forgotten_without_files(client):
