@@ -10,8 +10,10 @@ green is deleted, so a red one never reaches the port.
 
 Same conventions as `target_git`: a fixed author, no hooks, no signing, one
 lock per process, and never a repository at or above the home directory.
-Nothing here initialises git: a source project that is not a repository is
-refused, not made into one.
+A source project that is not a repository is put under git when a job starts
+(`ensure_repository`), as the target is: no remote, one baseline commit of the
+plan's modules as they are. A project inside somebody else's repository is
+left alone, and the write that needs a branch is then refused.
 """
 
 from __future__ import annotations
@@ -21,8 +23,19 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from odoo_migrator.db import database
+from odoo_migrator.models import Migration, Module
 from odoo_migrator.module_paths import module_root
-from odoo_migrator.target_git import _EXCLUDED, _LOCK, AUTHOR, _git, _too_broad, _toplevel, _why
+from odoo_migrator.target_git import (
+    _EXCLUDED,
+    _LOCK,
+    AUTHOR,
+    _git,
+    _too_broad,
+    _toplevel,
+    _why,
+    init_with_baseline,
+)
 
 # The title of a commit of tests the migrator wrote. The session the green run
 # happened in is in the brackets, short enough to read and long enough to find
@@ -37,6 +50,49 @@ SESSION_SHOWN = 12
 
 class SourceGitError(Exception):
     """The source project cannot take a characterization test."""
+
+
+BASELINE_MESSAGE = "odoo-migrator: baseline of the source before porting"
+
+
+def ensure_repository(migration_id: str) -> str | None:
+    """Put the source project under git if nothing holds it yet.
+
+    A characterization test goes on a branch of its own, which needs a
+    repository to branch in. The source is the person's code, so what goes in
+    is the least that does the job: a repository with no remote, a
+    `.gitignore` for what Odoo leaves behind, and one baseline commit of the
+    plan's module directories as they are. Their history is not rewritten
+    because there is none, and a project that sits inside another repository
+    is left alone. Returns what was done, for the run log, or None.
+    """
+    with database.connection_context():
+        migration = Migration.get_or_none(Migration.id == migration_id)
+        if migration is None:
+
+            return None
+        modules = list(
+            Module.select().where((Module.migration == migration_id) & (Module.struck_out == False))
+        )
+        directories = [module_root(migration, module, "source") for module in modules]
+        raw = (migration.old_project_path or "").strip()
+    if not raw:
+
+        return None
+    root = Path(raw).expanduser()
+    if not root.is_dir() or _toplevel(root) is not None:
+
+        return None
+    inside, failure = init_with_baseline(root, directories, BASELINE_MESSAGE)
+    if failure:
+
+        return failure
+
+    return (
+        f"{root} (source) had no repository: git init, and a baseline commit "
+        f"of {len(inside)} module director{'y' if len(inside) == 1 else 'ies'} as they "
+        "were. A characterization test, if one is written, goes on a branch of its own."
+    )
 
 
 def branch_name(migration) -> str:

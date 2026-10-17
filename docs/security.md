@@ -95,8 +95,11 @@ port then carries. It is held by five things, none of which is the prompt:
   touched, and the checkout is never switched back to that branch: if a person
   moved off it (and may have committed fixes), the write is refused rather than
   put older code under the source container. A commit is made only while the
-  checkout is on that branch. A project that is not a git repository is
-  refused; nothing here runs `git init`.
+  checkout is on that branch. A source project that is no
+  repository is put under git when a job starts, as the target is: no remote,
+  a `.gitignore` for what Odoo leaves behind, and one baseline commit of the
+  plan's module directories as they are. A project inside somebody else's
+  repository is left alone, and the write that needs a branch is then refused.
 - **Green means this module's tests ran.** A run counts only when its spec is
   this module and it ran at least as many tests as the step wrote; a run of
   another module, or of one method, proves nothing. A test method with no

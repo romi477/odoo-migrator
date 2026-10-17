@@ -345,3 +345,126 @@ def test_a_tests_directory_that_cannot_be_removed_is_not_reported_removed(repo, 
     assert "could not be removed" in line
     assert str(tests) in line
     assert "were removed" not in line
+
+
+# -- a source outside git is put under it at the start ----------------------------
+
+
+@pytest.fixture
+def plain(tmp_path):
+    """A source project that is no repository: two modules and a database volume."""
+    init_db(tmp_path / "t.sqlite")
+    source = tmp_path / "17"
+    for name in ("sale_x", "stock_x"):
+        (source / name).mkdir(parents=True)
+        (source / name / "__manifest__.py").write_text(f"{{'name': '{name}'}}\n")
+        (source / name / "models.py").write_text("OLD = 17\n")
+    (source / "pgdata").mkdir()
+    (source / "pgdata" / "PG_VERSION").write_text("16\n")
+    created = create_migration(
+        name="Plain", accent="violet", source_version="17.0", target_version="18.0",
+        old_project_path=str(source), new_project_path=str(tmp_path / "18"),
+    )
+    with database.connection_context():
+        for name in ("sale_x", "stock_x"):
+            Module.create(migration=created["id"], technical_name=name, old_path=str(source / name))
+
+    return created, source
+
+
+def _log(root):
+    return git(root, "log", "--format=%an|%s").splitlines()
+
+
+def test_a_source_outside_git_gets_a_baseline_of_its_modules(plain):
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+
+    said = ensure_repository(created["id"])
+
+    assert (source / ".git").is_dir()
+    assert "git init" in said
+    assert "source" in said
+    assert _log(source) == ["odoo-migrator|odoo-migrator: baseline of the source before porting"]
+    tracked = git(source, "ls-files").split()
+    assert "sale_x/models.py" in tracked and "stock_x/__manifest__.py" in tracked
+    # Not the rest of the directory: a database volume is nobody's source.
+    assert not any(path.startswith("pgdata") for path in tracked)
+    assert "__pycache__/" in (source / ".gitignore").read_text()
+    assert git(source, "status", "--short", "--", "sale_x") == ""
+
+
+def test_a_source_already_in_git_is_left_as_it_is(plain):
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    git(source, "init", "-q")
+
+    assert ensure_repository(created["id"]) is None
+    assert not (source / ".gitignore").exists()
+
+
+def test_a_module_that_is_its_own_repository_stays_out_of_the_source_baseline(plain):
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    git(source / "stock_x", "init", "-q")
+
+    ensure_repository(created["id"])
+
+    assert not any(path.startswith("stock_x") for path in git(source, "ls-files").split())
+
+
+def test_a_project_inside_somebody_elses_repository_is_not_given_one(plain, tmp_path):
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    git(tmp_path, "init", "-q")
+
+    assert ensure_repository(created["id"]) is None
+    assert not (source / ".git").exists()
+
+
+def test_a_baselined_source_takes_a_branch_and_a_green_test(plain):
+    """The point of the baseline: the branch starts from a commit that has the
+    code in it, and the commit of the test holds only the test."""
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    ensure_repository(created["id"])
+    with database.connection_context():
+        migration = Migration.get_by_id(created["id"])
+        module = Module.get(Module.technical_name == "sale_x")
+    ensure_branch(migration)
+    (source / "sale_x" / "tests").mkdir()
+    (source / "sale_x" / "tests" / "test_x.py").write_text("# t\n")
+
+    settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+    assert git(source, "branch", "--show-current").startswith("migrator/plain-")
+    assert git(source, "show", "--name-only", "--format=", "HEAD").splitlines() == [
+        "sale_x/tests/test_x.py"
+    ]
+    assert "sale_x/models.py" in git(source, "ls-files").split()
+
+
+def test_a_start_puts_the_source_under_git_and_says_so(plain):
+    from odoo_migrator.events import EventHub
+    from odoo_migrator.executor import StubExecutor
+    from odoo_migrator.jobs import start_job
+    from odoo_migrator.runlog import lines
+
+    created, source = plain
+    with database.connection_context():
+        module_id = Module.get(Module.technical_name == "sale_x").id
+
+    job = start_job(
+        migration_id=created["id"], module_id=module_id,
+        executor=StubExecutor(progress=lambda body: None, result=lambda body: None),
+        hub=EventHub(),
+    )
+
+    assert (source / ".git").is_dir()
+    texts = [line["text"] for line in lines(job.job_id)]
+    assert any("source" in text and "git init" in text for text in texts)

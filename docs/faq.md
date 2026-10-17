@@ -71,7 +71,9 @@ migrator will not switch it back (that would roll the code under the source
 container back): its next test write is refused, with the branch name to return to. Your default branch is untouched. A green test is one commit
 per module, titled `odoo-migrator: characterization tests for <module>
 [sheller:<session>]`, so it can be told from a test a person wrote; a test that
-did not pass is deleted. A project that is not a git repository is left alone.
+did not pass is deleted. A source project that is no repository yet is put under git when the job
+starts (no remote, one baseline commit of the plan's modules as they are), so
+there is a branch to make; one inside another repository is left alone.
 
 **Does opening a second migration stop the first?**
 

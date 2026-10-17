@@ -93,6 +93,26 @@ def ensure_repository(migration_id: str) -> str | None:
     if not root.is_dir() or _toplevel(root) is not None:
 
         return None
+    inside, failure = init_with_baseline(root, directories, BASELINE_MESSAGE)
+    if failure:
+
+        return failure
+
+    return (
+        f"{root} had no repository: git init, and a baseline commit "
+        f"of {len(inside)} module director{'y' if len(inside) == 1 else 'ies'} "
+        "as they were. Each module that passes is committed on its own."
+    )
+
+
+def init_with_baseline(root: Path, directories, message: str) -> tuple[list[str], str]:
+    """`git init` in `root`, ignore what Odoo leaves behind, and commit the
+    module directories as they are. Returns those directories (relative to
+    `root`) and, when git did not finish, what went wrong.
+
+    A module that is its own repository stays out: it has its history. The
+    rest of the project directory stays out too; it is not source.
+    """
     inside = sorted(
         directory.relative_to(root).as_posix()
         for directory in directories
@@ -110,16 +130,12 @@ def ensure_repository(migration_id: str) -> str | None:
             _git(root, "add", "--", ".gitignore")
             if inside:
                 _git(root, "add", "-A", "--", *inside, *_EXCLUDED)
-            _git(root, "commit", "-q", "--no-verify", "--allow-empty", "-m", BASELINE_MESSAGE)
+            _git(root, "commit", "-q", "--no-verify", "--allow-empty", "-m", message)
         except (OSError, subprocess.SubprocessError) as exc:
 
-            return f"git init in {root} did not finish: {_why(exc)}"
+            return inside, f"git init in {root} did not finish: {_why(exc)}"
 
-    return (
-        f"{root} had no repository: git init, and a baseline commit "
-        f"of {len(inside)} module director{'y' if len(inside) == 1 else 'ies'} "
-        "as they were. Each module that passes is committed on its own."
-    )
+    return inside, ""
 
 
 def commit_module(module: Module, *, job_id: str) -> str | None:

@@ -41,6 +41,7 @@ from odoo_migrator.models import (
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.port_guard import git_state, raise_hand_edits, record_fingerprint
 from odoo_migrator.rules import RulesError, append_finding
+from odoo_migrator.source_git import ensure_repository as ensure_source_repository
 from odoo_migrator.target_git import commit_module, ensure_repository
 
 # What a restart reconciles. A job parked on waiting_for_human is not a
@@ -348,6 +349,8 @@ def start_job(
     # Before the guard, which reads git: a target outside it is put under it
     # with a baseline, so the hand-edit check has something to read.
     put_under_git = ensure_repository(migration_id)
+    # The source too, for the branch a characterization test is kept on.
+    source_under_git = ensure_source_repository(migration_id)
     raise_hand_edits(migration_id, [module_id])
     step = steps_for_migration(migration_id).get(name)
     # A batch already passed the wave check to start. Re-checking here
@@ -430,6 +433,8 @@ def start_job(
         target_dir = module_root(migration, module, "target")
     if put_under_git:
         runlog.write(job_id, source="runner", text=put_under_git, hub=hub)
+    if source_under_git:
+        runlog.write(job_id, source="runner", text=source_under_git, hub=hub)
     # A port is written in place, and git is its undo. Without it — no git
     # on this machine, or a module directory outside the project — say so
     # where the run is read; it is not a reason to refuse.

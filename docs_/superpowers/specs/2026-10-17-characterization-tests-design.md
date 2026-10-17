@@ -86,8 +86,10 @@ so it is held by tests rather than left to a grep:
   the model (see "The write").
 - Editing any existing file of the source project. The write creates files in
   `<module>/tests/`, and only when that directory does not exist yet.
-- Initialising git in a source project that is not a repository. The step is
-  skipped with a reason.
+- Adding a remote, or touching a source project's history. A source that is not a
+  repository is put under git when a job starts (see "The branch"), which the
+  first draft refused and the author reversed: it needs no link to anywhere.
+  The baseline is one commit of the plan's module directories as they are.
 - Taking commits back. `Discard` of a module's run leaves the characterization
   commit on the source branch: it is green on the source and still true of it.
 - A per-module UI switch. The flow decides, as every other step does.
@@ -164,7 +166,7 @@ sessions". The opt-in has to be a different tool.
 - Create-only within the step too: a path the step already wrote may be
   written again (the model fixes its own test); a path that existed before
   the step is refused.
-- Refused when the source project is not a git repository, or the migration's
+- Refused when the source project is not a git repository (it is put under git at job start, so this means it sits inside another repository, or git failed), or the migration's
   branch cannot be checked out (see below). The reason goes back to the model;
   nothing is written.
 - The model writes `tests/__init__.py` with its own imports. The module's
@@ -179,6 +181,15 @@ sessions". The opt-in has to be a different tool.
 A sibling of `target_git.py`, same conventions (fixed author, `--no-verify`,
 no signing, one lock, never a repository at or above the home directory):
 
+- `ensure_repository(migration_id)` — when a job starts, next to the target's
+  (`target_git.ensure_repository`, whose init-and-baseline step they share).
+  A source project that is no repository gets `git init`, a `.gitignore` for
+  what Odoo leaves behind, and one baseline commit of the plan's module
+  directories as they are, by the migrator's fixed author. No remote: it needs
+  no link to anywhere. A project inside another repository is left alone, a
+  module that is its own repository stays out of the baseline, and so does
+  everything in the directory that is not a module. The branch of
+  `ensure_branch` is then made from a commit that has the code in it.
 - `ensure_branch(migration)` — on the first `write_source_test` of a migration:
   `git rev-parse --show-toplevel` in the source project; refuse if there is
   none or it is too broad. Name `migrator/<slug>-<id8>` (`slug` from the
@@ -277,7 +288,7 @@ silently change meaning). **Ruling to confirm at review.**
 | Case | What happens |
 |---|---|
 | Old module has tests | `understand` leaves the flag unset; if the model raises it anyway, `write_source_test` refuses |
-| Old project not under git | the write is refused with the reason; the lap continues as today |
+| Source project not under git | `ensure_repository` puts it under git at job start; if that cannot be done (inside another repository, git missing) the write is refused with the reason and the lap continues as today |
 | Branch cannot be checked out | the write is refused with git's message |
 | Test never goes green on the source side | the step ends; nothing claims coverage; `probe` and `write_test` run |
 | Step stops or fails midway | `settle_tests` deletes the files the step created (not green); the source module is as it was |
