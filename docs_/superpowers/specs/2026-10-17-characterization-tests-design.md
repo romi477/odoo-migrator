@@ -41,8 +41,13 @@ What changes:
   `docs/runner-design.md`. `source(side='source', ...)` reads oddly, because
   `source` is also the name of the tool that reads code. It stays: renaming
   that tool is a larger decision and nobody has asked for it.
-- The side keys in the code (`ctx.sessions`, `module_root(..., side)`,
-  `allowed_roots`, `relative_to_root`).
+- Every `side` value in the code, with one rule: a side is `source` or
+  `target`, never `old` or `new`. That covers `ctx.sessions`,
+  `session_targets`, `module_root(..., side)`, `allowed_roots`,
+  `relative_to_root`, the mounts snapshot, the contract's `containers` map,
+  and the web layer's side values: the route
+  `/migrations/{id}/containers/{side}/{action}`, the `provision` map the
+  templates read, and the JSON that `describe_side` returns.
 - New `ToolCall.side` rows record `source` / `target`.
 
 What does **not** change, and why:
@@ -182,16 +187,19 @@ no signing, one lock, never a repository at or above the home directory):
   the current branch. Uncommitted work in the source checkout travels with the
   switch and is never committed by us. A switch git refuses (a conflicting
   local change) refuses the write, with git's words.
-- `settle_tests(module, job_id, green)` — after an agent step that declared
-  `write_source_test` ends, ok or not. The runner knows the files the step
-  created and reads the step's recorded tool calls: `green` is true only when
-  the last `run_test` on the source side after the last write passed.
-  - green: `git add` those files and commit
-    `odoo-migrator: characterization tests for <module>` with the module's
-    `tests/` as the pathspec, so nothing else staged is swept in.
+- `settle_tests(migration, module, job_id, green)` — after an agent step that
+  declared `write_source_test` ends, ok or not. The step context records
+  whether the tests the step wrote are green: `green` is true only when the
+  last `run_test` on the source side after the last write passed with at
+  least one test run.
+  - green: `git add` the module's `tests/` (without `__pycache__`) and commit
+    `odoo-migrator: characterization tests for <module>` with that directory
+    as the pathspec, so nothing else staged is swept in.
   - not green (the step stopped, failed, or never got the test to pass): the
-    files the step created are deleted and nothing is committed. A red test
-    must not travel into the port and fail a lap on a claim nobody checked.
+    module's `tests/` directory is deleted and nothing is committed. It did
+    not exist before the step (the write is refused otherwise), so this
+    removes only what the step made. A red test must not travel into the
+    port and fail a lap on a claim nobody checked.
   - `None` when nothing was written.
 
 The migration's source checkout stays on the migrator branch for as long as the
