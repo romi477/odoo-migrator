@@ -52,10 +52,73 @@ def test_queue_run_page_has_selection_and_queue(client):
     assert 'aria-label="Run the pipeline queue"' in page.text
 
 
-def test_queue_modules_sort_by_migration_rank_not_add_order(client):
+def _queued_steps(migration_id):
+    with database.connection_context():
+        return [
+            item.step
+            for item in PipelineQueueItem.select()
+            .where(PipelineQueueItem.migration == migration_id)
+            .order_by(PipelineQueueItem.position)
+        ]
+
+
+def test_a_step_is_not_queued_over_an_earlier_one_that_is_not_migrated(client):
     row, _sale = _prepared(client)
-    client.post("/run/queue/add", data={"step": "3"}, follow_redirects=True)
+
+    refused = client.post(
+        "/run/queue/add",
+        data={"step": "2"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == (
+        "Step 2 cannot be queued before step 1: add it first, or migrate it."
+    )
+    assert _queued_steps(row.id) == []
+
+
+def test_a_step_is_queued_once_every_earlier_one_is_queued(client):
+    row, _sale = _prepared(client)
+
+    for step in ("1", "2"):
+        added = client.post(
+            "/run/queue/add", data={"step": step}, headers={"Accept": "application/json"}
+        )
+        assert added.status_code == 200
+
+    assert _queued_steps(row.id) == [1, 2]
+
+
+def test_a_step_is_queued_over_earlier_ones_that_are_migrated(client):
+    row, _sale = _prepared(client)
+    from odoo_migrator.graph import list_modules
+    from odoo_migrator.models import Module
+
+    earlier = [m["id"] for m in list_modules(row.id) if m["step"] == 1 and not m["struck_out"]]
+    with database.connection_context():
+        Module.update(status="passed").where(Module.id.in_(earlier)).execute()
+
+    added = client.post(
+        "/run/queue/add", data={"step": "2"}, headers={"Accept": "application/json"}
+    )
+
+    assert added.status_code == 200
+    assert _queued_steps(row.id) == [2]
+
+
+def test_the_selection_marks_a_step_that_cannot_be_queued_yet(client):
+    _prepared(client)
+
+    page = client.get("/run")
+
+    assert "blockedBy(" in page.text
+
+
+def test_queue_modules_sort_by_migration_rank(client):
+    row, _sale = _prepared(client)
     client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+    client.post("/run/queue/add", data={"step": "2"}, follow_redirects=True)
 
     snap = queue_snapshot(row.id)
     ranks = [module["migration_rank"] for module in snap["modules"]]

@@ -228,6 +228,25 @@ def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> lis
             continue
         wave = row.get("step") or 1
         by_step.setdefault(wave, []).append(row)
+    kept = {row["technical_name"]: row for rows in by_step.values() for row in rows}
+
+    def needs(rows: list[dict]) -> list[int]:
+        """Earlier steps this wave's modules hang on, through modules not yet migrated."""
+        found: set[int] = set()
+        seen: set[str] = set()
+        stack = [dep for row in rows for dep in row.get("depends") or []]
+        while stack:
+            name = stack.pop()
+            parent = kept.get(name)
+            if parent is None or name in seen:
+                continue
+            seen.add(name)
+            if parent["status"] not in DONE:
+                found.add(parent.get("step") or 1)
+            stack.extend(parent.get("depends") or [])
+
+        return sorted(found)
+
     steps = []
     for wave in sorted(by_step):
         rows = by_step[wave]
@@ -238,6 +257,7 @@ def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> lis
         steps.append(
             {
                 "step": wave,
+                "needs": [step for step in needs(pending) if step < wave],
                 "count": len(shown),
                 "pending": len(pending),
                 "modules": sorted(row["technical_name"] for row in shown),

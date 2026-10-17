@@ -36,8 +36,30 @@ def set_run_state(migration_id: str, state: str) -> None:
         row.save()
 
 
+def step_blocked_by(migration_id: str, step: int, queued: set[int]) -> int | None:
+    """The earliest earlier step the modules of `step` hang on that is not queued.
+
+    Only a step whose modules depend, through modules not yet migrated, on
+    that step counts: an unrelated module on an earlier step holds nothing.
+    """
+    from odoo_migrator.graph import list_pipeline_steps
+
+    for row in list_pipeline_steps(migration_id):
+        if row["step"] == step:
+            for needed in row["needs"]:
+                if needed not in queued:
+
+                    return needed
+
+    return None
+
+
 def add_step(migration_id: str, step: int) -> bool:
-    """Append a step if it is not already queued. Returns False when deduped."""
+    """Append a step if it is not already queued. Returns False when deduped.
+
+    A step is not queued ahead of an earlier step its modules depend on, while
+    that one has modules to migrate and is not queued itself: raises ValueError.
+    """
     with database.connection_context():
         exists = (
             PipelineQueueItem.select()
@@ -50,6 +72,18 @@ def add_step(migration_id: str, step: int) -> bool:
         if exists:
 
             return False
+        queued = {
+            item.step
+            for item in PipelineQueueItem.select().where(
+                PipelineQueueItem.migration == migration_id
+            )
+        }
+        blocker = step_blocked_by(migration_id, step, queued)
+        if blocker is not None:
+            raise ValueError(
+                f"Step {step} cannot be queued before step {blocker}: "
+                "add it first, or migrate it."
+            )
         last = (
             PipelineQueueItem.select()
             .where(PipelineQueueItem.migration == migration_id)

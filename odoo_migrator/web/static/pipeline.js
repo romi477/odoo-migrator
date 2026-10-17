@@ -135,6 +135,14 @@
       return;
     }
     lastQueueKey = key;
+    /* The picker greys a step whose earlier step is not queued; it reads this. */
+    window.dispatchEvent(
+      new CustomEvent("queue-changed", {
+        detail: (data.steps || []).map(function (item) {
+          return item.step;
+        }),
+      }),
+    );
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
     panel.setAttribute(
       "data-queue-expandable",

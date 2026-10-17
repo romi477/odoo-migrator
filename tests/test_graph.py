@@ -509,6 +509,7 @@ def test_list_pipeline_steps_matches_tree_waves(tmp_path):
     assert steps == [
         {
             "step": 1,
+            "needs": [],
             "count": 1,
             "pending": 1,
             "modules": ["mig_test_base"],
@@ -516,6 +517,7 @@ def test_list_pipeline_steps_matches_tree_waves(tmp_path):
         },
         {
             "step": 2,
+            "needs": [1],
             "count": 1,
             "pending": 1,
             "modules": ["mig_test_partner"],
@@ -523,6 +525,7 @@ def test_list_pipeline_steps_matches_tree_waves(tmp_path):
         },
         {
             "step": 3,
+            "needs": [1, 2],
             "count": 1,
             "pending": 1,
             "modules": ["mig_test_sale"],
@@ -530,6 +533,7 @@ def test_list_pipeline_steps_matches_tree_waves(tmp_path):
         },
         {
             "step": 4,
+            "needs": [1, 2, 3],
             "count": 1,
             "pending": 1,
             "modules": ["mig_test_ui"],
@@ -961,3 +965,48 @@ def test_excluding_a_parent_does_not_drag_a_finished_child_out(tmp_path):
         "mig_test_partner": False,
         "mig_test_sale": True,
     }
+
+
+def _queue_graph(tmp_path):
+    created = _migration(tmp_path)
+    persist_graph(
+        created["id"],
+        [
+            _custom("mig_test_base", []),
+            _custom("mig_test_x", ["mig_test_base"]),
+            _custom("mig_test_y", ["mig_test_base"]),
+            _custom("mig_test_z", ["mig_test_x"]),
+        ],
+    )
+
+    return created, {row["technical_name"]: row for row in list_modules(created["id"])}
+
+
+def _mark(names, status):
+    from odoo_migrator.models import Module
+
+    with database.connection_context():
+        Module.update(status=status).where(Module.technical_name.in_(names)).execute()
+
+
+def test_a_step_waits_only_for_the_steps_its_modules_depend_on(tmp_path):
+    from odoo_migrator.pipeline_queue import step_blocked_by
+
+    created, _rows = _queue_graph(tmp_path)
+
+    # z hangs on x (step 2), x on base (step 1): both are still to do.
+    assert step_blocked_by(created["id"], 3, set()) == 1
+    assert step_blocked_by(created["id"], 3, {1}) == 2
+    assert step_blocked_by(created["id"], 3, {1, 2}) is None
+    assert step_blocked_by(created["id"], 1, set()) is None
+
+
+def test_a_step_is_not_held_by_an_unrelated_module_of_an_earlier_step(tmp_path):
+    from odoo_migrator.pipeline_queue import step_blocked_by
+
+    created, _rows = _queue_graph(tmp_path)
+    _mark(["mig_test_base", "mig_test_x"], "passed")
+
+    # y (step 2) is still to do, but z does not depend on it.
+    assert step_blocked_by(created["id"], 3, set()) is None
+    assert step_blocked_by(created["id"], 2, set()) is None

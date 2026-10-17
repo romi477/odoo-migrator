@@ -57,6 +57,15 @@
       <form method="post" action="/run/queue/add" class="pipeline-start"
             x-data='{
               steps: {{ pipeline_steps | tojson }},
+              queued: {{ (pipeline_queue.steps | map(attribute="step") | list if pipeline_queue else []) | tojson }},
+              blockedBy(step) {
+                if (this.queued.indexOf(step) !== -1) {
+                  return null;
+                }
+                const row = this.steps.find((s) => s.step === step);
+                const early = row ? row.needs.find((n) => this.queued.indexOf(n) === -1) : undefined;
+                return early === undefined ? null : early;
+              },
               pick: {{ (pipeline_steps | selectattr("pending") | list | first).step if (pipeline_steps | selectattr("pending") | list) else pipeline_steps[0].step }},
               moduleLine() {
                 const row = this.steps.find((s) => s.step === this.pick);
@@ -70,14 +79,14 @@
               },
               canAdd() {
                 const row = this.steps.find((s) => s.step === this.pick);
-                return !!(row && row.pending);
+                return !!(row && row.pending && this.blockedBy(row.step) === null);
               }
             }'>
-        <label class="pipeline-step-picker">
+        <label class="pipeline-step-picker" @queue-changed.window="queued = $event.detail">
           <select name="step" required x-model.number="pick"
                   aria-label="Migration step to queue">
             {% for row in pipeline_steps %}
-            <option value="{{ row.step }}">Step {{ row.step }} · {% if row.pending %}{{ row.pending }} module{% if row.pending != 1 %}s{% endif %}{% else %}passed{% endif %}</option>
+            <option value="{{ row.step }}" :disabled="blockedBy({{ row.step }}) !== null">Step {{ row.step }} · {% if row.pending %}{{ row.pending }} module{% if row.pending != 1 %}s{% endif %}{% else %}passed{% endif %}</option>
             {% endfor %}
           </select>
         </label>
@@ -92,6 +101,8 @@
                   aria-label="Add all dependency steps to the queue">Add all steps to queue</button>
         </div>
         <p class="pipeline-step-modules mono" x-text="moduleLine()"></p>
+        <p class="field-hint" x-show="blockedBy(pick) !== null" x-cloak
+           x-text="'Step ' + pick + ' waits for step ' + blockedBy(pick) + ': queue it first.'"></p>
         <p class="form-error" id="pipeline-start-error" hidden></p>
       </form>
       {% else %}
