@@ -183,16 +183,23 @@ no signing, one lock, never a repository at or above the home directory):
   `git rev-parse --show-toplevel` in the source project; refuse if there is
   none or it is too broad. Name `migrator/<slug>-<id8>` (`slug` from the
   migration name, ASCII, checked with `git check-ref-format --branch`).
-  Create it from the current `HEAD` and check it out if it is not already
-  the current branch. Uncommitted work in the source checkout travels with the
-  switch and is never committed by us. A switch git refuses (a conflicting
-  local change) refuses the write, with git's words.
+  The first write creates it from the current `HEAD` and moves the checkout
+  onto it. After that the checkout is never moved back: a branch that exists
+  but is not checked out means a person moved off it, perhaps after committing
+  fixes, and switching back would put older code under the source container and
+  every port after it. The write is refused with that explanation. A second
+  migration from the same source project gets a branch of its own, and a write
+  for the first while the second is checked out is refused the same way.
+  Uncommitted work travels with the first switch and is never committed by us.
 - `settle_tests(migration, module, job_id, green)` — after an agent step that
   declared `write_source_test` ends, ok or not. The step context records
   whether the tests the step wrote are green: `green` is true only when the
-  last `run_test` on the source side after the last write passed with at
-  least one test run.
-  - green: `git add` the module's `tests/` (without `__pycache__`) and commit
+  last `run_test` on the source side after the last write was for this module
+  (its spec is the module name or starts with `<module>.`), passed, and ran at
+  least as many tests as the step wrote test methods. Another module's run, or
+  a rerun of the one method just fixed, proves nothing.
+  - green, and the checkout is on the migration's branch: `git add` the
+    module's `tests/` (without `__pycache__`) and commit
     with that directory as the pathspec, so nothing else staged is swept in.
     The title is fixed, so a failure later can be traced to the run that
     wrote the test:
@@ -214,8 +221,10 @@ no signing, one lock, never a repository at or above the home directory):
     A commit counts only when **both** the author and the title match: either
     alone is easy to write by hand, so a person who copies the title does not
     make the commit the migrator's.
-  - not green (the step stopped, failed, or never got the test to pass): the
-    module's `tests/` directory is deleted and nothing is committed. It did
+  - not green (the step stopped, failed, or never got the test to pass), or the
+    checkout is not on the migration's branch: the module's `tests/` directory
+    is deleted and nothing is committed. If the directory cannot be deleted
+    (a `__pycache__` made by the container) the log says so and names it. It did
     not exist before the step (the write is refused otherwise), so this
     removes only what the step made. A red test must not travel into the
     port and fail a lap on a claim nobody checked.

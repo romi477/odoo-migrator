@@ -127,47 +127,156 @@ def test_reopen_may_restart_either_side(ctx):
     assert TOOL_SIDES["reopen"] == ("source", "target")
 
 
-def test_a_green_run_on_the_source_marks_the_tests_green(ctx):
-    ctx.source_tests_written = True
-    green = {"test": {"success": True, "tests_run": 2, "failures": 0, "errors": 0}}
+TWO_TESTS = (
+    "class TestX(TransactionCase):\n"
+    "    def test_a(self):\n        self.assertTrue(1)\n\n"
+    "    def test_b(self):\n        self.assertTrue(1)\n"
+)
 
-    tools._note_source_run(ctx, "run_test", "source", green)
+
+def _written(ctx, content=TWO_TESTS):
+    ctx.sessions = {"source": "sess-source", "target": "sess-target"}
+    _write_source_test(ctx, "source", "sale_x/tests/__init__.py", "from . import test_x\n")
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", content)
+
+
+def _ran(ctx, spec, run=2, success=True, side="source", **extra):
+    report = {"test": {"success": success, "tests_run": run}, **extra}
+    tools._note_source_run(ctx, "run_test", side, report, spec)
+
+
+def test_a_run_of_the_module_that_ran_every_test_marks_them_green(ctx):
+    _written(ctx)
+
+    _ran(ctx, "sale_x", run=2)
 
     assert ctx.source_green is True
 
 
+def test_a_class_run_that_ran_every_test_counts_too(ctx):
+    _written(ctx)
+
+    _ran(ctx, "sale_x.TestX", run=2)
+
+    assert ctx.source_green is True
+
+
+def test_a_run_of_another_module_is_not_green(ctx):
+    """The tests were committed as proved because *a* run on the source
+    passed, whatever it ran."""
+    _written(ctx)
+
+    _ran(ctx, "other_module", run=40)
+    assert ctx.source_green is False
+
+    _ran(ctx, "other_module.TestY", run=40)
+    assert ctx.source_green is False
+
+
+def test_a_module_whose_name_starts_like_ours_is_not_ours(ctx):
+    _written(ctx)
+
+    _ran(ctx, "sale_x_extra", run=2)
+
+    assert ctx.source_green is False
+
+
+def test_a_run_of_one_method_does_not_prove_the_other(ctx):
+    """A failing method was fixed and only it was run again."""
+    _written(ctx)
+
+    _ran(ctx, "sale_x.TestX.test_a", run=1)
+
+    assert ctx.source_green is False
+
+
+def test_a_run_of_a_class_that_is_not_ours_to_the_full_count_is_not_green(ctx):
+    _written(ctx)
+
+    _ran(ctx, "sale_x.TestOther", run=1)
+
+    assert ctx.source_green is False
+
+
+def test_a_test_file_with_no_test_method_can_never_be_green(ctx):
+    _written(ctx, "class TestX(TransactionCase):\n    pass\n")
+
+    _ran(ctx, "sale_x", run=5)
+
+    assert ctx.source_green is False
+
+
 def test_a_run_that_ran_nothing_or_failed_is_not_green(ctx):
-    ctx.source_tests_written = True
+    _written(ctx)
     for report in (
         {"test": {"success": True, "tests_run": 0}},
-        {"test": {"success": False, "tests_run": 1, "failures": 1}},
-        {"error": "boom"},
+        {"test": {"success": False, "tests_run": 2, "failures": 1}},
+        {"test": {"success": True, "tests_run": 2}, "error": "boom"},
     ):
         ctx.source_green = True
 
-        tools._note_source_run(ctx, "run_test", "source", report)
+        tools._note_source_run(ctx, "run_test", "source", report, "sale_x")
 
         assert ctx.source_green is False
 
 
 def test_a_run_on_the_target_or_before_any_write_changes_nothing(ctx):
-    green = {"test": {"success": True, "tests_run": 2}}
+    _ran(ctx, "sale_x", run=2)
+    assert ctx.source_green is False
 
-    tools._note_source_run(ctx, "run_test", "source", green)
-    ctx.source_tests_written = True
-    tools._note_source_run(ctx, "run_test", "target", green)
+    _written(ctx)
+    _ran(ctx, "sale_x", run=2, side="target")
 
     assert ctx.source_green is False
 
 
 def test_a_write_after_a_green_run_makes_the_tests_unproven_again(ctx):
-    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "v1\n")
-    tools._note_source_run(ctx, "run_test", "source", {"test": {"success": True, "tests_run": 1}})
+    _written(ctx)
+    _ran(ctx, "sale_x", run=2)
     assert ctx.source_green is True
 
-    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "v2\n")
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", TWO_TESTS + "# changed\n")
 
     assert ctx.source_green is False
+
+
+def test_rewriting_a_file_replaces_its_count_it_does_not_add_to_it(ctx):
+    _written(ctx)
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", TWO_TESTS)
+
+    _ran(ctx, "sale_x", run=2)
+
+    assert ctx.source_green is True
+
+
+def test_the_green_run_remembers_the_session_and_the_command_that_proved_it(ctx):
+    _written(ctx)
+    ctx.write_keys = {"source": "KEY-SECRET"}
+
+    _ran(ctx, "sale_x", run=2, id=7)
+
+    assert ctx.source_green_session == "sess-source"
+    assert ctx.source_green_command == "7"
+    assert "KEY-SECRET" not in (ctx.source_green_session + ctx.source_green_command)
+
+
+def test_a_run_that_is_not_green_forgets_the_proof(ctx):
+    _written(ctx)
+    _ran(ctx, "sale_x", run=2, id=7)
+
+    _ran(ctx, "sale_x", run=2, success=False, id=8)
+
+    assert ctx.source_green_session == ""
+    assert ctx.source_green_command == ""
+
+
+def test_a_write_forgets_the_proof_too(ctx):
+    _written(ctx)
+    _ran(ctx, "sale_x", run=2, id=7)
+
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", TWO_TESTS + "# v2\n")
+
+    assert ctx.source_green_session == ""
 
 
 def test_the_model_is_told_what_the_tool_is_for():
@@ -176,44 +285,3 @@ def test_the_model_is_told_what_the_tool_is_for():
     assert "tests/" in description
     assert "source" in description
     assert tools.TOOL_SCHEMAS["write_source_test"]["required"] == ["side", "path", "content"]
-
-
-def test_the_green_run_remembers_the_session_and_the_command_that_proved_it(ctx):
-    ctx.source_tests_written = True
-    ctx.sessions = {"source": "sess-source", "target": "sess-target"}
-    ctx.write_keys = {"source": "KEY-SECRET"}
-
-    tools._note_source_run(
-        ctx, "run_test", "source", {"id": 7, "test": {"success": True, "tests_run": 1}}
-    )
-
-    assert ctx.source_green_session == "sess-source"
-    assert ctx.source_green_command == "7"
-    assert "KEY-SECRET" not in (ctx.source_green_session + ctx.source_green_command)
-
-
-def test_a_run_that_is_not_green_forgets_the_proof(ctx):
-    ctx.source_tests_written = True
-    ctx.sessions = {"source": "sess-source"}
-    tools._note_source_run(
-        ctx, "run_test", "source", {"id": 7, "test": {"success": True, "tests_run": 1}}
-    )
-
-    tools._note_source_run(
-        ctx, "run_test", "source", {"id": 8, "test": {"success": False, "tests_run": 1}}
-    )
-
-    assert ctx.source_green_session == ""
-    assert ctx.source_green_command == ""
-
-
-def test_a_write_forgets_the_proof_too(ctx):
-    ctx.sessions = {"source": "sess-source"}
-    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "v1\n")
-    tools._note_source_run(
-        ctx, "run_test", "source", {"id": 7, "test": {"success": True, "tests_run": 1}}
-    )
-
-    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "v2\n")
-
-    assert ctx.source_green_session == ""

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 import time
 from pathlib import Path
 
@@ -266,7 +267,7 @@ def _bind(name: str, step, ctx):
             _record(ctx, name, side, ran_in, "", _elapsed(started), False, str(exc))
 
             return f"error: {exc}"
-        _note_source_run(ctx, name, side, value)
+        _note_source_run(ctx, name, side, value, kwargs.get("test", ""))
         command_id = ""
         if isinstance(value, dict) and value.get("id") is not None:
             command_id = str(value["id"])
@@ -614,8 +615,8 @@ def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
         ctx.source_tests_had = _has_tests(root)
     if ctx.source_tests_had:
         raise ToolRefused(
-            f"{ctx.module.technical_name} already has tests on the source side. "
-            "Nothing is written next to them."
+            f"{ctx.module.technical_name} already has tests on the source side "
+            "(a tests/ directory or a test_*.py file). Nothing is written next to them."
         )
     try:
         ensure_branch(ctx.migration)
@@ -624,6 +625,7 @@ def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     ctx.source_tests_written = True
+    ctx.source_test_methods[str(path)] = len(_TEST_METHOD.findall(content))
     ctx.source_green = False
     ctx.source_green_session = ""
     ctx.source_green_command = ""
@@ -639,21 +641,32 @@ def _has_tests(root: Path) -> bool:
     return any("__pycache__" not in found.parts for found in root.rglob("test_*.py"))
 
 
-def _note_source_run(ctx, name: str, side: str, value) -> None:
+_TEST_METHOD = re.compile(r"^[ \t]*def test_\w*\(", re.MULTILINE)
+
+
+def _note_source_run(ctx, name: str, side: str, value, spec: str = "") -> None:
     """Whether the tests this step wrote are green, from the run that proves it.
 
-    A run counts when it was on the source side, after a write, and ran at
-    least one test and none failed. A later write clears it again.
+    A run counts when it was on the source side, after a write, of this
+    module, and it ran at least as many tests as the step wrote and none
+    failed. Any other run on the source says nothing about them: another
+    module passing used to mark them proved, and so did a rerun of the one
+    method that had just been fixed. A later write clears it again.
     """
     if name != "run_test" or side != "source" or not ctx.source_tests_written:
 
         return
+    module = ctx.module.technical_name
+    ours = spec == module or spec.startswith(f"{module}.")
+    wanted = sum(ctx.source_test_methods.values())
     outcome = value.get("test") if isinstance(value, dict) else None
     ctx.source_green = bool(
-        isinstance(outcome, dict)
+        ours
+        and wanted > 0
+        and isinstance(outcome, dict)
         and not value.get("error")
         and outcome.get("success")
-        and (outcome.get("tests_run") or 0) > 0
+        and (outcome.get("tests_run") or 0) >= wanted
     )
     ran = value.get("id") if isinstance(value, dict) else None
     ctx.source_green_session = ctx.sessions.get("source", "") if ctx.source_green else ""

@@ -67,7 +67,19 @@ def ensure_branch(migration) -> str:
                 ).returncode
                 == 0
             )
-            done = _git(top, "switch", *(() if exists else ("-c",)), name, check=False)
+            if exists:
+                # The first write made this branch and moved the checkout onto
+                # it. A checkout that is somewhere else now was moved by a
+                # person, who may have committed fixes since: switching back
+                # would put older code under the source container and under
+                # every port after it. Another migration's branch is the same.
+                raise SourceGitError(
+                    f"the source project is on {current or 'a detached HEAD'!r}, not on "
+                    f"{name}, the branch of this migration. Switching back would put "
+                    "older code under the source container, so nothing was written. "
+                    "Switch to it (or merge it) yourself and start the module again."
+                )
+            done = _git(top, "switch", "-c", name, check=False)
         except (OSError, subprocess.SubprocessError) as exc:
             raise SourceGitError(f"git failed in the source project: {_why(exc)}") from None
     if done.returncode != 0:
@@ -76,6 +88,17 @@ def ensure_branch(migration) -> str:
         )
 
     return name
+
+
+def _remove(tests: Path) -> str:
+    """Delete `tests/`, and say what happened. A `__pycache__` a container
+    made may not be the app's to delete, and the directory then stays."""
+    shutil.rmtree(tests, ignore_errors=True)
+    if tests.exists():
+
+        return f"they could not be removed: delete {tests} by hand"
+
+    return "they were removed"
 
 
 def settle_tests(
@@ -96,16 +119,29 @@ def settle_tests(
         return None
     name = module.technical_name
     if not green:
-        shutil.rmtree(tests, ignore_errors=True)
+        gone = _remove(tests)
 
         return (
             f"the characterization tests of {name} did not pass on the source "
-            "version, so they were removed"
+            f"version, so {gone}"
         )
     top = _toplevel(tests)
     if top is None or _too_broad(top):
 
         return f"the characterization tests of {name} could not be committed: no repository"
+    expected = branch_name(migration)
+    current = _git(top, "branch", "--show-current", check=False).stdout.strip()
+    if current != expected:
+        # Committing here would put the tests on a branch that is not this
+        # migration's, the person's own included. Left in the tree they would
+        # be untracked files on it, so they go.
+        gone = _remove(tests)
+
+        return (
+            f"the characterization tests of {name} were not committed: the source "
+            f"project is not on its branch ({expected}) but on "
+            f"{current or 'a detached HEAD'!r}, so {gone}"
+        )
     # From inside `tests/` with `.`, as `commit_module` does: git adds nothing
     # when an exclude pathspec sits beside the path of a directory it has
     # never seen, which is exactly what this is.

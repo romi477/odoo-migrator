@@ -92,8 +92,14 @@ port then carries. It is held by five things, none of which is the prompt:
   write, so the step can write its own files but never extend a person's.
 - **A branch of its own.** The source checkout is put on
   `migrator/<name>-<id>`, made from where it was. The default branch is not
-  touched. A project that is not a git repository is refused; nothing here runs
-  `git init`.
+  touched, and the checkout is never switched back to that branch: if a person
+  moved off it (and may have committed fixes), the write is refused rather than
+  put older code under the source container. A commit is made only while the
+  checkout is on that branch. A project that is not a git repository is
+  refused; nothing here runs `git init`.
+- **Green means this module's tests ran.** A run counts only when its spec is
+  this module and it ran at least as many tests as the step wrote; a run of
+  another module, or of one method, proves nothing.
 - **Delete if red.** A test that is not green on the source when the step ends,
   or a step that was stopped or raised, has its `tests/` removed and nothing
   committed. A green one is committed with the migrator's fixed author and a

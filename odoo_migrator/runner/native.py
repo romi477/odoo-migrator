@@ -287,6 +287,7 @@ class NativeRunner:
                 if settles:
                     current.source_tests_had = None
                     current.source_tests_written = False
+                    current.source_test_methods = {}
                     current.source_green = False
                     current.source_green_session = ""
                     current.source_green_command = ""

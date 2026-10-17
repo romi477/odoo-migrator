@@ -86,13 +86,44 @@ def test_a_second_call_reuses_the_branch(repo):
     assert git(source, "branch", "--list", "migrator/*").count("migrator/") == 1
 
 
-def test_the_branch_is_found_again_after_the_person_switched_away(repo):
+def test_a_checkout_the_person_moved_off_the_branch_is_not_switched_back(repo):
+    """They went back to main and committed a fix there. Switching to the
+    migration's branch would roll the source's code back under the container
+    and every port after it."""
     source, migration, _ = repo
     name = ensure_branch(migration)
     git(source, "switch", "main")
+    (source / "sale_x" / "fix.py").write_text("FIXED = 1\n")
+    git(source, "add", "-A")
+    git(source, "commit", "-q", "-m", "a fix on main")
+    head = git(source, "rev-parse", "HEAD")
 
-    assert ensure_branch(migration) == name
-    assert git(source, "branch", "--show-current") == name
+    with pytest.raises(SourceGitError, match=rf"on 'main'.*{name}"):
+        ensure_branch(migration)
+
+    assert git(source, "branch", "--show-current") == "main"
+    assert git(source, "rev-parse", "HEAD") == head
+    assert (source / "sale_x" / "fix.py").read_text() == "FIXED = 1\n"
+
+
+def test_a_second_migration_does_not_pull_the_first_one_off_its_branch(repo):
+    """17→18 and 17→19 from one source project: each has a branch, and a write
+    for the first while the second is checked out is refused."""
+    source, first, _ = repo
+    name = ensure_branch(first)
+    with database.connection_context():
+        second = Migration.get_by_id(
+            create_migration(
+                name="Second", accent="violet", source_version="17.0", target_version="19.0",
+                old_project_path=str(source), new_project_path=str(source.parent / "19"),
+            )["id"]
+        )
+    ensure_branch(second)
+
+    with pytest.raises(SourceGitError, match=name):
+        ensure_branch(first)
+
+    assert git(source, "branch", "--show-current") == branch_name(second)
 
 
 def test_uncommitted_work_travels_with_the_switch_and_stays_uncommitted(repo):
@@ -125,22 +156,6 @@ def test_a_project_that_is_not_a_repository_is_refused(tmp_path):
         ensure_branch(migration)
 
     assert not (source / ".git").exists()
-
-
-def test_a_switch_git_refuses_refuses_the_write_with_gits_words(repo):
-    source, migration, _ = repo
-    name = ensure_branch(migration)
-    (source / "sale_x" / "conflict.txt").write_text("on the migration branch\n")
-    git(source, "add", "-A")
-    git(source, "commit", "-q", "-m", "on branch")
-    git(source, "switch", "main")
-    (source / "sale_x" / "conflict.txt").write_text("a different, uncommitted version\n")
-
-    with pytest.raises(SourceGitError, match=name):
-        ensure_branch(migration)
-
-    assert git(source, "branch", "--show-current") == "main"
-    assert (source / "sale_x" / "conflict.txt").read_text() == "a different, uncommitted version\n"
 
 
 def test_a_green_test_is_committed_with_only_its_own_files(repo):
@@ -294,3 +309,39 @@ def test_a_module_deeper_in_the_project_is_committed_too(repo):
         "project/deep_x/tests/__init__.py",
         "project/deep_x/tests/test_x.py",
     ]
+
+
+def test_a_green_test_is_not_committed_to_a_branch_that_is_not_the_migrations(repo):
+    """settle_tests ran with the checkout on main: the commit would have gone
+    to the person's own branch."""
+    source, migration, module = repo
+    ensure_branch(migration)
+    tests = source / "sale_x" / "tests"
+    tests.mkdir()
+    (tests / "test_x.py").write_text("# t\n")
+    git(source, "switch", "main")
+    head = git(source, "rev-parse", "main")
+
+    line = settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+    assert git(source, "rev-parse", "main") == head
+    assert git(source, "log", "--format=%s", "-3").count("characterization") == 0
+    assert not tests.exists()
+    assert "not on its branch" in line
+    assert "main" in line
+
+
+def test_a_tests_directory_that_cannot_be_removed_is_not_reported_removed(repo, monkeypatch):
+    """A `__pycache__` the container made may not be the app's to delete."""
+    source, migration, module = repo
+    ensure_branch(migration)
+    tests = source / "sale_x" / "tests"
+    tests.mkdir()
+    (tests / "test_x.py").write_text("# t\n")
+    monkeypatch.setattr("odoo_migrator.source_git.shutil.rmtree", lambda *a, **k: None)
+
+    line = settle_tests(migration, module, "job1", green=False)
+
+    assert "could not be removed" in line
+    assert str(tests) in line
+    assert "were removed" not in line
