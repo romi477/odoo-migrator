@@ -315,7 +315,12 @@ def test_continue_is_a_plain_button_and_discard_run_is_the_orange_one(client, tm
     assert 'class="primary"' not in checkpoint
     assert 'class="discard-run"' in _actions(page)
     assert "color: var(--amber)" in block
-    assert "border-color: var(--amber)" in block
+    # The outline is the ordinary one until the pointer is over it, then the
+    # cyan every button turns; only the word is orange.
+    assert "border" not in block
+    hover = sheet[sheet.index(".discard-run:hover") :].split("}", 1)[0]
+    assert "color: var(--amber)" in hover
+    assert "border" not in hover
 
 
 def test_a_module_that_never_got_a_directory_is_forgotten_without_files(client):

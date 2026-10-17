@@ -2873,16 +2873,15 @@ h2 {
   margin: 0;
 }
 
-/* The one button that deletes. Orange; Continue beside it is white, and the
-   colour is what tells the two apart. */
+/* The one button that deletes. The word is orange; Continue beside it is
+   white, and the colour is what tells the two apart. The outline is every
+   button's own: plain, and cyan under the pointer. */
 .discard-run {
   color: var(--amber);
-  border-color: var(--amber);
 }
 
 .discard-run:hover:not(:disabled) {
   color: var(--amber);
-  border-color: var(--cyan);
 }
 
 .job-review {
