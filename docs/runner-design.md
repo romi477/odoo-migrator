@@ -310,6 +310,10 @@ when the run starts, and the refusal lists what the container does have.
 
 ### One file
 
+Every key, every tool, every flag and what the loader refuses are listed in
+[cartridge-reference.md](cartridge-reference.md), which a test keeps in step with
+the code. This section is the reasoning.
+
 A cartridge is a single YAML file. Not a directory: it is uploaded through
 the UI, its hash is its identity, and a pull request reviewing it sees one
 diff covering both the order of steps and the wording of prompts. Rules
@@ -357,7 +361,11 @@ near-identical step implementations in Python would buy nothing and would put
 
 | field | meaning |
 |---|---|
+| `step` | the kind: one of the six above |
 | `id` | the node's name on the canvas and the key its answer is stored under; unique within the cartridge |
+| `when` | a flag name: the step runs only if it was raised earlier in the lap |
+| `prompt` | required on an `agent` step, forbidden on the others |
+| `model` | optional; `provider` and `name`, and wins over the migration card and the cartridge's own |
 | `sessions` | `source`, `target`, or both — which live containers this step may reach |
 | `tools` | chosen from the code-defined catalog; a cartridge picks from it and can never extend it |
 | `context` | what goes into the prompt besides the prompt, from a closed vocabulary |
@@ -884,7 +892,7 @@ second and third provider arrive is "Providers", below.
 
 ### Tools
 
-The tool set is Sheller's own verbs, because Sheller is the product's
+Most of the tool set is Sheller's own verbs, because Sheller is the product's
 leverage: a live Odoo backend where any ORM call, any method, any override
 can be executed and read. A migrator that hands its agent a keyhole onto that
 is a migrator that cannot check its own work.
@@ -899,7 +907,8 @@ is a migrator that cannot check its own work.
 | `interrupt` | stop a command that is taking too long |
 | `rollback` | discard the session's transaction |
 | `reopen(side)` | close and reopen a session, for when the module's code changed |
-| `write_file` / `read_file` | inside the target project root only |
+| `read_file` | a file of the project on the host disk, on either side, inside the configured project roots |
+| `write_file` | a file in the module's directory on the target. Host disk, not Sheller |
 | `write_source_test` | `tests/` of the module on the source side only, create-only, for a module that had no tests; see override 6 |
 
 The client already implements `exec`, `run_test`, `commit`, `rollback`,

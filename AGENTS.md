@@ -18,6 +18,7 @@ development); `uv run pytest`.
 | `packaging/` | `setup.sh` creates the virtualenv; `serve.sh` starts the app. The desktop build goes here later, same shape as odoo-sheller |
 | `docs/` | product docs: architecture, UI, security, FAQ (en/ru) |
 | `docs/runner-design.md` | the design of record for the runner |
+| `docs/cartridge-reference.md` | every key a cartridge can carry, tools, context items, flags; a test keeps it equal to the code |
 | `docs_/superpowers/plans/2026-09-23-native-runner.md` | the implementation plan — 13 tasks; task 13 is the live gate |
 | `docs_/superpowers/specs/2026-09-20-odoo-migrator-design.md` | the earlier product spec; the runner spec wins where they disagree |
 | `docs_/migrator-web-mockup-brief.md` | the UI brief given to design |

@@ -8,6 +8,7 @@ there. This folder goes deeper on the parts worth explaining once.
 |---|---|
 | [architecture.md](architecture.md) | The app as source of truth, the YAML cartridge, providers, Sheller sessions, rules, diffs |
 | [ui-guide.md](ui-guide.md) | The screens — Overview, Tree, Pipeline, Flow, Sheller, Result, Settings — and what each control guarantees |
+| [cartridge-reference.md](cartridge-reference.md) | Every key a flow file can carry: steps, tools, context items, flags, and what the loader refuses. The lookup for anyone writing a flow |
 | [security.md](security.md) | What is protected, what deliberately isn't, and why 8765 never leaves loopback |
 | [faq.md](faq.md) | Plain-language questions and answers, in English |
 | [faq-ru.md](faq-ru.md) | То же самое по-русски |
