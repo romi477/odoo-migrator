@@ -37,9 +37,13 @@ TOOL_SIDES = {
     "test_result": ("target",),
     "interrupt": ("source", "target"),
     "rollback": ("source", "target"),
-    "reopen": ("target",),
+    "reopen": ("source", "target"),
     "read_file": ("source", "target"),
     "write_file": ("target",),
+    # The one write the source side allows. A tool of its own, because
+    # `write_file` on the source would let `port` and `rewrite`, which open
+    # both sides and declare it, write the project they are porting from.
+    "write_source_test": ("source",),
 }
 
 
@@ -112,6 +116,7 @@ TOOL_SCHEMAS = {
         "required": ["side"],
     },
 }
+TOOL_SCHEMAS["write_source_test"] = TOOL_SCHEMAS["write_file"]
 # What the model is told each tool does. One generic line for all of them
 # left `source` to be guessed at, and a guess is what it got.
 TOOL_DESCRIPTIONS = {
@@ -144,6 +149,12 @@ TOOL_DESCRIPTIONS = {
         "Write a file inside the module's directory, by its path inside the "
         "target container. A path relative to the target project's root works where "
         "no container path was given."
+    ),
+    "write_source_test": (
+        "Write a characterization test for a module that has no tests, into "
+        "`tests/` of the module on the source side. Nothing else on the source "
+        "side can be written, and a module that already has tests refuses. "
+        "Reopen the source session after writing, then run the test there."
     ),
 }
 _SIDE_ONLY = {
@@ -217,7 +228,7 @@ def report_tool(step) -> ReportTool:
 
 # Tools this process answers itself, on the host's disk. The daemon never
 # hears of them, so they belong to no Sheller session.
-HOST_TOOLS = frozenset({"read_file", "write_file"})
+HOST_TOOLS = frozenset({"read_file", "write_file", "write_source_test"})
 
 
 def tools_for(step, ctx) -> list[BoundTool]:
@@ -255,6 +266,7 @@ def _bind(name: str, step, ctx):
             _record(ctx, name, side, ran_in, "", _elapsed(started), False, str(exc))
 
             return f"error: {exc}"
+        _note_source_run(ctx, name, side, value)
         command_id = ""
         if isinstance(value, dict) and value.get("id") is not None:
             command_id = str(value["id"])
@@ -356,6 +368,9 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
         )
     if name == "write_file":
         return _write_file(ctx, side, kwargs.get("path", ""), kwargs.get("content", ""))
+    if name == "write_source_test":
+
+        return _write_source_test(ctx, side, kwargs.get("path", ""), kwargs.get("content", ""))
 
     raise ToolRefused(f"unknown tool {name}")
 
@@ -569,6 +584,74 @@ def _inside_module(ctx, path: Path, relative: str) -> None:
         f"{relative} is outside the module's directory. This module is "
         f"{wanted} on the target side: write {wanted}/{Path(relative).name}, "
         "and everything else under that directory."
+    )
+
+
+def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
+    """The one write the source side allows: a new test in the module's tests/.
+
+    Refused when the module already had a test when the step began, so the
+    prompt is not the only thing between the model and a test someone wrote.
+    """
+    from odoo_migrator.module_paths import module_root
+    from odoo_migrator.source_git import SourceGitError, ensure_branch
+
+    root = module_root(ctx.migration, ctx.module, "source")
+    if root is None:
+        raise ToolRefused(
+            "the app does not know where this module is on the source side, "
+            "so nothing is written for it."
+        )
+    root = Path(root).expanduser().resolve()
+    path = _inside(ctx, side, relative)
+    if not path.is_relative_to(root / "tests"):
+        raise ToolRefused(
+            f"{relative} is outside the module's tests/ directory. A "
+            f"characterization test goes in {ctx.module.technical_name}/tests/ and "
+            "nowhere else on the source side."
+        )
+    if ctx.source_tests_had is None:
+        ctx.source_tests_had = _has_tests(root)
+    if ctx.source_tests_had:
+        raise ToolRefused(
+            f"{ctx.module.technical_name} already has tests on the source side. "
+            "Nothing is written next to them."
+        )
+    try:
+        ensure_branch(ctx.migration)
+    except SourceGitError as exc:
+        raise ToolRefused(str(exc)) from None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    ctx.source_tests_written = True
+    ctx.source_green = False
+
+    return str(path)
+
+
+def _has_tests(root: Path) -> bool:
+    if (root / "tests").exists():
+
+        return True
+
+    return any("__pycache__" not in found.parts for found in root.rglob("test_*.py"))
+
+
+def _note_source_run(ctx, name: str, side: str, value) -> None:
+    """Whether the tests this step wrote are green, from the run that proves it.
+
+    A run counts when it was on the source side, after a write, and ran at
+    least one test and none failed. A later write clears it again.
+    """
+    if name != "run_test" or side != "source" or not ctx.source_tests_written:
+
+        return
+    outcome = value.get("test") if isinstance(value, dict) else None
+    ctx.source_green = bool(
+        isinstance(outcome, dict)
+        and not value.get("error")
+        and outcome.get("success")
+        and (outcome.get("tests_run") or 0) > 0
     )
 
 

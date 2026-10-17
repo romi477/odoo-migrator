@@ -65,6 +65,12 @@ class StepContext:
     command_timeout: float | None = None
     # The last run_test payload, so test_result can answer without a second call.
     last_test: dict | None = None
+    # What a step that writes a characterization test has done. The runner
+    # clears these when such a step starts; `write_source_test` fills them
+    # and `source_git.settle_tests` reads them when it ends.
+    source_tests_had: bool | None = None
+    source_tests_written: bool = False
+    source_green: bool = False
     # ERROR and CRITICAL records Odoo logged during this lap's upgrade and
     # tests. `verdict` fails a lap that has any; the loop clears it per lap.
     log_errors: list[str] = field(default_factory=list)
