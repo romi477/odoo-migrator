@@ -47,12 +47,14 @@ What changes:
 
 What does **not** change, and why:
 
-- The loader still accepts `old` and `new` as aliases and turns them into
-  `source` / `target` on load. Flows already stored in `CartridgeInstall`
-  (imports and forks) carry the old words, and a pinned flow must keep
-  loading. The sha256 is of the text as given, as before.
-- `ToolCall.side` rows already written keep their words; the run log shows
-  them as they are.
+- There are no aliases and no compatibility. The tool is not deployed
+  anywhere, so there is nothing to migrate and the decision is final. A flow
+  that says `sessions: [old]` or `side: old` is refused like any other
+  unknown session, and the error names the replacement ("unknown session
+  'old'; the sides are 'source' and 'target'"). A person's local database
+  holds no stored flow that says otherwise (the flow table is empty).
+- `ToolCall.side` rows already in a local database keep their words and are
+  shown as written; no code reads them back as a side.
 - Database columns and form fields (`old_project_path`, `new_project_path`,
   `old_database`, `Module.old_path`, ...). Renaming them is a schema
   migration and a route change for no behaviour; it is a follow-up if wanted.
