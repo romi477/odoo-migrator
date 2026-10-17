@@ -5,6 +5,7 @@ already there, whatever its text says, because the stock file ships with the
 app and a pin on another flow would change under a running migration.
 """
 
+import html
 import re
 from pathlib import Path
 
@@ -331,3 +332,52 @@ def test_the_script_reads_an_answer_that_is_not_json(client):
 
     assert "response.text()" in script
     assert "The server answered " in script
+
+
+# -- a stored flow that no longer loads cannot be pinned ---------------------
+
+
+def test_a_stored_flow_in_the_old_side_words_is_refused_when_pinned(client, tmp_path):
+    """A flow saved before the sides were renamed no longer loads. Pinning it
+    used to be accepted, and every page that reads the pinned flow then
+    answered 500."""
+    (tmp_path / "old").mkdir()
+    (tmp_path / "new").mkdir()
+    client.post(
+        "/migrations",
+        data={
+            "name": "Acme",
+            "accent": "violet",
+            "source_version": "17.0",
+            "target_version": "18.0",
+            "old_project_path": str(tmp_path / "old"),
+            "new_project_path": str(tmp_path / "new"),
+        },
+    )
+    with database.connection_context():
+        from odoo_migrator.models import Migration
+
+        row = Migration.get(Migration.name == "Acme")
+        CartridgeInstall.create(
+            cartridge_id="legacy",
+            version="1.0.0",
+            body=STOCK.replace("sessions: [source, target]", "sessions: [old, new]", 1),
+            smoke_status="untested",
+        )
+
+    response = client.post(
+        f"/migrations/{row.id}/settings",
+        data={
+            "strictness_default": "basic",
+            "retry_limit": "3",
+            "ask_human_mode": "sync",
+            "cartridge_id": "legacy@1.0.0",
+        },
+    )
+
+    assert response.status_code == 200
+    page = html.unescape(response.text)
+    assert "legacy@1.0.0 cannot be pinned" in page
+    assert "'source' and 'target'" in page
+    with database.connection_context():
+        assert Migration.get_by_id(row.id).cartridge_id in (None, "", "stock")

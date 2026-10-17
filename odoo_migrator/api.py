@@ -21,7 +21,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
-from odoo_migrator.cartridges import install_from_text, list_installs, smoke_run, smoke_state
+from odoo_migrator.cartridges import (
+    install_from_text,
+    list_installs,
+    smoke_run,
+    smoke_state,
+    unreadable_flow,
+)
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database, init_db
 from odoo_migrator.events import CLOSED, EventHub
@@ -1546,6 +1552,18 @@ def create_app(
             # already pinned, so choosing a different cartridge — or a second
             # version of the same one — kept the old number.
             cartridge_id, _, cartridge_version = cartridge_id.partition("@")
+        if cartridge_id:
+            unreadable = unreadable_flow(cartridge_id, cartridge_version or "1.0.0")
+            if unreadable:
+
+                return _overview(
+                    request,
+                    expanded=migration_id,
+                    error=(
+                        f"{cartridge_id}@{cartridge_version or '1.0.0'} cannot be pinned: "
+                        f"{unreadable}. Nothing saved."
+                    ),
+                )
         if save_migration_settings(
             migration_id,
             strictness_default=strictness_default,

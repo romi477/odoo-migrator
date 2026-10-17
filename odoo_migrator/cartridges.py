@@ -178,6 +178,28 @@ def pinned_for(migration) -> Cartridge:
     return load_cartridge_file(cartridges_dir() / "stock.yaml")
 
 
+def unreadable_flow(cartridge_id: str, version: str) -> str:
+    """Why a stored flow no longer loads, or "" when it loads or is not there.
+
+    A flow is validated when it is stored, and the rules for a valid one move
+    on. Pinning one that no longer loads was accepted, and every page that
+    reads the pinned flow then answered 500.
+    """
+    from odoo_migrator.flowfile import flow_text
+
+    text = flow_text(cartridge_id, version)
+    if text is None:
+
+        return ""
+    try:
+        load_cartridge(text)
+    except CartridgeError as exc:
+
+        return str(exc)
+
+    return ""
+
+
 def list_installs() -> list[dict]:
     """The flows a card can pin: the one that ships first, then what is stored.
 
