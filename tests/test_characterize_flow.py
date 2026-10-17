@@ -322,3 +322,47 @@ def test_the_characterize_prompt_holds_what_was_decided():
     assert "what you chose not to pin" in prompt
     # A double pass was considered and ruled out.
     assert "twice" not in prompt
+
+
+# -- deliberate differences are recorded, in the test, where a person reads them --
+
+MARKER = "# migrator: target-differs — "
+
+
+def _flat(step_id):
+    flow = load_cartridge_file(Path("cartridges/stock.yaml"))
+
+    return " ".join(flow.step_by_id(step_id).prompt.split())
+
+
+def test_the_port_marks_an_assertion_it_changes_because_the_target_differs():
+    prompt = _flat("port")
+
+    assert MARKER in prompt
+    assert "one line each" in prompt
+    # A difference nobody can trace to a rule is not a deliberate one.
+    assert "cannot trace to a rule" in prompt
+    assert "do not edit the assertion" in prompt
+
+
+def test_write_test_is_the_fallback_and_reads_both_sides_and_the_rules():
+    flow = load_cartridge_file(Path("cartridges/stock.yaml"))
+    step = flow.step_by_id("write_test")
+    prompt = _flat("write_test")
+
+    assert step.when == "no_tests"
+    assert set(step.sessions) == {"source", "target"}
+    assert {"rules", "module_source", "prior_answers"} <= set(step.context)
+    # The source is the oracle: it is asked first, and the target is written to match.
+    assert "oracle" in prompt
+    assert "exec" in prompt
+    assert "write nothing" in prompt
+    assert MARKER in prompt
+    assert "check its class" in prompt
+    assert "twice" not in prompt
+
+
+def test_write_test_never_writes_the_source():
+    flow = load_cartridge_file(Path("cartridges/stock.yaml"))
+
+    assert "write_source_test" not in flow.step_by_id("write_test").tools

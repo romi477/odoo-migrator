@@ -117,6 +117,17 @@ pipeline:
       source version. Port them with the rest, and keep what they assert:
       change only what the target version forces.
 
+      When the target version forces a different value in one of those
+      assertions, and the rules say the behaviour changed on purpose, change
+      the assertion and put this on the line above it, exactly:
+
+          # migrator: target-differs — <what changed, and the rule that says so>
+
+      List every such place in your answer, one line each. A difference you
+      cannot trace to a rule is not a deliberate one: do not edit the
+      assertion, leave it as the source had it, and say so in your answer. The
+      tests step will report it, and the failure lane will look at it.
+
       Hand changes are what a person committed in the target project since
       the last port of this module. They are not in the source version:
       carry them into this port, unless the rules make one of them wrong —
@@ -149,17 +160,48 @@ pipeline:
   - step: agent
     id: write_test
     when: no_tests
-    sessions: [target]
+    sessions: [source, target]
     tools: [exec, source, run_test, list_tests, read_file, write_file, reopen]
-    context: [prior_answers]
+    context: [rules, module_source, prior_answers]
     prompt: |
-      Turn the recipe you just replayed into a real test in the ported
-      module, asserting what the source version actually did. Run it before
-      you finish.
+      The ported module has no tests: `characterize` wrote none. The module
+      may have been judged to have nothing worth pinning, the source project
+      may not be a git repository, or no test went green on the source. Write
+      them on the target now.
 
-      Read a test of a module that has one with `source` before writing
-      yours: the base class and the helpers are the target version's, not
-      the ones you remember.
+      If the understand answer above said this module has nothing worth
+      pinning (data, views, security files, translations), write nothing and
+      say so in your answer.
+
+      The source container is the oracle. For each behaviour worth pinning,
+      call it on the source with `exec` first, in the recipe's data, and note
+      what came back. Then write a test on the target that asserts the same.
+      A method that returns or computes something; a computed field; a
+      constraint that refuses a write; a state change behind a button; an
+      onchange or a default. One test method per behaviour, eight at most.
+
+      Assert on what a business user would see: field values, states, amounts,
+      counts, returned values. Do not assert on the text of an exception (check
+      its class), on translated strings, on record ids or sequence numbers, on
+      the order of records you did not sort, on timestamps, or on log output.
+      Every test method needs an assertion.
+
+      If the target answers differently and the rules say the behaviour
+      changed on purpose, assert what the target does and put this on the line
+      above the assertion, exactly:
+
+          # migrator: target-differs — <what changed, and the rule that says so>
+
+      A difference you cannot trace to a rule is a finding, not a test: do not
+      write it down as expected. Say so in your answer.
+
+      Read a test of a module that has one with `source` before writing yours:
+      the base class and the helpers are the target version's, not the ones
+      you remember. Make all your data in setUpClass or in the test; do not
+      rely on demo data. No commit, no network, no sleep.
+
+      Run the module's tests on the target before you finish, and list in
+      your answer what you pinned and what you chose not to pin and why.
 
   # The run above is the agent's own. This one is the runner's, and its
   # outcome is recorded: a test written and never run used to pass as
