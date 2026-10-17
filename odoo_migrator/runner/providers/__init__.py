@@ -34,10 +34,11 @@ def model_allowed(name: str) -> bool:
     return any(provider.accepts_model(name) for provider in REGISTRY.values())
 
 
+# The order is the settings page's and the provider list's on a card.
 register(AnthropicProvider())
+register(OpenAIProvider())
 register(CursorProvider())
 register(LocalProvider())
-register(OpenAIProvider())
 register(ScriptedProvider(client=None))
 
 __all__ = [

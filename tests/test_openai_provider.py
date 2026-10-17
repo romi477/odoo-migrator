@@ -175,3 +175,17 @@ def test_a_stop_ends_the_step_between_two_turns():
         )
 
     assert len(server.requests) == 1
+
+
+def test_settings_list_the_providers_anthropic_openai_cursor_local(client):
+    from odoo_migrator.settings import get_app_settings
+
+    order = []
+    for field in get_app_settings()["provider_fields"]:
+        if field["provider"] not in order:
+            order.append(field["provider"])
+    page = client.get("/settings").text
+    places = [page.index(f'name="provider_{name}_') for name in order]
+
+    assert order == ["anthropic", "openai", "cursor", "local"]
+    assert places == sorted(places)

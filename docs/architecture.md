@@ -97,9 +97,9 @@ Providers registered today:
 | Name | What runs the turn |
 |---|---|
 | `anthropic` | The Anthropic SDK tool runner. Models `claude-opus-5` and `claude-sonnet-5`. |
+| `openai` | The same tool loop over `https://api.openai.com/v1/chat/completions`, with the key from settings. The address is fixed. Model `gpt-6-sol`. A 401 is reported without OpenAI's message, which quotes part of the key. |
 | `cursor` | `cursor-sdk`, in-process `custom_tools`, built-in tools off (`tools=[]`). |
 | `local` | Its own tool loop over the OpenAI-compatible `/v1/chat/completions` of a server on this machine: LM Studio, Ollama, llama.cpp. Models are whatever that server has loaded. |
-| `openai` | The same tool loop over `https://api.openai.com/v1/chat/completions`, with the key from settings. The address is fixed. Model `gpt-6-sol`. A 401 is reported without OpenAI's message, which quotes part of the key. |
 | `scripted` | The test double. A cartridge cannot select it. |
 
 Keys live in `ProviderSetting` rows (`provider`, `key`, `value`), not
