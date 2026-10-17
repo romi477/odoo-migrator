@@ -52,6 +52,33 @@ def _ctx(**extra):
     return SimpleNamespace(**fields)
 
 
+def test_the_system_prompt_says_which_side_is_which():
+    text = system_prompt(_step(), _ctx())
+
+    assert "## The two sides" in text
+    assert "source: Odoo 17.0" in text
+    assert "ported FROM" in text
+    assert "target: Odoo 18.0" in text
+    assert "ported TO" in text
+    assert "write_source_test" in text
+
+
+def test_the_system_prompt_names_no_side_old_or_new():
+    text = system_prompt(_step(), _ctx())
+
+    assert "(old)" not in text
+    assert "(new)" not in text
+    assert "old side" not in text
+    assert "new side" not in text
+
+
+def test_the_step_name_is_still_found_whatever_follows_it():
+    """Test doubles key off the step id in the system prompt."""
+    text = system_prompt(_step(id="port"), _ctx())
+
+    assert text.split("Step: ", 1)[1].splitlines()[0].strip() == "port"
+
+
 def test_the_system_prompt_says_how_a_step_ends():
     text = system_prompt(_step(), _ctx())
 

@@ -39,7 +39,7 @@ class StepScript:
 
     def run_step(self, *, system, prompt, tools, report, model, budget, stop_check=None) -> StepResult:
         del prompt, model, budget, stop_check
-        step = system.rsplit("Step: ", 1)[1].strip()
+        step = system.split("Step: ", 1)[1].splitlines()[0].strip()
         self.ran.append(step)
         if step in self.fails_once:
             self.fails_once.discard(step)
@@ -148,7 +148,7 @@ def test_a_module_the_port_never_writes_fails_without_looping_for_ever(
 
     class Idle(StepScript):
         def run_step(self, **kwargs):
-            step = kwargs["system"].rsplit("Step: ", 1)[1].strip()
+            step = kwargs["system"].split("Step: ", 1)[1].splitlines()[0].strip()
             self.ran.append(step)
 
             return StepResult(ok=True, answer="nothing to do")

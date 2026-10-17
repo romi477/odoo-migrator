@@ -101,14 +101,19 @@ def system_prompt(step: Step, ctx: StepContext) -> str:
     facts = (
         f"## This run\n"
         f"Module: {ctx.module.technical_name}\n"
-        f"Odoo {ctx.migration.source_version} (source) to "
-        f"{ctx.migration.target_version} (target)\n"
+        f"Step: {step.id or step.kind}\n"
+        f"\n"
+        f"## The two sides\n"
+        f"source: Odoo {ctx.migration.source_version} — the version this module is "
+        f"ported FROM. Read it; the only thing you may write there is a "
+        f"characterization test, by `write_source_test`, when your step has that tool.\n"
+        f"target: Odoo {ctx.migration.target_version} — the version this module is "
+        f"ported TO. This is where the port is written.\n"
         # The paths `read_file` and `write_file` take. A project that keeps
         # its addons in a subdirectory is the common shape, and a model told
         # only the module's name writes one level too high.
         f"Its directory on the source side: {agent_path(ctx.migration, ctx.module, 'source')}\n"
-        f"Its directory on the target side: {agent_path(ctx.migration, ctx.module, 'target')}\n"
-        f"Step: {step.id or step.kind}"
+        f"Its directory on the target side: {agent_path(ctx.migration, ctx.module, 'target')}"
     )
 
     return f"{standing}\n\n{shell}\n\n{facts}"
