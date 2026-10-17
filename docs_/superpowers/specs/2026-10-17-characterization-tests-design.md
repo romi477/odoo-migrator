@@ -56,8 +56,23 @@ What does **not** change, and why:
 - `ToolCall.side` rows already in a local database keep their words and are
   shown as written; no code reads them back as a side.
 - Database columns and form fields (`old_project_path`, `new_project_path`,
-  `old_database`, `Module.old_path`, ...). Renaming them is a schema
-  migration and a route change for no behaviour; it is a follow-up if wanted.
+  `old_database`, `Module.old_path`, ...). The test for what is in scope is
+  what the agent reads and writes: it never sees a column. Renaming them is a
+  schema migration and a route change for no gain to the agent, and is not
+  part of this work. If it is ever wanted it is its own change.
+
+The point of the rename is that an agent never mistakes which side is which,
+so it is held by tests rather than left to a grep:
+
+- Every agent step's prompt opens with a fixed header that says what the two
+  sides are for this run: *source* is the version the module is ported from
+  (read-only, except for the characterization tests); *target* is the
+  version it is ported to (the one that is written). The runner renders it,
+  so a cartridge author cannot forget it and a fork cannot contradict it.
+- A test renders every step of the stock flow and fails if a prompt, a tool
+  description or a tool error names a side as `old` or `new`.
+- A tool that is given a side the step did not declare answers with the
+  sides it did declare, in these words.
 
 ## Non-goals
 
