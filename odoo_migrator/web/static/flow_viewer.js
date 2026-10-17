@@ -198,8 +198,15 @@
       body: JSON.stringify({ text: editor.value }),
     })
       .then(function (response) {
-
-        return response.json().then(function (body) {
+        /* A server that fails answers in plain text, and the parser's
+           complaint about its first character says nothing of that. */
+        return response.text().then(function (raw) {
+          let body = {};
+          try {
+            body = JSON.parse(raw);
+          } catch (err) {
+            body = { error: "The server answered " + response.status + " and not with a flow reply." };
+          }
 
           return { ok: response.ok, body: body };
         });

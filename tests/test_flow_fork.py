@@ -295,3 +295,12 @@ def test_the_card_offers_the_shipped_flow_beside_a_fork_and_keeps_the_pin(client
     assert 'value="stock@1.0.0" selected' in select
     assert 'value="stock@1.0.1"' in select
     assert "selected" not in select.split('value="stock@1.0.1"', 1)[1]
+
+
+def test_the_script_reads_an_answer_that_is_not_json(client):
+    """A server that fails says so in plain text. The dialog must report that,
+    not the parser's complaint about its first character."""
+    script = (static_dir() / "flow_viewer.js").read_text(encoding="utf-8")
+
+    assert "response.text()" in script
+    assert "The server answered " in script

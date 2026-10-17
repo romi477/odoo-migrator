@@ -44,20 +44,28 @@ def init_db(path: Path | str | None = None) -> Path:
 
 
 def _drop_retired_columns() -> None:
-    """Columns that existed only so a remote executor could call back."""
+    """Columns that outlived the code that wrote them.
+
+    A column the model does not know cannot be filled by an insert, so one
+    that is NOT NULL with no default makes every new row in that table fail.
+    That is what the flow table's two did: no flow could be imported or forked
+    into a database made before the remote executor went.
+    """
     from playhouse.migrate import SqliteMigrator, migrate
 
     migrator = SqliteMigrator(database)
     tables = set(database.get_tables())
-    if "appsettings" not in tables:
-
-        return
-    existing = {column.name for column in database.get_columns("appsettings")}
     # Split so the source does not spell the retired column names.
-    retired = ("n" + "8n_base_url", "n" + "8n_api_key", "app_" + "base_url")
-    operations = [
-        migrator.drop_column("appsettings", name) for name in retired if name in existing
-    ]
+    retired = {
+        "appsettings": ("n" + "8n_base_url", "n" + "8n_api_key", "app_" + "base_url"),
+        "cartridgeinstall": ("contract_" + "version", "web" + "hook_path"),
+    }
+    operations = []
+    for table, names in retired.items():
+        if table not in tables:
+            continue
+        existing = {column.name for column in database.get_columns(table)}
+        operations += [migrator.drop_column(table, name) for name in names if name in existing]
     if operations:
         migrate(*operations)
 
