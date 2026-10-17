@@ -92,6 +92,15 @@ A cartridge is YAML (or JSON): an id, a version, schema `1`, a model
 the provider whether it accepts that model name. A flat list of names
 is not the check: Cursor's `auto-smart` carries parameters.
 
+A flow is read through `GET /api/flows/<id>/<version>` (text, hash, an
+outline whose nodes carry a path and a line range, and the next free
+version) and written only by `POST /api/flows/fork`. A fork takes its id
+and version from the text it carries and is a new row or an error:
+`cartridges.fork_from_text` refuses a name that a row or the shipped
+`stock.yaml` already holds, where an import (`install_from_text`) replaces
+on purpose. The next free version raises the last number after a dot, or
+adds `.1`, and skips taken ones.
+
 Providers registered today:
 
 | Name | What runs the turn |
@@ -128,7 +137,7 @@ it clips module source.
 | `odoo_migrator/models.py` | Peewee. `create_tables` plus `_ensure_columns` |
 | `odoo_migrator/jobs.py` | Start a job, apply results, resume, checkpoint |
 | `odoo_migrator/runner/` | Cartridge language, loop, tools, providers, native thread |
-| `odoo_migrator/cartridges.py` | Import, pin, smoke-run |
+| `odoo_migrator/cartridges.py` | Import, fork, pin, smoke-run |
 | `odoo_migrator/sheller/` | HTTP client and the fake that answers like the daemon |
 | `odoo_migrator/provision/` | Docker SDK compose up / attach / rebuild |
 | `cartridges/stock.yaml` | The stock flow |

@@ -124,6 +124,8 @@ TEMPLATES.env.filters["breakable"] = breakable
 # One list of what Reopen takes, for the route and the button alike.
 TEMPLATES.env.globals["reopenable"] = REOPENABLE
 NO_STORE = {"Cache-Control": "no-store"}
+# A flow file is a few kilobytes. Past this a body is not one.
+FLOW_LIMIT = 256 * 1024
 OPEN_COOKIE = "open_migration"
 SSE_RETRY_MS = 3000
 SSE_HEARTBEAT_SECONDS = 15
@@ -1825,6 +1827,7 @@ def create_app(
     def flow_file(cartridge_id: str, version: str):
         import hashlib
 
+        from odoo_migrator.cartridges import next_version
         from odoo_migrator.flowfile import flow_outline, flow_text
 
         text = flow_text(cartridge_id, version)
@@ -1839,7 +1842,52 @@ def create_app(
                 "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
                 "text": text,
                 "outline": flow_outline(text),
+                # What a fork of this file would be called. A suggestion; the
+                # check that counts is the one the save makes.
+                "next_version": next_version(cartridge_id, version),
             },
+            headers=NO_STORE,
+        )
+
+    # The one way the viewer writes: a fork, stored under the id and version
+    # its own text names. It is a new row or an error, never a replacement.
+    @app.post("/api/flows/fork")
+    async def flow_fork(request: Request):
+        import hashlib
+        import json
+
+        from odoo_migrator.cartridges import FlowTaken, fork_from_text, next_version
+
+        raw = await request.body()
+        if len(raw) > FLOW_LIMIT:
+
+            return JSONResponse({"error": "That flow file is too large."}, status_code=413)
+        try:
+            text = json.loads(raw).get("text")
+        except (ValueError, AttributeError):
+            text = None
+        if not isinstance(text, str):
+
+            return JSONResponse({"error": "The body must be JSON with a text."}, status_code=400)
+        try:
+            row = fork_from_text(text)
+        except FlowTaken as exc:
+
+            return JSONResponse(
+                {"error": str(exc), "next_version": next_version(exc.cartridge_id, exc.version)},
+                status_code=409,
+            )
+        except CartridgeError as exc:
+
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        return JSONResponse(
+            {
+                "cartridge_id": row.cartridge_id,
+                "version": row.version,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            },
+            status_code=201,
             headers=NO_STORE,
         )
 

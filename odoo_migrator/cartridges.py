@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import yaml
 
 from odoo_migrator.contract import ContractError
@@ -53,6 +55,108 @@ def install_from_text(text: str) -> CartridgeInstall:
         return row
 
 
+# What an id and a version may be made of. The select on a card carries
+# `id@version`, split at the first `@`, and the viewer's address is
+# `/api/flows/<id>/<version>`: an `@` or a `/` would break either.
+_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,39}")
+
+
+class FlowTaken(CartridgeError):
+    """A flow by that id and version is already there, and stays as it is."""
+
+    def __init__(self, cartridge_id: str, version: str):
+        self.cartridge_id = cartridge_id
+        self.version = version
+        super().__init__(
+            f"{cartridge_id}@{version} already exists. A fork is saved under a new "
+            "version or a new id; it never replaces a flow."
+        )
+
+
+def _held(cartridge_id: str, version: str) -> bool:
+    """A row by that name, with or without a body. Needs an open connection."""
+
+    return (
+        CartridgeInstall.select()
+        .where(
+            (CartridgeInstall.cartridge_id == cartridge_id)
+            & (CartridgeInstall.version == version)
+        )
+        .exists()
+    )
+
+
+def flow_taken(cartridge_id: str, version: str) -> bool:
+    """Whether a flow answers to this id and version.
+
+    A row counts even without a body: a smoke verdict is recorded against a
+    pin, and a fork may not take over a name that holds one. The stock file
+    that ships with the app has no row at all.
+    """
+    from odoo_migrator.flowfile import flow_text
+
+    with database.connection_context():
+        held = _held(cartridge_id, version)
+
+    return held or flow_text(cartridge_id, version) is not None
+
+
+def next_version(cartridge_id: str, version: str) -> str:
+    """The first version after this one that no flow of the id holds.
+
+    The last number after a dot goes up by one; a version that does not end
+    in one gets `.1` after it. It is a suggestion: the check that counts is
+    the one `fork_from_text` makes when the fork is saved.
+    """
+    candidate = version
+    while True:
+        head, dot, last = candidate.rpartition(".")
+        candidate = f"{head}{dot}{int(last) + 1}" if last.isdigit() else f"{candidate}.1"
+        if not flow_taken(cartridge_id, candidate):
+
+            return candidate
+
+
+def fork_from_text(text: str) -> CartridgeInstall:
+    """Store a flow under the id and version its own text names, as a new row.
+
+    Never replaces: a name that is taken is refused, even for the same text.
+    That is what `install_from_text` does on purpose for an import, and what a
+    fork made from a viewer must not do to the flow it was copied from.
+    """
+    try:
+        loaded = load_cartridge(text)
+    except CartridgeError as exc:
+        kind = _unknown_step(text)
+        if kind:
+            raise CartridgeError(f"unknown step '{kind}'") from exc
+        raise
+    from odoo_migrator.flowfile import flow_text
+
+    for label, value in (("id", loaded.cartridge), ("version", loaded.version)):
+        if not _NAME.fullmatch(value):
+            raise CartridgeError(
+                f"The flow {label} {value!r} is not allowed: it may hold only letters, "
+                "digits and . _ + -, start with a letter or digit, and be at most "
+                "40 characters."
+            )
+    taken = FlowTaken(loaded.cartridge, loaded.version)
+    if flow_text(loaded.cartridge, loaded.version) is not None:
+        raise taken
+    with database.connection_context(), database.atomic():
+        if _held(loaded.cartridge, loaded.version):
+            raise taken
+
+        return CartridgeInstall.create(
+            cartridge_id=loaded.cartridge,
+            version=loaded.version,
+            sha256=loaded.sha256,
+            schema_version=loaded.schema_version,
+            body=text,
+            smoke_status="untested",
+        )
+
+
 def pinned_for(migration) -> Cartridge:
     """The cartridge this migration pinned, or the stock file."""
     if isinstance(migration, dict):
@@ -75,10 +179,16 @@ def pinned_for(migration) -> Cartridge:
 
 
 def list_installs() -> list[dict]:
+    """The flows a card can pin: the one that ships first, then what is stored.
+
+    The shipped file has no row of its own, so it is added unless a row holds
+    its name already (a smoke verdict makes one). Without it, storing any flow
+    took `stock` out of the Flow select, and a card pinned to it showed
+    another flow as its choice.
+    """
     with database.connection_context():
         rows = list(CartridgeInstall.select().order_by(CartridgeInstall.cartridge_id))
-
-    return [
+    found = [
         {
             "cartridge_id": row.cartridge_id,
             "version": row.version,
@@ -87,6 +197,21 @@ def list_installs() -> list[dict]:
             "smoke_status": row.smoke_status,
         }
         for row in rows
+    ]
+    shipped = load_cartridge_file(cartridges_dir() / "stock.yaml")
+    if any((r["cartridge_id"], r["version"]) == (shipped.cartridge, shipped.version) for r in found):
+
+        return found
+
+    return [
+        {
+            "cartridge_id": shipped.cartridge,
+            "version": shipped.version,
+            "sha256": shipped.sha256,
+            "schema_version": shipped.schema_version,
+            "smoke_status": "shipped",
+        },
+        *found,
     ]
 
 

@@ -150,16 +150,27 @@
       <button type="button" class="primary" data-confirm-go>Confirm</button>
     </div>
   </dialog>
-  {# The flow file, read-only, opened by the eye after the Flow field (see
-     flow_viewer.js). The outline's nodes carry a path and a line range,
-     which is what an editor will address. #}
+  {# The flow file, opened by the eye after the Flow field (see
+     flow_viewer.js). It opens read-only. Fork makes a copy that can be
+     edited, and Save fork stores it under a new id and version: the file it
+     was copied from is never written. The outline's nodes carry a path and
+     a line range. #}
   <dialog class="flow-dialog" data-flow-dialog aria-labelledby="flow-dialog-title">
     <header class="flow-dialog-head">
       <h2 id="flow-dialog-title" class="mono" data-flow-title></h2>
-      <span class="badge">read-only</span>
+      <span class="badge" data-flow-mode>read-only</span>
+      <button type="button" data-flow-fork hidden
+              title="Copy this flow to edit it. The original stays as it is.">Fork</button>
       <span class="mono flow-viewer-hash" data-flow-hash title="sha256 of this text"></span>
       <button type="button" class="flow-dialog-close" data-flow-close aria-label="Close">×</button>
     </header>
+    <div class="flow-fork-bar" data-flow-bar hidden>
+      <label>Flow <input class="mono" type="text" data-flow-id maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <label>Version <input class="mono" type="text" data-flow-version maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <button type="button" class="primary" data-flow-save>Save fork</button>
+      <button type="button" data-flow-cancel>Cancel</button>
+      <span class="field-hint">Saved as a new flow; the original is not changed. The outline is of the file as it was forked.</span>
+    </div>
     <p class="form-error" data-flow-error hidden role="alert"></p>
     <div class="flow-viewer-panes">
       <nav class="flow-outline" aria-label="Outline of the flow file">
@@ -167,6 +178,7 @@
       </nav>
       <section class="flow-source" aria-label="The flow file">
         <ol class="flow-lines mono" data-flow-source></ol>
+        <textarea class="flow-edit mono" data-flow-edit hidden spellcheck="false" aria-label="The fork's text"></textarea>
       </section>
     </div>
   </dialog>

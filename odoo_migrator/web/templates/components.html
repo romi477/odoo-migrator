@@ -106,7 +106,8 @@
 
   <h2>Flow viewer</h2>
   {# The dialog the eye opens: an outline beside the flow file's text,
-     read-only. The eye sits after the Flow select on a migration's card. #}
+     read-only until Fork is pressed. The eye sits after the Flow select on a
+     migration's card. #}
   <p class="field-hint">
     <button type="button" class="flow-view-button" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
     The eye after the Flow field opens this dialog.
@@ -115,6 +116,7 @@
     <header class="flow-dialog-head">
       <h2 class="mono">stock 1.0.0</h2>
       <span class="badge">read-only</span>
+      <button type="button" title="Copy this flow to edit it. The original stays as it is.">Fork</button>
       <span class="mono flow-viewer-hash">99b4ddb72081</span>
       <button type="button" class="flow-dialog-close" aria-label="Close">×</button>
     </header>
@@ -144,6 +146,33 @@
         <li class="flow-line is-selected"><span class="flow-line-no">3</span><span class="flow-line-text">  - step: agent</span></li>
       </ol>
     </section>
+    </div>
+  </dialog>
+
+  {# What the same dialog looks like once Fork is pressed: the badge says so,
+     the fields name the copy, and the text is typed into. #}
+  <dialog class="flow-dialog is-specimen" open aria-label="Flow fork specimen">
+    <header class="flow-dialog-head">
+      <h2 class="mono">stock 1.0.0</h2>
+      <span class="badge">editing a fork</span>
+      <span class="mono flow-viewer-hash">99b4ddb72081</span>
+      <button type="button" class="flow-dialog-close" aria-label="Close">×</button>
+    </header>
+    <div class="flow-fork-bar">
+      <label>Flow <input class="mono" type="text" value="stock" aria-label="Fork flow id"></label>
+      <label>Version <input class="mono" type="text" value="1.0.1" aria-label="Fork version"></label>
+      <button type="button" class="primary">Save fork</button>
+      <button type="button">Cancel</button>
+      <span class="field-hint">Saved as a new flow; the original is not changed. The outline is of the file as it was forked.</span>
+    </div>
+    <p class="form-error" role="alert">stock@1.0.0 already exists. A fork is saved under a new version or a new id; it never replaces a flow. The next free version is 1.0.1.</p>
+    <div class="flow-viewer-panes">
+      <nav class="flow-outline" aria-label="Fork outline specimen"></nav>
+      <section class="flow-source" aria-label="Fork text specimen">
+        <textarea class="flow-edit mono" spellcheck="false" aria-label="Fork text specimen">cartridge: "stock"
+version: "1.0.1"
+schema: 1</textarea>
+      </section>
     </div>
   </dialog>
 

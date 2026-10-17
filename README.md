@@ -225,7 +225,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `odoo_migrator/jobs.py` | Start a job, apply a result, resume, sequential batch |
 | `odoo_migrator/runner/` | Cartridge language, loop, tools, providers, native thread |
 | `odoo_migrator/contract.py` | Job payload and result validation |
-| `odoo_migrator/cartridges.py` | Import, pin, smoke-run |
+| `odoo_migrator/cartridges.py` | Import, fork, pin, smoke-run |
 | `odoo_migrator/diffs.py` | Unified diffs recorded on the in-flight job |
 | `odoo_migrator/rules.py` | Per-version files, assembled stack, promote |
 | `odoo_migrator/web/` | Jinja in `templates/`, assets in `static/` — only `static/` is mounted |

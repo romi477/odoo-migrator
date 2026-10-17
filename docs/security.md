@@ -107,6 +107,20 @@ provides none in that direction.
 A provider key cannot close someone else's Sheller session. The admin
 key is the one that can, and this process does not have it.
 
+## Writing a flow from the viewer
+
+The viewer's Fork is the one write the browser can make to a flow, and it is
+shaped so that it cannot damage one that exists. `POST /api/flows/fork` takes
+only the text, reads the id and version out of the text itself, and stores a
+new row; a name that a row or the shipped `stock.yaml` holds is a 409 and
+nothing is written, so a pin that other jobs record cannot change under them.
+The id and version may hold only letters, digits and `. _ + -` (40 at most):
+the select splits `id@version` at the first `@` and the address carries the
+version as a path segment. The body is cut off at 256 KB before it is read as
+YAML. The route is a change, so `web_guard` refuses it from another site's
+page like any other. A stored fork starts `untested`: a batch waits for its
+smoke-run.
+
 ## A job that cannot start
 
 Probe, opening sessions, loading the cartridge and a missing model key

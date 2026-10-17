@@ -126,6 +126,15 @@ loaded, e.g. `qwen/qwen3.8-27b` in LM Studio — free per token, slower, and
 weaker at long tool use, so it is for debugging the pipeline rather than
 judging a port. OpenAI: `gpt-6-sol`, through the key on the settings page. OpenCode is specified and not built.
 
+**Can I edit a flow?**
+
+Not in place. The eye next to the Flow field opens the file read-only; Fork
+copies it into an editable text with the next free version, and Save fork
+stores it as a new flow. The flow you copied from, `stock` included, is never
+overwritten: a name that is taken is refused. The copy appears in the Flow
+select and is not picked for you, and it needs its own smoke-run before a
+batch.
+
 ## Rules and findings
 
 **Why one file per version, not per pair?**

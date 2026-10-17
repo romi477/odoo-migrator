@@ -104,14 +104,15 @@ def test_an_unknown_flow_is_a_404(client):
     assert client.get("/api/flows/nothing/9.9.9").status_code == 404
 
 
-def test_every_page_carries_the_dialog_and_it_is_read_only(client):
+def test_every_page_carries_the_dialog_and_it_opens_read_only(client):
     for path in ("/", "/flow"):
         page = client.get(path).text
 
         assert "data-flow-dialog" in page
         assert "read-only" in page
         assert 'class="flow-dialog"' in page
-        assert "<textarea" not in page[page.index("data-flow-dialog") :][:3000]
+        # Typing is only for a fork, and only after Fork is pressed
+        # (test_flow_fork.py checks the editing area starts hidden).
         assert "contenteditable" not in page
 
 
