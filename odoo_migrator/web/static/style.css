@@ -2496,6 +2496,7 @@ h2 {
 }
 
 .tree-workbench-row {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2542,10 +2543,16 @@ h2 {
   display: none;
 }
 
+/* Help sits at the right end of its row, so the popup hangs from the right
+   edge of its row and opens leftwards, never wider than the row. With no
+   edge of its own it could only be as wide as the room to the right of the
+   button. */
 .tree-help p {
   position: absolute;
+  right: 0;
   z-index: 2;
-  max-width: min(22rem, 90vw);
+  width: max-content;
+  max-width: min(22rem, 100%);
   margin: 4px 0 0;
   padding: 8px 10px;
   border: 1px solid var(--border);
@@ -2555,7 +2562,7 @@ h2 {
 }
 
 .tree-help {
-  position: relative;
+  position: static;
 }
 
 .tree-selection-bar {

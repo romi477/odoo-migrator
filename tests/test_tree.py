@@ -437,3 +437,21 @@ def test_the_tree_follows_the_run_and_says_what_exclude_takes(client):
     assert 'addEventListener("module_states"' in script
     assert 'successors("node")' in script
     assert "requestAnimationFrame" in script
+
+
+def test_the_help_popup_hangs_from_the_right_edge_of_its_row_and_never_outgrows_it(client):
+    """Help sits at the right end of its row. A popup with no edge of its own
+    can only be as wide as the room between the button and the page's edge, so
+    it came out one word wide; and one limited by the window rather than the
+    row ran off the left of a narrow screen."""
+    css = client.get("/static/style.css").text
+
+    rule = css.split(".tree-help p {", 1)[1].split("}", 1)[0]
+    assert "right: 0" in rule
+    assert "width: max-content" in rule
+    assert "max-width: min(22rem, 100%)" in rule
+    # The row is what it hangs from: the details element is not positioned.
+    row = css.split(".tree-workbench-row {", 1)[1].split("}", 1)[0]
+    assert "position: relative" in row
+    details = css.split(".tree-help {")[-1].split("}", 1)[0]
+    assert "position: static" in details
