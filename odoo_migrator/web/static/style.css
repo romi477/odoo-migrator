@@ -392,15 +392,15 @@ pre,
   --bridge-elbow: 10px;
 }
 
-/* Quiet marks between Pipeline, Flow and Sheller. The arrows stay
-   accented; these only keep the row reading as one line. */
+/* Marks between Pipeline, Flow and Sheller. They take the arrows' colour,
+   the open migration's accent, so the row reads as one line. */
 .step-dot {
   flex: none;
   width: 3px;
   height: 3px;
   margin: 0 3px;
   border-radius: 50%;
-  background: var(--muted-low);
+  background: var(--accent, var(--muted-low));
 }
 
 .result-board {
