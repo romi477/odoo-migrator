@@ -2312,13 +2312,27 @@ h2 {
   margin: 0;
 }
 
-/* The cable from the bar into the queue. It is plugged into the bar's lower
-   edge, so it does not start from nowhere: a plug sits across the edge, the
-   cable drops into the gutter beside the cards, turns at the same elbow the
-   navigation draws, and ends in an arrowhead at the queue card. While the
-   queue runs a pulse of light travels down it. */
+/* The cables. One from the bar into the queue, one from the queue into the
+   card of the run. Each is plugged into the lower edge of the thing it leaves,
+   so it does not start from nowhere: a plug sits across the edge, the cable
+   runs on, and ends in an arrowhead. Colourless while the queue is empty, cyan
+   with something in it, and while the queue runs a pulse of light travels down
+   the first one. */
+.screen-pipeline,
+.screen-components {
+  --cable: var(--border-strong);
+  --cable-fill: var(--panel-raised, var(--panel));
+}
+
+.screen-pipeline:has(.pipeline-queue-card[data-has-items="true"]),
+.screen-components:has(.pipeline-queue-card[data-has-items="true"]) {
+  --cable: var(--cyan);
+  --cable-fill: var(--cyan-dark);
+}
+
 .pipeline-panels {
   position: relative;
+  margin-bottom: 22px;
 }
 
 .runner-hook {
@@ -2327,8 +2341,8 @@ h2 {
   top: -14px;
   width: 20px;
   height: 34px;
-  border-left: 1px solid var(--cyan);
-  border-bottom: 1px solid var(--cyan);
+  border-left: 1px solid var(--cable);
+  border-bottom: 1px solid var(--cable);
   border-bottom-left-radius: 9px;
   pointer-events: none;
 }
@@ -2336,7 +2350,8 @@ h2 {
 /* The plug: wider than the cable, half behind the bar so it comes out of
    its lower edge, with a bright tip. When the page scrolls it goes under the
    sticky bar with the rest of the cable. */
-.runner-hook::before {
+.runner-hook::before,
+.runner-link::before {
   content: "";
   position: absolute;
   left: -5px;
@@ -2344,10 +2359,10 @@ h2 {
   width: 9px;
   height: 10px;
   box-sizing: border-box;
-  border: 1px solid var(--cyan);
+  border: 1px solid var(--cable);
   border-radius: 2px;
-  background: var(--cyan-dark);
-  box-shadow: inset 0 -2px 0 var(--cyan);
+  background: var(--cable-fill);
+  box-shadow: inset 0 -2px 0 var(--cable);
 }
 
 /* The pulse. Off until the queue runs. */
@@ -2359,11 +2374,12 @@ h2 {
   width: 3px;
   height: 10px;
   border-radius: 2px;
-  background: linear-gradient(transparent, var(--cyan));
+  background: linear-gradient(transparent, var(--cable));
   opacity: 0;
 }
 
-.pipeline-panels:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
+.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after,
+.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
   opacity: 1;
   animation: cable-pulse 1.4s ease-in infinite;
 }
@@ -2380,7 +2396,7 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pipeline-panels:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
+  .screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
     animation: none;
     opacity: 0;
   }
@@ -2394,8 +2410,35 @@ h2 {
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 5px solid var(--cyan);
+  border-left: 5px solid var(--cable);
   pointer-events: none;
+}
+
+/* From the queue down into the run: a short drop with an arrowhead into the
+   top of the run's card. */
+.workspace {
+  position: relative;
+}
+
+.runner-link {
+  position: absolute;
+  left: 30px;
+  top: -22px;
+  height: 22px;
+  border-left: 1px solid var(--cable);
+  pointer-events: none;
+}
+
+.runner-link::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  bottom: -1px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--cable);
 }
 
 @media (max-width: 760px) {
@@ -2409,6 +2452,11 @@ h2 {
    title; the card of the module in work is amber. What is amber is what is
    being worked on: that card's edge, and the lamp on the module's row. */
 .pipeline-queue-card {
+  border-color: var(--border);
+}
+
+/* Colourless while nothing is queued; cyan once there is something in it. */
+.pipeline-queue-card[data-has-items="true"] {
   border-color: var(--cyan);
 }
 
@@ -3957,17 +4005,43 @@ a.ribbon-box:focus-visible {
    shrink: a checkpoint thousands of pixels tall under it squeezed it to
    nothing, and the queue buttons were drawn over "No module is running". */
 .screen-pipeline > .workspace {
-  flex: 1 0 auto;
-  margin-bottom: 0;
+  flex: none;
+  margin-bottom: 14px;
 }
 
 .screen-pipeline > .checkpoint {
   margin-top: 12px;
 }
 
+/* The log is the canvas at the bottom of the screen: edge to edge, no card.
+   Open it fills what is left of the window; folded it is only its head, and
+   either way it rests on the bottom. The bar above is a lighter band, this a
+   darker one, and the queue and the run sit between them. */
 .screen-pipeline .run-log-panel {
   flex: 1 1 auto;
   min-height: 220px;
+  margin: auto calc(-1 * var(--screen-gutter)) calc(-1 * var(--screen-start));
+  border: 0;
+  border-top: 1px solid var(--chrome-edge);
+  border-radius: 0;
+  background: var(--background);
+}
+
+.screen-pipeline .run-log-head {
+  padding-left: var(--screen-gutter);
+  padding-right: var(--screen-gutter);
+  background: transparent;
+}
+
+.screen-pipeline .run-log-fold {
+  padding: 12px var(--screen-gutter);
+}
+
+.screen-pipeline .run-log {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0;
 }
 
 /* Folded, it is only its head: no share of the window to fill. */

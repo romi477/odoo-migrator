@@ -229,8 +229,13 @@ step is a chip with its number and how many modules it still has: green with a
 tick is passed, a cyan dot is in the queue, a dashed edge with a padlock waits
 on an earlier step (hover says which), and the picked one is outlined. The row
 under the chips lists the picked step's modules, passed ones dimmed with a
-tick. A thin cyan cable is plugged into the bar's lower edge and runs into the
-Queue card; a pulse of light travels down it while the queue runs. **Add step N** queues the picked step and the pick then moves to the next
+tick. A thin cable is plugged into the bar's lower edge and runs into the
+Queue card, and a second one drops from the Queue card into the card of the
+run. Both, and the Queue card's edge, are colourless while the queue is empty
+and cyan once it holds something; a pulse of light travels down the first
+while the queue runs. The log is not a card: it is the canvas at the bottom of
+the screen, edge to edge, folded to its head or filling what is left of the
+window. **Add step N** queues the picked step and the pick then moves to the next
 step that can be queued; **Add all steps** queues every wave still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**

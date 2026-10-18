@@ -479,3 +479,30 @@ def test_clear_forgets_what_was_removed(client):
     client.post("/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"})
 
     assert _cards(row.id) == ["sale_custom", "web_enterprise_helper"]
+
+
+def test_the_queue_card_says_whether_it_holds_anything(client):
+    _prepared(client)
+
+    empty = client.get("/run").text
+
+    assert 'data-has-items="false"' in empty
+    assert 'data-has-items="true"' not in empty
+
+    client.post("/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"})
+
+    assert 'data-has-items="true"' in client.get("/run").text
+
+
+def test_the_log_is_the_last_thing_on_the_screen(client):
+    _prepared(client)
+
+    page = client.get("/run").text
+    workspace = page.index('class="workspace"')
+    log = page.index("data-run-log-panel")
+
+    # Out of the workspace the run's card is in, and after it: it is the
+    # canvas at the bottom, not a card among the others.
+    assert log > workspace
+    assert page.index("</article>", workspace) < log
+    assert 'class="runner-link"' in page

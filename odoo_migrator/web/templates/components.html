@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — components{% endblock %}
 {% block screen %}
-<section class="screen">
+<section class="screen screen-components">
   <header class="screen-head">
     <div>
       <h1>Components</h1>
@@ -62,6 +62,8 @@
   </details>
 
   <h2>Run log</h2>
+  <p>On Runner the log is not a card but the canvas at the bottom of the
+  screen, edge to edge; the head and the lines are these.</p>
   <div class="workspace-panel run-log-panel">
   <header class="pipeline-queue-head is-expandable run-log-head" role="button" tabindex="0" aria-expanded="true">
     <div class="pipeline-queue-head-text">
@@ -570,7 +572,7 @@ tools offered: exec, read_file, report, source</pre>
     {# The cable from the bar into the queue, plugged into the bar's lower edge. #}
     <span class="runner-hook" aria-hidden="true"></span>
     <span class="runner-hook-head" aria-hidden="true"></span>
-    <section class="pipeline-queue-card card is-queue-expanded" data-running="true">
+    <section class="pipeline-queue-card card is-queue-expanded" data-running="true" data-has-items="true">
       <header class="pipeline-queue-head is-expandable">
         <div class="pipeline-queue-head-text">
           <span class="pipeline-queue-chevron is-expanded" aria-hidden="true"></span>
@@ -618,6 +620,8 @@ tools offered: exec, read_file, report, source</pre>
     </section>
   </div>
   <div class="workspace">
+    {# The cable from the queue's lower edge into the card of the run. #}
+    <span class="runner-link" aria-hidden="true"></span>
     <article class="workspace-panel" data-pipeline>
       <div class="pipeline-live">
         <header class="name-line pipeline-head">

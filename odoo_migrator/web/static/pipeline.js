@@ -179,6 +179,9 @@
       }),
     );
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
+    /* The queue's edge and the cables into and out of it are colourless while
+       it is empty. */
+    panel.setAttribute("data-has-items", data.modules.length ? "true" : "false");
     panel.setAttribute(
       "data-queue-expandable",
       data.modules.length > 1 ? "true" : "false",

@@ -1,0 +1,89 @@
+{# The run log. A step's outcome used to be a badge with no sentence
+   behind it, so a run that stopped left nothing to read. Bodies —
+   prompts, answers, tracebacks — open on a click, never by default. #}
+{# Folded unless a job is running: the log is what you open to find out
+   what happened, and a running job opens it by itself (`runlog.js` says
+   so when a line arrives). Whoever has opened or closed it since is left
+   as they chose. #}
+<article class="workspace-panel run-log-panel"
+         data-run-log-panel
+         {% if current %}data-migration-id="{{ current.id }}"{% endif %}
+         {% if log_job %}data-job="{{ log_job.job_id }}"{% endif %}
+         x-data="{
+           open: {{ 'true' if log_job and log_job.live else 'false' }},
+           touched: false,
+           toggle(event) {
+             if (event && event.target.closest('.run-log-actions, .run-log-id')) return;
+             this.open = !this.open;
+             this.touched = true;
+             if (this.open) this.$nextTick(() => this.reveal());
+           },
+           reveal() {
+             const list = this.$root.querySelector('[data-run-log]');
+             const follow = this.$root.querySelector('[data-run-log-follow]');
+             if (list && follow && follow.checked) list.scrollTop = list.scrollHeight;
+           }
+         }"
+         :class="{ 'is-collapsed': !open }"
+         @run-log-live="if (!touched && !open) { open = true; $nextTick(() => reveal()); }">
+  <header class="pipeline-queue-head is-expandable run-log-head"
+          role="button" tabindex="0"
+          aria-controls="run-log-body"
+          :aria-expanded="open ? 'true' : 'false'"
+          @click="toggle($event)"
+          @keydown.enter.self.prevent="toggle($event)"
+          @keydown.space.self.prevent="toggle($event)">
+    <div class="pipeline-queue-head-text">
+      <span class="pipeline-queue-chevron" :class="{ 'is-expanded': open }"
+            aria-hidden="true"></span>
+      <h2 class="pipeline-queue-title">Log</h2>
+      {# Which job, and whether it is the one running. Without the second
+         half a finished run read as the current one: the panel above said
+         no module was running while this line named a module. #}
+      <span class="mono run-log-job">{% if log_job %}{{ log_job.module }} · {{ log_job.status }}{% if not log_job.live %} · last run{% endif %}{% endif %}</span>
+      {# The job's id, short. Without it a log can be looked at but not
+         named, and "the run that failed" is not something you can hand
+         to anyone. The copy button next to it gives the whole id. #}
+      {% if log_job %}
+      <button type="button" class="copy-button run-log-id mono"
+              data-run-log-id="{{ log_job.job_id }}"
+              title="Copy this job's id: {{ log_job.job_id }}"
+              aria-label="Copy this job's id">job {{ log_job.job_id[:8] }}</button>
+      {% endif %}
+    </div>
+    {# Copy, Clear and Follow are one group, pinned to the right edge, so
+       they stay put when the job's name and id change width. #}
+    <div class="run-log-actions">
+      <button type="button" class="copy-button run-log-copy" data-run-log-copy
+              title="Copy the whole log" aria-label="Copy the whole log">Copy</button>
+      <span class="run-log-sep" aria-hidden="true"></span>
+      <button type="button" class="run-log-clear" data-run-log-clear
+              title="Delete this job's log" aria-label="Delete this job's log">Clear</button>
+      <span class="run-log-sep" aria-hidden="true"></span>
+      <label class="run-log-follow">
+        <input type="checkbox" data-run-log-follow checked>
+        Follow
+      </label>
+    </div>
+  </header>
+  <div id="run-log-body" class="run-log-fold" x-show="open" x-cloak>
+  {# Not a live region: a screen reader read out every line of a running
+     job as it landed. #}
+  <ol class="run-log" data-run-log></ol>
+  <p class="field-hint" data-run-log-empty{% if log_job and log_job.lines %} hidden{% endif %}>
+    {% if log_job %}This job's log is empty — it was cleared.{% else %}No job has run on this migration yet.{% endif %}
+  </p>
+  <div class="run-log-body-panel" data-run-log-body-panel hidden>
+    <header class="run-log-body-head">
+      <span class="mono run-log-body-label" data-run-log-body-label></span>
+      <button type="button" class="copy-button" data-run-log-body-copy
+              title="Copy this body" aria-label="Copy this body">
+        {% include "_copy_icon.svg" %}
+      </button>
+      <button type="button" class="run-log-close" data-run-log-body-close
+              title="Close this body" aria-label="Close this body">×</button>
+    </header>
+    <pre class="run-log-body" data-run-log-body></pre>
+  </div>
+  </div>
+</article>
