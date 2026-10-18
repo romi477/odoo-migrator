@@ -122,7 +122,7 @@
         <div class="nav-tools">
         <span class="running-count" data-running="{{ running_count }}"
               title="Migrations running."><span class="count">{{ running_count }}</span> run</span>
-        <a href="/attention" class="attention-lamp {{ lamp }}"
+        <a href="/attention" class="attention-lamp {{ lamp }}"{% if current %} style="--accent: {{ current.accent_color }}"{% endif %}
            title="{% if lamp == 'needs-attention' %}A module is waiting for you or has failed. Open it.{% elif lamp == 'running' %}A migration is running.{% else %}Nothing needs attention.{% endif %}">
           <span class="lamp-dot"></span>
         </a>

@@ -966,16 +966,17 @@ a.attention-lamp:hover {
   background: var(--muted-low);
 }
 
+/* The lamp flashes in the open migration's colour, the one its arrows are
+   drawn in, and in amber when no migration is open. */
 .attention-lamp.needs-attention .lamp-dot {
-  background: var(--amber);
+  background: var(--accent, var(--amber));
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
-/* Work is going on and nothing is stuck. Amber, the colour of the module in
-   work on Runner — its card edge and the queue row's equalizer — with the
-   same slow pulse. The run count beside it stays its own colour. */
+/* Work is going on and nothing is stuck: the same colour, the same slow
+   pulse. The run count beside it stays its own colour. */
 .attention-lamp.running .lamp-dot {
-  background: var(--amber);
+  background: var(--accent, var(--amber));
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 

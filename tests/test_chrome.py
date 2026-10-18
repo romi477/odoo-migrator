@@ -225,3 +225,24 @@ def test_the_guide_reads_as_one_column_in_the_middle(client):
     assert 'class="screen screen-guide"' in page
     assert "margin-left: auto" in rule and "margin-right: auto" in rule
     assert "max-width" in rule
+
+
+def test_the_lamp_flashes_in_the_open_migrations_colour(client):
+    """The arrows of the open migration are drawn in its accent; the lamp that
+    flashes beside them takes the same one, not a colour of its own."""
+    from test_batch import _prepared
+
+    _prepared(client)
+    html = client.get("/run").text
+
+    lamp = re.search(r'<a href="/attention"[^>]*>', html).group(0)
+    steps = re.search(r'<div class="nav-tabs nav-steps"[^>]*>', html).group(0)
+    lamp_accent = re.search(r"--accent: ([^;\"]+)", lamp)
+    steps_accent = re.search(r"--accent: ([^;\"]+)", steps)
+
+    assert lamp_accent is not None
+    assert lamp_accent.group(1) == steps_accent.group(1)
+
+    css = client.get("/static/style.css").text
+
+    assert "var(--accent, var(--amber))" in css
