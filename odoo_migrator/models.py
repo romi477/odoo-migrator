@@ -142,6 +142,10 @@ class Module(BaseModel):
     # queue and the counts read that, and a person decides whether it is
     # still fine.
     needs_review = BooleanField(default=False)
+    # Reopen was pressed: the next run empties the module's directory on the
+    # target before it starts, and clears this. The whole flow runs again, not
+    # a port laid over what the last one left.
+    start_clean = BooleanField(default=False)
     notes = TextField(default="")
     # Every dependency, as a JSON array of names. A single parent kept one
     # edge of the several a module really has: on a real database 81 of 128

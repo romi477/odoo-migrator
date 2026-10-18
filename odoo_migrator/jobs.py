@@ -977,9 +977,9 @@ def _publish_module(hub: EventHub | None, module: Module) -> None:
 def reopen_module(module_id: int, migration_id: str, hub: EventHub | None = None) -> Module:
     """Put one finished module back to queued.
 
-    The jobs that produced the outcome stay. This does not touch files in
-    the target project: a stub pass never wrote any, and a real rewrite is
-    not something this button can undo.
+    The jobs that produced the outcome stay. Nothing is deleted here: the next
+    run empties the module's directory on the target as it starts
+    (`start_clean`), through the same guard a start-over uses.
     """
     with database.connection_context():
         module = Module.get_or_none(Module.id == module_id)
@@ -1000,6 +1000,7 @@ def reopen_module(module_id: int, migration_id: str, hub: EventHub | None = None
         module.has_assumptions = False
         # It is about to run again, which is the review.
         module.needs_review = False
+        module.start_clean = True
         module.save()
         marked = _mark_dependents_for_review(module)
     _publish_module(hub, module)

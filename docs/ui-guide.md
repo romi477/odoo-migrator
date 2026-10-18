@@ -297,7 +297,8 @@ struck through. SSE
 updates badges while this screen is open. **Reopen** on a finished card,
 or **Reopen finished modules…** in the migration's settings on Overview (behind a confirmation), puts `passed`, `failed`,
 `stopped` and `unknown` modules back to `queued` so Selection can queue them again.
-The old jobs stay. Files in the target project are not touched. With no
+The old jobs stay. Nothing is deleted at the click: the next run empties the module's
+directory in the target project as it starts, and the whole flow runs again. With no
 graph yet, the page points you at Tree → Resolve.
 
 ### Checkpoint

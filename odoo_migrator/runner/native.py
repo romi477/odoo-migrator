@@ -354,6 +354,7 @@ class NativeRunner:
             )
             self._log(job_id, "runner", _where_line(ctx), detail=_where_detail(ctx))
             self._brief_with_shell_notes(job_id, ctx)
+            self._start_clean_if_reopened(job_id, ctx)
             # Opened here rather than inside `_context`, so `ctx` is already
             # bound when it happens. Opening the source side and then failing on
             # the target one used to leave `ctx` unassigned, and the `finally`
@@ -869,6 +870,22 @@ class NativeRunner:
         )
 
         return ctx
+
+    def _start_clean_if_reopened(self, job_id: str, ctx: StepContext) -> None:
+        """A reopened module runs the whole flow again, from an empty directory.
+
+        Before any session opens, so none holds imported code of what is
+        removed. The flag is spent here: a run that fails later is not
+        reopened again by itself, and a plain Migrate does not clear.
+        """
+        with database.connection_context():
+            spent = (
+                Module.update(start_clean=False)
+                .where((Module.id == ctx.module.id) & Module.start_clean)
+                .execute()
+            )
+        if spent:
+            self._clear_module(ctx, "reopen")
 
     def _brief_with_shell_notes(self, job_id: str, ctx: StepContext) -> None:
         """Fix what the agent is told about the Odoo shell, for the whole job.
