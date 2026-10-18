@@ -197,13 +197,13 @@
       );
     }
     const runBtn = panel.querySelector('form[action="/run/queue/run"] button');
-    const stopBtn = panel.querySelector('form[action="/run/queue/stop"] button');
+    const queueStop = panel.querySelector('form[action="/run/queue/stop"]');
     const clearBtn = panel.querySelector('form[action="/run/queue/clear"] button');
     if (runBtn) {
       runBtn.disabled = data.run_state === "running" || !data.modules.length;
     }
-    if (stopBtn) {
-      stopBtn.disabled = data.run_state !== "running";
+    if (queueStop) {
+      queueStop.hidden = data.run_state !== "running";
     }
     if (clearBtn) {
       const pending = (data.steps && data.steps.length) || data.modules.length;

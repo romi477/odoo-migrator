@@ -196,9 +196,11 @@
                     {% if pipeline_queue.run_state == 'running' or not pipeline_queue.modules %}disabled{% endif %}
                     aria-label="Run the pipeline queue">Run</button>
           </form>
-          <form method="post" action="/run/queue/stop">
+          {# Only while the queue runs: with nothing in progress there is nothing
+             to stop, and a greyed button was a control that never applied. #}
+          <form method="post" action="/run/queue/stop"
+                {% if pipeline_queue.run_state != 'running' %}hidden{% endif %}>
             <button type="submit"
-                    {% if pipeline_queue.run_state != 'running' %}disabled{% endif %}
                     aria-label="Take no more modules; let this one finish">Stop after this module</button>
           </form>
           <form method="post" action="/run/queue/clear">

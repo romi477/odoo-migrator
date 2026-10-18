@@ -243,7 +243,7 @@ step that can be queued; **Add all steps** queues every wave still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
-the current module first). The lamp of the last card is a button: under the pointer its dot gives way to
+the current module first, and is there only while the queue runs). The lamp of the last card is a button: under the pointer its dot gives way to
 a red cross, and a click takes that one module back out of the queue; its step stays queued with the cards it has left.
 Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count

@@ -510,3 +510,22 @@ def test_the_log_is_the_last_thing_on_the_screen(client):
     assert page.index("</article>", workspace) < log
     # One cable, on the left, out of the queue card into the run's card.
     assert page.count('class="runner-link"') == 1
+
+
+def _stop_form(page):
+    import re
+
+    return re.search(r'<form[^>]*action="/run/queue/stop"[^>]*>', page).group(0)
+
+
+def test_stop_is_there_only_while_the_queue_runs(client):
+    from odoo_migrator.pipeline_queue import set_run_state
+
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"})
+
+    assert " hidden" in _stop_form(client.get("/run").text)
+
+    set_run_state(row.id, "running")
+
+    assert " hidden" not in _stop_form(client.get("/run").text)
