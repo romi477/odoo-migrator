@@ -2413,32 +2413,33 @@ h2 {
   pointer-events: none;
 }
 
-/* From the end of the queue's card to the end of the run's card, on the right
-   and again, mirrored, on the left: out of the queue's right edge near its foot, down the right-hand gutter, and back in at
-   the right edge of the run's card, arrowhead first. Drawn from the run's
-   side, so the length does not depend on how tall the queue is. */
+/* From the end of the queue's card to the end of the run's card, on the left,
+   where the cable from the bar already runs: out of the queue's left edge near
+   its foot, down the gutter, and back in at the left edge of the run's card,
+   arrowhead first. Drawn from the run's side, so the length does not depend on
+   how tall the queue is. */
 .workspace {
   position: relative;
 }
 
 .runner-link {
   position: absolute;
-  right: -26px;
+  left: -26px;
   top: -42px;
   width: 20px;
   height: 62px;
   box-sizing: border-box;
   border: 1px solid var(--cable);
-  border-left: 0;
-  border-radius: 0 9px 9px 0;
+  border-right: 0;
+  border-radius: 9px 0 0 9px;
   pointer-events: none;
 }
 
-/* The plug sits across the queue card's right edge, lying down. */
+/* The plug sits across the queue card's left edge, lying down. */
 .runner-link::before {
   content: "";
   position: absolute;
-  left: -11px;
+  right: -11px;
   top: -4px;
   width: 10px;
   height: 7px;
@@ -2446,40 +2447,18 @@ h2 {
   border: 1px solid var(--cable);
   border-radius: 2px;
   background: var(--cable-fill);
-  box-shadow: inset -2px 0 0 var(--cable);
+  box-shadow: inset 2px 0 0 var(--cable);
 }
 
 .runner-link::after {
   content: "";
   position: absolute;
-  left: -5px;
+  right: -5px;
   bottom: -5px;
   width: 0;
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-right: 5px solid var(--cable);
-}
-
-/* The same cable on the left-hand side, mirrored. */
-.runner-link-left {
-  left: -26px;
-  right: auto;
-  border: 1px solid var(--cable);
-  border-right: 0;
-  border-radius: 9px 0 0 9px;
-}
-
-.runner-link-left::before {
-  left: auto;
-  right: -11px;
-  box-shadow: inset 2px 0 0 var(--cable);
-}
-
-.runner-link-left::after {
-  left: auto;
-  right: -5px;
-  border-right: 0;
   border-left: 5px solid var(--cable);
 }
 
