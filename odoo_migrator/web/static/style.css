@@ -2350,8 +2350,7 @@ h2 {
 /* The plug: wider than the cable, half behind the bar so it comes out of
    its lower edge, with a bright tip. When the page scrolls it goes under the
    sticky bar with the rest of the cable. */
-.runner-hook::before,
-.runner-link::before {
+.runner-hook::before {
   content: "";
   position: absolute;
   left: -5px;
@@ -2414,36 +2413,58 @@ h2 {
   pointer-events: none;
 }
 
-/* From the queue down into the run: a short drop with an arrowhead into the
-   top of the run's card. */
+/* From the end of the queue's card to the end of the run's card: out of the
+   queue's right edge near its foot, down the right-hand gutter, and back in at
+   the right edge of the run's card, arrowhead first. Drawn from the run's
+   side, so the length does not depend on how tall the queue is. */
 .workspace {
   position: relative;
 }
 
 .runner-link {
   position: absolute;
-  left: 30px;
-  top: -22px;
-  height: 22px;
-  border-left: 1px solid var(--cable);
+  right: -26px;
+  top: -42px;
+  width: 20px;
+  height: 62px;
+  box-sizing: border-box;
+  border: 1px solid var(--cable);
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
   pointer-events: none;
+}
+
+/* The plug sits across the queue card's right edge, lying down. */
+.runner-link::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: -4px;
+  width: 10px;
+  height: 7px;
+  box-sizing: border-box;
+  border: 1px solid var(--cable);
+  border-radius: 2px;
+  background: var(--cable-fill);
+  box-shadow: inset -2px 0 0 var(--cable);
 }
 
 .runner-link::after {
   content: "";
   position: absolute;
   left: -5px;
-  bottom: -1px;
+  bottom: -5px;
   width: 0;
   height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--cable);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 5px solid var(--cable);
 }
 
 @media (max-width: 760px) {
   .runner-hook,
-  .runner-hook-head {
+  .runner-hook-head,
+  .runner-link {
     display: none;
   }
 }
