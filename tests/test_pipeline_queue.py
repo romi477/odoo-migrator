@@ -302,9 +302,11 @@ def test_a_wave_the_queue_carries_on_from_is_not_announced_for_review(client):
     assert announced == []
 
 
-def _remove(client, step):
+def _remove(client, module_id):
     return client.post(
-        "/run/queue/remove", data={"step": str(step)}, headers={"Accept": "application/json"}
+        "/run/queue/remove",
+        data={"module": str(module_id)},
+        headers={"Accept": "application/json"},
     )
 
 
@@ -316,54 +318,84 @@ def _queue_both_steps(client):
     return row
 
 
-def test_the_last_step_leaves_the_queue(client):
-    row = _queue_both_steps(client)
+def _cards(migration_id):
+    return [module["technical_name"] for module in queue_snapshot(migration_id)["modules"]]
 
-    removed = _remove(client, 2)
+
+def _last(migration_id):
+
+    return queue_snapshot(migration_id)["modules"][-1]
+
+
+def test_the_last_card_leaves_the_queue_alone(client):
+    row = _queue_both_steps(client)
+    before = _cards(row.id)
+
+    removed = _remove(client, _last(row.id)["id"])
 
     assert removed.status_code == 200
+    assert _cards(row.id) == before[:-1]
+    assert [module["technical_name"] for module in removed.json()["modules"]] == before[:-1]
+
+
+def test_a_step_with_cards_left_stays_in_the_queue(client):
+    row = _queue_both_steps(client)
+    _remove(client, _last(row.id)["id"])
+
     assert _queued_steps(row.id) == [1]
-    assert {module["step"] for module in removed.json()["modules"]} == {1}
+
+    _remove(client, _last(row.id)["id"])
+
+    assert _cards(row.id) == ["sale_custom"]
+    assert _queued_steps(row.id) == [1]
 
 
-def test_a_step_that_is_not_the_last_stays(client):
+def test_a_step_whose_cards_are_all_removed_leaves_the_queue(client):
     row = _queue_both_steps(client)
 
-    refused = _remove(client, 1)
+    _remove(client, _last(row.id)["id"])
+
+    assert _queued_steps(row.id) == [1]
+    assert 2 not in {module["step"] for module in queue_snapshot(row.id)["modules"]}
+
+
+def test_a_card_that_is_not_the_last_stays(client):
+    row = _queue_both_steps(client)
+    first = queue_snapshot(row.id)["modules"][0]
+
+    refused = _remove(client, first["id"])
 
     assert refused.status_code == 400
     assert refused.json()["error"] == (
-        "Step 1 is not the last in the queue: remove from the end."
+        "sale_custom is not the last in the queue: remove from the end."
     )
-    assert _queued_steps(row.id) == [1, 2]
+    assert len(_cards(row.id)) == 3
 
 
-def test_a_step_that_is_not_queued_is_refused(client):
-    row, _sale = _prepared(client)
+def test_a_module_that_is_not_queued_is_refused(client):
+    _row, sale = _prepared(client)
 
-    refused = _remove(client, 2)
+    refused = _remove(client, sale["id"])
 
     assert refused.status_code == 400
-    assert _queued_steps(row.id) == []
+    assert refused.json()["error"] == "That module is not in the queue."
 
 
-def test_a_step_with_a_module_in_flight_stays(client):
-    from odoo_migrator.models import Batch, Job, Module
+def test_a_card_in_flight_stays(client):
+    from odoo_migrator.models import Batch, Job
 
     row = _queue_both_steps(client)
-    snapshot = queue_snapshot(row.id)
-    last = snapshot["modules"][-1]
+    last = _last(row.id)
     with database.connection_context():
         batch = Batch.create(migration=row.id, status="running")
         Job.create(batch=batch, module=last["id"], status="running", job_id="flying-1")
-        assert Module.get_by_id(last["id"])
 
-    refused = _remove(client, last["step"])
+    refused = _remove(client, last["id"])
 
     assert refused.status_code == 400
-    assert "running" in refused.json()["error"]
-    assert _queued_steps(row.id) == [1, 2]
-    assert queue_snapshot(row.id)["modules"][-1]["removable"] is False
+    assert refused.json()["error"] == "stock_custom is running: stop it first."
+    assert len(_cards(row.id)) == 3
+    assert _last(row.id)["removable"] is False
 
 
 def test_only_the_last_card_can_be_removed(client):
@@ -371,15 +403,74 @@ def test_only_the_last_card_can_be_removed(client):
 
     modules = queue_snapshot(row.id)["modules"]
 
-    assert [module["removable"] for module in modules] == [False] * (len(modules) - 1) + [True]
+    assert [module["removable"] for module in modules] == [False, False, True]
 
 
 def test_the_page_draws_the_remove_button_on_the_last_card_only(client):
     row = _queue_both_steps(client)
-    last = queue_snapshot(row.id)["modules"][-1]
+    last = _last(row.id)
 
     page = client.get("/run").text
 
-    assert "data-queue-remove" in page
-    assert page.count(f'data-queue-remove data-step="{last["step"]}"') == 1
     assert page.count("data-queue-remove") == 1
+    assert f'data-queue-remove data-module="{last["id"]}"' in page
+
+
+def test_a_step_missing_a_card_is_not_whole_for_the_steps_after_it(client):
+    row = _queue_both_steps(client)
+    _remove(client, _last(row.id)["id"])
+    _remove(client, _last(row.id)["id"])
+    snapshot = queue_snapshot(row.id)
+
+    assert snapshot["steps"] == [{"step": 1, "whole": False}]
+
+    refused = client.post(
+        "/run/queue/add", data={"step": "2"}, headers={"Accept": "application/json"}
+    )
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == (
+        "Step 2 cannot be queued before step 1: add it first, or migrate it."
+    )
+
+
+def test_adding_a_step_again_brings_its_removed_cards_back(client):
+    row = _queue_both_steps(client)
+    _remove(client, _last(row.id)["id"])
+    _remove(client, _last(row.id)["id"])
+
+    added = client.post(
+        "/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"}
+    )
+
+    assert added.status_code == 200
+    assert _cards(row.id) == ["sale_custom", "web_enterprise_helper"]
+    assert queue_snapshot(row.id)["steps"] == [{"step": 1, "whole": True}]
+
+
+def test_a_removed_card_is_not_run_with_its_step(client):
+    from odoo_migrator.models import Job, Module
+
+    row = _queue_both_steps(client)
+    _remove(client, _last(row.id)["id"])
+    _remove(client, _last(row.id)["id"])
+
+    client.post("/run/queue/run", follow_redirects=True)
+
+    with database.connection_context():
+        ran = {
+            job.module.technical_name
+            for job in Job.select().join(Module).where(Module.migration == row.id)
+        }
+    assert ran == {"sale_custom"}
+
+
+def test_clear_forgets_what_was_removed(client):
+    row = _queue_both_steps(client)
+    _remove(client, _last(row.id)["id"])
+    _remove(client, _last(row.id)["id"])
+
+    client.post("/run/queue/clear", follow_redirects=True)
+    client.post("/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"})
+
+    assert _cards(row.id) == ["sale_custom", "web_enterprise_helper"]

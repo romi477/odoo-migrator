@@ -5,9 +5,15 @@ from __future__ import annotations
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
-from odoo_migrator.graph import DONE, modules_in_step_order
+from odoo_migrator.graph import DONE, list_modules, modules_in_step_order
 from odoo_migrator.jobs import continue_batch, live_run, start_batch
-from odoo_migrator.models import Batch, Job, PipelineQueueItem, PipelineQueueState
+from odoo_migrator.models import (
+    Batch,
+    Job,
+    PipelineQueueItem,
+    PipelineQueueSkip,
+    PipelineQueueState,
+)
 
 FINISHED_OK = set(DONE)
 
@@ -34,6 +40,46 @@ def set_run_state(migration_id: str, state: str) -> None:
         row, _ = PipelineQueueState.get_or_create(migration=migration_id)
         row.run_state = state
         row.save()
+
+
+def _skipped(migration_id: str) -> set[int]:
+    """Modules taken off the queue while the step they are on stays."""
+    with database.connection_context():
+        return {
+            row.module_id
+            for row in PipelineQueueSkip.select().where(
+                PipelineQueueSkip.migration == migration_id
+            )
+        }
+
+
+def _partial_steps(migration_id: str) -> set[int]:
+    """Steps that have a module taken off them."""
+    skipped = _skipped(migration_id)
+
+    return {
+        module.get("step") or 1
+        for module in list_modules(migration_id)
+        if module["id"] in skipped
+    }
+
+
+def _forget_skips(migration_id: str, step: int) -> int:
+    """Put the step's removed modules back; returns how many there were."""
+    ids = [module["id"] for module in modules_in_step_order(migration_id, step)]
+    if not ids:
+
+        return 0
+    with database.connection_context():
+
+        return (
+            PipelineQueueSkip.delete()
+            .where(
+                (PipelineQueueSkip.migration == migration_id)
+                & (PipelineQueueSkip.module.in_(ids))
+            )
+            .execute()
+        )
 
 
 def step_blocked_by(migration_id: str, step: int, queued: set[int]) -> int | None:
@@ -70,13 +116,18 @@ def add_step(migration_id: str, step: int) -> bool:
             .exists()
         )
         if exists:
+            # Queued again: whatever was taken off it comes back.
 
-            return False
+            return _forget_skips(migration_id, step) > 0
+        # A step with a module taken off it is not queued as far as the steps
+        # after it go: they may hang on that very module.
+        partial = _partial_steps(migration_id)
         queued = {
             item.step
             for item in PipelineQueueItem.select().where(
                 PipelineQueueItem.migration == migration_id
             )
+            if item.step not in partial
         }
         blocker = step_blocked_by(migration_id, step, queued)
         if blocker is not None:
@@ -123,10 +174,12 @@ def remove_finished_steps(migration_id: str) -> None:
             modules = modules_in_step_order(migration_id, item.step)
             if not modules:
                 item.delete_instance()
+                _forget_skips(migration_id, item.step)
 
                 continue
             if all(module["status"] in FINISHED_OK for module in modules):
                 item.delete_instance()
+                _forget_skips(migration_id, item.step)
 
 
 def _pending_modules_sorted(migration_id: str) -> list[dict]:
@@ -136,7 +189,7 @@ def _pending_modules_sorted(migration_id: str) -> list[dict]:
             PipelineQueueItem.select()
             .where(PipelineQueueItem.migration == migration_id)
         )
-    seen: set[int] = set()
+    seen: set[int] = set(_skipped(migration_id))
     pending: list[dict] = []
     for item in items:
         for module in modules_in_step_order(migration_id, item.step):
@@ -179,48 +232,52 @@ def queue_snapshot(migration_id: str) -> dict:
             }
         )
 
-    # Only the end of the queue can be taken back: a step in the middle may
-    # be what a later one waits for. A step with a module in flight stays.
+    # Only the end of the queue can be taken back: a card in the middle may be
+    # what a later one waits for. A module in flight stays.
     for module in modules:
         module["removable"] = False
     if modules:
-        last = modules[-1]["step"]
-        modules[-1]["removable"] = not any(
-            module["active"] for module in modules if module["step"] == last
-        )
+        modules[-1]["removable"] = not modules[-1]["active"]
+    partial = _partial_steps(migration_id)
 
     state = run_state(migration_id)
 
     return {
         "run_state": state,
         "idle": state != "running" and live is None,
-        "steps": [{"step": item.step} for item in items],
+        "steps": [
+            {"step": item.step, "whole": item.step not in partial} for item in items
+        ],
         "modules": modules,
     }
 
 
-def remove_last_step(migration_id: str, step: int) -> None:
-    """Take the last step out of the queue. Raises ValueError when it cannot go.
+def remove_last_module(migration_id: str, module_id: int) -> None:
+    """Take the last card out of the queue. Raises ValueError when it cannot go.
 
-    The queue is built from steps, so every card of the step leaves together.
-    `step` names the step the person saw last; if the queue moved on since,
-    it is refused rather than removing a different one.
+    The step stays queued with the cards it has left, and leaves with the last
+    of them. `module_id` is the card the person saw last; if the queue moved on
+    since, it is refused rather than removing a different one.
     """
     modules = queue_snapshot(migration_id)["modules"]
-    if not any(module["step"] == step for module in modules):
-        raise ValueError(f"Step {step} is not in the queue.")
-    last = modules[-1]
-    if last["step"] != step:
-        raise ValueError(
-            f"Step {step} is not the last in the queue: remove from the end."
-        )
-    if not last["removable"]:
-        raise ValueError(f"Step {step} is running: stop it first.")
+    chosen = next((module for module in modules if module["id"] == module_id), None)
+    if chosen is None:
+        raise ValueError("That module is not in the queue.")
+    name = chosen["technical_name"]
+    if modules[-1]["id"] != module_id:
+        raise ValueError(f"{name} is not the last in the queue: remove from the end.")
+    if not chosen["removable"]:
+        raise ValueError(f"{name} is running: stop it first.")
+    step = chosen["step"]
     with database.connection_context():
-        PipelineQueueItem.delete().where(
-            (PipelineQueueItem.migration == migration_id)
-            & (PipelineQueueItem.step == step)
-        ).execute()
+        PipelineQueueSkip.get_or_create(migration=migration_id, module=module_id)
+    if not any(module["step"] == step for module in modules[:-1]):
+        with database.connection_context():
+            PipelineQueueItem.delete().where(
+                (PipelineQueueItem.migration == migration_id)
+                & (PipelineQueueItem.step == step)
+            ).execute()
+        _forget_skips(migration_id, step)
 
 
 def publish_queue(hub: EventHub, migration_id: str) -> None:
@@ -321,6 +378,9 @@ def clear(migration_id: str, hub: EventHub) -> bool:
     with database.connection_context():
         PipelineQueueItem.delete().where(
             PipelineQueueItem.migration == migration_id
+        ).execute()
+        PipelineQueueSkip.delete().where(
+            PipelineQueueSkip.migration == migration_id
         ).execute()
     publish_queue(hub, migration_id)
 

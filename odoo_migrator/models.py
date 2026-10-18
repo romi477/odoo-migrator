@@ -341,6 +341,16 @@ class PipelineQueueItem(BaseModel):
         indexes = ((("migration", "step"), True),)
 
 
+class PipelineQueueSkip(BaseModel):
+    """A module taken off the queue while its step stays on it."""
+
+    migration = ForeignKeyField(Migration, backref="pipeline_queue_skips")
+    module = ForeignKeyField(Module, backref="pipeline_queue_skips", on_delete="CASCADE")
+
+    class Meta:
+        indexes = ((("migration", "module"), True),)
+
+
 ALL_MODELS = [
     ShellerSession,
     AppSettings,
@@ -355,6 +365,7 @@ ALL_MODELS = [
     Assumption,
     PipelineQueueState,
     PipelineQueueItem,
+    PipelineQueueSkip,
     StepRun,
     RunLog,
     ToolCall,

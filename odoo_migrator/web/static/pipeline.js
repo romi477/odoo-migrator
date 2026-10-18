@@ -65,14 +65,14 @@
     return node;
   }
 
-  /* The last card takes its step back out of the queue. The same button as
+  /* The last card takes itself back out of the queue. The same button as
      the page draws (_queue_remove.html), made from nodes. */
-  function removeButton(step) {
+  function removeButton(mod) {
     const button = cell("button", "icon-danger queue-remove", null);
-    const label = "Remove step " + step + " from the queue";
+    const label = "Remove " + mod.technical_name + " from the queue";
     button.type = "button";
     button.setAttribute("data-queue-remove", "");
-    button.setAttribute("data-step", String(step));
+    button.setAttribute("data-module", String(mod.id));
     button.title = label;
     button.setAttribute("aria-label", label);
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -110,7 +110,7 @@
     row.appendChild(cell("span", "name mono", mod.technical_name));
     row.appendChild(cell("span", "badge", "step " + mod.step));
     if (mod.removable) {
-      row.appendChild(removeButton(mod.step));
+      row.appendChild(removeButton(mod));
     }
 
     return row;
@@ -169,9 +169,13 @@
     /* The picker greys a step whose earlier step is not queued; it reads this. */
     window.dispatchEvent(
       new CustomEvent("queue-changed", {
-        detail: (data.steps || []).map(function (item) {
-          return item.step;
-        }),
+        detail: (data.steps || [])
+          .filter(function (item) {
+            return item.whole;
+          })
+          .map(function (item) {
+            return item.step;
+          }),
       }),
     );
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
@@ -330,7 +334,7 @@
     button.disabled = true;
     showStartError("");
     const data = new FormData();
-    data.append("step", button.getAttribute("data-step"));
+    data.append("module", button.getAttribute("data-module"));
     fetch("/run/queue/remove", {
       method: "POST",
       headers: { Accept: "application/json" },

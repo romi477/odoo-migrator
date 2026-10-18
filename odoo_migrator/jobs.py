@@ -36,6 +36,7 @@ from odoo_migrator.models import (
     Job,
     Migration,
     Module,
+    PipelineQueueSkip,
     StepRun,
 )
 from odoo_migrator.module_paths import module_root
@@ -565,6 +566,19 @@ def _drop_empty_batch(batch_id: int) -> None:
             batch.delete_instance()
 
 
+def _not_dequeued(migration_id: str, modules: list[dict]) -> list[dict]:
+    """Leave out what a person took off the queue while its step stayed on it."""
+    with database.connection_context():
+        skipped = {
+            row.module_id
+            for row in PipelineQueueSkip.select().where(
+                PipelineQueueSkip.migration == migration_id
+            )
+        }
+
+    return [module for module in modules if module["id"] not in skipped]
+
+
 def _still_to_run(modules: list[dict]) -> list[dict]:
     """The ones a batch has work to do on.
 
@@ -600,7 +614,9 @@ def start_batch(
             else "That batch is empty. Group modules on the tree first."
         )
         raise ContractError(empty)
-    ordered = _still_to_run(listed)
+    ordered = _still_to_run(
+        _not_dequeued(migration_id, listed) if step is not None else listed
+    )
     if not ordered:
         raise ContractError(
             "Every module here has already passed. Reopen one to run it again."
@@ -772,7 +788,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
     # The same selection the batch started from, re-read so it survives a
     # restart mid-batch.
     if wave is not None:
-        selected = modules_in_step_order(migration_id, wave)
+        selected = _not_dequeued(migration_id, modules_in_step_order(migration_id, wave))
     else:
         selected = modules_in_batch_order(migration_id, group)
     remaining = _still_to_run(

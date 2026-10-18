@@ -57,7 +57,7 @@
       <form method="post" action="/run/queue/add" class="pipeline-start"
             x-data='{
               steps: {{ pipeline_steps | tojson }},
-              queued: {{ (pipeline_queue.steps | map(attribute="step") | list if pipeline_queue else []) | tojson }},
+              queued: {{ (pipeline_queue.steps | selectattr("whole") | map(attribute="step") | list if pipeline_queue else []) | tojson }},
               blockedBy(step) {
                 if (this.queued.indexOf(step) !== -1) {
                   return null;

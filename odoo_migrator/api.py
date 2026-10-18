@@ -94,7 +94,7 @@ from odoo_migrator.pipeline_queue import add_all_steps as queue_add_all_steps
 from odoo_migrator.pipeline_queue import add_step as queue_add_step
 from odoo_migrator.pipeline_queue import clear as queue_clear
 from odoo_migrator.pipeline_queue import queue_snapshot
-from odoo_migrator.pipeline_queue import remove_last_step as queue_remove_last_step
+from odoo_migrator.pipeline_queue import remove_last_module as queue_remove_last_module
 from odoo_migrator.pipeline_queue import start as queue_start
 from odoo_migrator.pipeline_queue import stop as queue_stop
 from odoo_migrator.port_guard import HandEdits, discard_hand_edits, keep_hand_edits
@@ -1106,7 +1106,7 @@ def create_app(
         return RedirectResponse("/run", status_code=303)
 
     @app.post("/run/queue/remove")
-    def run_queue_remove(request: Request, step: str = Form("")):
+    def run_queue_remove(request: Request, module: str = Form("")):
         current = get_active(request.cookies.get(OPEN_COOKIE))
         wants_json = "application/json" in request.headers.get("accept", "")
         if current is None:
@@ -1116,11 +1116,11 @@ def create_app(
 
             return RedirectResponse("/run", status_code=303)
         message = ""
-        if not step.strip().isdigit():
-            message = "Pick a step to remove."
+        if not module.strip().isdigit():
+            message = "Pick a module to remove."
         else:
             try:
-                queue_remove_last_step(current["id"], int(step))
+                queue_remove_last_module(current["id"], int(module))
             except ValueError as refused:
                 message = str(refused)
         if message:
