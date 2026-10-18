@@ -540,7 +540,6 @@ tools offered: exec, read_file, report, source</pre>
   directory is not a git checkout.</p>
 
   <h2>Run workspace</h2>
-  <div class="pipeline-panels">
     {# The bar the run hangs from: a chip for each step (passed, picked, in the
        queue, waiting on an earlier one), the step's modules under them. #}
     <section class="runner-bar runner-bar-specimen" aria-label="Selection">
@@ -567,6 +566,10 @@ tools offered: exec, read_file, report, source</pre>
         </div>
       </form>
     </section>
+  <div class="pipeline-panels">
+    {# The cable from the bar into the queue, plugged into the bar's lower edge. #}
+    <span class="runner-hook" aria-hidden="true"></span>
+    <span class="runner-hook-head" aria-hidden="true"></span>
     <section class="pipeline-queue-card card is-queue-expanded" data-running="true">
       <header class="pipeline-queue-head is-expandable">
         <div class="pipeline-queue-head-text">

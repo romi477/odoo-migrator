@@ -2137,10 +2137,8 @@ h2 {
 /* The specimen on /components: in the flow of the page, not the frame's top. */
 .runner-bar-specimen {
   position: static;
-  margin: 0 0 14px;
-  padding: 8px 12px;
+  margin: 0 calc(-1 * var(--screen-gutter)) 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
 }
 
 .runner-bar-form {
@@ -2314,8 +2312,11 @@ h2 {
   margin: 0;
 }
 
-/* The hook from the bar into the queue, the same elbow and arrowhead the
-   navigation draws to the screens. It sits in the gutter, beside the cards. */
+/* The cable from the bar into the queue. It is plugged into the bar's lower
+   edge, so it does not start from nowhere: a plug sits across the edge, the
+   cable drops into the gutter beside the cards, turns at the same elbow the
+   navigation draws, and ends in an arrowhead at the queue card. While the
+   queue runs a pulse of light travels down it. */
 .pipeline-panels {
   position: relative;
 }
@@ -2330,6 +2331,59 @@ h2 {
   border-bottom: 1px solid var(--cyan);
   border-bottom-left-radius: 9px;
   pointer-events: none;
+}
+
+/* The plug: wider than the cable, half behind the bar so it comes out of
+   its lower edge, with a bright tip. When the page scrolls it goes under the
+   sticky bar with the rest of the cable. */
+.runner-hook::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 9px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--cyan);
+  border-radius: 2px;
+  background: var(--cyan-dark);
+  box-shadow: inset 0 -2px 0 var(--cyan);
+}
+
+/* The pulse. Off until the queue runs. */
+.runner-hook::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 4px;
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  background: linear-gradient(transparent, var(--cyan));
+  opacity: 0;
+}
+
+.pipeline-panels:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
+  opacity: 1;
+  animation: cable-pulse 1.4s ease-in infinite;
+}
+
+@keyframes cable-pulse {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-panels:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .runner-hook-head {
