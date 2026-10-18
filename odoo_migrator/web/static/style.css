@@ -3947,20 +3947,6 @@ a.ribbon-box:focus-visible {
   font-size: 12px;
 }
 
-/* Follow is a switch, not a tick box: it is a mode the panel is in, and a
-   mode reads better as on or off than as checked. Still a real checkbox —
-   the label, the keyboard and the focus ring are the browser's. It is a
-   quiet control beside a log, so it stays neutral: the knob's place says
-   on or off, and the accent is only the outline of the on state. */
-.run-log-follow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
 /* The log's three controls, right-aligned as one group: what sits left of
    them changes width with the job's name, and they must not follow it. */
 .run-log-actions {
@@ -3974,54 +3960,6 @@ a.ribbon-box:focus-visible {
   width: 1px;
   height: 14px;
   background: var(--border-strong);
-}
-
-.run-log-follow input {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  width: 26px;
-  height: 14px;
-  margin: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--panel);
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-
-.run-log-follow input::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--muted-low);
-  transition: transform 120ms ease, background 120ms ease;
-}
-
-.run-log-follow input:checked {
-  border-color: var(--cyan);
-  background: var(--border);
-}
-
-.run-log-follow input:checked::after {
-  transform: translateX(12px);
-  background: var(--muted);
-}
-
-.run-log-follow input:focus-visible {
-  outline: 2px solid var(--cyan);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .run-log-follow input,
-  .run-log-follow input::after {
-    transition: none;
-  }
 }
 
 /* Runner is laid out to the height of the window: the panels above keep
@@ -4070,8 +4008,8 @@ a.ribbon-box:focus-visible {
 }
 
 .screen-pipeline .run-log-head {
-  padding-left: var(--screen-gutter);
-  padding-right: var(--screen-gutter);
+  min-height: 0;
+  padding: 3px var(--screen-gutter);
   background: transparent;
 }
 
@@ -4200,10 +4138,26 @@ a.ribbon-box:focus-visible {
   color: #c4552a;
 }
 
+/* Copy and Clear are icons: a pair of sheets and a broom. The clear one goes
+   red on hover, as the other destructive icons do. */
 .run-log-copy,
 .run-log-clear {
-  padding: 1px 8px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.run-log-clear {
+  color: var(--muted);
+}
+
+.run-log-clear:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .run-log-body-panel {

@@ -382,17 +382,18 @@ def test_another_job_on_this_module_is_not_the_current_thread(client, live_job):
     assert "a diagnosis from another run" not in page
 
 
-def test_follow_is_a_switch_and_still_a_checkbox():
-    """A mode reads as on or off, not as ticked. The input stays a real
-    checkbox so the label, the keyboard and the focus ring are the browser's."""
+def test_the_log_always_follows_the_run_and_has_no_switch_for_it():
+    """Nobody watching a run wants the log to stop. A new line scrolls into
+    view while the list is at its foot, and is left alone when the reader has
+    scrolled up; there is no control for it."""
     from odoo_migrator.paths import static_dir
 
+    script = (static_dir() / "runlog.js").read_text(encoding="utf-8")
     css = (static_dir() / "style.css").read_text(encoding="utf-8")
 
-    assert ".run-log-follow input {" in css
-    assert "appearance: none;" in css.split(".run-log-follow input {")[1][:200]
-    assert ".run-log-follow input:checked::after" in css
-    assert ".run-log-follow input:focus-visible" in css
+    assert "data-run-log-follow" not in script
+    assert "var stick = atBottom();" in script
+    assert ".run-log-follow" not in css
 
 
 def test_clear_empties_the_card_and_not_only_the_lines():

@@ -13,7 +13,6 @@
   var body = panel.querySelector("[data-run-log-body]");
   var bodyPanel = panel.querySelector("[data-run-log-body-panel]");
   var bodyLabel = panel.querySelector("[data-run-log-body-label]");
-  var follow = panel.querySelector("[data-run-log-follow]");
   var job = panel.getAttribute("data-job") || "";
   /* The panel shows its own migration's runs. Two migrations run side by
      side, and a panel that followed every job hopped between them. */
@@ -115,7 +114,9 @@
       });
       item.appendChild(open);
     }
-    var stick = follow.checked && atBottom();
+    /* The log follows the run: a new line scrolls into view while the list is
+       at its foot. Scrolled up to read, it is left where the reader put it. */
+    var stick = atBottom();
     list.appendChild(item);
     if (stick) {
       list.scrollTop = list.scrollHeight;
