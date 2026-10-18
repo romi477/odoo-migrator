@@ -87,14 +87,16 @@ def test_steps_hook_follows_the_open_migration(client):
         r'data-screen="(tree|flow|sheller|pipeline|result)"',
         steps,
     )
-    # Runner, Flow and Sheller follow Tree. A short arrow leads into them
-    # from Tree, dots separate them, the long arrow leads into Result.
+    # Runner, Flow and Sheller follow Tree. An arrow leads into them from Tree,
+    # dots separate them, an arrow of the same length leads into Result.
     assert order == ["tree", "pipeline", "flow", "sheller", "result"]
     assert "nav-runner" not in html
-    first = steps.index("step-bridge-small")
+    first = steps.index("step-bridge")
 
     assert steps.index('data-screen="tree"') < first < steps.index('data-screen="pipeline"')
-    assert steps.count("step-bridge-small") == 1
+    # Two arrows, and neither is a variant: they are one length.
+    assert steps.count('class="step-bridge"') == 2
+    assert "step-bridge-small" not in html
     assert "step-hook-end" not in html
     assert "switcher-versions" in html
     anchor = re.search(r'<a[^>]*data-screen="tree"[^>]*>', html)

@@ -97,9 +97,9 @@
           <span class="step-hook-head" aria-hidden="true"></span>
           {% endif %}
           <a href="/tree"{% if active == 'tree' %} class="active"{% endif %} data-screen="tree" title="Module dependency tree for the open migration.">Tree</a>
-          {# A short arrow leads from Tree into the runner screens; they are
-             separated by dots, and the long arrow after them leads into Result. #}
-          <span class="step-bridge step-bridge-small" aria-hidden="true">
+          {# An arrow leads from Tree into the runner screens; they are separated by
+             dots, and an arrow of the same length after them leads into Result. #}
+          <span class="step-bridge" aria-hidden="true">
             <span class="step-bridge-line"></span>
             <span class="step-bridge-head"></span>
           </span>

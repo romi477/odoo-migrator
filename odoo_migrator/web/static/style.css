@@ -303,8 +303,9 @@ pre,
   --hook-elbow: 22px;
   --hook-head: 6px;
   --hook-gap: 7px;
-  /* Result bridge reuses the shape, slightly shorter than the left hook. */
-  --bridge-elbow: 20px;
+  /* Both arrows, into Runner and into Result, are this long: the mean of the
+     two lengths they had. */
+  --bridge-elbow: 15px;
   --bridge-head: 5px;
 }
 
@@ -366,7 +367,7 @@ pre,
   display: inline-flex;
   align-items: center;
   flex: none;
-  width: calc(var(--bridge-elbow, 20px) + var(--bridge-head, 5px));
+  width: calc(var(--bridge-elbow, 15px) + var(--bridge-head, 5px));
   margin: 0 4px;
   pointer-events: none;
 }
@@ -384,12 +385,6 @@ pre,
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
   border-left: var(--bridge-head, 5px) solid var(--accent, var(--muted));
-}
-
-/* Between Tree and Runner: the same arrow, with half the line. The head
-   and the stroke stay as they are, so the two arrows read as one style. */
-.step-bridge-small {
-  --bridge-elbow: 10px;
 }
 
 /* Marks between Runner, Flow and Sheller. They take the arrows' colour,
