@@ -2771,90 +2771,23 @@ button.queue-remove:active:not(:disabled) {
   background: var(--amber);
 }
 
-/* While the module runs the lamp is an equalizer: three amber bars rising
-   and falling out of step. A blinking dot at the row's far end read as a
-   stray mark more than as work going on. The middle bar is the element's
-   own background, the outer two its pseudo-elements, so the row's markup
-   stays one span. A module parked on a question keeps the still dot:
-   nothing is moving while it waits on a person. */
-.pipeline-queue-active[data-status="running"] .pipeline-lamp,
-.pipeline-queue-active[data-status="queued"] .pipeline-lamp {
+/* While the module runs the lamp is a ball in a ring (`lamp-ball.js` draws it
+   into a canvas): a 16px ring round the dot's own centre, so the row keeps
+   the dot's place and its symmetry. Without the script, or with the ball not
+   yet drawn, it is the plain amber dot. A module parked on a question keeps
+   the still dot: nothing is moving while it waits on a person. */
+.pipeline-lamp.has-ball {
   position: relative;
-  width: 12px;
-  height: 12px;
-  border-radius: 0;
-  background: linear-gradient(var(--amber), var(--amber)) center bottom / 3px 12px no-repeat;
-  animation: pipeline-eq-middle 0.9s ease-in-out infinite;
+  background: transparent;
+  color: var(--amber);
 }
 
-.pipeline-queue-active[data-status="running"] .pipeline-lamp::before,
-.pipeline-queue-active[data-status="running"] .pipeline-lamp::after,
-.pipeline-queue-active[data-status="queued"] .pipeline-lamp::before,
-.pipeline-queue-active[data-status="queued"] .pipeline-lamp::after {
-  content: "";
+.pipeline-lamp.has-ball canvas {
   position: absolute;
-  bottom: 0;
-  width: 3px;
-  height: 3px;
-  border-radius: 1px;
-  background: var(--amber);
-  animation: pipeline-eq-bar 0.9s ease-in-out infinite;
-}
-
-.pipeline-queue-active[data-status="running"] .pipeline-lamp::before,
-.pipeline-queue-active[data-status="queued"] .pipeline-lamp::before {
-  left: 0;
-}
-
-.pipeline-queue-active[data-status="running"] .pipeline-lamp::after,
-.pipeline-queue-active[data-status="queued"] .pipeline-lamp::after {
-  right: 0;
-  animation-delay: -0.6s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pipeline-queue-active[data-status="running"] .pipeline-lamp,
-  .pipeline-queue-active[data-status="queued"] .pipeline-lamp {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--amber);
-    animation: none;
-  }
-
-  .pipeline-queue-active[data-status="running"] .pipeline-lamp::before,
-  .pipeline-queue-active[data-status="running"] .pipeline-lamp::after,
-  .pipeline-queue-active[data-status="queued"] .pipeline-lamp::before,
-  .pipeline-queue-active[data-status="queued"] .pipeline-lamp::after {
-    content: none;
-  }
-}
-
-@keyframes pipeline-eq-bar {
-  0%,
-  100% {
-    height: 3px;
-  }
-
-  50% {
-    height: 12px;
-  }
-}
-
-/* The middle bar, a quarter of a beat behind the left one. */
-@keyframes pipeline-eq-middle {
-  0%,
-  100% {
-    background-size: 3px 7px;
-  }
-
-  17% {
-    background-size: 3px 12px;
-  }
-
-  67% {
-    background-size: 3px 3px;
-  }
+  left: -4px;
+  top: -4px;
+  width: 16px;
+  height: 16px;
 }
 
 /* The two buttons of the Selection bar. */

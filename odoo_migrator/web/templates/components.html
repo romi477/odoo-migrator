@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — components{% endblock %}
+{% block extra_head %}
+<script defer src="/static/lamp-ball.js"></script>
+{% endblock %}
 {% block screen %}
 <section class="screen screen-components">
   <header class="screen-head">
@@ -596,6 +599,15 @@ tools offered: exec, read_file, report, source</pre>
           </div>
         </div>
         <ol class="pipeline-queue-list">
+          {# Running: the lamp is a ball bouncing in a ring. Parked on a question
+             (next row): the still dot. #}
+          <li class="pipeline-queue-item pipeline-queue-active" data-status="running">
+            <span class="pipeline-queue-order">0</span>
+            <span class="graph-node-index">#2/1</span>
+            <span class="pipeline-lamp"></span>
+            <span class="name mono">partner_custom</span>
+            <span class="badge">step 1</span>
+          </li>
           <li class="pipeline-queue-item pipeline-queue-active" data-status="waiting_for_human">
             <span class="pipeline-queue-order">1</span>
             <span class="graph-node-index">#3/2</span>

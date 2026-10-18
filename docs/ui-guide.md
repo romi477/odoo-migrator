@@ -249,7 +249,8 @@ Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count
 as queued for the steps after it; **Add step N** on it brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
-stopped and no module is still running. The active module pulses in the queue; passed
+stopped and no module is still running. The module that runs has a ball bouncing in a ring in place of its lamp
+(a module parked on a question keeps the still amber dot); passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
 cartridge's steps, each with how it went in the attempt on screen: done,
 failed, running, not yet run, or — dashed green — passed in an earlier
