@@ -68,7 +68,7 @@
   /* The last card takes itself back out of the queue. The same button as
      the page draws (_queue_remove.html), made from nodes. */
   function removeButton(mod) {
-    const button = cell("button", "icon-danger queue-remove", null);
+    const button = cell("button", "queue-remove", null);
     const label = "Remove " + mod.technical_name + " from the queue";
     button.type = "button";
     button.setAttribute("data-queue-remove", "");
@@ -104,14 +104,16 @@
     if (mod.migration_rank != null && mod.step != null) {
       row.appendChild(cell("span", "graph-node-index", "#" + mod.migration_rank + "/" + mod.step));
     }
-    const lamp = cell("span", "pipeline-lamp", null);
-    lamp.setAttribute("aria-hidden", "true");
-    row.appendChild(lamp);
-    row.appendChild(cell("span", "name mono", mod.technical_name));
-    row.appendChild(cell("span", "badge", "step " + mod.step));
+    /* The last card's lamp is the button that takes it out of the queue. */
     if (mod.removable) {
       row.appendChild(removeButton(mod));
+    } else {
+      const lamp = cell("span", "pipeline-lamp", null);
+      lamp.setAttribute("aria-hidden", "true");
+      row.appendChild(lamp);
     }
+    row.appendChild(cell("span", "name mono", mod.technical_name));
+    row.appendChild(cell("span", "badge", "step " + mod.step));
 
     return row;
   }

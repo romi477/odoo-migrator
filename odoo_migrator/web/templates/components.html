@@ -603,14 +603,14 @@ tools offered: exec, read_file, report, source</pre>
             <span class="name mono">sale_custom</span>
             <span class="badge">step 1</span>
           </li>
-          {# The last card carries the remove button: the cross, red on hover. #}
+          {# The last card's lamp is the remove button: a dot that turns into a red
+             cross under the pointer. #}
           <li class="pipeline-queue-item" data-status="queued">
             <span class="pipeline-queue-order">2</span>
             <span class="graph-node-index">#4/2</span>
-            <span class="pipeline-lamp"></span>
+            {% with mod = {"id": 2, "technical_name": "stock_custom"} %}{% include "_queue_remove.html" %}{% endwith %}
             <span class="name mono">stock_custom</span>
             <span class="badge">step 2</span>
-            {% with mod = {"id": 2, "technical_name": "stock_custom"} %}{% include "_queue_remove.html" %}{% endwith %}
           </li>
         </ol>
       </div>

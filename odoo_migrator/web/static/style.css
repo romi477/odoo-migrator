@@ -2664,16 +2664,73 @@ h2 {
   border-radius: 4px;
 }
 
-/* The button that takes the last step out of the queue: the bin's red on
-   hover, smaller to fit a row. The lamp keeps the right edge; the button is
-   the last thing after it. */
+/* The button that takes the last card out of the queue. It is the lamp of that
+   row: the same dot in the same place, so the row stays as symmetric as the
+   others, and under the pointer (or the keyboard's focus) the dot gives way
+   to a red cross. The button is larger than the dot to give the pointer room;
+   the negative margins keep the dot where a plain lamp would be. */
 .queue-remove {
-  order: 2;
-  width: 22px;
-  height: 22px;
-  margin: -2px -4px -2px 0;
-  border-radius: 4px;
+  order: 1;
+  flex: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin: -5px -5px -5px auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
+  color: var(--muted-low);
+  cursor: pointer;
+}
+
+.queue-remove::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-low);
+  transition: opacity 0.12s ease;
+}
+
+.queue-remove .card-glyph {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+/* The page's own button:hover paints a cyan edge and colour; this is a red one. */
+button.queue-remove:hover:not(:disabled),
+button.queue-remove:focus-visible {
+  border-color: transparent;
+  color: var(--red);
+}
+
+button.queue-remove:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+.queue-remove:hover::before,
+.queue-remove:focus-visible::before {
+  opacity: 0;
+}
+
+.queue-remove:hover .card-glyph,
+.queue-remove:focus-visible .card-glyph {
+  opacity: 1;
+}
+
+.queue-remove:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 0;
 }
 
 .pipeline-queue-order {

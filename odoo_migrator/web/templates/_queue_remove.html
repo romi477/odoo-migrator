@@ -1,6 +1,7 @@
-{# Takes the last card back out of the queue. The button is on the last card
-   only, and the page script draws the same one for a row it builds. #}
-<button type="button" class="icon-danger queue-remove" data-queue-remove data-module="{{ mod.id }}"
+{# Takes the last card back out of the queue. On the last card the lamp is this
+   button: a dot, the same as the others, that becomes a cross under the
+   pointer. The page script draws the same one for a row it builds. #}
+<button type="button" class="queue-remove" data-queue-remove data-module="{{ mod.id }}"
         title="Remove {{ mod.technical_name }} from the queue"
         aria-label="Remove {{ mod.technical_name }} from the queue">
   {% include "_remove_icon.svg" %}
