@@ -2242,7 +2242,8 @@ h2 {
 /* The mark says the state without colour alone: a tick, a dot, a padlock. */
 .step-chip.is-passed .step-chip-mark,
 .step-chip.is-queued .step-chip-mark,
-.step-chip.is-locked .step-chip-mark {
+.step-chip.is-locked .step-chip-mark,
+.runner-bar-note .step-chip-mark {
   display: inline-block;
 }
 
@@ -2263,7 +2264,8 @@ h2 {
 }
 
 /* A padlock: the body is the mark, the shackle its ::before. */
-.step-chip.is-locked .step-chip-mark {
+.step-chip.is-locked .step-chip-mark,
+.runner-bar-note .step-chip-mark {
   position: relative;
   width: 8px;
   height: 6px;
@@ -2272,7 +2274,8 @@ h2 {
   background: currentColor;
 }
 
-.step-chip.is-locked .step-chip-mark::before {
+.step-chip.is-locked .step-chip-mark::before,
+.runner-bar-note .step-chip-mark::before {
   content: "";
   position: absolute;
   left: 1px;
@@ -2312,7 +2315,16 @@ h2 {
 }
 
 .runner-bar-note {
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  color: var(--warning);
+}
+
+/* The step the picked one waits on is drawn in the note's amber. */
+.step-chip.is-blocker {
+  border-color: var(--warning);
   color: var(--warning);
 }
 

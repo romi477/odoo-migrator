@@ -227,7 +227,9 @@ the scoreboard. Flow draws the pinned cartridge.
 the top, full width, and it stays there while the cards under it scroll. Each
 step is a chip with its number and how many modules it still has: green with a
 tick is passed, a cyan dot is in the queue, a dashed edge with a padlock waits
-on an earlier step (hover says which), and the picked one is outlined. The row
+on an earlier step (hover says which), and the picked one is outlined. When
+the picked step is locked, the steps it waits on are outlined in amber and a
+line after the modules, with a padlock, names them. The row
 under the chips lists the picked step's modules, passed ones dimmed with a
 tick. A thin cable is plugged into the bar's lower edge and runs into the
 Queue card, and a second one, also on the left, leaves the Queue card, runs down the

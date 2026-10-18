@@ -116,6 +116,9 @@ def test_the_selection_marks_a_step_that_cannot_be_queued_yet(client):
     page = client.get("/run")
 
     assert "blockedBy(" in page.text
+    # The steps the picked one waits on are marked, and the note names them.
+    assert "is-blocker" in page.text
+    assert "missing()" in page.text
 
 
 def test_queue_modules_sort_by_migration_rank(client):

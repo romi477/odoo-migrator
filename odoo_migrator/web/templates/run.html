@@ -80,6 +80,13 @@
               const passed = row ? row.passed || [] : [];
               return row ? row.modules.map((name) => ({ name: name, passed: passed.indexOf(name) !== -1 })) : [];
             },
+            missing() {
+              const row = this.steps.find((s) => s.step === this.pick);
+              if (!row || this.queued.indexOf(this.pick) !== -1) {
+                return [];
+              }
+              return row.needs.filter((n) => this.queued.indexOf(n) === -1);
+            },
             canAdd() {
               const row = this.steps.find((s) => s.step === this.pick);
               return !!(row && row.pending && this.blockedBy(row.step) === null);
@@ -92,7 +99,7 @@
                @queue-changed.window="queuedChanged($event.detail)">
             <template x-for="row in steps" :key="row.step">
               <button type="button" role="radio" class="step-chip"
-                      :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '')"
+                      :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '') + (missing().indexOf(row.step) !== -1 ? ' is-blocker' : '')"
                       :aria-checked="pick === row.step ? 'true' : 'false'"
                       :title="tip(row)"
                       @click="pick = row.step">
@@ -109,8 +116,12 @@
             <span class="module-chip mono" :class="module.passed ? 'is-passed' : ''" x-text="module.name"
                   :title="module.passed ? module.name + ' · passed' : module.name"></span>
           </template>
-          <span class="runner-bar-note" x-show="blockedBy(pick) !== null" x-cloak
-                x-text="blockedBy(pick) === null ? '' : 'Waits for step ' + blockedBy(pick) + ': queue it first.'"></span>
+          {# Why Add is off: the padlock of the chip, then the chips it waits on
+             are drawn in the same amber as this line. #}
+          <span class="runner-bar-note" x-show="missing().length" x-cloak>
+            <span class="step-chip-mark" aria-hidden="true"></span>
+            <span x-text="'Waits for step' + (missing().length === 1 ? ' ' : 's ') + missing().join(', ') + ': queue ' + (missing().length === 1 ? 'it' : 'them') + ' first.'"></span>
+          </span>
         </div>
         <p class="form-error" id="pipeline-start-error" hidden></p>
       </div>
