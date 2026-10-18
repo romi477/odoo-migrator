@@ -4004,15 +4004,49 @@ a.ribbon-box:focus-visible {
   background: transparent;
 }
 
+/* The canvas runs edge to edge: the lines list reaches both sides of the
+   frame, so its scrollbar sits at the frame's edge, and the lines keep the
+   head's margin inside it. The scrollbar is the page's own muted colour, not
+   the browser's black. */
 .screen-pipeline .run-log-fold {
-  padding: 12px var(--screen-gutter);
+  gap: 0;
+  padding: 4px 0 0;
+}
+
+.screen-pipeline .run-log-fold > .field-hint,
+.screen-pipeline .run-log-body-panel {
+  margin-left: var(--screen-gutter);
+  margin-right: var(--screen-gutter);
+}
+
+.screen-pipeline .run-log-body-panel {
+  margin-bottom: 12px;
 }
 
 .screen-pipeline .run-log {
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 8px 0;
+  padding: 8px var(--screen-gutter);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.screen-pipeline .run-log::-webkit-scrollbar {
+  width: 8px;
+}
+
+.screen-pipeline .run-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.screen-pipeline .run-log::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--border-strong);
+}
+
+.screen-pipeline .run-log::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-low);
 }
 
 /* Folded, it is only its head: no share of the window to fill. */
@@ -4087,9 +4121,18 @@ a.ribbon-box:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* The body of a line opens from an eye, the Flow viewer's. */
 .run-log-open {
-  padding: 0 6px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-color: transparent;
+  color: var(--muted-low);
+  line-height: 1;
+}
+
+.run-log-line.is-open .run-log-open {
+  color: var(--cyan);
 }
 
 .run-log-body {

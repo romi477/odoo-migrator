@@ -638,3 +638,13 @@ def test_a_heard_stop_lands_on_run_and_says_it_is_stopping(client):
     stop = stop[: stop.index("</form>")]
     assert "Stopping…" in stop
     assert "disabled" in stop
+
+
+def test_a_log_line_opens_its_body_from_an_eye_not_a_word():
+    from odoo_migrator.paths import static_dir
+
+    script = (static_dir() / "runlog.js").read_text(encoding="utf-8")
+
+    assert 'open.textContent = "body"' not in script
+    assert "eye()" in script
+    assert "Show the body of this line" in script

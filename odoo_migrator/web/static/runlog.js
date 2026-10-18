@@ -52,6 +52,32 @@
     return list.scrollHeight - list.scrollTop - list.clientHeight < 40;
   }
 
+  /* The eye of the Flow viewer (_eye_icon.svg): look at it, change nothing. */
+  function eye() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "eye-glyph");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "14");
+    svg.setAttribute("height", "14");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.4");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("aria-hidden", "true");
+    var lid = document.createElementNS(ns, "path");
+    lid.setAttribute("d", "M1.5 8s2.3-4.5 6.5-4.5S14.5 8 14.5 8s-2.3 4.5-6.5 4.5S1.5 8 1.5 8z");
+    var iris = document.createElementNS(ns, "circle");
+    iris.setAttribute("cx", "8");
+    iris.setAttribute("cy", "8");
+    iris.setAttribute("r", "2");
+    svg.appendChild(lid);
+    svg.appendChild(iris);
+
+    return svg;
+  }
+
   function append(line) {
     if (line.id <= last) {
       return;
@@ -83,7 +109,9 @@
       var open = document.createElement("button");
       open.type = "button";
       open.className = "run-log-open";
-      open.textContent = "body";
+      open.title = "Show the body of this line";
+      open.setAttribute("aria-label", "Show the body of this line");
+      open.appendChild(eye());
       open.addEventListener("click", function () {
         /* A second click closes it. Without that the pane stayed open on
            a line that had scrolled away, describing nothing on screen. */
