@@ -3947,12 +3947,6 @@ a.ribbon-box:focus-visible {
   margin-left: auto;
 }
 
-.run-log-sep {
-  width: 1px;
-  height: 14px;
-  background: var(--border-strong);
-}
-
 /* Runner is laid out to the height of the window: the panels above keep
    the room they need and the log takes what is left, scrolling inside its own
    frame. With a fixed share of the window instead, a running job's card made
@@ -4172,8 +4166,8 @@ a.ribbon-box:focus-visible {
   color: #c4552a;
 }
 
-/* Copy and Clear are icons: a pair of sheets and a broom. The clear one goes
-   red on hover, as the other destructive icons do. */
+/* Copy and Clear are bare icons, no outline and no rule between them: a pair
+   of sheets and a broom. The copy one goes cyan on hover, the clear one red. */
 .run-log-copy,
 .run-log-clear {
   display: inline-flex;
@@ -4182,7 +4176,9 @@ a.ribbon-box:focus-visible {
   width: 24px;
   height: 22px;
   padding: 0;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
 }
 
 .run-log-clear {
@@ -4190,7 +4186,6 @@ a.ribbon-box:focus-visible {
 }
 
 .run-log-clear:hover:not(:disabled) {
-  border-color: var(--red);
   color: var(--red);
 }
 
