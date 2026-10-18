@@ -505,4 +505,6 @@ def test_the_log_is_the_last_thing_on_the_screen(client):
     # canvas at the bottom, not a card among the others.
     assert log > workspace
     assert page.index("</article>", workspace) < log
+    # One cable out of each end of the queue card into the run's card.
     assert 'class="runner-link"' in page
+    assert 'class="runner-link runner-link-left"' in page

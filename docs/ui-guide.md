@@ -230,8 +230,8 @@ tick is passed, a cyan dot is in the queue, a dashed edge with a padlock waits
 on an earlier step (hover says which), and the picked one is outlined. The row
 under the chips lists the picked step's modules, passed ones dimmed with a
 tick. A thin cable is plugged into the bar's lower edge and runs into the
-Queue card, and a second one leaves the right-hand end of the Queue card, runs down
-the gutter and enters the right-hand end of the card of the run. Both, and the Queue card's edge, are colourless while the queue is empty
+Queue card, and a second one, on each side, leaves an end of the Queue card, runs down
+the gutter and enters the same end of the card of the run. Both, and the Queue card's edge, are colourless while the queue is empty
 and cyan once it holds something; a pulse of light travels down the first
 while the queue runs. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
