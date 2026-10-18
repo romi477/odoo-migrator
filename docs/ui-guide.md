@@ -223,7 +223,9 @@ node in a hundred is not opening the module.
 Runner also holds the checkpoint once a batch has finished. Result is
 the scoreboard. Flow draws the pinned cartridge.
 
-**Runner** (`/run`) has **Selection** and **Queue**. In Selection, pick
+**Runner** (`/run`) has **Selection** and **Queue**. Selection is not a card
+and has no head to open: the picker and the two buttons sit centred in one
+line at the top, with the step's modules in a muted line under them. Pick
 a **Step** (same waves as Tree), **Add to queue**, or **Add all steps to
 queue**. Every wave still in the plan is listed, including one whose
 modules have already passed: that option reads **passed**, names the

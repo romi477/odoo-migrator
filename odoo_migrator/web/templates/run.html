@@ -32,27 +32,9 @@
 
   {% if current %}
   <div class="pipeline-panels">
-    {# Picking a step is an occasional act, the queue below is what the eye
-       returns to, so the picker starts folded and the title opens it. #}
-    <section class="pipeline-panel pipeline-selection card"
-             x-data="{ open: false }">
-      {# The same head the queue card wears: a bar with a chevron, the whole
-         of it the target. #}
-      <header class="pipeline-queue-head is-expandable pipeline-selection-head"
-              role="button" tabindex="0"
-              aria-controls="pipeline-selection-body"
-              :aria-expanded="open ? 'true' : 'false'"
-              @click="open = !open"
-              @keydown.enter.prevent="open = !open"
-              @keydown.space.prevent="open = !open">
-        <div class="pipeline-queue-head-text">
-          <span class="pipeline-queue-chevron" :class="{ 'is-expanded': open }"
-                aria-hidden="true"></span>
-          <h2 class="pipeline-queue-title">Selection</h2>
-        </div>
-      </header>
-      <div id="pipeline-selection-body" class="pipeline-selection-body"
-           x-show="open" x-cloak>
+    {# Picking a step is one line, always there: a step, two buttons, and the
+       modules of that step under them. No card and no head to open. #}
+    <section class="pipeline-selection" aria-label="Selection">
       {% if pipeline_steps %}
       <form method="post" action="/run/queue/add" class="pipeline-start"
             x-data='{
@@ -100,7 +82,7 @@
                   title="Add every dependency step to the pipeline queue"
                   aria-label="Add all dependency steps to the queue">Add all steps to queue</button>
         </div>
-        <p class="pipeline-step-modules mono" x-text="moduleLine()"></p>
+        <p class="pipeline-step-modules mono" x-text="moduleLine()" :title="moduleLine()"></p>
         <p class="field-hint" x-show="blockedBy(pick) !== null" x-cloak
            x-text="'Step ' + pick + ' waits for step ' + blockedBy(pick) + ': queue it first.'"></p>
         <p class="form-error" id="pipeline-start-error" hidden></p>
@@ -108,7 +90,6 @@
       {% else %}
       <p class="field-hint">Resolve on Tree to draw dependency steps.</p>
       {% endif %}
-      </div>
     </section>
 
     <section class="pipeline-queue-card card"

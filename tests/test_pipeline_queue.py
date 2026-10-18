@@ -43,7 +43,9 @@ def test_queue_run_page_has_selection_and_queue(client):
 
     page = client.get("/run")
 
-    assert ">Selection<" in page.text
+    # Selection is one line with no head to open: the picker is always there.
+    assert 'aria-label="Migration step to queue"' in page.text
+    assert "pipeline-selection-head" not in page.text
     assert ">Queue<" in page.text
     assert "FIFO · First in, first out" in page.text
     assert ">Add to queue<" in page.text
