@@ -2307,6 +2307,18 @@ h2 {
   border-radius: 4px;
 }
 
+/* The button that takes the last step out of the queue: the bin's red on
+   hover, smaller to fit a row. The lamp keeps the right edge; the button is
+   the last thing after it. */
+.queue-remove {
+  order: 2;
+  width: 22px;
+  height: 22px;
+  margin: -2px -4px -2px 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
 .pipeline-queue-order {
   min-width: 1.25rem;
   font-size: 12px;

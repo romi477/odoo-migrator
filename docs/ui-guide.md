@@ -230,7 +230,10 @@ modules have already passed: that option reads **passed**, names the
 modules, and cannot be queued. Excluded modules stay out. **Add all**
 skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
-the current module first). **Clear** empties the list when the pipe is
+the current module first). The last card has a small cross, red on hover:
+it takes that card's step back out of the queue, with every card of the
+step. Only the end can be taken back, so a step a later one waits on stays,
+and a step with a module running stays too. **Clear** empties the list when the pipe is
 stopped and no module is still running. The active module pulses in the queue; passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
 cartridge's steps, each with how it went in the attempt on screen: done,

@@ -48,7 +48,7 @@
       (data.steps ? data.steps.length : 0) +
       "|" +
       data.modules.map(function (mod) {
-        return mod.id + ":" + mod.position;
+        return mod.id + ":" + mod.position + (mod.removable ? "x" : "");
       }).join(",") +
       "|" +
       (active ? active.id : "")
@@ -63,6 +63,34 @@
     }
 
     return node;
+  }
+
+  /* The last card takes its step back out of the queue. The same button as
+     the page draws (_queue_remove.html), made from nodes. */
+  function removeButton(step) {
+    const button = cell("button", "icon-danger queue-remove", null);
+    const label = "Remove step " + step + " from the queue";
+    button.type = "button";
+    button.setAttribute("data-queue-remove", "");
+    button.setAttribute("data-step", String(step));
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "card-glyph");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.6");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M4 4l8 8M12 4l-8 8");
+    svg.appendChild(path);
+    button.appendChild(svg);
+
+    return button;
   }
 
   /* Built from nodes, as every other row on the page is. The name is data
@@ -81,6 +109,9 @@
     row.appendChild(lamp);
     row.appendChild(cell("span", "name mono", mod.technical_name));
     row.appendChild(cell("span", "badge", "step " + mod.step));
+    if (mod.removable) {
+      row.appendChild(removeButton(mod.step));
+    }
 
     return row;
   }
@@ -289,6 +320,46 @@
   }
 
   wireQueueAddForms();
+
+  /* One listener on the panel: rows are rebuilt on every change. */
+  panel.addEventListener("click", function (event) {
+    const button = event.target.closest("[data-queue-remove]");
+    if (!button || button.disabled) {
+      return;
+    }
+    button.disabled = true;
+    showStartError("");
+    const data = new FormData();
+    data.append("step", button.getAttribute("data-step"));
+    fetch("/run/queue/remove", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: data,
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return { error: "The app answered " + response.status + "." };
+          })
+          .then(function (payload) {
+            return { ok: response.ok, payload: payload };
+          });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          button.disabled = false;
+          showStartError(result.payload.error || "Could not update the queue.");
+
+          return;
+        }
+        renderQueue(result.payload);
+      })
+      .catch(function () {
+        button.disabled = false;
+        showStartError("Could not update the queue.");
+      });
+  });
 
   /* sse.js owns the page's one EventSource; a second one here was a second
      connection and a second server thread for as long as the page was open. */

@@ -179,6 +179,16 @@ def queue_snapshot(migration_id: str) -> dict:
             }
         )
 
+    # Only the end of the queue can be taken back: a step in the middle may
+    # be what a later one waits for. A step with a module in flight stays.
+    for module in modules:
+        module["removable"] = False
+    if modules:
+        last = modules[-1]["step"]
+        modules[-1]["removable"] = not any(
+            module["active"] for module in modules if module["step"] == last
+        )
+
     state = run_state(migration_id)
 
     return {
@@ -187,6 +197,30 @@ def queue_snapshot(migration_id: str) -> dict:
         "steps": [{"step": item.step} for item in items],
         "modules": modules,
     }
+
+
+def remove_last_step(migration_id: str, step: int) -> None:
+    """Take the last step out of the queue. Raises ValueError when it cannot go.
+
+    The queue is built from steps, so every card of the step leaves together.
+    `step` names the step the person saw last; if the queue moved on since,
+    it is refused rather than removing a different one.
+    """
+    modules = queue_snapshot(migration_id)["modules"]
+    if not any(module["step"] == step for module in modules):
+        raise ValueError(f"Step {step} is not in the queue.")
+    last = modules[-1]
+    if last["step"] != step:
+        raise ValueError(
+            f"Step {step} is not the last in the queue: remove from the end."
+        )
+    if not last["removable"]:
+        raise ValueError(f"Step {step} is running: stop it first.")
+    with database.connection_context():
+        PipelineQueueItem.delete().where(
+            (PipelineQueueItem.migration == migration_id)
+            & (PipelineQueueItem.step == step)
+        ).execute()
 
 
 def publish_queue(hub: EventHub, migration_id: str) -> None:

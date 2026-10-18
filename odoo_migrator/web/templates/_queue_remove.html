@@ -1,0 +1,7 @@
+{# Takes the last step back out of the queue. The button is on the last card
+   only, and the page script draws the same one for a row it builds. #}
+<button type="button" class="icon-danger queue-remove" data-queue-remove data-step="{{ mod.step }}"
+        title="Remove step {{ mod.step }} from the queue"
+        aria-label="Remove step {{ mod.step }} from the queue">
+  {% include "_remove_icon.svg" %}
+</button>

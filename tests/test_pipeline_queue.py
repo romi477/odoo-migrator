@@ -300,3 +300,86 @@ def test_a_wave_the_queue_carries_on_from_is_not_announced_for_review(client):
     assert "checkpoint" not in statuses
     announced = [event for event in client.app.state.hub.published if event[0] == "checkpoint"]
     assert announced == []
+
+
+def _remove(client, step):
+    return client.post(
+        "/run/queue/remove", data={"step": str(step)}, headers={"Accept": "application/json"}
+    )
+
+
+def _queue_both_steps(client):
+    row, _sale = _prepared(client)
+    for step in ("1", "2"):
+        client.post("/run/queue/add", data={"step": step}, headers={"Accept": "application/json"})
+
+    return row
+
+
+def test_the_last_step_leaves_the_queue(client):
+    row = _queue_both_steps(client)
+
+    removed = _remove(client, 2)
+
+    assert removed.status_code == 200
+    assert _queued_steps(row.id) == [1]
+    assert {module["step"] for module in removed.json()["modules"]} == {1}
+
+
+def test_a_step_that_is_not_the_last_stays(client):
+    row = _queue_both_steps(client)
+
+    refused = _remove(client, 1)
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == (
+        "Step 1 is not the last in the queue: remove from the end."
+    )
+    assert _queued_steps(row.id) == [1, 2]
+
+
+def test_a_step_that_is_not_queued_is_refused(client):
+    row, _sale = _prepared(client)
+
+    refused = _remove(client, 2)
+
+    assert refused.status_code == 400
+    assert _queued_steps(row.id) == []
+
+
+def test_a_step_with_a_module_in_flight_stays(client):
+    from odoo_migrator.models import Batch, Job, Module
+
+    row = _queue_both_steps(client)
+    snapshot = queue_snapshot(row.id)
+    last = snapshot["modules"][-1]
+    with database.connection_context():
+        batch = Batch.create(migration=row.id, status="running")
+        Job.create(batch=batch, module=last["id"], status="running", job_id="flying-1")
+        assert Module.get_by_id(last["id"])
+
+    refused = _remove(client, last["step"])
+
+    assert refused.status_code == 400
+    assert "running" in refused.json()["error"]
+    assert _queued_steps(row.id) == [1, 2]
+    assert queue_snapshot(row.id)["modules"][-1]["removable"] is False
+
+
+def test_only_the_last_card_can_be_removed(client):
+    row = _queue_both_steps(client)
+
+    modules = queue_snapshot(row.id)["modules"]
+
+    assert [module["removable"] for module in modules] == [False] * (len(modules) - 1) + [True]
+
+
+def test_the_page_draws_the_remove_button_on_the_last_card_only(client):
+    row = _queue_both_steps(client)
+    last = queue_snapshot(row.id)["modules"][-1]
+
+    page = client.get("/run").text
+
+    assert "data-queue-remove" in page
+    assert page.count(f'data-queue-remove data-step="{last["step"]}"') == 1
+    assert page.count("data-queue-remove") == 1

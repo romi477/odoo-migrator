@@ -94,6 +94,7 @@ from odoo_migrator.pipeline_queue import add_all_steps as queue_add_all_steps
 from odoo_migrator.pipeline_queue import add_step as queue_add_step
 from odoo_migrator.pipeline_queue import clear as queue_clear
 from odoo_migrator.pipeline_queue import queue_snapshot
+from odoo_migrator.pipeline_queue import remove_last_step as queue_remove_last_step
 from odoo_migrator.pipeline_queue import start as queue_start
 from odoo_migrator.pipeline_queue import stop as queue_stop
 from odoo_migrator.port_guard import HandEdits, discard_hand_edits, keep_hand_edits
@@ -1093,6 +1094,41 @@ def create_app(
                 return JSONResponse({"error": str(refused)}, status_code=400)
 
             return _run_page(request, error=str(refused))
+        from odoo_migrator.pipeline_queue import publish_queue
+
+        publish_queue(request.app.state.hub, current["id"])
+        if wants_json:
+
+            return JSONResponse(
+                {"migration_id": current["id"], **queue_snapshot(current["id"])}
+            )
+
+        return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/remove")
+    def run_queue_remove(request: Request, step: str = Form("")):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        wants_json = "application/json" in request.headers.get("accept", "")
+        if current is None:
+            if wants_json:
+
+                return JSONResponse({"error": "no open migration"}, status_code=400)
+
+            return RedirectResponse("/run", status_code=303)
+        message = ""
+        if not step.strip().isdigit():
+            message = "Pick a step to remove."
+        else:
+            try:
+                queue_remove_last_step(current["id"], int(step))
+            except ValueError as refused:
+                message = str(refused)
+        if message:
+            if wants_json:
+
+                return JSONResponse({"error": message}, status_code=400)
+
+            return _run_page(request, error=message)
         from odoo_migrator.pipeline_queue import publish_queue
 
         publish_queue(request.app.state.hub, current["id"])
