@@ -3994,14 +3994,20 @@ a.ribbon-box:focus-visible {
 
 .screen-pipeline .run-log-head {
   min-height: 0;
-  padding: 3px var(--screen-gutter);
+  padding: 3px var(--log-pad);
   background: transparent;
 }
 
 /* The canvas runs edge to edge: the lines list reaches both sides of the
-   frame, so its scrollbar sits at the frame's edge, and the lines keep the
-   head's margin inside it. The scrollbar is the page's own muted colour, not
+   frame, so its scrollbar sits at the frame's edge, and the lines keep a
+   narrow margin inside it, the head's too. The scrollbar is the page's own muted colour, not
    the browser's black. */
+.screen-pipeline .run-log-panel {
+  /* The canvas has no gutter of the screen's: its content stands this far
+     from the frame's edge. */
+  --log-pad: 14px;
+}
+
 .screen-pipeline .run-log-fold {
   gap: 0;
   padding: 4px 0 0;
@@ -4009,8 +4015,8 @@ a.ribbon-box:focus-visible {
 
 .screen-pipeline .run-log-fold > .field-hint,
 .screen-pipeline .run-log-body-panel {
-  margin-left: var(--screen-gutter);
-  margin-right: var(--screen-gutter);
+  margin-left: var(--log-pad);
+  margin-right: var(--log-pad);
 }
 
 .screen-pipeline .run-log-body-panel {
@@ -4021,7 +4027,7 @@ a.ribbon-box:focus-visible {
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 8px var(--screen-gutter);
+  padding: 8px var(--log-pad);
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
