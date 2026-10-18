@@ -31,67 +31,106 @@
   </p>
 
   {% if current %}
-  <div class="pipeline-panels">
-    {# Picking a step is one line, always there: a step, two buttons, and the
-       modules of that step under them. No card and no head to open. #}
-    <section class="pipeline-selection" aria-label="Selection">
-      {% if pipeline_steps %}
-      <form method="post" action="/run/queue/add" class="pipeline-start"
-            x-data='{
-              steps: {{ pipeline_steps | tojson }},
-              queued: {{ (pipeline_queue.steps | selectattr("whole") | map(attribute="step") | list if pipeline_queue else []) | tojson }},
-              blockedBy(step) {
-                if (this.queued.indexOf(step) !== -1) {
-                  return null;
-                }
-                const row = this.steps.find((s) => s.step === step);
-                const early = row ? row.needs.find((n) => this.queued.indexOf(n) === -1) : undefined;
-                return early === undefined ? null : early;
-              },
-              pick: {{ (pipeline_steps | selectattr("pending") | list | first).step if (pipeline_steps | selectattr("pending") | list) else pipeline_steps[0].step }},
-              moduleLine() {
-                const row = this.steps.find((s) => s.step === this.pick);
-                if (!row) {
-                  return "";
-                }
-                const passed = row.passed || [];
-                return row.modules.map(function (name) {
-                  return passed.indexOf(name) === -1 ? name : name + " · passed";
-                }).join(", ");
-              },
-              canAdd() {
-                const row = this.steps.find((s) => s.step === this.pick);
-                return !!(row && row.pending && this.blockedBy(row.step) === null);
+  {# Selection is the bar the run hangs from: full width, always there, and it
+     stays at the top while the cards under it scroll. A step is a chip; what
+     each chip says (passed, in the queue, waiting on an earlier step) was
+     in a drop-down that had to be opened to be read. #}
+  <section class="runner-bar" aria-label="Selection">
+    {% if pipeline_steps %}
+    <form method="post" action="/run/queue/add" class="runner-bar-form"
+          x-data='{
+            steps: {{ pipeline_steps | tojson }},
+            queued: {{ (pipeline_queue.steps | selectattr("whole") | map(attribute="step") | list if pipeline_queue else []) | tojson }},
+            blockedBy(step) {
+              if (this.queued.indexOf(step) !== -1) {
+                return null;
               }
-            }'>
-        <label class="pipeline-step-picker" @queue-changed.window="queued = $event.detail">
-          <select name="step" required x-model.number="pick"
-                  aria-label="Migration step to queue">
-            {% for row in pipeline_steps %}
-            <option value="{{ row.step }}" :disabled="blockedBy({{ row.step }}) !== null">Step {{ row.step }} · {% if row.pending %}{{ row.pending }} module{% if row.pending != 1 %}s{% endif %}{% else %}passed{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
+              const row = this.steps.find((s) => s.step === step);
+              const early = row ? row.needs.find((n) => this.queued.indexOf(n) === -1) : undefined;
+              return early === undefined ? null : early;
+            },
+            stateOf(step) {
+              const row = this.steps.find((s) => s.step === step);
+              if (!row || !row.pending) {
+                return "passed";
+              }
+              if (this.queued.indexOf(step) !== -1) {
+                return "queued";
+              }
+              return this.blockedBy(step) === null ? "open" : "locked";
+            },
+            pick: {{ (pipeline_steps | selectattr("pending") | list | first).step if (pipeline_steps | selectattr("pending") | list) else pipeline_steps[0].step }},
+            queuedChanged(queued) {
+              this.queued = queued;
+              if (this.stateOf(this.pick) === "queued" || this.stateOf(this.pick) === "passed") {
+                const next = this.steps.find((s) => this.stateOf(s.step) === "open");
+                if (next) {
+                  this.pick = next.step;
+                }
+              }
+            },
+            tip(row) {
+              const state = this.stateOf(row.step);
+              const what = state === "passed" ? "passed" : row.pending + " module" + (row.pending === 1 ? "" : "s");
+              const note = { passed: "", queued: ", in the queue", locked: ", waits for step " + this.blockedBy(row.step), open: "" }[state];
+              return "Step " + row.step + " · " + what + note;
+            },
+            modules() {
+              const row = this.steps.find((s) => s.step === this.pick);
+              const passed = row ? row.passed || [] : [];
+              return row ? row.modules.map((name) => ({ name: name, passed: passed.indexOf(name) !== -1 })) : [];
+            },
+            canAdd() {
+              const row = this.steps.find((s) => s.step === this.pick);
+              return !!(row && row.pending && this.blockedBy(row.step) === null);
+            }
+          }'>
+      <input type="hidden" name="step" :value="pick">
+      <div class="runner-bar-row">
+        <div class="step-chips" role="radiogroup" aria-label="Migration step to queue"
+             @queue-changed.window="queuedChanged($event.detail)">
+          <template x-for="row in steps" :key="row.step">
+            <button type="button" role="radio" class="step-chip"
+                    :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '')"
+                    :aria-checked="pick === row.step ? 'true' : 'false'"
+                    :title="tip(row)"
+                    @click="pick = row.step">
+              <span class="step-chip-mark" aria-hidden="true"></span>
+              <span x-text="row.step"></span>
+              <span class="step-chip-count" x-text="row.pending ? row.pending : ''"></span>
+            </button>
+          </template>
+        </div>
         <div class="pipeline-start-actions">
           <button type="submit"
                   title="Add this step to the pipeline queue"
                   aria-label="Add the selected step to the queue"
-                  :disabled="!canAdd()">Add to queue</button>
+                  :disabled="!canAdd()">Add step <span x-text="pick"></span></button>
           <button type="submit" class="primary"
                   formaction="/run/queue/add-all" formmethod="post"
                   title="Add every dependency step to the pipeline queue"
-                  aria-label="Add all dependency steps to the queue">Add all steps to queue</button>
+                  aria-label="Add all dependency steps to the queue">Add all steps</button>
         </div>
-        <p class="pipeline-step-modules mono" x-text="moduleLine()" :title="moduleLine()"></p>
-        <p class="field-hint" x-show="blockedBy(pick) !== null" x-cloak
-           x-text="'Step ' + pick + ' waits for step ' + blockedBy(pick) + ': queue it first.'"></p>
-        <p class="form-error" id="pipeline-start-error" hidden></p>
-      </form>
-      {% else %}
-      <p class="field-hint">Resolve on Tree to draw dependency steps.</p>
-      {% endif %}
-    </section>
+      </div>
+      <div class="runner-bar-row runner-bar-modules">
+        <span class="runner-bar-label">Step <span x-text="pick"></span></span>
+        <template x-for="module in modules()" :key="module.name">
+          <span class="module-chip mono" :class="module.passed ? 'is-passed' : ''" x-text="module.name"
+                :title="module.passed ? module.name + ' · passed' : module.name"></span>
+        </template>
+        <span class="runner-bar-note" x-show="blockedBy(pick) !== null" x-cloak
+              x-text="blockedBy(pick) === null ? '' : 'Waits for step ' + blockedBy(pick) + ': queue it first.'"></span>
+      </div>
+      <p class="form-error" id="pipeline-start-error" hidden></p>
+    </form>
+    {% else %}
+    <p class="field-hint">Resolve on Tree to draw dependency steps.</p>
+    {% endif %}
+  </section>
 
+  <div class="pipeline-panels">
+    <span class="runner-hook" aria-hidden="true"></span>
+    <span class="runner-hook-head" aria-hidden="true"></span>
     <section class="pipeline-queue-card card"
              data-pipeline-queue-panel
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}

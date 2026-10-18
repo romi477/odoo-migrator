@@ -2119,15 +2119,236 @@ h2 {
   color: var(--cyan);
 }
 
-/* Selection is as small as it can be: the picker and the two buttons,
-   centred, and the step's modules in one muted line under them. */
-.pipeline-selection {
-  padding: 2px 0 0;
+/* Selection is the bar the run hangs from. It runs the full width of the
+   frame, out of the screen's padding, and stays at the top while the cards
+   below scroll. The accent line under it is the cyan of the queue it feeds. */
+.runner-bar {
+  position: sticky;
+  /* The scroller's padding is not part of the area a sticky box keeps to, so
+     flush with the frame is minus that padding. */
+  top: calc(-1 * var(--screen-start));
+  z-index: 2;
+  margin: calc(-1 * var(--screen-start)) calc(-1 * var(--screen-gutter)) 14px;
+  padding: 8px var(--screen-gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-raised, var(--panel));
 }
 
-.pipeline-selection .pipeline-start {
-  width: 100%;
+/* The specimen on /components: in the flow of the page, not the frame's top. */
+.runner-bar-specimen {
+  position: static;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.runner-bar-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.runner-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.runner-bar-row:first-child {
+  justify-content: space-between;
+}
+
+.step-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* A step. Green is passed, cyan is in the queue, a dashed edge waits on an
+   earlier step, and the picked one is outlined. */
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 34px;
   justify-content: center;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.3;
+  background: transparent;
+  color: var(--text);
+}
+
+.step-chip-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.step-chip-count:not(:empty)::before {
+  content: "\00b7\00a0";
+}
+
+.step-chip:hover:not(.is-picked) {
+  border-color: var(--muted);
+}
+
+.step-chip.is-picked {
+  border-color: var(--cyan);
+  background: var(--cyan-dark);
+  color: var(--cyan);
+}
+
+.step-chip.is-picked .step-chip-count {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.step-chip.is-passed {
+  color: var(--green);
+  background: var(--green-dark);
+  border-color: transparent;
+}
+
+.step-chip.is-passed.is-picked {
+  border-color: var(--green);
+}
+
+.step-chip.is-locked {
+  border-style: dashed;
+  border-color: var(--muted-low);
+  color: var(--muted);
+}
+
+.step-chip.is-locked.is-picked {
+  border-color: var(--cyan);
+}
+
+.step-chip-mark {
+  display: none;
+  flex: none;
+}
+
+/* The mark says the state without colour alone: a tick, a dot, a padlock. */
+.step-chip.is-passed .step-chip-mark,
+.step-chip.is-queued .step-chip-mark,
+.step-chip.is-locked .step-chip-mark {
+  display: inline-block;
+}
+
+.step-chip.is-passed .step-chip-mark {
+  width: 4px;
+  height: 8px;
+  margin: -2px 1px 0 0;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(40deg);
+}
+
+.step-chip.is-queued .step-chip-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+}
+
+/* A padlock: the body is the mark, the shackle its ::before. */
+.step-chip.is-locked .step-chip-mark {
+  position: relative;
+  width: 8px;
+  height: 6px;
+  margin-top: 3px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.step-chip.is-locked .step-chip-mark::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: -5px;
+  width: 4px;
+  height: 4px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+
+.runner-bar-modules {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.runner-bar-label {
+  min-width: 3.5rem;
+}
+
+.module-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.module-chip.is-passed {
+  border-color: var(--border);
+  color: var(--muted-low);
+}
+
+.module-chip.is-passed::before {
+  content: "\2713\00a0";
+  color: var(--green);
+}
+
+.runner-bar-note {
+  margin-left: auto;
+  color: var(--warning);
+}
+
+.runner-bar .form-error {
+  margin: 0;
+}
+
+/* The hook from the bar into the queue, the same elbow and arrowhead the
+   navigation draws to the screens. It sits in the gutter, beside the cards. */
+.pipeline-panels {
+  position: relative;
+}
+
+.runner-hook {
+  position: absolute;
+  left: -26px;
+  top: -14px;
+  width: 20px;
+  height: 34px;
+  border-left: 1px solid var(--cyan);
+  border-bottom: 1px solid var(--cyan);
+  border-bottom-left-radius: 9px;
+  pointer-events: none;
+}
+
+.runner-hook-head {
+  position: absolute;
+  left: -6px;
+  top: 16px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--cyan);
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .runner-hook,
+  .runner-hook-head {
+    display: none;
+  }
 }
 
 /* The two cards of a run have one colour each. The queue is cyan, edge and
@@ -2434,62 +2655,7 @@ h2 {
   }
 }
 
-/* Picker and both buttons share one line: the options are short ("Step 2 ·
-   3 modules"), so the select is as wide as its longest option, not the card.
-   The module line goes under them. */
-.pipeline-start {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin: 0;
-}
-
-.pipeline-start label {
-  display: flex;
-  flex: 0 1 auto;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.pipeline-start select {
-  width: auto;
-  max-width: 100%;
-}
-
-.pipeline-start .pipeline-step-modules {
-  flex: 1 1 100%;
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-/* Under the centred row, the step's modules take one line, centred; a long
-   list is cut with an ellipsis and read whole from the tooltip. */
-.pipeline-selection .field-hint,
-.pipeline-selection .form-error {
-  flex: 1 1 100%;
-  margin: 0;
-  text-align: center;
-}
-
-.pipeline-selection .pipeline-step-modules {
-  overflow: hidden;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pipeline-start .form-error {
-  flex: 1 1 100%;
-  margin: 0;
-}
-
+/* The two buttons of the Selection bar. */
 .pipeline-start-actions {
   display: flex;
   flex-wrap: wrap;

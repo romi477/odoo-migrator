@@ -271,7 +271,7 @@
   }
 
   function wireQueueAddForms() {
-    document.querySelectorAll("form.pipeline-start").forEach(function (form) {
+    document.querySelectorAll("form.runner-bar-form").forEach(function (form) {
       form.addEventListener("submit", function (event) {
         const submitter = event.submitter;
         const action =

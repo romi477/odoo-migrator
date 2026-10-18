@@ -43,13 +43,14 @@ def test_queue_run_page_has_selection_and_queue(client):
 
     page = client.get("/run")
 
-    # Selection is one line with no head to open: the picker is always there.
-    assert 'aria-label="Migration step to queue"' in page.text
+    # Selection is a bar, not a card that folds: the step chips are always there.
+    assert 'role="radiogroup" aria-label="Migration step to queue"' in page.text
+    assert "runner-bar" in page.text
     assert "pipeline-selection-head" not in page.text
     assert ">Queue<" in page.text
     assert "FIFO · First in, first out" in page.text
-    assert ">Add to queue<" in page.text
-    assert ">Add all steps to queue<" in page.text
+    assert "Add step" in page.text
+    assert ">Add all steps<" in page.text
     assert 'aria-label="Clear the pipeline queue"' in page.text
     assert 'aria-label="Run the pipeline queue"' in page.text
 
@@ -177,9 +178,11 @@ def test_a_passed_wave_stays_visible_and_is_not_queued(client):
     waves = list_pipeline_steps(row.id)
     root = next(wave for wave in waves if wave["step"] == 1)
 
-    assert "Step 1 · passed" in page.text
+    # The page carries every wave, the passed one with nothing pending; the
+    # chip for it is drawn in the browser, marked passed and not queueable.
+    assert '"pending": 0' in page.text
     assert root["modules"]
-    assert "Step 2" in page.text
+    assert '"step": 2' in page.text
     assert root["pending"] == 0
     refused = client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
     assert "Step 1 is already passed." in refused.text

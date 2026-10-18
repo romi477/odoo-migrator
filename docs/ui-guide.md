@@ -223,20 +223,22 @@ node in a hundred is not opening the module.
 Runner also holds the checkpoint once a batch has finished. Result is
 the scoreboard. Flow draws the pinned cartridge.
 
-**Runner** (`/run`) has **Selection** and **Queue**. Selection is not a card
-and has no head to open: the picker and the two buttons sit centred in one
-line at the top, with the step's modules in a muted line under them. Pick
-a **Step** (same waves as Tree), **Add to queue**, or **Add all steps to
-queue**. Every wave still in the plan is listed, including one whose
-modules have already passed: that option reads **passed**, names the
-modules, and cannot be queued. Excluded modules stay out. **Add all**
-skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
+**Runner** (`/run`) has **Selection** and **Queue**. Selection is the bar at
+the top, full width, and it stays there while the cards under it scroll. Each
+step is a chip with its number and how many modules it still has: green with a
+tick is passed, a cyan dot is in the queue, a dashed edge with a padlock waits
+on an earlier step (hover says which), and the picked one is outlined. The row
+under the chips lists the picked step's modules, passed ones dimmed with a
+tick. **Add step N** queues the picked step and the pick then moves to the next
+step that can be queued; **Add all steps** queues every wave still in the plan.
+A wave whose modules have already passed shows as passed and cannot be queued.
+Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
 the current module first). The last card has a small cross, red on hover:
 it takes that one module back out of the queue; its step stays queued with the cards it has left.
 Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count
-as queued for the steps after it; **Add to queue** on it brings the card
+as queued for the steps after it; **Add step N** on it brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
 stopped and no module is still running. The active module pulses in the queue; passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
