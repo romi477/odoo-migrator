@@ -60,5 +60,9 @@ version file is the instruction.
   with `source` before inventing `upgrades/`.
   Scripts from the old series do not travel: the upgrade step deletes
   every `migrations/` and `upgrades/` directory not named for the target
-  series before Odoo reads the port. A script this migration needs goes
+  series before Odoo reads the port. Do not get one past that by renaming
+  its directory to the target series, or by writing the same code there: a
+  database reaches the target version only from the source's last release,
+  so the old script has already run, and run again it works on data it was
+  never written for. Write a script only for what the port itself changes,
   under the target version (`18.0.1.0.0/`), with the full version.

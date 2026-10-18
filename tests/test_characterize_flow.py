@@ -436,3 +436,18 @@ def test_the_port_is_told_to_keep_the_method_names_and_to_replace_a_file_there()
 
     assert "same method names" in prompt
     assert "replacing a tests file of the same name" in prompt
+
+
+# -- the source's migration scripts do not cross a major version --
+
+
+def test_the_port_prompt_forbids_carrying_the_sources_migration_scripts():
+    """Job 7265f4c7 copied `migrations/17.0.1.1.0/post-migration.py` to
+    `18.0.1.1.0/`: relabelled with the target series, the old script escapes
+    the pruning and runs on 18.0."""
+    prompt = _flat("port")
+
+    assert "Do not carry the source's migration scripts" in prompt
+    assert "renaming its directory" in prompt
+    assert "writing the same code under a target version" in prompt
+    assert "only for what this port itself changes" in prompt

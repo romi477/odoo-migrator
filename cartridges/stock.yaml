@@ -120,6 +120,19 @@ pipeline:
       assertion, leave it as the source had it, and say so in your answer. The
       tests step will report it, and the failure lane will look at it.
 
+      Do not carry the source's migration scripts. Everything under the
+      source's `migrations/` and `upgrades/` was written for the source
+      version's data and framework, and a database reaches the target version
+      only from the source's last release, so those scripts have already run.
+      That holds for a copy as much as for a move: not by renaming its
+      directory to a target version, not by writing the same code under a
+      target version. A script of your own goes in only for what this port
+      itself changes (a field or model the target version renames, a stored
+      value it changes), under the target version with the full version
+      (`18.0.1.0.0/`), and your answer names it and says what changes. When
+      you are unsure whether a source script is still needed, leave it out and
+      say so in your answer.
+
       Hand changes are what a person committed in the target project since
       the last port of this module. They are not in the source version:
       carry them into this port, unless the rules make one of them wrong —
