@@ -4126,9 +4126,17 @@ a.ribbon-box:focus-visible {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
-  border-color: transparent;
+  border: 0;
   color: var(--muted-low);
   line-height: 1;
+}
+
+/* A bare icon: under the pointer it turns cyan and, pressed, sinks a pixel;
+   there is no edge to draw and no shadow to cast. */
+.run-log-open:active:not(:disabled),
+.run-log-copy:active:not(:disabled),
+.run-log-clear:active:not(:disabled) {
+  box-shadow: none;
 }
 
 .run-log-line.is-open .run-log-open {
