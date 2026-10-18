@@ -82,15 +82,17 @@ def test_steps_hook_follows_the_open_migration(client):
     assert "step-hook" in html
     assert "step-bridge" in html
     steps = html.split('class="nav-tabs nav-steps"', 1)[1].split("</div>", 1)[0]
-    assert steps.count("step-dot") == 3
+    assert steps.count("step-dot") == 2
     order = re.findall(
         r'data-screen="(tree|flow|sheller|pipeline|result)"',
         steps,
     )
-    # Flow sits between Tree and Pipeline: it reads the pinned cartridge,
-    # which is configuration, and Pipeline and Sheller are the run. It used
-    # to split those two.
-    assert order == ["tree", "flow", "pipeline", "sheller", "result"]
+    # Pipeline, Flow and Sheller are the runner and sit together right after
+    # Tree, inside one frame.
+    assert order == ["tree", "pipeline", "flow", "sheller", "result"]
+    runner = steps.split('class="nav-runner"', 1)[1].split("</span>\n          </span>", 1)[0]
+    assert re.findall(r'data-screen="(\w+)"', runner) == ["pipeline", "flow", "sheller"]
+    assert 'aria-label="Runner"' in steps
     assert "step-hook-end" not in html
     assert "switcher-versions" in html
     anchor = re.search(r'<a[^>]*data-screen="tree"[^>]*>', html)

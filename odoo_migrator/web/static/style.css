@@ -397,6 +397,18 @@ pre,
   background: var(--muted-low);
 }
 
+/* Pipeline, Flow and Sheller are the runner. A quiet dashed frame groups
+   them without taking a row; it stays out of the way of the active mark. */
+.nav-runner {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 4px;
+  padding: 0 3px;
+  border: 1px dashed var(--muted-low);
+  border-radius: 6px;
+}
+
 .result-board {
   display: flex;
   flex-direction: column;

@@ -343,7 +343,8 @@ tools offered: exec, read_file, report, source</pre>
 
   <h2>Migration switcher</h2>
   <p>The open migration is the subject of the second row. The hook under
-  its name points at that migration's screens.</p>
+  its name points at that migration's screens. The dashed frame around
+  Pipeline, Flow and Sheller marks them as the runner.</p>
   <div class="migration-switcher">
     <button type="button" class="switcher-current">
       <span class="switcher-mark" style="--accent: oklch(0.70 0.15 305)"></span>
@@ -360,12 +361,13 @@ tools offered: exec, read_file, report, source</pre>
     <span class="step-hook" aria-hidden="true"></span>
     <span class="step-hook-head" aria-hidden="true"></span>
     <span>Tree</span>
-    <span class="step-dot" aria-hidden="true"></span>
-    <span>Pipeline</span>
-    <span class="step-dot" aria-hidden="true"></span>
-    <span>Flow</span>
-    <span class="step-dot" aria-hidden="true"></span>
-    <span>Sheller</span>
+    <span class="nav-runner" role="group" aria-label="Runner">
+      <span>Pipeline</span>
+      <span class="step-dot" aria-hidden="true"></span>
+      <span>Flow</span>
+      <span class="step-dot" aria-hidden="true"></span>
+      <span>Sheller</span>
+    </span>
     <span class="step-bridge" aria-hidden="true">
       <span class="step-bridge-line"></span>
       <span class="step-bridge-head"></span>
