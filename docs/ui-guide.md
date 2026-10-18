@@ -235,7 +235,8 @@ gutter and enters the card of the run. Both, and the Queue card's edge, are colo
 and cyan once it holds something; a pulse of light travels down the first
 while the queue runs. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
-window. **Add step N** queues the picked step and the pick then moves to the next
+window. The two buttons stand at the right edge of the bar, one above the other:
+**Add step N** queues the picked step and the pick then moves to the next
 step that can be queued; **Add all steps** queues every wave still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**

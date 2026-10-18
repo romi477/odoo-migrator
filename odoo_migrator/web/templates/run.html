@@ -86,42 +86,44 @@
             }
           }'>
       <input type="hidden" name="step" :value="pick">
-      <div class="runner-bar-row">
-        <div class="step-chips" role="radiogroup" aria-label="Migration step to queue"
-             @queue-changed.window="queuedChanged($event.detail)">
-          <template x-for="row in steps" :key="row.step">
-            <button type="button" role="radio" class="step-chip"
-                    :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '')"
-                    :aria-checked="pick === row.step ? 'true' : 'false'"
-                    :title="tip(row)"
-                    @click="pick = row.step">
-              <span class="step-chip-mark" aria-hidden="true"></span>
-              <span x-text="row.step"></span>
-              <span class="step-chip-count" x-text="row.pending ? row.pending : ''"></span>
-            </button>
+      <div class="runner-bar-main">
+        <div class="runner-bar-row">
+          <div class="step-chips" role="radiogroup" aria-label="Migration step to queue"
+               @queue-changed.window="queuedChanged($event.detail)">
+            <template x-for="row in steps" :key="row.step">
+              <button type="button" role="radio" class="step-chip"
+                      :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '')"
+                      :aria-checked="pick === row.step ? 'true' : 'false'"
+                      :title="tip(row)"
+                      @click="pick = row.step">
+                <span class="step-chip-mark" aria-hidden="true"></span>
+                <span x-text="row.step"></span>
+                <span class="step-chip-count" x-text="row.pending ? row.pending : ''"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="runner-bar-row runner-bar-modules">
+          <span class="runner-bar-label">Step <span x-text="pick"></span></span>
+          <template x-for="module in modules()" :key="module.name">
+            <span class="module-chip mono" :class="module.passed ? 'is-passed' : ''" x-text="module.name"
+                  :title="module.passed ? module.name + ' · passed' : module.name"></span>
           </template>
+          <span class="runner-bar-note" x-show="blockedBy(pick) !== null" x-cloak
+                x-text="blockedBy(pick) === null ? '' : 'Waits for step ' + blockedBy(pick) + ': queue it first.'"></span>
         </div>
-        <div class="pipeline-start-actions">
-          <button type="submit"
-                  title="Add this step to the pipeline queue"
-                  aria-label="Add the selected step to the queue"
-                  :disabled="!canAdd()">Add step <span x-text="pick"></span></button>
-          <button type="submit" class="primary"
-                  formaction="/run/queue/add-all" formmethod="post"
-                  title="Add every dependency step to the pipeline queue"
-                  aria-label="Add all dependency steps to the queue">Add all steps</button>
-        </div>
+        <p class="form-error" id="pipeline-start-error" hidden></p>
       </div>
-      <div class="runner-bar-row runner-bar-modules">
-        <span class="runner-bar-label">Step <span x-text="pick"></span></span>
-        <template x-for="module in modules()" :key="module.name">
-          <span class="module-chip mono" :class="module.passed ? 'is-passed' : ''" x-text="module.name"
-                :title="module.passed ? module.name + ' · passed' : module.name"></span>
-        </template>
-        <span class="runner-bar-note" x-show="blockedBy(pick) !== null" x-cloak
-              x-text="blockedBy(pick) === null ? '' : 'Waits for step ' + blockedBy(pick) + ': queue it first.'"></span>
+      <div class="pipeline-start-actions">
+        <button type="submit"
+                title="Add this step to the pipeline queue"
+                aria-label="Add the selected step to the queue"
+                :disabled="!canAdd()">Add step <span x-text="pick"></span></button>
+        <button type="submit" class="primary"
+                formaction="/run/queue/add-all" formmethod="post"
+                title="Add every dependency step to the pipeline queue"
+                aria-label="Add all dependency steps to the queue">Add all steps</button>
       </div>
-      <p class="form-error" id="pipeline-start-error" hidden></p>
     </form>
     {% else %}
     <p class="field-hint">Resolve on Tree to draw dependency steps.</p>

@@ -546,17 +546,14 @@ tools offered: exec, read_file, report, source</pre>
        queue, waiting on an earlier one), the step's modules under them. #}
     <section class="runner-bar runner-bar-specimen" aria-label="Selection">
       <form class="runner-bar-form">
-        <div class="runner-bar-row">
+        <div class="runner-bar-main">
+          <div class="runner-bar-row">
           <div class="step-chips" role="radiogroup" aria-label="Migration step to queue">
             <button type="button" role="radio" aria-checked="false" class="step-chip is-passed"><span class="step-chip-mark"></span>1</button>
             <button type="button" role="radio" aria-checked="true" class="step-chip is-picked">2 <span class="step-chip-count">2</span></button>
             <button type="button" role="radio" aria-checked="false" class="step-chip is-queued"><span class="step-chip-mark"></span>3 <span class="step-chip-count">3</span></button>
             <button type="button" role="radio" aria-checked="false" class="step-chip">4 <span class="step-chip-count">3</span></button>
             <button type="button" role="radio" aria-checked="false" class="step-chip is-locked"><span class="step-chip-mark"></span>5 <span class="step-chip-count">2</span></button>
-          </div>
-          <div class="pipeline-start-actions">
-            <button type="button">Add step 2</button>
-            <button type="button" class="primary">Add all steps</button>
           </div>
         </div>
         <div class="runner-bar-row runner-bar-modules">
@@ -566,6 +563,11 @@ tools offered: exec, read_file, report, source</pre>
           <span class="module-chip mono">mig_test_settings</span>
           <span class="runner-bar-note">Waits for step 1: queue it first.</span>
         </div>
+        </div>
+          <div class="pipeline-start-actions">
+            <button type="button">Add step 2</button>
+            <button type="button" class="primary">Add all steps</button>
+          </div>
       </form>
     </section>
   <div class="pipeline-panels">

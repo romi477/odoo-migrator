@@ -2141,11 +2141,28 @@ h2 {
   border: 1px solid var(--border);
 }
 
+/* The chips and the step's modules on the left, in two rows; the two buttons
+   at the right edge, one above the other, as wide as each other. */
 .runner-bar-form {
   display: flex;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.runner-bar-main {
+  display: flex;
+  flex: 1 1 24rem;
   flex-direction: column;
   gap: 6px;
-  margin: 0;
+  min-width: 0;
+}
+
+.runner-bar .pipeline-start-actions {
+  flex: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
 }
 
 .runner-bar-row {
@@ -2153,10 +2170,6 @@ h2 {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-}
-
-.runner-bar-row:first-child {
-  justify-content: space-between;
 }
 
 .step-chips {
