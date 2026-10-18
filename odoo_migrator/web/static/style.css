@@ -386,13 +386,13 @@ pre,
   border-left: var(--bridge-head, 5px) solid var(--accent, var(--muted));
 }
 
-/* Between Tree and Pipeline: the same arrow, with half the line. The head
+/* Between Tree and Runner: the same arrow, with half the line. The head
    and the stroke stay as they are, so the two arrows read as one style. */
 .step-bridge-small {
   --bridge-elbow: 10px;
 }
 
-/* Marks between Pipeline, Flow and Sheller. They take the arrows' colour,
+/* Marks between Runner, Flow and Sheller. They take the arrows' colour,
    the open migration's accent, so the row reads as one line. */
 .step-dot {
   flex: none;
@@ -977,7 +977,7 @@ a.attention-lamp:hover {
 }
 
 /* Work is going on and nothing is stuck. Amber, the colour of the module in
-   work on Pipeline — its card edge and the queue row's equalizer — with the
+   work on Runner — its card edge and the queue row's equalizer — with the
    same slow pulse. The run count beside it stays its own colour. */
 .attention-lamp.running .lamp-dot {
   background: var(--amber);
@@ -3556,7 +3556,7 @@ a.ribbon-box:focus-visible {
   color: var(--cyan);
 }
 
-/* The run log on Pipeline. A scrolling panel with its own scrollbar: the
+/* The run log on Runner. A scrolling panel with its own scrollbar: the
    page must not grow by a screen every time a step calls a tool. */
 /* The log wears the head Selection and Queue wear, and folds the way they
    do. The frame is the head and the fold under it, so the padding lives on
@@ -3695,7 +3695,7 @@ a.ribbon-box:focus-visible {
   }
 }
 
-/* Pipeline is laid out to the height of the window: the panels above keep
+/* Runner is laid out to the height of the window: the panels above keep
    the room they need and the log takes what is left, scrolling inside its own
    frame. With a fixed share of the window instead, a running job's card made
    the page taller than the window and the log's bottom edge went out of the
@@ -3879,7 +3879,7 @@ a.ribbon-box:focus-visible {
   line-height: 1;
 }
 
-/* The checkpoint question on Pipeline. The agent writes markdown and the
+/* The checkpoint question on Runner. The agent writes markdown and the
    diagnosis can be long, so it keeps its line breaks and scrolls rather
    than pushing the answer box off the screen. */
 .pipeline-ask {

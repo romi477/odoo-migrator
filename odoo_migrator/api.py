@@ -744,7 +744,7 @@ def create_app(
                 request,
                 error=(
                     "Select one module. Migrating a whole batch starts on "
-                    "Pipeline."
+                    "Runner."
                     if many
                     else "Select a module to migrate."
                 ),

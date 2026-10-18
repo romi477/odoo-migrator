@@ -1342,10 +1342,10 @@ Consequences to honour when `ask_human` is built:
 ## The screens
 
 The run workspace keeps its four tabs and its progression. `n8n` becomes
-`Flow`; `Pipeline`, `Sheller` and `Result` keep their jobs, two of them
-changed.
+`Flow`; `Runner` (called `Pipeline` until then), `Sheller` and `Result` keep
+their jobs, two of them changed.
 
-### Pipeline
+### Runner
 
 Stays the queue hub: Selection, Queue, Run/Stop. What changes is its live
 panel, today a single line reading "module · stage · attempt". It becomes a

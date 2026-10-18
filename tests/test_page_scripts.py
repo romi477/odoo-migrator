@@ -14,7 +14,7 @@ def _scripts() -> dict[str, str]:
 
 
 def test_only_sse_js_opens_a_stream():
-    """One EventSource per page. Pipeline opened a second: two connections
+    """One EventSource per page. Runner opened a second: two connections
     and two server threads per tab, and three tabs used the browser's six
     connections to the host, so the fourth page's requests waited."""
     opening = [name for name, text in _scripts().items() if "new EventSource(" in text]

@@ -699,7 +699,7 @@ def _end_batch(batch_id: int, migration_id: str, executor, hub: EventHub) -> Non
 
     Announced after the queue has had its turn, not on closing: a queue
     that approves a clean wave and starts the next left "Reload to review
-    it" on Pipeline at every wave, with nothing to review.
+    it" on Runner at every wave, with nothing to review.
     """
     close_batch(batch_id)
     _pipeline_after_batch(migration_id, batch_id, executor, hub)

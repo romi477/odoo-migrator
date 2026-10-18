@@ -283,7 +283,7 @@ def test_a_queue_row_says_its_modules_status(client):
 
 def test_a_wave_the_queue_carries_on_from_is_not_announced_for_review(client):
     """The batch closed to `checkpoint` and said so; the queue then approved
-    it and started the next wave. Pipeline showed "This batch has finished.
+    it and started the next wave. Runner showed "This batch has finished.
     Reload to review it." at every wave, with nothing left to review."""
     from test_batch import OutcomeExecutor
 

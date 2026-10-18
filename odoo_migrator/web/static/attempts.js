@@ -1,4 +1,4 @@
-/* The ribbon on Pipeline after load, and the attempt picker above it.
+/* The ribbon on Runner after load, and the attempt picker above it.
 
    A retry loops back into the pipeline part way, so one attempt is not the
    whole run. The picker reads any attempt back; while it shows an older

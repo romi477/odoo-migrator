@@ -1,4 +1,4 @@
-/* The run log on Pipeline: history on open, then live lines over SSE.
+/* The run log on Runner: history on open, then live lines over SSE.
 
    A line's body is fetched when it is clicked and not before. Prompts and
    model answers carry the customer's source, and this tool gets

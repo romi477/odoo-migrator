@@ -1,6 +1,6 @@
 """A tool call is a skeleton row. Its body comes from the journal, when asked.
 
-The run log on Pipeline lists the calls; opening one fetches the command's
+The run log on Runner lists the calls; opening one fetches the command's
 whole record from Sheller. Nothing is stored twice — the daemon allows a
 megabyte of stdout per command and keeps the only full copy.
 """

@@ -1,4 +1,4 @@
-"""Pipeline and Sheller are separate full-width screens. Task 13."""
+"""Runner and Sheller are separate full-width screens. Task 13."""
 
 from datetime import UTC, datetime
 

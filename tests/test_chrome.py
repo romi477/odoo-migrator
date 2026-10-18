@@ -5,7 +5,7 @@ import pytest
 PAGES = (
     ("/", "overview", "Migrations"),
     ("/tree", "tree", "dependency graph"),
-    ("/run", "pipeline", "Pipeline"),
+    ("/run", "pipeline", "Runner"),
     ("/sheller", "sheller", "Sheller"),
     ("/result", "result", "Result"),
     ("/settings", "settings", "App settings"),
@@ -87,7 +87,7 @@ def test_steps_hook_follows_the_open_migration(client):
         r'data-screen="(tree|flow|sheller|pipeline|result)"',
         steps,
     )
-    # Pipeline, Flow and Sheller follow Tree. A short arrow leads into them
+    # Runner, Flow and Sheller follow Tree. A short arrow leads into them
     # from Tree, dots separate them, the long arrow leads into Result.
     assert order == ["tree", "pipeline", "flow", "sheller", "result"]
     assert "nav-runner" not in html
@@ -146,7 +146,7 @@ def test_guide_lists_the_menu_steps_in_order(client):
 
     assert re.findall(r"<h2>(.*?)</h2>", steps) == [
         "Tree",
-        "Pipeline",
+        "Runner",
         "Sheller",
         "Result",
     ]

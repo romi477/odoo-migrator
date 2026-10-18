@@ -211,7 +211,7 @@
     cy.on("tap", "node[kind != 'lane']", function (event) {
       select(event.target);
     });
-    /* A ribbon block on Pipeline links here as `/flow#understand`. The ids
+    /* A ribbon block on Runner links here as `/flow#understand`. The ids
        match because both come from the same place: `step.id or step.kind`.
        Arriving at a drawing of eighteen boxes with no idea which one was
        meant is the reason the link exists. */

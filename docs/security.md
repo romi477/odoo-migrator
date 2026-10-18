@@ -117,7 +117,7 @@ and the session id lets a person check the run in Sheller's journal.
 
 ## What is deliberately *not* protected
 
-**The pages have no authentication.** Overview, Tree, Pipeline, Flow,
+**The pages have no authentication.** Overview, Tree, Runner, Flow,
 Sheller, Result and Settings are a local UI. The app binds
 `127.0.0.1` only. There is no flag that widens it. Anything running as
 the operator on this machine can use it; only other sites in the browser

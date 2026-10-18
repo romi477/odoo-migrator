@@ -1,6 +1,6 @@
 # Using the web UI
 
-A walkthrough of the screens — Overview, Tree, Pipeline, Flow, Sheller,
+A walkthrough of the screens — Overview, Tree, Runner, Flow, Sheller,
 Result, Settings — and every control in them. The UI is a local tool for
 one developer working a custom Odoo project through a version jump.
 
@@ -40,13 +40,13 @@ The bar is two rows, on every page.
   another and the cookie follows; a batch already running on the one you
   left keeps running. A rounded hook under the mark points at that
   migration's screens.
-- **Tree / Pipeline / Flow / Sheller / Result** — the screens of the
+- **Tree / Runner / Flow / Sheller / Result** — the screens of the
   open migration, on the second row. Each one takes the full width.
-  Pipeline, Flow and Sheller sit right after Tree, in that order: a short
+  Runner, Flow and Sheller sit right after Tree, in that order: a short
   arrow leads from Tree into them, dots separate them, and the long arrow
   leads into Result.
-- **Guide** — `/styleguide`: Tree, Pipeline, Sheller, Result, in that
-  order, with the controls on each screen (queue-based Pipeline, Tree
+- **Guide** — `/styleguide`: Tree, Runner, Sheller, Result, in that
+  order, with the controls on each screen (queue-based Runner, Tree
   leave-out rules, Result pagination and corner badges). Flow is its
   own screen and is not one of those four headings. Not a substitute
   for this file.
@@ -62,7 +62,7 @@ The bar is two rows, on every page.
   migration lives in that migration's row on Overview.
 
 SSE is hooked on every page (`/static/sse.js`). Stage patches land on
-the Tree node card, Result cards, and the Pipeline panel without a
+the Tree node card, Result cards, and the Runner panel without a
 reload. Reloading would wipe a half-typed field mid-edit.
 
 ## Overview
@@ -153,7 +153,7 @@ are its history, not edits after a port, and stop nothing. A run that
 goes ahead hands `port` and `rewrite` those commits and their diff
 (`hand_changes`) to carry into the new port.
 
-When **Run** on Pipeline is refused this way, the run card lists each module
+When **Run** on Runner is refused this way, the run card lists each module
 with its changed files, its commits by a person, or both, and the ways out:
 **Keep and run** takes the files as they are and runs over the commits
 listed — a later commit stops it again — and, when there are uncommitted
@@ -162,7 +162,7 @@ files, **Discard changes** — after a confirm — runs `git restore` and
 Committed changes have nothing to discard. Both start the queue again.
 
 Waves are drawn here when the graph is built; starting them is on
-**Pipeline**. A module's wave is one after the deepest module it depends
+**Runner**. A module's wave is one after the deepest module it depends
 on, so a wave never holds a module and something it needs.
 
 Above the canvas, centred **step** buttons (one colour per wave) select
@@ -218,12 +218,12 @@ The lamp's `?focus=` selects and centres that node and opens its card.
 Opening the right migration and then leaving you to find one stalled
 node in a hundred is not opening the module.
 
-## Pipeline, Flow, Sheller, Result
+## Runner, Flow, Sheller, Result
 
-Pipeline also holds the checkpoint once a batch has finished. Result is
+Runner also holds the checkpoint once a batch has finished. Result is
 the scoreboard. Flow draws the pinned cartridge.
 
-**Pipeline** (`/run`) has **Selection** and **Queue**. In Selection, pick
+**Runner** (`/run`) has **Selection** and **Queue**. In Selection, pick
 a **Step** (same waves as Tree), **Add to queue**, or **Add all steps to
 queue**. Every wave still in the plan is listed, including one whose
 modules have already passed: that option reads **passed**, names the
@@ -276,7 +276,7 @@ port again without the previous attempt (the module's directory is
 emptied first; hidden entries such as `.git` stay). The lane then resumes once, at
 `lint`. Orange blocks are a model turn; quiet blocks are the app; a dashed
 border is a flag; the cut rectangle is `ask_human`. The canvas is the
-whole screen: a run's tool calls are the run log on Pipeline, and reading
+whole screen: a run's tool calls are the run log on Runner, and reading
 one job on two screens is what a second list under the picture meant.
 
 **Sheller** (`/sheller`) is only an observer iframe of Sheller's `/web`,
@@ -370,7 +370,7 @@ text under the same id and version needs a new smoke-run.
 
 ## Guide (in-app)
 
-**Guide** in the chrome opens `/styleguide`: Tree, Pipeline, Sheller,
+**Guide** in the chrome opens `/styleguide`: Tree, Runner, Sheller,
 Result, in that order, with the controls that exist today. Flow follows
 that list and names each stock block. This file is the long-form
 reference.

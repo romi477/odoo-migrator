@@ -196,14 +196,14 @@ uv run pytest -m live
 There is no Swagger. `docs_url` is off: the pages are a local tool, and
 nothing machine-facing is left.
 
-The pages (Overview, Tree, Pipeline, Flow, Sheller, Result, Settings)
+The pages (Overview, Tree, Runner, Flow, Sheller, Result, Settings)
 ask nobody for a key.
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/` | Overview |
 | `GET` | `/tree` | Module graph |
-| `GET` | `/run` | Pipeline and checkpoint |
+| `GET` | `/run` | Runner and checkpoint |
 | `GET` | `/flow` | The pinned cartridge, drawn |
 | `GET` | `/sheller` | Sheller observer |
 | `GET` | `/result` | Migration outcomes dashboard |

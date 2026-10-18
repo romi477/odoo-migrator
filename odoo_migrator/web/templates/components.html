@@ -344,7 +344,7 @@ tools offered: exec, read_file, report, source</pre>
   <h2>Migration switcher</h2>
   <p>The open migration is the subject of the second row. The hook under
   its name points at that migration's screens. A short arrow leads from
-  Tree into Pipeline, Flow and Sheller, which are separated by dots; the
+  Tree into Runner, Flow and Sheller, which are separated by dots; the
   long arrow leads into Result.</p>
   <div class="migration-switcher">
     <button type="button" class="switcher-current">
@@ -366,7 +366,7 @@ tools offered: exec, read_file, report, source</pre>
       <span class="step-bridge-line"></span>
       <span class="step-bridge-head"></span>
     </span>
-    <span>Pipeline</span>
+    <span>Runner</span>
     <span class="step-dot" aria-hidden="true"></span>
     <span>Flow</span>
     <span class="step-dot" aria-hidden="true"></span>
@@ -636,10 +636,10 @@ tools offered: exec, read_file, report, source</pre>
   <p class="checkpoint-ready">
     This batch has finished. <a href="/run">Reload to review it.</a>
   </p>
-  <p>Pipeline, Sheller and Result are separate screens. Pipeline is
+  <p>Runner, Sheller and Result are separate screens. Runner is
   live stage and attempt. The Sheller iframe is <span class="mono">/web</span>
   without a write key. Result is the migration scoreboard. The banner above
-  is revealed by SSE when a batch ends while Pipeline is open.</p>
+  is revealed by SSE when a batch ends while Runner is open.</p>
 
   <h2>Result card summary</h2>
   <div class="result-summary-panel">
@@ -791,7 +791,7 @@ tools offered: exec, read_file, report, source</pre>
   <h2>Confirm dialog</h2>
   <dialog class="confirm-dialog is-specimen" open>
     <h2>Reopen sale_custom?</h2>
-    <p>The module goes back to queued. Nothing runs now: it runs the next time you start it from Pipeline. Its earlier jobs stay on record, and the module's directory in the target project is emptied when it runs again, and the whole flow starts over.</p>
+    <p>The module goes back to queued. Nothing runs now: it runs the next time you start it from Runner. Its earlier jobs stay on record, and the module's directory in the target project is emptied when it runs again, and the whole flow starts over.</p>
     <div class="confirm-actions">
       <button type="button">Cancel</button>
       <button type="button" class="primary">Reopen</button>
