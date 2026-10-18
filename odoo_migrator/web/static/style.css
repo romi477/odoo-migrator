@@ -381,16 +381,15 @@ pre,
   flex: none;
   width: 0;
   height: 0;
-  border-top: var(--bridge-half, 4px) solid transparent;
-  border-bottom: var(--bridge-half, 4px) solid transparent;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
   border-left: var(--bridge-head, 5px) solid var(--accent, var(--muted));
 }
 
-/* Half the size, between Tree and Pipeline: the first step of the row. */
+/* Between Tree and Pipeline: the same arrow, with half the line. The head
+   and the stroke stay as they are, so the two arrows read as one style. */
 .step-bridge-small {
   --bridge-elbow: 10px;
-  --bridge-head: 3px;
-  --bridge-half: 2px;
 }
 
 /* Quiet marks between Pipeline, Flow and Sheller. The arrows stay
