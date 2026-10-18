@@ -42,8 +42,9 @@ The bar is two rows, on every page.
   migration's screens.
 - **Tree / Pipeline / Flow / Sheller / Result** — the screens of the
   open migration, on the second row. Each one takes the full width.
-  Pipeline, Flow and Sheller are the runner: they sit together right after
-  Tree, in that order, inside a dashed frame, and Result follows.
+  Pipeline, Flow and Sheller sit right after Tree, in that order: a short
+  arrow leads from Tree into them, dots separate them, and the long arrow
+  leads into Result.
 - **Guide** — `/styleguide`: Tree, Pipeline, Sheller, Result, in that
   order, with the controls on each screen (queue-based Pipeline, Tree
   leave-out rules, Result pagination and corner badges). Flow is its

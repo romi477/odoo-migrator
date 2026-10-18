@@ -381,12 +381,19 @@ pre,
   flex: none;
   width: 0;
   height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
+  border-top: var(--bridge-half, 4px) solid transparent;
+  border-bottom: var(--bridge-half, 4px) solid transparent;
   border-left: var(--bridge-head, 5px) solid var(--accent, var(--muted));
 }
 
-/* Quiet marks between Tree, Pipeline, Flow and Sheller. The arrows stay
+/* Half the size, between Tree and Pipeline: the first step of the row. */
+.step-bridge-small {
+  --bridge-elbow: 10px;
+  --bridge-head: 3px;
+  --bridge-half: 2px;
+}
+
+/* Quiet marks between Pipeline, Flow and Sheller. The arrows stay
    accented; these only keep the row reading as one line. */
 .step-dot {
   flex: none;
@@ -395,18 +402,6 @@ pre,
   margin: 0 3px;
   border-radius: 50%;
   background: var(--muted-low);
-}
-
-/* Pipeline, Flow and Sheller are the runner. A quiet dashed frame groups
-   them without taking a row; it stays out of the way of the active mark. */
-.nav-runner {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 4px;
-  padding: 0 3px;
-  border: 1px dashed var(--muted-low);
-  border-radius: 6px;
 }
 
 .result-board {
