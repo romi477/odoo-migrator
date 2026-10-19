@@ -2606,9 +2606,18 @@ h2 {
   border-color: var(--border);
 }
 
-/* Colourless while nothing is queued; cyan once there is something in it. */
+/* Colourless while nothing is queued, edge and title; cyan, both, once there
+   is something in it. */
 .pipeline-queue-card[data-has-items="true"] {
   border-color: var(--cyan);
+}
+
+.pipeline-queue-card[data-has-items="false"] .pipeline-queue-title {
+  color: var(--muted);
+}
+
+.pipeline-queue-card .pipeline-queue-title {
+  transition: color 0.3s ease;
 }
 
 .pipeline-panel-title {

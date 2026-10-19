@@ -1476,3 +1476,11 @@ def test_while_it_runs_the_steps_edges_turn_from_amber_to_cyan(client):
     assert "var(--step-edge)" in running
     done = css.split(scope + '.ribbon-node[data-state="done"] .ribbon-box,', 1)[1].split("}", 1)[0]
     assert "var(--cyan)" in done
+
+
+def test_an_empty_queue_card_is_colourless_title_and_edge(client):
+    css = client.get("/static/style.css").text
+
+    assert "border-color: var(--cyan)" in css.split('.pipeline-queue-card[data-has-items="true"] {', 1)[1].split("}", 1)[0]
+    empty = css.split('.pipeline-queue-card[data-has-items="false"] .pipeline-queue-title {', 1)[1].split("}", 1)[0]
+    assert "color: var(--muted)" in empty
