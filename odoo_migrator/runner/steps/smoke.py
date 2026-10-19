@@ -5,7 +5,8 @@ person opening the module does more: a new record's form, a list of existing
 ones, an action, a print, and the browser loading what the module put in an
 asset bundle. Odoo checks views and references when it installs a module; it
 does not compile the bundles, compute the fields, evaluate an action's domain
-or render a report. This step does, without a model: one script, the same for
+or render a report. It also lists every button the module puts in a view, and
+checks each without pressing it; the `click` step presses them. This step does, without a model: one script, the same for
 every module, that asks the database what this module registered and tries
 each thing. Nothing is written: every check runs under a savepoint, and the
 session is rolled back after.
@@ -37,15 +38,18 @@ _SHOWN = 20
 # Doubled braces: this is a `str.format` template, filled with the module's name.
 # Raw: the script's own `'\n'` must reach the daemon as written.
 _SCRIPT = r"""import fnmatch as _fnmatch
+import inspect as _inspect
 import json as _json
 import traceback as _traceback
+
+from lxml import etree as _etree
 
 from odoo.exceptions import UserError as _UserError
 from odoo.tools.safe_eval import safe_eval as _safe_eval
 
 _name = {name!r}
 _found = []
-_seen = {{'models': 0, 'fields': 0, 'new': 0, 'read': 0, 'actions': 0, 'reports': 0, 'bundles': 0}}
+_seen = {{'models': 0, 'fields': 0, 'new': 0, 'read': 0, 'actions': 0, 'reports': 0, 'bundles': 0, 'buttons': 0}}
 
 
 def _own(text):
@@ -186,7 +190,88 @@ for _bundle_name, _entries in sorted(_assets.items()):
         if _parent not in _names_defined and _own(_url):
             _found.append({{'where': 'bundle %s: templates' % _bundle_name, 'error': '%s extends %s, which this bundle does not define' % (_url, _parent), 'own': True, 'trace': ''}})
 
-_json.dumps({{'checked': _seen, 'problems': _found}})
+# Buttons: every button the module puts in a view, its own or one it extends,
+# found in the view as Odoo assembles it, so that a button in the lines of a
+# one2many belongs to the lines' model. Checked without pressing: the method is
+# there, public, and needs no argument a button cannot pass; an action exists.
+# The list is the catalogue the `click` step presses from.
+_SUBVIEWS = ('list', 'tree', 'form', 'kanban')
+_own_buttons = set()
+_roots = {{}}
+for _view in env['ir.ui.view'].sudo().browse(_ids.get('ir.ui.view', [])).exists():
+    try:
+        _arch = _etree.fromstring(_view.arch_db.encode())
+    except Exception:
+        continue
+    for _node in _arch.iter('button', 'a'):
+        if _node.get('type') in ('object', 'action') and _node.get('name'):
+            _own_buttons.add((_node.get('type'), _node.get('name')))
+    _root = _view
+    while _root.mode == 'extension' and _root.inherit_id:
+        _root = _root.inherit_id
+    if _root.model in env and _root.type in _SUBVIEWS:
+        _roots[_root.id] = _root
+_buttons = {{}}
+
+
+def _walk(_node, _model, _view_name):
+    for _child in _node:
+        if not isinstance(_child.tag, str):
+            continue
+        if _child.tag in ('button', 'a') and (_child.get('type'), _child.get('name')) in _own_buttons:
+            _buttons.setdefault((_model, _child.get('type'), _child.get('name')), {{
+                'model': _model, 'type': _child.get('type'), 'name': _child.get('name'),
+                'label': (_child.get('string') or (_child.text or '')).strip(),
+                'invisible': _child.get('invisible') or '', 'context': _child.get('context') or '',
+                'confirm': _child.get('confirm') or '', 'view': _view_name,
+            }})
+        _sub = _model
+        if _child.tag == 'field' and any(isinstance(_g.tag, str) and _g.tag in _SUBVIEWS for _g in _child):
+            _sub = getattr(env[_model]._fields.get(_child.get('name')), 'comodel_name', None) or _model
+        _walk(_child, _sub, _view_name)
+
+
+for _root in _roots.values():
+    try:
+        _arch = env[_root.model].get_view(_root.id, _root.type)['arch']
+        _walk(_etree.fromstring(_arch.encode() if isinstance(_arch, str) else _arch),
+              _root.model, _root.xml_id or _root.name)
+    except Exception as exc:
+        _found.append({{'where': 'view %s' % (_root.xml_id or _root.name), 'error': '%s: %s' % (type(exc).__name__, exc),
+                       'own': _own(_traceback.format_exc()), 'trace': ''}})
+
+
+def _button_problem(_button):
+    if _button['model'] not in env:
+        return 'its model %s does not exist' % _button['model']
+    if _button['type'] == 'action':
+        _ref = _button['name']
+        if _ref.isdigit():
+            return '' if env['ir.actions.actions'].sudo().browse(int(_ref)).exists() else 'action %s does not exist' % _ref
+        return '' if env.ref(_ref.strip('%()d'), raise_if_not_found=False) else 'action %s does not exist' % _ref
+    _method = getattr(type(env[_button['model']]), _button['name'], None)
+    if _method is None or not callable(_method):
+        return '%s has no method %s' % (_button['model'], _button['name'])
+    if _button['name'].startswith('_'):
+        return '%s is private, and the web client refuses to call it' % _button['name']
+    try:
+        _params = list(_inspect.signature(_method).parameters.values())[1:]
+    except (TypeError, ValueError):
+        return ''
+    _needed = [_p.name for _p in _params if _p.default is _p.empty and _p.kind in (_p.POSITIONAL_ONLY, _p.POSITIONAL_OR_KEYWORD)]
+    if _needed:
+        return '%s.%s needs %s, and a button passes nothing' % (_button['model'], _button['name'], ', '.join(_needed))
+    return ''
+
+
+for _button in _buttons.values():
+    _seen['buttons'] += 1
+    _problem = _button_problem(_button)
+    if _problem:
+        _found.append({{'where': 'button %s on %s (%s)' % (_button['name'], _button['model'], _button['view']),
+                       'error': _problem, 'own': True, 'trace': ''}})
+
+_json.dumps({{'checked': _seen, 'problems': _found, 'buttons': sorted(_buttons.values(), key=lambda _b: (_b['model'], _b['name']))[:300]}})
 """
 
 
@@ -223,6 +308,9 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
         return _unrun(ctx, said)
     problems = report.get("problems") or []
+    # The catalogue `click` presses from, and the flag that lets it run.
+    ctx.buttons = [button for button in report.get("buttons") or [] if isinstance(button, dict)]
+    flags = {"has_buttons"} if ctx.buttons else set()
     own = [problem for problem in problems if problem.get("own")]
     for problem in problems:
         if problem.get("own"):
@@ -235,7 +323,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     _record(ctx, "smoke", "target", session_id, command_id, _elapsed(started), not own, f"{name} · {said}")
     if not own:
 
-        return StepResult(ok=True, output=f"{name}: {said}")
+        return StepResult(ok=True, flags=flags, output=f"{name}: {said}")
     lines = [f"Using {name} the way a person would broke {len(own)} time(s) ({checked}):"]
     for problem in own[:_SHOWN]:
         lines.append(f"- {problem.get('where')}: {problem.get('error')}")
@@ -245,7 +333,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if len(own) > _SHOWN:
         lines.append(f"(and {len(own) - _SHOWN} more)")
 
-    return StepResult(ok=False, output="\n".join(lines))
+    return StepResult(ok=False, flags=flags, output="\n".join(lines))
 
 
 def _report(executed: dict) -> dict | None:
@@ -272,6 +360,7 @@ def _checked(checked: dict) -> str:
         ("actions", "action", "actions"),
         ("reports", "report", "reports"),
         ("bundles", "bundle", "bundles"),
+        ("buttons", "button", "buttons"),
     ):
         count = int(checked.get(key) or 0)
         if count:

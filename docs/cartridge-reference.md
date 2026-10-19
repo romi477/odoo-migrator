@@ -60,7 +60,7 @@ A step is one entry of `pipeline` or `on_failure.pipeline`.
 | `lint` | no container. The module's Python parses, its XML parses, its manifest is a dict with `name` and `depends` | raises `lint_failed` |
 | `upgrade` | installs or upgrades the module on the target container, then commits | none |
 | `tests` | first checks, where the source's tests were written by the migrator, that each of those test methods is defined on the target; then runs the module's tests with Odoo's own runner | raises `no_tests` when the module declares none, `tests_failed` when a test failed or a characterization test is missing |
-| `smoke` | no model, nothing written. On the target container: each model the module declares fields on gets a new record (defaults, and the module's fields computed) and its latest records read; each window action's domain is evaluated and searched; each report renders as HTML; each asset bundle the manifest adds to is compiled past the cache. A break in the module's own fails the step; one in another module's, and checks that could not run, are findings | none |
+| `smoke` | no model, nothing written. On the target container: each model the module declares fields on gets a new record (defaults, and the module's fields computed) and its latest records read; each window action's domain is evaluated and searched; each report renders as HTML; each asset bundle the manifest adds to is compiled past the cache. Every button the module puts in a view is listed, and checked without pressing: its method exists, is public and takes no argument; its action exists. A break in the module's own fails the step; one in another module's, and checks that could not run, are findings | raises `has_buttons` when the module puts a button in a view |
 | `verdict` | judges the lap against the migration's strictness | reads `behaviour_differs` |
 | `ask_human` | parks the job and opens a checkpoint. The diagnosis in the last answer is the question | none |
 
@@ -131,6 +131,7 @@ The built-in flags are raised, or read, by the deterministic steps:
 | `no_tests` | raised by `tests`: the module declares no test classes |
 | `tests_failed` | raised by `tests` |
 | `lint_failed` | raised by `lint` |
+| `has_buttons` | raised by `smoke`: the module puts at least one button in a view, and the catalogue of them is ready for the next step |
 | `behaviour_differs` | read by `verdict`: the lap fails at every strictness. A cartridge raises it from an agent step |
 
 Two flags cannot be raised in one report: `small_fix` and `start_over`. They ask

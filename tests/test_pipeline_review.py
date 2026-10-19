@@ -342,6 +342,49 @@ def test_the_smoke_script_runs_as_python_for_any_module_name():
     assert code.rstrip().splitlines()[-1].startswith("_json.dumps(")
 
 
+def test_smoke_hands_the_buttons_it_found_to_the_next_step(ctx_for, sheller):
+    """The catalogue `click` presses from: every button the module put in a
+    view, with the model it belongs to and when it shows."""
+    from odoo_migrator.runner.steps import smoke
+
+    button = {
+        "model": "sale.order", "type": "object", "name": "action_stamp", "label": "Stamp",
+        "invisible": "state != 'sale'", "context": "", "confirm": "", "view": "sale.view_order_form",
+    }
+    sheller.smoke_buttons = [button]
+    sheller.smoke_checked = {"models": 1, "fields": 2, "buttons": 1}
+    ctx = ctx_for()
+
+    result = smoke.run(Step(kind="smoke"), ctx)
+
+    assert result.ok is True
+    assert ctx.buttons == [button]
+    assert "has_buttons" in result.flags
+    assert result.output.endswith("1 model, 2 fields, 1 button; nothing broke")
+
+
+def test_a_module_without_buttons_raises_nothing(ctx_for, sheller):
+    from odoo_migrator.runner.steps import smoke
+
+    result = smoke.run(Step(kind="smoke"), ctx_for())
+
+    assert "has_buttons" not in result.flags
+
+
+def test_the_button_checks_are_in_the_script():
+    """Checked without pressing: a method that is gone, private, or wants an
+    argument a button cannot pass; an action that does not exist."""
+    from odoo_migrator.runner.steps.smoke import _SCRIPT
+
+    code = _SCRIPT.format(name="sale_custom")
+
+    assert "has no method" in code
+    assert "is private" in code
+    assert "a button passes nothing" in code
+    assert "get_view(" in code and "comodel_name" in code
+    assert "'buttons': sorted(" in code
+
+
 def test_the_stock_flow_smokes_after_the_tests():
     from odoo_migrator.runner.cartridge import load_cartridge_file
 

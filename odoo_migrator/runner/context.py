@@ -95,6 +95,9 @@ class StepContext:
     # What the job reports besides its verdict: `{"text", "source"}`, as the
     # result payload's findings. The checkpoint shows them.
     findings: list[dict] = field(default_factory=list)
+    # The buttons the module puts in its views, as `smoke` found them: model,
+    # type, name, label, invisible, context, confirm, view. What `click` presses.
+    buttons: list[dict] = field(default_factory=list)
     # Questions a `batch_defer` migration did not stop for:
     # `{"question", "assumption"}`, as the result payload's assumptions.
     assumptions: list[dict] = field(default_factory=list)

@@ -198,6 +198,8 @@ class FakeShellerClient:
         # nothing broke; `smoke_checked` is what the script says it tried.
         self.smoke_problems: list[dict] = []
         self.smoke_checked: dict[str, int] = {"models": 1, "fields": 2, "bundles": 1}
+        # The buttons the script found in the module's views; none by default.
+        self.smoke_buttons: list[dict] = []
         # spec -> fields merged into that run's `test` block.
         self.test_outcomes: dict[str, dict] = {}
         # Specs whose run outlives the call: `run_test` raises ShellerTimeout
@@ -453,7 +455,15 @@ class FakeShellerClient:
                 json.dumps({"installed": sorted(names), "addons_path": addons_path})
             )
         elif "_get_asset_bundle" in code and "'problems'" in code:
-            result = repr(json.dumps({"checked": self.smoke_checked, "problems": self.smoke_problems}))
+            result = repr(
+                json.dumps(
+                    {
+                        "checked": self.smoke_checked,
+                        "problems": self.smoke_problems,
+                        "buttons": self.smoke_buttons,
+                    }
+                )
+            )
         answer = {
             "id": command_id,
             "stdout": "",

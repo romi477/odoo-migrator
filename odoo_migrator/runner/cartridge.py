@@ -12,7 +12,12 @@ from odoo_migrator.runner.tools import TOOL_SIDES
 
 DETERMINISTIC = ("lint", "upgrade", "tests", "smoke", "verdict", "ask_human")
 KINDS = DETERMINISTIC + ("agent",)
-BUILTIN_FLAGS = {"no_tests": "tests", "tests_failed": "tests", "lint_failed": "lint"}
+BUILTIN_FLAGS = {
+    "no_tests": "tests",
+    "tests_failed": "tests",
+    "lint_failed": "lint",
+    "has_buttons": "smoke",
+}
 # Flags a deterministic step reads, by that step's kind. A cartridge raises
 # them; the step is what gives them a meaning.
 BUILTIN_READS = {"behaviour_differs": "verdict"}
