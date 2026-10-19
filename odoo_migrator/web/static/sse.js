@@ -21,6 +21,9 @@ function fillResultCornerGlyph(glyph, kind) {
     return;
   }
   const INFLIGHT = { queued: true, running: true, waiting_for_human: true };
+  /* How long a finished ribbon stays on screen before the card folds. */
+  const FOLD_HOLD = 1200;
+  let folding = 0;
   /* A run that is going or parked: what the pipeline card is for. `queued`
      is not one — Reopen sends it for a module nobody is running. */
   const LIVE = { running: true, waiting_for_human: true };
@@ -147,7 +150,22 @@ function fillResultCornerGlyph(glyph, kind) {
 
       return;
     }
+    clearTimeout(folding);
     if (!INFLIGHT[data.status]) {
+      /* The run this card shows has just ended. Its last steps end in
+         milliseconds and came in this one event; folding at once, they were
+         never drawn. They are drawn first, a beat apart, and the card holds
+         a moment on the finished ribbon before it folds. Anything that comes
+         in meanwhile, the next module starting, takes over. */
+      const panel = pipe.querySelector(".pipeline-live");
+      if (same && panel && !panel.hidden && data.steps && data.steps.length) {
+        pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
+        folding = setTimeout(function () {
+          idleCard(pipe, data);
+        }, (data.drawFor || 0) + FOLD_HOLD);
+
+        return;
+      }
       idleCard(pipe, data);
 
       return;

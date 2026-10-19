@@ -79,21 +79,61 @@
     return item;
   }
 
-  function paint(view) {
+  /* Steps with no model end in milliseconds: lint, upgrade, tests, verdict
+     came done in one event and the ribbon jumped to its end. A live update
+     that moves several steps at once lights them one after the other, a beat
+     apart, in the order they ran. The states are the run's; only the drawing
+     takes its time, under two seconds for the whole stock flow. A later
+     update takes over from one still being drawn. */
+  const BEAT = 260;
+  const ARRIVED = { done: true, failed: true, skipped: true, earlier: true };
+  const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let drawing = 0;
+  /* How long the last live paint takes to draw, in ms; sse.js waits it out
+     before it folds a card whose run has just ended. */
+  let drawn = 0;
+
+  function paint(view, live) {
     const ribbon = pipe.querySelector("[data-ribbon]");
+    drawing += 1;
+    const turn = drawing;
+    const paced = !!live && !still;
+    let wait = 0;
     if (ribbon && view.steps) {
       view.steps.forEach(function (step) {
         const node = ribbon.querySelector('[data-step="' + CSS.escape(step.id) + '"]');
         if (!node) {
           return;
         }
-        node.setAttribute("data-state", step.state);
         const box = node.querySelector(".ribbon-box");
         if (box) {
           box.title = boxTitle(step);
         }
+        if (node.getAttribute("data-state") === step.state) {
+          return;
+        }
+        const show = function () {
+          if (turn !== drawing) {
+            return;
+          }
+          node.setAttribute("data-state", step.state);
+          if (paced && ARRIVED[step.state]) {
+            node.classList.remove("is-arriving");
+            void node.offsetWidth;
+            node.classList.add("is-arriving");
+          }
+        };
+        if (paced && wait) {
+          setTimeout(show, wait);
+        } else {
+          show();
+        }
+        if (paced) {
+          wait += BEAT;
+        }
       });
     }
+    drawn = wait;
     const lane = pipe.querySelector("[data-ribbon-lane]");
     if (lane) {
       lane.querySelectorAll(".ribbon-node").forEach(function (node) {
@@ -151,7 +191,8 @@
     const total = data.attempt || 1;
     if (!viewing || viewing === total) {
       viewing = 0;
-      paint(data);
+      paint(data, true);
+      data.drawFor = drawn;
     }
     markPicker(total, viewing || total);
   });

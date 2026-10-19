@@ -4240,6 +4240,38 @@ a.ribbon-box:focus-visible {
   border-color: color-mix(in oklch, var(--muted-low) 60%, transparent);
 }
 
+/* A step changing state while it is watched eases into its new colours, and
+   one that has just ended gives a single small pulse of its lamp: the steps
+   that end in milliseconds are seen to end. attempts.js sets `is-arriving`
+   on a live change only, so a page that loads does not pulse every block. */
+.ribbon-box {
+  transition: border-color 0.35s ease, color 0.35s ease;
+}
+
+.ribbon-led {
+  transition: background-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.ribbon-node.is-arriving .ribbon-led {
+  animation: ribbon-arrive 0.6s ease-out;
+}
+
+@keyframes ribbon-arrive {
+  40% {
+    transform: scale(1.7);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-node.is-arriving .ribbon-led {
+    animation: none;
+  }
+}
+
 @keyframes ribbon-pulse {
   0%,
   100% {

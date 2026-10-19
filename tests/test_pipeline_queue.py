@@ -1484,3 +1484,25 @@ def test_an_empty_queue_card_is_colourless_title_and_edge(client):
     assert "border-color: var(--cyan)" in css.split('.pipeline-queue-card[data-has-items="true"] {', 1)[1].split("}", 1)[0]
     empty = css.split('.pipeline-queue-card[data-has-items="false"] .pipeline-queue-title {', 1)[1].split("}", 1)[0]
     assert "color: var(--muted)" in empty
+
+
+def test_steps_that_end_together_are_drawn_a_beat_apart(client):
+    """lint, upgrade, tests and verdict end in milliseconds and came done in
+    one event; the ribbon jumped to its end, and the card folded before the
+    last of them was drawn at all."""
+    attempts = client.get("/static/attempts.js").text
+    sse = client.get("/static/sse.js").text
+    css = client.get("/static/style.css").text
+
+    # Live updates are paced; a reader's attempt and a loaded page are not.
+    assert "const BEAT = 260" in attempts
+    assert "paint(data, true)" in attempts
+    assert "prefers-reduced-motion: reduce" in attempts
+    assert "data.drawFor = drawn" in attempts
+    # A run that ends is drawn to its end, held, then folded; the next event takes over.
+    assert "const FOLD_HOLD = 1200" in sse
+    assert "(data.drawFor || 0) + FOLD_HOLD" in sse
+    assert "clearTimeout(folding)" in sse
+    # A step that has just ended pulses its lamp once.
+    assert ".ribbon-node.is-arriving .ribbon-led {" in css
+    assert "@keyframes ribbon-arrive" in css
