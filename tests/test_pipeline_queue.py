@@ -953,7 +953,8 @@ def test_the_steps_are_wired_to_the_machine_slots_with_one_small_arrow_between_t
     # The way in and out are wires, measured from where the first and the last
     # step land, so any number of steps and a wrapped ribbon keep them.
     assert '<script defer src="/static/wires.js"></script>' in page
-    assert 'querySelectorAll(".ribbon:not(.ribbon-lane) .ribbon-box")' in script
+    assert 'querySelector(".ribbon:not(.ribbon-lane)")' in script
+    assert 'ribbon.querySelectorAll(".ribbon-box")' in script
     assert "boxes[boxes.length - 1]" in script
     assert "new ResizeObserver" in script and "new MutationObserver" in script
     # Rounded like the header's hook.
@@ -1506,3 +1507,24 @@ def test_steps_that_end_together_are_drawn_a_beat_apart(client):
     # A step that has just ended pulses its lamp once.
     assert ".ribbon-node.is-arriving .ribbon-led {" in css
     assert "@keyframes ribbon-arrive" in css
+
+
+def test_a_long_flow_is_scaled_to_one_line_and_snakes_past_that(client):
+    """Twelve steps wrapped the last one onto a line of its own. The ribbon
+    is scaled down to fit first; past the smallest size it snakes on a grid,
+    the next row run back, joined by a turn, so the flow never jumps back."""
+    script = client.get("/static/wires.js").text
+    css = client.get("/static/style.css").text
+
+    assert "const SMALLEST = 0.78" in script
+    assert 'setProperty("--fit"' in script
+    assert "zoom: var(--fit, 1)" in css
+    # The snake: every row shares the columns, a row back runs right to left.
+    assert 'classList.add("is-snake")' in script
+    assert "grid-template-columns: repeat(var(--snake-columns), auto)" in css
+    assert '[data-snake="back"]::before' in css and "scaleX(-1)" in css
+    # Rows are joined by a turn, and the first step of a row has no arrow of its own.
+    assert "function turn(" in script and "runner-wire-turn" in script
+    assert "[data-snake-turn]::before" in css
+    # A snake that ends on a row run back leaves under the rows.
+    assert 'getAttribute("data-snake") === "back"' in script
