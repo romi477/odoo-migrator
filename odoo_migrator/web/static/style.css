@@ -2867,6 +2867,29 @@ button.queue-play:disabled {
   opacity: 1;
 }
 
+/* A run a finished batch holds for review: Continue and Discard in the play
+   button's place, a pair of small buttons at the end of the row. */
+.queue-review {
+  order: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 -4px auto;
+}
+
+.queue-remove + .queue-review {
+  margin-left: 0;
+}
+
+.queue-review form {
+  margin: 0;
+}
+
+.queue-review button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
 /* On the module in work the triangle gives its place to a square that stops
    the run now. The form is the row's flex item, so it takes the button's
    place in the row; red under the pointer, because it ends something. */

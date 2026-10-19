@@ -274,31 +274,37 @@ def _actions(page):
     return page[start : page.index("</div>", start)]
 
 
-def test_the_card_carries_continue_next_to_discard_run(client, tmp_path):
-    """Continue was a single button above every card, outside the one a person
-    was reading."""
+def _continue_button(page):
+    start = page.index('action="/run/continue"')
+
+    return page[start : page.index("</button>", start)]
+
+
+def test_continue_is_said_once_for_a_run_with_no_card_in_the_queue(client, tmp_path):
+    """Continue stood above the cards and again on each, two buttons for one
+    answer. A run of a queued module answers on its queue card; this one was
+    started from Tree and has none, so Continue is the one above the cards and
+    Discard run stays on the run's own card."""
     _row, sale = _failed_checkpoint(client)
     _in_git(sale, tmp_path)
 
-    row = _actions(client.get("/run").text)
+    page = client.get("/run").text
 
-    assert 'action="/run/continue"' in row
-    assert row.index(">Continue<") < row.index(">Discard run<")
+    assert page.count('action="/run/continue"') == 2  # Continue, and Override
+    assert 'action="/run/continue"' not in _actions(page)
+    assert ">Discard run<" in _actions(page)
 
 
-def test_continue_waits_for_the_run_to_be_read_like_the_one_above(client, tmp_path):
+def test_continue_waits_for_the_run_to_be_read(client, tmp_path):
     _row, sale = _failed_checkpoint(client)
     _in_git(sale, tmp_path)
 
-    unread = _actions(client.get("/run").text)
-
-    assert "disabled" in unread.split("Continue")[0].rsplit("<button", 1)[1]
+    assert "disabled" in _continue_button(client.get("/run").text)
     with database.connection_context():
         job = Job.get()
     client.post(f"/run/jobs/{job.id}/dismiss")
-    read = _actions(client.get("/run").text)
 
-    assert "disabled" not in read.split("Continue")[0].rsplit("<button", 1)[1]
+    assert "disabled" not in _continue_button(client.get("/run").text)
 
 
 def test_continue_is_a_plain_button_and_discard_run_is_the_orange_one(client, tmp_path):

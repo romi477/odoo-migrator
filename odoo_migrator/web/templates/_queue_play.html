@@ -6,8 +6,11 @@
    On the module in work, running or parked on a question, the same place holds
    a square, amber, that stops this run now: the model turn in flight finishes,
    since it cannot be called back, and the run ends before the next one. The
-   queue's own Stop, in its header, lets the module finish. The page script
-   draws the same one for a row it builds. #}
+   queue's own Stop, in its header, lets the module finish.
+
+   On a module whose run a finished batch holds for review: Continue and
+   Discard, in the same place. The page script draws all three for a row it
+   builds. #}
 {% if mod.active and mod.status in ('running', 'waiting_for_human') %}
 {% set stopping = live and live.stopping and live.module_id == mod.id %}
 <form method="post" class="queue-stop" data-queue-stop data-module="{{ mod.id }}"
@@ -19,6 +22,32 @@
     {% include "_stop_icon.svg" %}
   </button>
 </form>
+{% elif mod.review %}
+{# Its run is in the review a finished batch waits on. Continue goes on to the
+   next batch and leaves the run as it is; Discard run deletes it and queues
+   the module again. Either one frees Run. White beside orange: the colour is
+   what tells the one that deletes apart. #}
+<div class="queue-review" data-queue-review>
+  <form method="post" action="/run/continue">
+    <button type="submit"{% if mod.review.unread %} disabled{% endif %}
+            aria-label="Continue after {{ mod.technical_name }}"
+            title="{{ 'A failed or waiting run is unread: dismiss it in the review below, or override there.' if mod.review.unread else 'Keep this run as it is and go on to the next batch.' }}">Continue</button>
+  </form>
+  {% if mod.review.discard and mod.review.discard.files is none %}
+  <button type="button" class="discard-run" disabled aria-label="Discard the run of {{ mod.technical_name }}"
+          title="Its directory in the target project is not a git checkout, so its files cannot be put back.">Discard</button>
+  {% elif mod.review.discard %}
+  <form method="post" action="/run/modules/{{ mod.id }}/discard-run"
+        data-confirm-title="Discard the run of {{ mod.technical_name }}?"
+        data-confirm-text="Every run of this module is deleted with its log, findings and thread, and the module is queued again.
+        {%- if mod.review.discard.files %} {{ mod.review.discard.files }} changed file{{ '' if mod.review.discard.files == 1 else 's' }} in its directory in the target project {{ 'is' if mod.review.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
+        {%- else %} Its directory in the target project has no changes.{% endif %} The target container's database is not touched."
+        data-confirm-go="Discard run">
+    <button type="submit" class="discard-run" aria-label="Discard the run of {{ mod.technical_name }}"
+            title="Delete this run and queue the module again.">Discard</button>
+  </form>
+  {% endif %}
+</div>
 {% else %}
 <button type="button" class="queue-play" data-queue-play data-module="{{ mod.id }}"
         {% if mod.play %}disabled{% endif %}

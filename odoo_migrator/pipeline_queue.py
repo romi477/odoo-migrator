@@ -13,7 +13,7 @@ from odoo_migrator.graph import (
     list_modules,
     modules_in_step_order,
 )
-from odoo_migrator.jobs import continue_batch, live_run, start_batch
+from odoo_migrator.jobs import ATTENTION, _discard_offer, continue_batch, live_run, start_batch
 from odoo_migrator.models import (
     Batch,
     Job,
@@ -282,6 +282,9 @@ def queue_snapshot(migration_id: str) -> dict:
     blocked = _play_blocked(migration_id, modules, live, run_state(migration_id))
     for module in modules:
         module["play"] = blocked.get(module["id"], "")
+    review, unread = _open_review(migration_id, {module["id"] for module in modules})
+    for module in modules:
+        module["review"] = (review or {}).get(module["id"])
     partial = _partial_steps(migration_id)
     why = _why_not_out(
         migration_id,
@@ -306,7 +309,41 @@ def queue_snapshot(migration_id: str) -> dict:
             for item in items
         ],
         "modules": modules,
+        # A batch waits for review. Run stays off until it is answered: Continue,
+        # or Discard on the card of the module whose run it is.
+        "review": review is not None,
+        "review_unread": unread,
     }
+
+
+def _open_review(migration_id: str, queued: set[int]) -> tuple[dict | None, bool]:
+    """The open review's runs, by module, for the queued cards that answer it.
+
+    None when no batch waits for review. A module of the batch that passed is
+    out of the queue and has no card; the review below the card still lists
+    it. `unread` is a failed or waiting run nobody dismissed: Continue stays
+    off until one is.
+    """
+    with database.connection_context():
+        batch = (
+            Batch.select()
+            .where((Batch.migration == migration_id) & (Batch.status == "checkpoint"))
+            .order_by(Batch.id.desc())
+            .first()
+        )
+        if batch is None:
+
+            return None, False
+        rows: dict[int, dict] = {}
+        unread = False
+        for job in Job.select().where(Job.batch == batch.id).order_by(Job.id):
+            unread = unread or (job.status in ATTENTION and not job.reviewed)
+            if job.module_id in queued:
+                rows[job.module_id] = {"discard": _discard_offer(job)}
+    for row in rows.values():
+        row["unread"] = unread
+
+    return rows, unread
 
 
 def _play_blocked(

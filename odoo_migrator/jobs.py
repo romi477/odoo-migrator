@@ -697,6 +697,11 @@ def _announce_review(hub: EventHub, migration_id: str, batch_id: int) -> None:
     # the pipeline panel says nothing is running, and the review the
     # human is waiting for only appears if they think to reload.
     hub.publish("checkpoint", {"migration_id": migration_id, "batch_id": batch_id})
+    # The queue's cards carry Continue and Discard while a review waits, and
+    # its Run goes off: they are drawn from the snapshot.
+    from odoo_migrator.pipeline_queue import publish_queue
+
+    publish_queue(hub, migration_id)
 
 
 def _end_batch(batch_id: int, migration_id: str, executor, hub: EventHub) -> None:

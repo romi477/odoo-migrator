@@ -228,7 +228,8 @@
           {% set module_queued = live and (pipeline_queue.modules | selectattr('id', 'equalto', live.module_id) | list) %}
           <form method="post" action="/run/queue/run"{% if module_live %} hidden{% endif %}>
             <button type="submit" class="primary"
-                    {% if pipeline_queue.run_state == 'running' or not pipeline_queue.modules %}disabled{% endif %}
+                    {% if pipeline_queue.run_state == 'running' or not pipeline_queue.modules or pipeline_queue.review %}disabled{% endif %}
+                    {% if pipeline_queue.review %}title="The last batch waits for review: Continue, or Discard its run, on the module's card."{% endif %}
                     aria-label="Run the pipeline queue">Run</button>
           </form>
           <form method="post" class="pipeline-stop" data-pipeline-stop
@@ -491,14 +492,21 @@
   </p>
   {% endif %}
   {% if screen == 'pipeline' and checkpoint %}
+  {# Continue and Discard are on the queue's card of the module the run is
+     of. A batch whose modules all left the queue has no such card, and
+     Continue is here instead. Override stays here, by the Dismiss it skips. #}
+  {% set carded = (pipeline_queue.modules if pipeline_queue else []) | selectattr('review') | map(attribute='id') | list %}
   <div class="checkpoint">
     <p class="screen-note">Review this batch before the next one. Flow
     <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
+    {% if not carded or checkpoint.unread %}
     <div class="row">
+      {% if not carded %}
       <form method="post" action="/run/continue">
         <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
                 aria-label="Continue {{ current.name }}">Continue</button>
       </form>
+      {% endif %}
       {% if checkpoint.unread %}
       <form method="post" action="/run/continue">
         <input type="hidden" name="override" value="1">
@@ -507,6 +515,7 @@
       </form>
       {% endif %}
     </div>
+    {% endif %}
 
     {% for job in checkpoint.jobs %}
     <article class="card job-review">
@@ -523,7 +532,8 @@
       {# Dismiss marks the run as read and keeps all of it. Discard run deletes it:
          the jobs, the logs, the module's files in the target project back to the
          last commit, and the module is queued again. #}
-      {% if job.stalled or job.discard %}
+      {% set on_card = job.module_id in carded %}
+      {% if job.stalled or (job.discard and not on_card) %}
       <div class="row job-review-actions">
       {% if job.stalled %}
       <form method="post" action="/run/jobs/{{ job.id }}/dismiss">
@@ -531,15 +541,10 @@
                 title="Mark this run as read. Nothing is deleted.">Dismiss</button>
       </form>
       {% endif %}
-      {# The same Continue as the one above the cards, here so the next step is
-         beside the one that forgets the run and not outside the card. White:
-         orange is the one that deletes. #}
-      <form method="post" action="/run/continue">
-        <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
-                aria-label="Continue after {{ job.module }}"
-                title="Go on to the next batch.">Continue</button>
-      </form>
-      {% if job.discard and job.discard.files is none %}
+      {# Discard is on the module's queue card; a module that left the queue
+         has none, and its run is discarded from here. #}
+      {% if on_card %}
+      {% elif job.discard and job.discard.files is none %}
       {# Its files cannot be put back, so the run is not forgotten half way. #}
       <button type="button" class="discard-run" disabled aria-label="Discard the run of {{ job.module }}"
               title="Its directory in the target project is not a git checkout, so its files cannot be put back.">Discard run</button>

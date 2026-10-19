@@ -1008,3 +1008,62 @@ def test_a_module_run_on_its_own_that_failed_still_waits_for_review(client):
     after_batch_checkpoint(row.id, batch.id, client.app.state.executor, client.app.state.hub)
     with database.connection_context():
         assert Batch.get_by_id(batch.id).status == "checkpoint"
+
+
+def _stopped_in_review(client):
+    """A module run on its own and stopped: its batch waits for review, and
+    the module stays in the queue."""
+    from test_batch import OutcomeExecutor
+
+    row = _queue_both_steps(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    client.app.state.executor = OutcomeExecutor({first["technical_name"]: "stopped"}, client.app)
+    _play(client, first["id"])
+
+    return row, first
+
+
+def test_a_run_in_review_is_answered_on_its_queue_card_and_run_waits_for_it(client):
+    row, first = _stopped_in_review(client)
+    snapshot = queue_snapshot(row.id)
+    card = next(module for module in snapshot["modules"] if module["id"] == first["id"])
+
+    assert snapshot["review"] is True
+    assert card["review"] is not None and card["review"]["unread"] is False
+    page = client.get("/run").text
+    review = page.split("data-queue-review", 1)[1].split("</div>", 1)[0]
+
+    # Continue and Discard in the play button's place, on the module's card.
+    assert 'action="/run/continue"' in review
+    assert f'action="/run/modules/{first["id"]}/discard-run"' in review
+    assert "data-confirm-title" in review
+    # Said once: the review under the card has neither, and no second Continue.
+    assert page.count('action="/run/continue"') == page.count("data-queue-review")
+    assert ">Discard run</button>" not in page
+    # Run stays off until the review is answered.
+    controls = page.split('class="pipeline-queue-controls"', 1)[1].split("</header>", 1)[0]
+    run = controls.split('action="/run/queue/run"')[1].split("</form>", 1)[0]
+    assert "disabled" in run
+    assert "waits for review" in run
+
+
+def test_discard_on_the_queue_card_frees_run(client):
+    row, first = _stopped_in_review(client)
+
+    client.post(f"/run/modules/{first['id']}/discard-run", follow_redirects=True)
+
+    snapshot = queue_snapshot(row.id)
+    assert snapshot["review"] is False
+    assert all(module["review"] is None for module in snapshot["modules"])
+    page = client.get("/run").text
+    assert "data-queue-review" not in page
+    run = page.split('action="/run/queue/run"')[1].split("</form>", 1)[0]
+    assert "disabled" not in run
+
+
+def test_the_page_script_draws_the_review_pair_and_keeps_run_off(client):
+    script = client.get("/static/pipeline.js").text
+
+    assert "function reviewButtons" in script
+    assert "if (mod.review)" in script
+    assert "|| !!data.review" in script

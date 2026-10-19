@@ -72,7 +72,14 @@
       (data.steps ? data.steps.length : 0) +
       "|" +
       data.modules.map(function (mod) {
-        return mod.id + ":" + mod.position + (mod.removable ? "x" : "") + (mod.play ? "p" : "");
+        return (
+          mod.id +
+          ":" +
+          mod.position +
+          (mod.removable ? "x" : "") +
+          (mod.play ? "p" : "") +
+          (mod.review ? "r" + JSON.stringify(mod.review) : "")
+        );
       }).join(",") +
       "|" +
       (active ? active.id + ":" + active.status : "")
@@ -169,12 +176,79 @@
     return form;
   }
 
+  /* Its run is in the review a finished batch waits on: Continue, and Discard
+     run, which asks first. The same pair as _queue_play.html, made from
+     nodes; confirm.js listens on the document, so a form built here asks too. */
+  function reviewButtons(mod) {
+    const box = cell("div", "queue-review", null);
+    box.setAttribute("data-queue-review", "");
+    const go = cell("form", "", null);
+    go.method = "post";
+    go.action = "/run/continue";
+    const goButton = cell("button", "", "Continue");
+    goButton.type = "submit";
+    goButton.disabled = !!mod.review.unread;
+    goButton.setAttribute("aria-label", "Continue after " + mod.technical_name);
+    goButton.title = mod.review.unread
+      ? "A failed or waiting run is unread: dismiss it in the review below, or override there."
+      : "Keep this run as it is and go on to the next batch.";
+    go.appendChild(goButton);
+    box.appendChild(go);
+    const discard = mod.review.discard;
+    if (!discard) {
+      return box;
+    }
+    const label = "Discard the run of " + mod.technical_name;
+    if (discard.files == null) {
+      const off = cell("button", "discard-run", "Discard");
+      off.type = "button";
+      off.disabled = true;
+      off.setAttribute("aria-label", label);
+      off.title =
+        "Its directory in the target project is not a git checkout, so its files cannot be put back.";
+      box.appendChild(off);
+
+      return box;
+    }
+    const form = cell("form", "", null);
+    form.method = "post";
+    form.action = "/run/modules/" + mod.id + "/discard-run";
+    const files = discard.files
+      ? " " +
+        discard.files +
+        " changed file" +
+        (discard.files === 1 ? "" : "s") +
+        " in its directory in the target project " +
+        (discard.files === 1 ? "is" : "are") +
+        " put back to the last commit, and files git does not know are removed."
+      : " Its directory in the target project has no changes.";
+    form.setAttribute("data-confirm-title", label + "?");
+    form.setAttribute(
+      "data-confirm-text",
+      "Every run of this module is deleted with its log, findings and thread, and the module is queued again." +
+        files +
+        " The target container's database is not touched."
+    );
+    form.setAttribute("data-confirm-go", "Discard run");
+    const button = cell("button", "discard-run", "Discard");
+    button.type = "submit";
+    button.setAttribute("aria-label", label);
+    button.title = "Delete this run and queue the module again.";
+    form.appendChild(button);
+    box.appendChild(form);
+
+    return box;
+  }
+
   /* The play button: this module alone, where the queue's Run goes on through
      all of them. The same button as _queue_play.html, made from nodes. On the
      module in work, the square that stops it. */
   function playButton(mod) {
     if (mod.active && IN_WORK[mod.status]) {
       return stopSquare(mod);
+    }
+    if (mod.review) {
+      return reviewButtons(mod);
     }
     if (stoppingId === String(mod.id)) {
       stoppingId = "";
@@ -302,7 +376,10 @@
     const queueStop = panel.querySelector('form[action="/run/queue/stop"]');
     const clearBtn = panel.querySelector('form[action="/run/queue/clear"] button');
     if (runBtn) {
-      runBtn.disabled = data.run_state === "running" || !data.modules.length;
+      runBtn.disabled = data.run_state === "running" || !data.modules.length || !!data.review;
+      runBtn.title = data.review
+        ? "The last batch waits for review: Continue, or Discard its run, on the module's card."
+        : "";
     }
     if (queueStop) {
       queueStop.hidden = data.run_state !== "running";
