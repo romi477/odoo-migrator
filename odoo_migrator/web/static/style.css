@@ -3447,11 +3447,18 @@ pre.test-output {
   align-items: center;
   min-width: 0;
   color: var(--machine);
+  transition: color 0.6s ease;
 }
 
 .machine[data-machine="run"],
 .machine[data-machine="stuck"] {
   --machine: var(--amber);
+}
+
+/* Working through a failure the amber shifts toward red, a little, and
+   comes back when the lap is mended. */
+.machine[data-machine="run"][data-lane="failure"] {
+  --machine: color-mix(in oklch, var(--amber) 35%, var(--red));
 }
 
 .machine[data-machine="done"] {
