@@ -281,6 +281,9 @@ itself for the review while you are looking at a live stage.
 
 **Flow** (`/flow`) draws the pinned cartridge. The picture is computed
 from the file each time the page is opened; nothing about it is stored.
+Clicking a block opens its card over the canvas, in the top right corner,
+the way Tree's Help text hangs over its row; the canvas keeps its size, so
+the picture is not redrawn under it. Close shuts the card.
 Stock is two frames. **Pipeline** is the lap: `understand` (source session,
 behaviour and a fixture recipe, and whether a module with no tests needs
 some), `characterize` (only then: a test written into the source module on a

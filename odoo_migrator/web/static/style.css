@@ -3541,14 +3541,7 @@ pre.test-output {
 }
 
 .flow-board {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.flow-board.is-inspecting {
-  grid-template-columns: minmax(0, 1fr) 320px;
+  position: relative;
 }
 
 .flow-unavailable {
@@ -3563,13 +3556,24 @@ pre.test-output {
   background: var(--panel);
 }
 
+/* A step's card hangs over the canvas from its top right corner, the way the
+   Tree's Help text hangs over its row. The canvas keeps its size, so opening
+   a card never redraws the picture under it. */
 .flow-inspect {
-  max-height: 70vh;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100% - 16px);
+  max-height: calc(70vh - 16px);
   overflow: auto;
   padding: 12px 14px;
-  border: 1px solid var(--chrome-edge);
-  border-radius: 8px;
-  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-raised);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.35);
 }
 
 .flow-inspect-head {

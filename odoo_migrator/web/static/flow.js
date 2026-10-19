@@ -227,18 +227,9 @@
         if (cyGraph) {
           cyGraph.$("node").removeClass("is-selected");
         }
-        var board = document.querySelector(".flow-board");
         var aside = document.getElementById("flow-inspect");
-        if (board) {
-          board.classList.remove("is-inspecting");
-        }
         if (aside) {
           aside.hidden = true;
-        }
-        if (cyGraph) {
-          requestAnimationFrame(function () {
-            cyGraph.resize();
-          });
         }
       });
     }
@@ -263,11 +254,7 @@
       return;
     }
     select(node);
-    /* `resize` runs on the next frame, after the inspector has taken its
-       width. Centring before that centres on the old viewport. */
-    requestAnimationFrame(function () {
-      cyGraph.center(node);
-    });
+    cyGraph.center(node);
   }
 
   function listText(values) {
@@ -276,19 +263,10 @@
 
   function inspect(data) {
     var aside = document.getElementById("flow-inspect");
-    var board = document.querySelector(".flow-board");
     if (!aside) {
       return;
     }
     aside.hidden = false;
-    if (board) {
-      board.classList.add("is-inspecting");
-    }
-    if (cyGraph) {
-      requestAnimationFrame(function () {
-        cyGraph.resize();
-      });
-    }
     document.getElementById("flow-inspect-title").textContent = data.id;
     document.getElementById("flow-inspect-actor").textContent =
       data.actor === "agent"

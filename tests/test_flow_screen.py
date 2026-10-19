@@ -73,3 +73,18 @@ def test_flow_draws_the_pinned_cartridge_with_nothing_running(client, migration)
     assert 'aria-label="Close the step"' in page
     assert "Agent. A model turn." in page
     assert "Function. The app runs it." in page
+
+
+def test_a_step_card_hangs_over_the_canvas_instead_of_shrinking_it(client):
+    """Opening a card used to give it a column and squeeze the picture. Like
+    Tree's Help text it floats over what is under it."""
+    css = client.get("/static/style.css").text
+    script = client.get("/static/flow.js").text
+    card = css.split(".flow-inspect {")[1].split("}")[0]
+
+    assert "position: absolute" in card
+    assert "box-shadow" in card
+    assert "background: var(--panel-raised)" in card
+    assert "grid-template-columns" not in css.split(".flow-board {")[1].split("}")[0]
+    assert "is-inspecting" not in css
+    assert "is-inspecting" not in script
