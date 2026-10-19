@@ -507,7 +507,9 @@ pipeline:
       tests file of the same name that is already there. The tests step checks
       by name that each one arrived, and fails the lap when one did not. Do not
       leave the target with only the tests it had before. Keep what they
-      assert; change only what the target version forces. If there is no such
+      assert; change only what the target version forces. The tests step also
+      compares each assertion and the values it expects with the source's, and
+      fails the lap on a change that is not marked as below. If there is no such
       answer, the tests in the source are the module's own, tests of its own
       that its authors wrote: port them like any other file.
 
@@ -640,7 +642,9 @@ on_failure:
         and the rule that says so>`, and it is a `small_fix`. A failure that
         says the characterization tests "did not reach the target" is not a
         flaw in the port's logic: the tests were never written there. That is
-        a `small_fix` too.
+        a `small_fix` too. So is one that says the port "changed what" the
+        characterization tests expect: put the source's assertion back, and
+        if the test then fails, the port is what is wrong.
 
     - step: ask_human
       when: needs_human
@@ -724,6 +728,16 @@ body for the target; it may not drop the test. Without this check a target that
 already held tests of its own passed on those while the ones that mattered were
 not there (the first live run, job 43). Tests a person wrote on the source are
 not held to this: a port may drop or rename them for a reason of theirs.
+**And they must arrive expecting what they expected.** A name says nothing about a
+body: a port could turn an expected `'blue'` into the `'green'` its code returns,
+and a red test went green proving nothing. The `tests` step reduces each
+assertion of those methods to which assertion it is and the literal values in it
+(`assertEqual(10)`, `assertRaises(UserError)`; the expressions around them are
+left out, so a field renamed for the target is not a change) and compares source
+with target. A change under a `# migrator: target-differs` line is explained:
+the lap goes on and the change is a finding in the review. One without it fails
+the lap, before running anything, and the failure lane puts the assertion back
+or explains it (`test_names.test_expectations`).
 
 A difference
 nobody can trace to a rule is not marked: the assertion stays as the source had

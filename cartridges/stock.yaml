@@ -104,7 +104,9 @@ pipeline:
       tests file of the same name that is already there. The tests step checks
       by name that each one arrived, and fails the lap when one did not. Do not
       leave the target with only the tests it had before. Keep what they
-      assert; change only what the target version forces. If there is no such
+      assert; change only what the target version forces. The tests step also
+      compares each assertion and the values it expects with the source's, and
+      fails the lap on a change that is not marked as below. If there is no such
       answer, the tests in the source are the module's own, tests of its own
       that its authors wrote: port them like any other file.
 
@@ -237,7 +239,9 @@ on_failure:
         and the rule that says so>`, and it is a `small_fix`. A failure that
         says the characterization tests "did not reach the target" is not a
         flaw in the port's logic: the tests were never written there. That is
-        a `small_fix` too.
+        a `small_fix` too. So is one that says the port "changed what" the
+        characterization tests expect: put the source's assertion back, and
+        if the test then fails, the port is what is wrong.
 
     - step: ask_human
       when: needs_human

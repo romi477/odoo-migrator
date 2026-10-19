@@ -265,17 +265,28 @@ def migrator_test_commits(directory) -> list[dict]:
     return found
 
 
-def characterization_names(migration, module) -> list[str]:
-    """The test methods the migrator proved green on the source, which a port
-    must carry to the target. Empty when the source's tests are not its own:
-    a port may drop or rename a test a person wrote, for a reason of theirs.
-    """
+def characterization_dir(migration, module) -> Path | None:
+    """The source's `tests/` of this module when the migrator wrote it, else
+    None: a port may drop, rename or change a test a person wrote, for a
+    reason of theirs."""
     directory = module_root(migration, module, "source")
     if directory is None:
 
-        return []
+        return None
     tests = Path(directory) / "tests"
     if not migrator_test_commits(tests):
+
+        return None
+
+    return tests
+
+
+def characterization_names(migration, module) -> list[str]:
+    """The test methods the migrator proved green on the source, which a port
+    must carry to the target. Empty when the source's tests are not its own.
+    """
+    tests = characterization_dir(migration, module)
+    if tests is None:
 
         return []
 

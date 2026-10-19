@@ -87,7 +87,7 @@ def _tests_left_behind(ctx: StepContext) -> str:
     missing = [name for name in wanted if name not in present]
     if not missing:
 
-        return ""
+        return _expectations_changed(ctx, Path(directory) / "tests")
 
     return (
         f"The characterization tests did not reach the target: {len(missing)} of "
@@ -95,6 +95,61 @@ def _tests_left_behind(ctx: StepContext) -> str:
         f"{ctx.module.technical_name}/tests/ on the target: {', '.join(missing)}. "
         "Port them with the same method names, replacing a tests file of the "
         "same name that is already there."
+    )
+
+
+def _expectations_changed(ctx: StepContext, target_tests: Path) -> str:
+    """Why the lap fails because the port changed what a test expects, or "".
+
+    The tests arrived by name, and a name says nothing about the body: a port
+    could turn an expected 'blue' into the 'green' its code returns, and the
+    test the source proved went green on the target without proving anything.
+    A change under a `# migrator: target-differs` line is explained, and goes
+    to the review as a finding; one without it fails the lap, and the failure
+    lane puts the assertion back or explains it.
+    """
+    from odoo_migrator.source_git import characterization_dir
+    from odoo_migrator.test_names import MARKER, test_expectations
+
+    source_tests = characterization_dir(ctx.migration, ctx.module)
+    if source_tests is None:
+
+        return ""
+    before = test_expectations(source_tests)
+    after = test_expectations(target_tests)
+    unexplained = []
+    for name in sorted(before):
+        if name not in after:
+            continue
+        gone = before[name]["expects"] - after[name]["expects"]
+        if not gone:
+            continue
+        came = after[name]["expects"] - before[name]["expects"]
+        said = f"{name}: {', '.join(sorted(gone.elements()))} is gone"
+        if came:
+            said += f"; the target has {', '.join(sorted(came.elements()))}"
+        marked = after[name]["marked"]
+        if marked:
+            finding = {
+                "text": f"The port changed what {said}. It says why: {' '.join(marked)}",
+                "source": "tests: target-differs",
+            }
+            if finding not in ctx.findings:
+                ctx.findings.append(finding)
+        else:
+            unexplained.append(said)
+    if not unexplained:
+
+        return ""
+
+    return (
+        f"The port changed what {len(unexplained)} of the characterization tests "
+        f"expect, and did not say why. {'; '.join(unexplained)}. These are the "
+        "values the source version proved. Put each assertion back as the source "
+        "had it; a test that then fails is the port's to fix. Only when a rule of "
+        "the target version changes the behaviour on purpose, keep the new "
+        f"assertion and put `{MARKER} — <what changed, and the rule that says "
+        "so>` on the line above it."
     )
 
 

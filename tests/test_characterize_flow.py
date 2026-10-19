@@ -82,10 +82,12 @@ class CharacterizeScript:
 
     name = "scripted"
 
-    def __init__(self, *, raise_needs_tests=True, run_it=True, carry_tests=True):
+    def __init__(self, *, raise_needs_tests=True, run_it=True, carry_tests=True, ported_test=TEST):
         self.raise_needs_tests = raise_needs_tests
         self.run_it = run_it
         self.carry_tests = carry_tests
+        # What the port writes as test_x.py: the source's, unless a test says otherwise.
+        self.ported_test = ported_test
         self.ran: list[str] = []
         self.port_prompt = ""
         self.refusal = ""
@@ -121,7 +123,7 @@ class CharacterizeScript:
                 side="target", path="project/sale_custom/__manifest__.py", content=MANIFEST
             )
             if self.carry_tests and "### tests/test_x.py" in prompt:
-                for name, body in (("__init__.py", "from . import test_x\n"), ("test_x.py", TEST)):
+                for name, body in (("__init__.py", "from . import test_x\n"), ("test_x.py", self.ported_test)):
                     by_name["write_file"](
                         side="target", path=f"project/sale_custom/tests/{name}", content=body
                     )
@@ -451,3 +453,72 @@ def test_the_port_prompt_forbids_carrying_the_sources_migration_scripts():
     assert "renaming its directory" in prompt
     assert "writing the same code under a target version" in prompt
     assert "only for what this port itself changes" in prompt
+
+
+# -- a port keeps what the proved tests expect, or says why ----------------------
+
+
+def test_a_port_that_changes_what_a_proved_test_expects_fails_the_tests_step(
+    app, fake_sheller, sandbox
+):
+    """The names arrived and the body did not: the port turned the expectation
+    into what its code returns, and a red test went green proving nothing."""
+    make_repo(_source(sandbox))
+    fake_sheller.tests_for(
+        "sale_custom", fake_sheller.catalogue("sale_custom", {"TestX": ["test_x"]})
+    )
+    script = CharacterizeScript(ported_test=TEST.replace("assertTrue(True)", "assertTrue(False)"))
+
+    job = _run(app, fake_sheller, sandbox, script)
+
+    assert _status(job) != "passed"
+    said = " ".join(_log_texts())
+    assert "changed what 1 of the characterization tests expect" in said
+    assert "test_x: assertTrue(True) is gone; the target has assertTrue(False)" in said
+
+
+def test_a_change_the_port_explains_passes_and_is_a_finding(app, fake_sheller, sandbox):
+    from odoo_migrator.models import Finding
+
+    make_repo(_source(sandbox))
+    fake_sheller.tests_for(
+        "sale_custom", fake_sheller.catalogue("sale_custom", {"TestX": ["test_x"]})
+    )
+    ported = TEST.replace(
+        "        self.assertTrue(True)\n",
+        "        # migrator: target-differs — 18.0 says no (rules 18.0: Truth)\n"
+        "        self.assertTrue(False)\n",
+    )
+
+    job = _run(app, fake_sheller, sandbox, CharacterizeScript(ported_test=ported))
+
+    assert _status(job) == "passed"
+    with database.connection_context():
+        texts = [row.text for row in Finding.select().where(Finding.job == job.id)]
+    assert any("test_x: assertTrue(True) is gone" in text and "Truth" in text for text in texts)
+
+
+def test_an_expectation_is_the_assertion_and_its_literals_not_the_expression(tmp_path):
+    from odoo_migrator.test_names import test_expectations
+
+    before, after = tmp_path / "before", tmp_path / "after"
+    before.mkdir()
+    after.mkdir()
+    (before / "test_a.py").write_text(
+        "class T:\n"
+        "    def test_a(self):\n"
+        "        self.assertEqual(order.amount_untaxed, 10)\n"
+        "        with self.assertRaises(UserError):\n"
+        "            order.action_cancel()\n"
+        "        assert order.state == 'sale'\n"
+    )
+    # A field renamed for the target version is not a change.
+    (after / "test_a.py").write_text(
+        (before / "test_a.py").read_text().replace("amount_untaxed", "amount_untaxed_new")
+    )
+
+    old, new = test_expectations(before)["test_a"], test_expectations(after)["test_a"]
+
+    assert sorted(old["expects"]) == ["assert('sale')", "assertEqual(10)", "assertRaises(UserError)"]
+    assert old["expects"] == new["expects"]
+    assert new["marked"] == []
