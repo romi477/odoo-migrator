@@ -3364,9 +3364,12 @@ button.queue-play:disabled {
   text-decoration: line-through;
 }
 
+/* What is left of a batch is secondary to the queue and the run above it:
+   narrower than they are, and its rows slimmer than a queue row. */
 .checkpoint {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  max-width: 52rem;
 }
 
 .checkpoint .row form {
@@ -3388,13 +3391,54 @@ button.queue-play:disabled {
   color: var(--amber);
 }
 
+/* A queue row's shape: a hairline frame and no fill, the name first, the
+   buttons at the right end. Slimmer than a queue row and in a smaller type. */
 .job-review {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
 }
 
-.job-review .name-line {
+.job-review-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 26px;
+  min-width: 0;
+}
+
+.job-review-attempt {
+  color: var(--muted);
+}
+
+.job-review-model {
+  color: var(--muted-low);
+  font-size: 12px;
+}
+
+/* The queue row's Continue and Discard, the same size. */
+.job-review-line .job-review-actions {
+  margin: -4px 0 -4px auto;
+  gap: 6px;
+}
+
+.job-review-line .job-review-actions form {
   margin: 0;
+}
+
+.job-review-line .job-review-actions button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.job-review-label {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .promote {

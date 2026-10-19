@@ -519,18 +519,26 @@
     </div>
     {% endif %}
 
+    {# One row a module, the shape of a queue row and a little slimmer: the
+       review is what is left of a batch, not a card of its own rank. The
+       name, how it ended and how its last attempt went on one line, the
+       model after them, quiet, and the buttons at the end. What there is to
+       read, a question, a diagnosis, a finding, opens under the line. #}
     {% for job in checkpoint.jobs %}
-    <article class="card job-review">
-      <header class="name-line">
+    {% set last = (job.attempts | sort(attribute='iteration')) | last %}
+    <article class="job-review" data-status="{{ job.status }}">
+      <header class="job-review-line">
         <span class="name mono">{{ job.module }}</span>
         <span class="badge {{ job.status }}">{{ job.status }}</span>
-        {% if job.provider and job.model %}
-        <span class="mono">{{ job.provider }} · {{ job.model }}</span>
-        {% endif %}
         {% if job.reviewed %}
         <span class="badge">dismissed</span>
         {% endif %}
-      </header>
+        {% if last %}
+        <span class="job-review-attempt">attempt {{ last.iteration }} · {{ last.verdict }}</span>
+        {% endif %}
+        {% if job.provider and job.model %}
+        <span class="job-review-model mono">{{ job.provider }} · {{ job.model }}</span>
+        {% endif %}
       {# Dismiss marks the run as read and keeps all of it. Discard run deletes it:
          the jobs, the logs, the module's files in the target project back to the
          last commit, and the module is queued again. #}
@@ -563,6 +571,7 @@
       {% endif %}
       </div>
       {% endif %}
+      </header>
       {% if job.question %}
       <p class="question">{{ job.question }}</p>
       {% endif %}
@@ -573,12 +582,12 @@
          the raw test output are not drawn. Nobody decided Continue or
          Discard by reading them, and whoever wants the code reads it in the
          project, where the diff is git's. #}
-      {% for attempt in job.attempts %}
+      {% for attempt in job.attempts if attempt.diagnosis %}
       <section class="attempt">
-        <p>attempt {{ attempt.iteration }} · {{ attempt.verdict }}</p>
-        {% if attempt.diagnosis %}
-        <p class="diagnosis">{{ attempt.diagnosis }}</p>
+        {% if job.attempts | length > 1 %}
+        <p class="job-review-label">attempt {{ attempt.iteration }} · {{ attempt.verdict }}</p>
         {% endif %}
+        <p class="diagnosis">{{ attempt.diagnosis }}</p>
       </section>
       {% endfor %}
       {% for finding in job.findings %}

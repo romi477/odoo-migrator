@@ -1433,3 +1433,21 @@ def test_a_hello_without_a_migration_reads_the_open_one_off_the_event_loop(clien
     source = inspect.getsource(api)
 
     assert "asyncio.to_thread(\n                        get_active" in source
+
+
+def test_the_batch_review_is_one_slim_row_a_module(client):
+    """The review's cards were the size of the queue's and the run's: one
+    line a module now, the model on it, narrower than the cards above."""
+    _row, first = _stopped_in_review(client)
+    page = client.get("/run").text
+    css = client.get("/static/style.css").text
+    review = page.split('<article class="job-review"', 1)[1].split("</article>", 1)[0]
+    line = review.split('class="job-review-line">', 1)[1].split("</header>", 1)[0]
+
+    assert 'class="card job-review"' not in page
+    assert first["technical_name"] in line
+    assert 'class="badge stopped"' in line
+    assert 'class="job-review-attempt">attempt 1 · ' in line
+    assert "max-width" in css.split("\n.checkpoint {", 1)[1].split("}", 1)[0]
+    row = css.split("\n.job-review {", 1)[1].split("}", 1)[0]
+    assert "background" not in row and "border-radius: 4px" in row
