@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 
 from odoo_migrator.contract import ContractError
@@ -23,6 +24,25 @@ from odoo_migrator.models import (
 )
 
 FINISHED_OK = set(DONE)
+
+# What a Discard would put back, per run, for a few seconds. The snapshot is
+# built on every page and every publish, and the count is two git calls.
+_OFFER_TTL = 3.0
+_OFFERS: dict[int, tuple[float, dict | None]] = {}
+
+
+def _offer(job: Job) -> dict | None:
+    now = time.monotonic()
+    hit = _OFFERS.get(job.id)
+    if hit is not None and now - hit[0] < _OFFER_TTL:
+
+        return hit[1]
+    for stale in [key for key, (at, _) in _OFFERS.items() if now - at >= _OFFER_TTL]:
+        del _OFFERS[stale]
+    offer = _discard_offer(job)
+    _OFFERS[job.id] = (now, offer)
+
+    return offer
 
 
 def _state_row(migration_id: str) -> PipelineQueueState:
@@ -88,15 +108,13 @@ def _skipped(migration_id: str) -> set[int]:
         }
 
 
-def _partial_steps(migration_id: str) -> set[int]:
+def _partial_steps(migration_id: str, listed: list[dict] | None = None) -> set[int]:
     """Steps that have a module taken off them."""
     skipped = _skipped(migration_id)
+    if listed is None:
+        listed = list_modules(migration_id)
 
-    return {
-        module.get("step") or 1
-        for module in list_modules(migration_id)
-        if module["id"] in skipped
-    }
+    return {module.get("step") or 1 for module in listed if module["id"] in skipped}
 
 
 def _forget_skips(migration_id: str, step: int) -> int:
@@ -205,6 +223,7 @@ def add_all_steps(migration_id: str) -> int:
 
 def remove_finished_steps(migration_id: str) -> None:
     """Drop queue entries whose modules are all passed."""
+    listed = list_modules(migration_id)
     with database.connection_context():
         items = list(
             PipelineQueueItem.select()
@@ -212,7 +231,7 @@ def remove_finished_steps(migration_id: str) -> None:
             .order_by(PipelineQueueItem.position)
         )
         for item in items:
-            modules = modules_in_step_order(migration_id, item.step)
+            modules = modules_in_step_order(migration_id, item.step, listed=listed)
             if not modules:
                 item.delete_instance()
                 _forget_skips(migration_id, item.step)
@@ -223,8 +242,16 @@ def remove_finished_steps(migration_id: str) -> None:
                 _forget_skips(migration_id, item.step)
 
 
-def _pending_modules_sorted(migration_id: str) -> list[dict]:
-    """Pending modules from queued steps, one row each, parents first."""
+def _pending_modules_sorted(
+    migration_id: str, listed: list[dict] | None = None
+) -> list[dict]:
+    """Pending modules from queued steps, one row each, parents first.
+
+    `listed` is the module list a caller that asks more than once already
+    holds; reading and ranking it is most of what this costs.
+    """
+    if listed is None:
+        listed = list_modules(migration_id)
     with database.connection_context():
         items = list(
             PipelineQueueItem.select()
@@ -233,7 +260,7 @@ def _pending_modules_sorted(migration_id: str) -> list[dict]:
     seen: set[int] = set(_skipped(migration_id))
     pending: list[dict] = []
     for item in items:
-        for module in modules_in_step_order(migration_id, item.step):
+        for module in modules_in_step_order(migration_id, item.step, listed=listed):
             if module["status"] in FINISHED_OK:
 
                 continue
@@ -253,6 +280,8 @@ def queue_snapshot(migration_id: str) -> dict:
     """Pending modules in migration order for the Pipeline panel."""
     live = live_run(migration_id)
     active_id = live["module_id"] if live else None
+    # Read and ranked once: every helper below used to read and rank it again.
+    listed = list_modules(migration_id)
     with database.connection_context():
         items = list(
             PipelineQueueItem.select()
@@ -260,7 +289,7 @@ def queue_snapshot(migration_id: str) -> dict:
             .order_by(PipelineQueueItem.position)
         )
     modules: list[dict] = []
-    for rank, module in enumerate(_pending_modules_sorted(migration_id), start=1):
+    for rank, module in enumerate(_pending_modules_sorted(migration_id, listed), start=1):
         modules.append(
             {
                 "id": module["id"],
@@ -273,32 +302,40 @@ def queue_snapshot(migration_id: str) -> dict:
             }
         )
 
-    # Only the end of the queue can be taken back: a card in the middle may be
-    # what a later one waits for. A module in flight stays.
-    for module in modules:
-        module["removable"] = False
-    if modules:
-        modules[-1]["removable"] = not modules[-1]["active"]
-    blocked = _play_blocked(migration_id, modules, live, run_state(migration_id))
+    state = run_state(migration_id)
+    blocked = _play_blocked(migration_id, modules, live, state, listed)
     for module in modules:
         module["play"] = blocked.get(module["id"], "")
     review, unread = _open_review(migration_id, {module["id"] for module in modules})
     for module in modules:
         module["review"] = (review or {}).get(module["id"])
-    partial = _partial_steps(migration_id)
+    # Only the end of the queue can be taken back: a card in the middle may be
+    # what a later one waits for. A module in flight stays, and so does the
+    # card that carries the open review: it is where Continue and Discard are.
+    for module in modules:
+        module["removable"] = False
+    if modules:
+        modules[-1]["removable"] = not modules[-1]["active"] and not modules[-1]["review"]
+    partial = _partial_steps(migration_id, listed)
     why = _why_not_out(
         migration_id,
         [item.step for item in items],
         {module["step"] for module in modules if module["active"]},
+        {module["step"] for module in modules if module["review"]},
+        listed,
     )
 
-    state = run_state(migration_id)
     idle = state != "running" and live is None
 
     return {
         "run_state": state,
         "idle": idle,
-        "count": queue_count(migration_id, len(modules), active=not idle),
+        "count": queue_count(
+            migration_id,
+            len(modules),
+            active=not idle,
+            play=state != "running" and _play_in_flight(migration_id),
+        ),
         "steps": [
             {
                 "step": item.step,
@@ -339,7 +376,7 @@ def _open_review(migration_id: str, queued: set[int]) -> tuple[dict | None, bool
         for job in Job.select().where(Job.batch == batch.id).order_by(Job.id):
             unread = unread or (job.status in ATTENTION and not job.reviewed)
             if job.module_id in queued:
-                rows[job.module_id] = {"discard": _discard_offer(job)}
+                rows[job.module_id] = {"discard": _offer(job)}
     for row in rows.values():
         row["unread"] = unread
 
@@ -347,7 +384,11 @@ def _open_review(migration_id: str, queued: set[int]) -> tuple[dict | None, bool
 
 
 def _play_blocked(
-    migration_id: str, modules: list[dict], live: dict | None, state: str
+    migration_id: str,
+    modules: list[dict],
+    live: dict | None,
+    state: str,
+    listed: list[dict] | None = None,
 ) -> dict[int, str]:
     """For each queued module that cannot be run on its own, the sentence that says why.
 
@@ -381,7 +422,7 @@ def _play_blocked(
     for module in modules:
         step = module["step"]
         if step not in steps:
-            steps[step] = earlier_steps_blocking(migration_id, step)
+            steps[step] = earlier_steps_blocking(migration_id, step, listed=listed)
         if steps[step]:
             blocked[module["id"]] = steps[step]
 
@@ -417,13 +458,23 @@ def run_one(migration_id: str, module_id: int, executor, hub: EventHub) -> None:
     publish_queue(hub, migration_id)
 
 
-def queue_count(migration_id: str, pending: int, *, active: bool) -> dict:
+def queue_count(
+    migration_id: str, pending: int, *, active: bool, play: bool = False
+) -> dict:
     """The counter in the bar: how many modules wait, or where a run is.
 
     Idle, it is the size of the queue. While a run goes it is the place of the
     module in flight out of the run's total, "6/10", the way the person counts
     them.
     """
+    if active and play:
+        # One module run on its own: it counts itself, not the run before it.
+        return {
+            "text": "1/1",
+            "unit": "run",
+            "queued": pending,
+            "title": "Running one module; the queue stays as it is.",
+        }
     if active and pending:
         total = max(_state_row(migration_id).run_total, pending)
         at = total - pending + 1
@@ -443,18 +494,48 @@ def queue_count(migration_id: str, pending: int, *, active: bool) -> dict:
     }
 
 
+def _play_in_flight(migration_id: str) -> bool:
+    """A module run on its own is going: its batch is the one running."""
+    with database.connection_context():
+
+        return (
+            Batch.select()
+            .where(
+                (Batch.migration == migration_id)
+                & (Batch.status == "running")
+                & (Batch.auto_continue == True)
+            )
+            .exists()
+        )
+
+
 def nav_count(migration_id: str | None) -> dict:
-    """`queue_count` for the open migration, or an empty queue when none is open."""
+    """`queue_count` for the open migration, or an empty queue when none is open.
+
+    The bar asks on every page, so it takes the short road: how many modules
+    wait and whether a run is going, none of the snapshot's per-card work.
+    """
     if not migration_id:
 
         return queue_count("", 0, active=False)
-    snapshot = queue_snapshot(migration_id)
+    state = run_state(migration_id)
+    live = live_run(migration_id)
+    pending = len(_pending_modules_sorted(migration_id))
 
-    return snapshot["count"]
+    return queue_count(
+        migration_id,
+        pending,
+        active=state == "running" or live is not None,
+        play=state != "running" and _play_in_flight(migration_id),
+    )
 
 
 def _why_not_out(
-    migration_id: str, queued: list[int], in_flight: set[int]
+    migration_id: str,
+    queued: list[int],
+    in_flight: set[int],
+    in_review: set[int] = frozenset(),
+    listed: list[dict] | None = None,
 ) -> dict[int, str]:
     """For each queued step that cannot be taken out, the sentence that says why.
 
@@ -474,11 +555,18 @@ def _why_not_out(
             )
         }
     started = running | in_flight
-    needs = {row["step"]: row["needs"] for row in list_pipeline_steps(migration_id)}
+    needs = {
+        row["step"]: row["needs"]
+        for row in list_pipeline_steps(migration_id, listed=listed)
+    }
     why: dict[int, str] = {}
     for step in queued:
         if step in started:
             why[step] = f"Step {step} has started: let it finish or stop it."
+
+            continue
+        if step in in_review:
+            why[step] = f"Step {step} holds a run in review: Continue or Discard it first."
 
             continue
         waiting = next(
@@ -529,8 +617,10 @@ def _remove_last_module(migration_id: str, module_id: int) -> None:
     name = chosen["technical_name"]
     if modules[-1]["id"] != module_id:
         raise ValueError(f"{name} is not the last in the queue: remove from the end.")
-    if not chosen["removable"]:
+    if chosen["active"]:
         raise ValueError(f"{name} is running: stop it first.")
+    if chosen["review"] is not None:
+        raise ValueError(f"{name} holds a run in review: Continue or Discard it first.")
     step = chosen["step"]
     with database.connection_context():
         PipelineQueueSkip.get_or_create(migration=migration_id, module=module_id)
@@ -689,33 +779,40 @@ def after_batch_checkpoint(
         passed = bool(batch) and all(
             job.status == "passed" for job in Job.select().where(Job.batch == batch_id)
         )
-    if batch is not None and batch.auto_continue:
+    running = run_state(migration_id) == "running"
+    auto = batch is not None and batch.auto_continue
+    if auto and not running:
         # One module run on its own: if it passed there is nothing to review,
         # and a review stop would also bar the next play until someone pressed
-        # Continue. A failure keeps its stop.
+        # Continue. A failure keeps its stop. Its own batch is the one closed,
+        # not whichever review is newest.
         if passed:
             remove_finished_steps(migration_id)
             try:
-                continue_batch(migration_id, override=True)
+                continue_batch(migration_id, override=True, batch_id=batch_id)
             except ContractError:
 
                 return
             publish_queue(hub, migration_id)
 
         return
-    if run_state(migration_id) != "running":
+    if not running:
 
         return
     with database.connection_context():
         jobs = list(Job.select().where(Job.batch == batch_id))
-    if any(job.status in ("failed", "waiting_for_human") for job in jobs):
+    # Run was pressed while this module ran on its own: the queue takes over
+    # from here, as it would after any batch of its own.
+    if any(job.status in ("failed", "waiting_for_human") for job in jobs) or (
+        auto and not passed
+    ):
         set_run_state(migration_id, "stopped")
         publish_queue(hub, migration_id)
 
         return
     remove_finished_steps(migration_id)
     try:
-        continue_batch(migration_id, override=True)
+        continue_batch(migration_id, override=True, batch_id=batch_id)
     except ContractError:
 
         return

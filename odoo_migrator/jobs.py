@@ -377,6 +377,13 @@ def start_job(
                 (Batch.migration == migration_id) & (Batch.status == "checkpoint")
             ).exists():
                 raise ContractError("Review the last batch before starting another.")
+            # A module run on its own is checked against the pipe here, under
+            # the lock, and not on the snapshot its button was drawn from: two
+            # presses read the same free pipe and both went.
+            if auto_continue and batch_id is None and Batch.select().where(
+                (Batch.migration == migration_id) & (Batch.status == "running")
+            ).exists():
+                raise ContractError("A batch is already running on this migration.")
             module = Module.get_by_id(module_id)
             owns_batch = batch_id is None
             if owns_batch:
@@ -1622,14 +1629,15 @@ def latest_checkpoint(migration_id: str) -> dict | None:
         }
 
 
-def continue_batch(migration_id: str, *, override: bool = False) -> Batch:
+def continue_batch(
+    migration_id: str, *, override: bool = False, batch_id: int | None = None
+) -> Batch:
+    """Close the open review. With `batch_id`, that batch's and no other."""
     with database.connection_context():
-        batch = (
-            Batch.select()
-            .where((Batch.migration == migration_id) & (Batch.status == "checkpoint"))
-            .order_by(Batch.id.desc())
-            .first()
-        )
+        waiting = (Batch.migration == migration_id) & (Batch.status == "checkpoint")
+        if batch_id is not None:
+            waiting = waiting & (Batch.id == batch_id)
+        batch = Batch.select().where(waiting).order_by(Batch.id.desc()).first()
         if batch is None:
             raise ContractError("No batch is waiting for review.")
         unread = (

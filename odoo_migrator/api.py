@@ -1236,6 +1236,12 @@ def create_app(
 
         return RedirectResponse("/run", status_code=303)
 
+    def _announce_queue(request: Request, current: dict) -> None:
+        """Tell the open pages the queue moved: a review answered, a run read."""
+        from odoo_migrator.pipeline_queue import publish_queue
+
+        publish_queue(request.app.state.hub, current["id"])
+
     def _start_queue(request: Request, current: dict):
         try:
             queue_start(
@@ -1393,6 +1399,7 @@ def create_app(
         except ContractError as refused:
 
             return _run_page(request, error=str(refused))
+        _announce_queue(request, current)
         if run.strip() == "1":
 
             return _start_queue(request, current)
@@ -1410,6 +1417,7 @@ def create_app(
         except ContractError as refused:
 
             return _run_page(request, error=str(refused))
+        _announce_queue(request, current)
 
         return RedirectResponse("/run", status_code=303)
 
@@ -1428,6 +1436,7 @@ def create_app(
         except ContractError as refused:
 
             return _run_page(request, error=str(refused))
+        _announce_queue(request, current)
 
         return RedirectResponse("/run", status_code=303)
 

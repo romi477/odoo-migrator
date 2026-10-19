@@ -1,5 +1,6 @@
 """Pipeline queue: add steps, dedupe, run/stop."""
 
+import pytest
 from test_batch import _prepared
 
 from odoo_migrator.db import database
@@ -1155,3 +1156,245 @@ def test_a_review_on_a_queue_card_raises_no_reload_notice(client):
     assert names[last_checkpoint - 1] == "queue"
     script = client.get("/static/sse.js").text
     assert '!document.querySelector("[data-queue-review]")' in script
+
+
+# --- review fixes: races and stale state around a play run ------------------
+
+
+def _deliver(client, job_id, status="passed"):
+    client.app.state.on_result(
+        {"job_id": job_id, "status": status, "attempts": [{"iteration": 1, "verdict": "done"}]}
+    )
+
+
+def _live_job(migration_id):
+    from odoo_migrator.models import Job, Module
+
+    with database.connection_context():
+        job = (
+            Job.select()
+            .join(Module)
+            .where((Module.migration == migration_id) & (Job.status == "running"))
+            .order_by(Job.id.desc())
+            .first()
+        )
+
+    return job
+
+
+def test_run_pressed_during_a_play_run_carries_on_when_it_passes(client):
+    """Run found a batch running, and left the pipe on "running" with nothing
+    to start it again: every play barred, the counter stuck, and only Stop out."""
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+    client.post("/run/queue/run", follow_redirects=True)
+    assert run_state(row.id) == "running"
+
+    _deliver(client, _live_job(row.id).job_id)
+
+    snapshot = queue_snapshot(row.id)
+    # Not stuck: the queue went on to the next module, or it is not running.
+    live = _live_job(row.id)
+    assert live is not None or snapshot["run_state"] != "running"
+    assert snapshot["review"] is False
+    assert all(module["technical_name"] != first["technical_name"] for module in snapshot["modules"])
+
+
+def test_run_pressed_during_a_play_run_stops_the_pipe_when_it_fails(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+    client.post("/run/queue/run", follow_redirects=True)
+
+    _deliver(client, _live_job(row.id).job_id, status="failed")
+
+    snapshot = queue_snapshot(row.id)
+    assert snapshot["run_state"] == "stopped"
+    assert snapshot["review"] is True
+
+
+def test_two_plays_at_once_run_one_module(client):
+    """The play check read a snapshot outside any lock, so two presses both
+    passed it and two agents worked on the same target database."""
+    import threading
+    import time
+
+    from odoo_migrator import jobs
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    _hold(client)
+    ones = [m for m in queue_snapshot(row.id)["modules"] if m["step"] == 1]
+    assert len(ones) >= 2
+    real = jobs.path_problems_blocking
+
+    def slow(*args, **kwargs):
+        time.sleep(0.2)
+
+        return real(*args, **kwargs)
+
+    jobs.path_problems_blocking = slow
+    results = []
+    try:
+        threads = [
+            threading.Thread(target=lambda m=m: results.append(_play(client, m["id"])))
+            for m in ones[:2]
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        jobs.path_problems_blocking = real
+
+    with database.connection_context():
+        running = Batch.select().where(
+            (Batch.migration == row.id) & (Batch.status == "running")
+        ).count()
+    assert running == 1
+    assert sorted(r.status_code for r in results) == [200, 400]
+
+
+def test_a_passed_play_run_closes_its_own_review_not_a_newer_one(client):
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+    job = _live_job(row.id)
+    with database.connection_context():
+        mine = Batch.get_by_id(job.batch_id)
+        newer = Batch.create(
+            migration=row.id, status="checkpoint", cartridge_id="stock", cartridge_version="1.0.0"
+        )
+
+    _deliver(client, job.job_id)
+
+    with database.connection_context():
+        assert Batch.get_by_id(newer.id).status == "checkpoint"
+        assert Batch.get_by_id(mine.id).status == "idle"
+
+
+def test_a_play_run_counts_one_of_one_and_not_a_stale_total(client):
+    from odoo_migrator.models import PipelineQueueState
+
+    row = _queue_both_steps(client)
+    _hold(client)
+    with database.connection_context():
+        state, _ = PipelineQueueState.get_or_create(migration=row.id)
+        state.run_total = 9
+        state.save()
+    first = queue_snapshot(row.id)["modules"][0]
+
+    _play(client, first["id"])
+
+    count = queue_snapshot(row.id)["count"]
+    assert (count["text"], count["unit"]) == ("1/1", "run")
+    assert "one module" in count["title"].lower()
+
+
+def test_a_card_that_holds_a_review_cannot_be_taken_out(client):
+    """Taking the only card that carries the review out left a page with a
+    disabled Run, a title that said "Continue on the card", and no card."""
+    row, first = _stopped_in_review(client)
+    snapshot = queue_snapshot(row.id)
+    card = next(m for m in snapshot["modules"] if m["id"] == first["id"])
+    last = snapshot["modules"][-1]
+
+    assert card["review"] is not None
+    # Every card after it can go, back to this one; this one stays.
+    for module in reversed(snapshot["modules"]):
+        if module["id"] == first["id"]:
+            break
+        assert _remove(client, module["id"]).status_code == 200
+    refused = _remove(client, first["id"])
+
+    assert refused.status_code == 400
+    assert "review" in refused.json()["error"].lower()
+    assert last["id"] != first["id"]
+    steps = queue_snapshot(row.id)["steps"]
+    held = next(s for s in steps if s["step"] == first["step"])
+    assert held["removable"] is False and "review" in held["why"].lower()
+
+
+def _publishes(client):
+    hub = client.app.state.hub
+    seen = []
+    original = hub.publish
+    hub.publish = lambda kind, data: (seen.append(kind), original(kind, data))[1]
+
+    return seen, lambda: setattr(hub, "publish", original)
+
+
+def test_continue_tells_the_other_pages_the_queue_moved(client):
+    row, first = _stopped_in_review(client)
+    seen, restore = _publishes(client)
+    try:
+        client.post("/run/continue", follow_redirects=True)
+    finally:
+        restore()
+
+    assert "queue" in seen
+
+
+def test_discarding_a_run_tells_the_other_pages_the_queue_moved(client):
+    row, first = _stopped_in_review(client)
+    seen, restore = _publishes(client)
+    try:
+        client.post(f"/run/modules/{first['id']}/discard-run", follow_redirects=True)
+    finally:
+        restore()
+
+    assert "queue" in seen
+
+
+def test_the_snapshot_does_not_ask_git_again_for_the_same_run_each_time(client, monkeypatch):
+    """Every publish and page render builds a snapshot, and a card in review
+    asked git for its changed files, two subprocesses, on each of them."""
+    from odoo_migrator import pipeline_queue
+
+    row, first = _stopped_in_review(client)
+    pipeline_queue._OFFERS.clear()
+    calls = []
+    real = pipeline_queue._discard_offer
+    monkeypatch.setattr(
+        pipeline_queue, "_discard_offer", lambda job: (calls.append(job.id), real(job))[1]
+    )
+
+    queue_snapshot(row.id)
+    queue_snapshot(row.id)
+    queue_snapshot(row.id)
+
+    assert len(calls) == 1
+
+
+def test_the_snapshot_reads_the_module_list_once(client, monkeypatch):
+    from odoo_migrator import graph, pipeline_queue
+
+    row = _queue_both_steps(client)
+    reads = []
+    real = graph.list_modules
+    counted = lambda migration_id: (reads.append(1), real(migration_id))[1]  # noqa: E731
+    monkeypatch.setattr(pipeline_queue, "list_modules", counted)
+    monkeypatch.setattr(graph, "list_modules", counted)
+
+    queue_snapshot(row.id)
+
+    assert len(reads) == 1
+
+
+def test_the_bar_counts_without_building_the_snapshot(client, monkeypatch):
+    from odoo_migrator import pipeline_queue
+
+    row = _queue_both_steps(client)
+    monkeypatch.setattr(
+        pipeline_queue, "queue_snapshot", lambda *_: pytest.fail("the bar asked for the snapshot")
+    )
+
+    count = pipeline_queue.nav_count(row.id)
+
+    assert count["unit"] == "queued" and count["queued"] >= 2

@@ -213,15 +213,19 @@ def list_modules(migration_id: str) -> list[dict]:
     return listed
 
 
-def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> list[dict]:
+def list_pipeline_steps(
+    migration_id: str, *, pending_only: bool = False, listed: list[dict] | None = None
+) -> list[dict]:
     """Dependency steps still in the plan — same waves as Tree.
 
     Struck modules are out. A wave whose modules have already passed stays
     in the list (``pending`` is 0) so Selection can show it. With
     ``pending_only``, those finished waves are omitted and ``modules`` is
-    only the work still left.
+    only the work still left. `listed` is the module list the caller already
+    has; without it the steps read their own.
     """
-    listed = list_modules(migration_id)
+    if listed is None:
+        listed = list_modules(migration_id)
     by_step: dict[int, list[dict]] = {}
     for row in listed:
         if row["struck_out"]:
@@ -270,9 +274,12 @@ def list_pipeline_steps(migration_id: str, *, pending_only: bool = False) -> lis
     return steps
 
 
-def modules_in_step_order(migration_id: str, step: int) -> list[dict]:
+def modules_in_step_order(
+    migration_id: str, step: int, *, listed: list[dict] | None = None
+) -> list[dict]:
     """Active modules on one dependency step, in migration order."""
-    listed = list_modules(migration_id)
+    if listed is None:
+        listed = list_modules(migration_id)
     active = [
         row
         for row in listed
@@ -872,36 +879,37 @@ def modules_in_batch_order(migration_id: str, batch_group: int) -> list[dict]:
     return [_module_row(row) for row in ordered]
 
 
-def earlier_steps_blocking(migration_id: str, step: int | None) -> str | None:
+def earlier_steps_blocking(
+    migration_id: str, step: int | None, *, listed: list[dict] | None = None
+) -> str | None:
     """A later wave does not start while an earlier one is still unfinished.
 
     Struck modules are out of the plan. Failed, queued, running and
     waiting_for_human on a previous step all block; passed and migrated do
-    not.
+    not. `listed` is the module list a caller that asks for many steps
+    already holds: the same ranks, read once.
     """
     if step is None or step <= 1:
 
         return None
-    with database.connection_context():
-        rows = list(
-            Module.select().where(
-                (Module.migration == migration_id) & (Module.struck_out == False)
-            )
-        )
+    if listed is None:
+        listed = list_modules(migration_id)
     # Ranked over every module, struck or not, as Tree and the queue rank
     # them. Ranking the kept ones alone moved a module whose parent was
     # struck one step up here, and the guard then blocked a step on the
     # very module it was starting.
-    ranks = steps_for_migration(migration_id)
+    ranks = {row["technical_name"]: row.get("step") or 1 for row in listed}
     blockers = [
         row
-        for row in rows
-        if row.status not in DONE and ranks.get(row.technical_name, 1) < step
+        for row in listed
+        if not row["struck_out"]
+        and row["status"] not in DONE
+        and ranks.get(row["technical_name"], 1) < step
     ]
     if not blockers:
 
         return None
-    earliest = min(ranks[row.technical_name] for row in blockers)
+    earliest = min(ranks[row["technical_name"]] for row in blockers)
 
     return f"Step {step} cannot start until step {earliest} is migrated."
 
