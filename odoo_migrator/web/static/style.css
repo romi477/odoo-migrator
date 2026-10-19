@@ -3402,6 +3402,130 @@ pre.test-output {
   }
 }
 
+/* The runner as a black box: the old module in at the left, the ported one out
+   at the right, a pair of meshed gears between. One attribute carries the
+   state. Idle rests in grey; a run turns the gears in amber, the colour of the
+   card's edge; a module waiting for a person stops them in amber; done stops
+   them green with the module at the output; failed stops them red with the
+   module still at the input. The small gear turns half as fast again as the
+   large one, as eight teeth do against twelve. */
+.machine {
+  --machine: var(--muted-low);
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(1rem, 1fr) auto minmax(1rem, 1fr) minmax(7rem, 11rem);
+  align-items: center;
+  min-width: 0;
+  color: var(--machine);
+}
+
+.machine[data-machine="run"],
+.machine[data-machine="stuck"] {
+  --machine: var(--amber);
+}
+
+.machine[data-machine="done"] {
+  --machine: var(--green);
+}
+
+.machine[data-machine="failed"] {
+  --machine: var(--red);
+}
+
+.machine-gears {
+  display: block;
+  flex: none;
+}
+
+.gear-big {
+  transform-origin: 30px 38px;
+}
+
+.gear-small {
+  transform-origin: 68px 38px;
+}
+
+@keyframes gear-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gear-turn-back {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes belt-run {
+  to {
+    background-position: 12px 0;
+  }
+}
+
+.machine[data-machine="run"] .gear-big {
+  animation: gear-turn 6s linear infinite;
+}
+
+.machine[data-machine="run"] .gear-small {
+  animation: gear-turn-back 4s linear infinite;
+}
+
+/* The belts either side of the gears: a still line, and dashes walking toward
+   the output while it works. */
+.machine-belt {
+  height: 1px;
+  margin: 0 6px;
+  background: var(--border-strong);
+}
+
+.machine[data-machine="run"] .machine-belt {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--machine) 0 6px,
+    transparent 6px 12px
+  );
+  animation: belt-run 0.9s linear infinite;
+}
+
+.machine-slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 2.6rem;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--muted-low);
+  font-size: 12px;
+}
+
+.machine-slot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.machine-slot.is-full {
+  border-style: solid;
+  border-color: var(--machine);
+  color: var(--muted);
+}
+
+.machine-slot.is-full .machine-slot-name {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .machine[data-machine="run"] .gear-big,
+  .machine[data-machine="run"] .gear-small,
+  .machine[data-machine="run"] .machine-belt {
+    animation: none;
+  }
+}
+
 .workspace-panel h2 {
   margin: 0;
   color: var(--muted);

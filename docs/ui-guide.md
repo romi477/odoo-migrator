@@ -277,7 +277,14 @@ under the ribbon as a thread. **Stop this run** ends the module after
 the model turn in flight (Cursor: at the step's end), between two test
 runs inside `tests`, and a parked one at once, withdrawing the question.
 The button reads *Stopping…* from the press until the run gets there.
-Empty reads "No module is running." SSE fills the stage; when the stream
+The card opens with the **machine**: a black box with a slot at each
+end, labelled with the migration's versions (`17.0 in`, `18.0 out`), and a pair of
+meshed gears between them. At rest it is grey with both slots empty. While a
+module runs its name is in the input slot, the gears turn in amber and the
+belts carry dashes toward the output; a module waiting for a person stops them
+(amber); a passed module leaves at the output with the gears green; a failed
+or stopped one stays at the input with the gears red. A reload shows the
+machine at rest: how the last run ended is not kept. SSE fills the stage; when the stream
 comes back after a drop or a restart, its first message repaints the card,
 the queue and the statuses. When a batch stops at checkpoint a banner
 appears: *This batch has finished. Reload to review it.* A wave the queue

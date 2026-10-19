@@ -57,17 +57,57 @@ function fillResultCornerGlyph(glyph, kind) {
     return pipe;
   }
 
-  /* Nothing is running: the card folds to its empty line. A page showing
+  /* The machine: gears turn while a module is in it, rest when it waits for a
+     person, and a finished one leaves at the output (passed) or stays at the
+     input (anything else). A page that reconnects hears "idle" and must not
+     wipe the result of the run it just watched end. */
+  const PASSED = { passed: true, migrated: true };
+
+  function setMachine(pipe, state, name) {
+    const machine = pipe.querySelector(".machine");
+    if (!machine) {
+      return;
+    }
+    const keep = { done: true, failed: true };
+    if (state === "idle" && keep[machine.getAttribute("data-machine")]) {
+      return;
+    }
+    const goes = {
+      run: ["in", ""],
+      stuck: ["in", ""],
+      failed: ["in", ""],
+      done: ["", "out"],
+      idle: ["", ""],
+    }[state];
+    machine.setAttribute("data-machine", state);
+    ["in", "out"].forEach(function (side) {
+      const slot = machine.querySelector('[data-machine-slot="' + side + '"]');
+      const label = slot && slot.querySelector("[data-machine-name]");
+      if (!slot || !label) {
+        return;
+      }
+      const holds = goes.indexOf(side) !== -1 && !!name;
+      slot.classList.toggle("is-full", holds);
+      label.textContent = holds ? name : "no module";
+    });
+  }
+
+  /* Nothing is running: the card folds to the machine at rest. A page showing
      hand edits keeps them; that list is the way out of a refused start. */
-  function idleCard(pipe) {
+  function idleCard(pipe, data) {
     const live = pipe.querySelector(".pipeline-live");
-    const empty = pipe.querySelector("[data-pipeline-empty]");
     const edits = pipe.querySelector("[data-hand-edits]");
     if (live) {
       live.hidden = true;
     }
-    if (empty) {
-      empty.hidden = !!edits;
+    if (data && data.status) {
+      setMachine(
+        pipe,
+        PASSED[data.status] ? "done" : "failed",
+        data.technical_name || ""
+      );
+    } else {
+      setMachine(pipe, "idle", "");
     }
     const stop = pipe.querySelector("[data-pipeline-stop]");
     if (stop) {
@@ -99,18 +139,19 @@ function fillResultCornerGlyph(glyph, kind) {
       return;
     }
     if (!INFLIGHT[data.status]) {
-      idleCard(pipe);
+      idleCard(pipe, data);
 
       return;
     }
     const live = pipe.querySelector(".pipeline-live");
-    const empty = pipe.querySelector("[data-pipeline-empty]");
     if (live) {
       live.hidden = false;
     }
-    if (empty) {
-      empty.hidden = true;
-    }
+    setMachine(
+      pipe,
+      data.status === "waiting_for_human" ? "stuck" : "run",
+      data.technical_name || ""
+    );
     if (!same) {
       pipe.setAttribute("data-module-id", String(data.id));
       pipe.removeAttribute("data-stopping");

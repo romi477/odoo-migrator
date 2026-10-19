@@ -1,0 +1,17 @@
+{# The two gears of the runner. The large one has twelve teeth, the small one
+   eight, and the small one is turned half a tooth, so the teeth sit in each
+   other's gaps on the line between the centres. Turning them at 6s and 4s a
+   turn keeps that fit (12:8), in opposite directions. Paths are generated, not
+   drawn: `currentColor`, so the state of the machine colours them. #}
+<svg class="machine-gears" viewBox="0 0 98 76" width="92" height="68"
+     fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"
+     aria-hidden="true">
+  <g class="gear gear-big">
+    <path d="M52.7 34.4 L58.9 35.4 L58.9 40.6 L52.7 41.6 L51.5 46.2 L56.3 50.2 L53.7 54.7 L47.9 52.5 L44.5 55.9 L46.7 61.7 L42.2 64.3 L38.2 59.5 L33.6 60.7 L32.6 66.9 L27.4 66.9 L26.4 60.7 L21.8 59.5 L17.8 64.3 L13.3 61.7 L15.5 55.9 L12.1 52.5 L6.3 54.7 L3.7 50.2 L8.5 46.2 L7.3 41.6 L1.1 40.6 L1.1 35.4 L7.3 34.4 L8.5 29.8 L3.7 25.8 L6.3 21.3 L12.1 23.5 L15.5 20.1 L13.3 14.3 L17.8 11.7 L21.8 16.5 L26.4 15.3 L27.4 9.1 L32.6 9.1 L33.6 15.3 L38.2 16.5 L42.2 11.7 L46.7 14.3 L44.5 20.1 L47.9 23.5 L53.7 21.3 L56.3 25.8 L51.5 29.8 Z"></path>
+    <circle cx="30" cy="38" r="6"></circle>
+  </g>
+  <g class="gear gear-small">
+    <path d="M82.8 40.3 L87.3 43.1 L85.3 48.0 L80.1 46.8 L76.8 50.1 L78.0 55.3 L73.1 57.3 L70.3 52.8 L65.7 52.8 L62.9 57.3 L58.0 55.3 L59.2 50.1 L55.9 46.8 L50.7 48.0 L48.7 43.1 L53.2 40.3 L53.2 35.7 L48.7 32.9 L50.7 28.0 L55.9 29.2 L59.2 25.9 L58.0 20.7 L62.9 18.7 L65.7 23.2 L70.3 23.2 L73.1 18.7 L78.0 20.7 L76.8 25.9 L80.1 29.2 L85.3 28.0 L87.3 32.9 L82.8 35.7 Z"></path>
+    <circle cx="68" cy="38" r="4"></circle>
+  </g>
+</svg>

@@ -1,5 +1,6 @@
 """Runner and Sheller are separate full-width screens. Task 13."""
 
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -79,7 +80,9 @@ def test_run_page_is_the_pipeline_only(client):
     assert page.text.count("data-pipeline\n") + page.text.count("data-pipeline ") == 1
     assert "data-run-log-panel" in page.text
     assert "data-observer" not in page.text
-    assert "No module is running." in page.text
+    # Nothing running is the machine at rest, not a sentence.
+    assert 'data-machine="idle"' in page.text
+    assert "No module is running." not in page.text
     assert 'data-screen="pipeline"' in page.text
     assert 'data-screen="sheller"' in page.text
 
@@ -160,7 +163,8 @@ def test_pipeline_shows_live_stage_and_attempt(client):
     assert "attempt 2" in page.text
     assert f'data-migration-id="{row.id}"' in page.text
     assert f'data-module-id="{sale["id"]}"' in page.text
-    assert "data-pipeline-empty hidden" in page.text
+    assert 'data-machine="run"' in page.text
+    assert "data-pipeline-empty" not in page.text
 
 
 def test_sheller_still_does_not_deep_link_or_show_session_id(client):
@@ -648,3 +652,51 @@ def test_a_log_line_opens_its_body_from_an_eye_not_a_word():
     assert 'open.textContent = "body"' not in script
     assert "eye()" in script
     assert "Show the body of this line" in script
+
+
+def test_the_machine_labels_its_slots_with_the_versions_of_the_migration(client):
+    _prepared(client)
+
+    page = client.get("/run").text
+    machine = page.split('class="machine"', 1)[1].split("</article>", 1)[0]
+
+    assert "17.0 in" in machine
+    assert "18.0 out" in machine
+    assert machine.count("no module") == 2
+    assert 'class="gear gear-big"' in machine and 'class="gear gear-small"' in machine
+
+
+def test_the_gears_have_twelve_teeth_and_eight_and_mesh(client):
+    _prepared(client)
+    page = client.get("/run").text
+    paths = re.findall(r'<g class="gear gear-(?:big|small)">\s*<path d="([^"]+)"', page)
+
+    # Four corners to a tooth.
+    assert [path.count("L") + path.count("M") for path in paths] == [48, 32]
+    css = client.get("/static/style.css").text
+    big = css.split(".machine[data-machine=\"run\"] .gear-big {")[1].split("}")[0]
+    small = css.split(".machine[data-machine=\"run\"] .gear-small {")[1].split("}")[0]
+
+    # Turn times in the ratio of the teeth, in opposite directions.
+    assert "gear-turn 6s" in big
+    assert "gear-turn-back 4s" in small
+
+
+def test_the_gears_turn_only_while_a_module_runs_and_stop_for_reduced_motion(client):
+    css = client.get("/static/style.css").text
+
+    # Every rule that starts a gear turning is the running state's.
+    for rule in re.findall(r"([^{}]+)\{[^{}]*animation: gear-turn", css):
+        assert 'data-machine="run"' in rule
+    reduced = css.split("@media (prefers-reduced-motion: reduce) {\n  .machine")[1].split("}\n}")[0]
+
+    assert "animation: none" in reduced
+
+
+def test_the_stream_moves_the_machine(client):
+    script = client.get("/static/sse.js").text
+
+    assert "function setMachine" in script
+    assert '"stuck"' in script and '"done"' in script and '"failed"' in script
+    # A reconnect says idle: it must not wipe how the run just ended.
+    assert "keep[machine.getAttribute" in script

@@ -1,0 +1,19 @@
+{# The runner as a black box: the module in its old version goes in on the
+   left, the ported one comes out on the right, and the gears between them turn
+   while it works. `data-machine` is the whole state: idle, run, stuck (waiting
+   for a person), done, failed. Callers pass machine_state, machine_src,
+   machine_dst, machine_in and machine_out (module names, or empty). #}
+<div class="machine" data-machine="{{ machine_state }}"
+     title="The old module goes in, the ported one comes out.">
+  <div class="machine-slot machine-in{% if machine_in %} is-full{% endif %}" data-machine-slot="in">
+    <span class="machine-slot-label">{% if machine_src %}{{ machine_src }} {% endif %}in</span>
+    <span class="machine-slot-name mono" data-machine-name>{{ machine_in or "no module" }}</span>
+  </div>
+  <span class="machine-belt" aria-hidden="true"></span>
+  {% include "_machine_gears.svg" %}
+  <span class="machine-belt" aria-hidden="true"></span>
+  <div class="machine-slot machine-out{% if machine_out %} is-full{% endif %}" data-machine-slot="out">
+    <span class="machine-slot-label">{% if machine_dst %}{{ machine_dst }} {% endif %}out</span>
+    <span class="machine-slot-name mono" data-machine-name>{{ machine_out or "no module" }}</span>
+  </div>
+</div>

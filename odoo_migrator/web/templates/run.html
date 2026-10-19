@@ -280,6 +280,15 @@
              data-pipeline
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}
              {% if live %}data-module-id="{{ live.module_id }}"{% endif %}>
+      {# The machine is always there. Empty it says nothing is running, with no
+         sentence to say it; sse.js turns its gears and fills its slots. #}
+      {% with machine_state = ('stuck' if live.status == 'waiting_for_human' else 'run') if live else 'idle',
+              machine_src = current.source_version if current else '',
+              machine_dst = current.target_version if current else '',
+              machine_in = live.module if live else '',
+              machine_out = '' %}
+      {% include "_machine.html" %}
+      {% endwith %}
       <div class="pipeline-live"{% if not live %} hidden{% endif %}>
         {# One line: who and how, the step it is in at the centre, Stop at the
            end. The step had a line of its own, and the card's middle stood
@@ -449,7 +458,6 @@
         {% endfor %}
       </div>
       {% endif %}
-      <p data-pipeline-empty{% if live or hand_edits %} hidden{% endif %}>No module is running.</p>
     </article>
   </div>
   {% elif screen == 'sheller' %}
