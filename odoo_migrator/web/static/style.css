@@ -3557,7 +3557,51 @@ pre.test-output {
   color: var(--text);
 }
 
+/* Sparks at the mesh while the machine works through a failure: a few small
+   red points that leave the teeth, most of them downward, two upward, each on
+   its own beat, and fade as they go. Only while the gears turn and the failure
+   lane is the step at work; when the lap is mended and goes on, they stop.
+   Each spark carries its own course in custom properties. */
+.sparks {
+  display: none;
+  /* A red that is lit: plain red is dim against the amber gears. */
+  color: color-mix(in oklch, var(--red) 88%, white);
+}
+
+.spark {
+  fill: currentColor;
+  opacity: 0;
+  /* Scale about the spark itself, not the corner of the drawing. */
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.machine[data-machine="run"][data-lane="failure"] .sparks {
+  display: block;
+}
+
+.machine[data-machine="run"][data-lane="failure"] .spark {
+  animation: spark var(--dur, 0.8s) ease-out var(--delay, 0s) infinite;
+}
+
+@keyframes spark {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(1);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0.3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .machine[data-machine="run"][data-lane="failure"] .spark,
   .machine[data-machine="run"] .gear-big,
   .machine[data-machine="run"] .gear-small,
   .machine[data-machine="run"] .machine-belt {

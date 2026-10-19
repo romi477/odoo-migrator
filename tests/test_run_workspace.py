@@ -781,3 +781,39 @@ def test_the_gears_touch_without_sinking_into_each_other(client):
     assert distance >= 29 + 15
     assert distance >= 20 + 23
     assert 'transform-origin: 78px 38px' in client.get("/static/style.css").text
+
+
+def test_sparks_leave_the_mesh_only_while_the_failure_lane_is_at_work(client):
+    _prepared(client)
+    page = client.get("/run").text
+    css = client.get("/static/style.css").text
+    script = client.get("/static/sse.js").text
+    sparks = re.findall(r'<circle class="spark" cx="61" cy="(\d+)"[^>]*--dy: (-?\d+)px', page)
+
+    # Most go down, two go up: all start at the mesh, between the gears.
+    assert len(sparks) == 7
+    assert sum(1 for _y, dy in sparks if int(dy) > 0) == 5
+    assert sum(1 for _y, dy in sparks if int(dy) < 0) == 2
+    # Hidden unless the machine runs AND the failure lane is at work.
+    assert css.split(".sparks {")[1].split("}")[0].count("display: none") == 1
+    shown = 'data-machine="run"][data-lane="failure"] .spark'
+    assert shown in css
+    assert "var(--red)" in css.split(".sparks {")[1].split("}")[0]
+    # The stream says it: a lane step running means sparks, and only for a
+    # machine at work.
+    assert 'step.state === "running"' in script
+    assert 'machine.setAttribute("data-lane", failing ? "failure" : "")' in script
+    reduced = css.split("@media (prefers-reduced-motion: reduce) {\n  .machine[data-machine=\"run\"][data-lane")[1]
+
+    assert "animation: none" in reduced.split("}\n}")[0]
+
+
+def test_the_machine_can_be_drawn_with_sparks_by_the_server(client):
+    """A page opened while the failure lane runs must start with them: the
+    attribute is rendered, not only set from the stream."""
+    page = client.get("/components").text
+    tag = re.search(r'<div class="machine"[^>]*data-lane="failure"[^>]*>', page)
+
+    assert tag is not None
+    assert 'data-machine="run"' in tag.group(0)
+    assert 'data-lane=""' in page

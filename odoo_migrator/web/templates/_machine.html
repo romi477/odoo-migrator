@@ -2,8 +2,9 @@
    left, the ported one comes out on the right, and the gears between them turn
    while it works. `data-machine` is the whole state: idle, run, stuck (waiting
    for a person), done, failed. Callers pass machine_state, machine_src,
-   machine_dst, machine_in and machine_out (module names, or empty). #}
-<div class="machine" data-machine="{{ machine_state }}"
+   machine_dst, machine_in and machine_out (module names, or empty), and
+   machine_lane: "failure" while the failure lane is at work, which throws sparks. #}
+<div class="machine" data-machine="{{ machine_state }}" data-lane="{{ machine_lane or '' }}"
      title="The old module goes in, the ported one comes out.">
   <div class="machine-slot machine-in{% if machine_in %} is-full{% endif %}" data-machine-slot="in">
     <span class="machine-slot-label">{% if machine_src %}{{ machine_src }} {% endif %}in</span>

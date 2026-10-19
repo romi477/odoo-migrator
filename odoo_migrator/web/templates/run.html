@@ -287,7 +287,10 @@
               machine_src = current.source_version if current else '',
               machine_dst = current.target_version if current else '',
               machine_in = live.module if live else '',
-              machine_out = '' %}
+              machine_out = '',
+              machine_lane = 'failure' if (live and ribbon and ribbon.lane
+                                            and (ribbon.lane | selectattr('state', 'equalto', 'running') | list))
+                              else '' %}
       {% include "_machine.html" %}
       {% endwith %}
       <div class="pipeline-live"{% if not live %} hidden{% endif %}>

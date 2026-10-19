@@ -723,6 +723,9 @@ tools offered: exec, read_file, report, source</pre>
   {% with machine_state = "done", machine_src = "17.0", machine_dst = "18.0", machine_in = "", machine_out = "sale_custom" %}
   <div class="workspace"><article class="workspace-panel">{% include "_machine.html" %}</article></div>
   {% endwith %}
+  {% with machine_state = "run", machine_src = "17.0", machine_dst = "18.0", machine_in = "sale_custom", machine_out = "", machine_lane = "failure" %}
+  <div class="workspace"><article class="workspace-panel">{% include "_machine.html" %}</article></div>
+  {% endwith %}
   {% with machine_state = "failed", machine_src = "17.0", machine_dst = "18.0", machine_in = "sale_custom", machine_out = "" %}
   <div class="workspace"><article class="workspace-panel">{% include "_machine.html" %}</article></div>
   {% endwith %}
@@ -732,7 +735,8 @@ tools offered: exec, read_file, report, source</pre>
   turns the gears, and the belts carry dashes toward the output. Top to
   bottom: idle, running, waiting for you (amber gears, still), done (green
   gears, the module at the output), failed (red gears, the module still at the
-  input). The input slot is amber and the output slot cyan in every state; the
+  input). Under them, running through a failure: the gears turn and red sparks
+  leave the mesh until the lap is mended. The input slot is amber and the output slot cyan in every state; the
   gears carry the state.</p>
 
   <h2>Working card</h2>

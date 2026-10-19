@@ -80,6 +80,10 @@ function fillResultCornerGlyph(glyph, kind) {
       idle: ["", ""],
     }[state];
     machine.setAttribute("data-machine", state);
+    /* Only a machine at work throws sparks, and paintCard says when. */
+    if (state !== "run") {
+      machine.setAttribute("data-lane", "");
+    }
     ["in", "out"].forEach(function (side) {
       const slot = machine.querySelector('[data-machine-slot="' + side + '"]');
       const label = slot && slot.querySelector("[data-machine-name]");
@@ -152,6 +156,15 @@ function fillResultCornerGlyph(glyph, kind) {
       data.status === "waiting_for_human" ? "stuck" : "run",
       data.technical_name || ""
     );
+    /* The failure lane is at work while one of its steps is running: sparks
+       until the lap is mended and goes on. */
+    const machine = pipe.querySelector(".machine");
+    if (machine && data.status !== "waiting_for_human") {
+      const failing = (data.lane || []).some(function (step) {
+        return step.state === "running";
+      });
+      machine.setAttribute("data-lane", failing ? "failure" : "");
+    }
     if (!same) {
       pipe.setAttribute("data-module-id", String(data.id));
       pipe.removeAttribute("data-stopping");

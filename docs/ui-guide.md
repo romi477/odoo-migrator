@@ -297,7 +297,9 @@ meshed gears between them. The slots have a hairline border, soft, because they 
 module runs its name is in the input slot, the gears turn in amber and the
 belts carry dashes toward the output; a module waiting for a person stops them
 (amber); a passed module leaves at the output with the gears green; a failed
-or stopped one stays at the input with the gears red. A reload shows the
+or stopped one stays at the input with the gears red. While the failure lane is
+at work (diagnose and what it opens) the gears keep turning and a few small red
+sparks leave the mesh, most of them down; they stop when the lap is mended and goes on. A reload shows the
 machine at rest: how the last run ended is not kept. SSE fills the stage; when the stream
 comes back after a drop or a restart, its first message repaints the card,
 the queue and the statuses. When a batch stops at checkpoint a banner
