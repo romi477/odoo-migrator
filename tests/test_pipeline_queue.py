@@ -964,8 +964,41 @@ def test_the_steps_are_wired_to_the_machine_slots_with_one_small_arrow_between_t
     assert "new ResizeObserver" in script and "new MutationObserver" in script
     # Rounded like the header's hook.
     assert "RADIUS = 9" in script and " Q" in script
-    amber = css.split('.workspace-panel:has(.machine[data-machine="run"]) .runner-wire {')[1].split("}")[0]
-    assert "var(--amber)" in amber
+    # In the input's amber, out in the output's cyan; whole while it runs.
+    assert "--wire: var(--amber)" in css.split(".runner-wire-in {")[1].split("}")[0]
+    assert "--wire: var(--cyan)" in css.split(".runner-wire-out {")[1].split("}")[0]
+    running = css.split('.workspace-panel:has(.machine[data-machine="run"]) .runner-wire {')[1].split("}")[0]
+    assert "var(--wire)" in running
+    # The arrows between steps turn from amber to cyan along the ribbon.
+    arrows = css.split('.ribbon:not(.ribbon-lane) .ribbon-node + .ribbon-node::before {\n  color: color-mix(in oklab')[1].split("}")[0]
+    assert "var(--along, 0)" in arrows
+    assert 'setProperty("--along"' in script
+
+
+def test_the_belts_take_their_slots_colours(client):
+    _row, _first, page = _running_page(client)
+    css = client.get("/static/style.css").text
+
+    assert 'class="machine-belt machine-belt-in"' in page
+    assert 'class="machine-belt machine-belt-out"' in page
+    assert "--belt: var(--amber)" in css.split(".machine-belt {")[1].split("}")[0]
+    assert "--belt: var(--cyan)" in css.split(".machine-belt-out {")[1].split("}")[0]
+    running = css.split('.machine[data-machine="run"] .machine-belt {')[1].split("}")[0]
+    assert "var(--belt) 0 6px" in running
+
+
+def test_a_stopped_batch_is_not_announced_as_finished(client):
+    """Stop is a hard stop: the notice said the batch had finished."""
+    hub = client.app.state.hub
+    _stopped_in_review(client)
+    announced = [event[1] for event in hub.published if event[0] == "checkpoint"]
+
+    assert announced and announced[-1]["stopped"] is True
+    script = client.get("/static/sse.js").text
+    assert '"The run was stopped."' in script
+    # A queue card that answers the review hides the notice, whichever event
+    # came first.
+    assert "data.modules.some(function (mod) { return mod.review; })" in client.get("/static/pipeline.js").text
 
 
 def test_a_module_run_on_its_own_does_not_stop_for_review_when_it_passed(client):

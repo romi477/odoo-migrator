@@ -356,6 +356,14 @@
       return;
     }
     lastQueueKey = key;
+    /* A card that answers the review makes the reload notice moot, whichever
+       of the two events came first. */
+    if (data.modules.some(function (mod) { return mod.review; })) {
+      const ready = document.querySelector("[data-checkpoint-ready]");
+      if (ready) {
+        ready.hidden = true;
+      }
+    }
     /* The step chips read this: which steps are queued, and which of those can be taken out. */
     window.dispatchEvent(new CustomEvent("queue-changed", { detail: data.steps || [] }));
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");

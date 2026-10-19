@@ -57,6 +57,14 @@
         middle: rect.top - origin.top + rect.height / 2,
       };
     };
+    /* Each step's place along the ribbon, for the arrows that turn from the
+       input's colour to the output's. */
+    boxes.forEach(function (node, index) {
+      const step = node.closest(".ribbon-node");
+      if (step) {
+        step.style.setProperty("--along", boxes.length > 1 ? String(index / (boxes.length - 1)) : "0");
+      }
+    });
     const from = box(inSlot);
     const to = box(outSlot);
     const first = box(boxes[0]);

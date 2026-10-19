@@ -490,7 +490,7 @@
      card carries; one that does is answered there without a reload. #}
   {% if screen == 'pipeline' and current %}
   <p class="checkpoint-ready" data-checkpoint-ready hidden>
-    This batch has finished. <a href="/run">Reload to review it.</a>
+    <span data-checkpoint-ready-text>This batch has finished.</span> <a href="/run">Reload to review it.</a>
   </p>
   {% endif %}
   {% if screen == 'pipeline' and checkpoint %}

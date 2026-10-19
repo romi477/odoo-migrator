@@ -10,9 +10,9 @@
     <span class="machine-slot-label">{% if machine_src %}{{ machine_src }} {% endif %}in</span>
     <span class="machine-slot-name mono" data-machine-name>{{ machine_in or "no module" }}</span>
   </div>
-  <span class="machine-belt" aria-hidden="true"></span>
+  <span class="machine-belt machine-belt-in" aria-hidden="true"></span>
   {% include "_machine_gears.svg" %}
-  <span class="machine-belt" aria-hidden="true"></span>
+  <span class="machine-belt machine-belt-out" aria-hidden="true"></span>
   <div class="machine-slot machine-out{% if machine_out %} is-full{% endif %}" data-machine-slot="out">
     <span class="machine-slot-label">{% if machine_dst %}{{ machine_dst }} {% endif %}out</span>
     <span class="machine-slot-name mono" data-machine-name>{{ machine_out or "no module" }}</span>

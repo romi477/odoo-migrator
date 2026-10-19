@@ -2548,7 +2548,7 @@ h2 {
   width: 3px;
   height: 14px;
   border-radius: 2px;
-  color: color-mix(in oklch, var(--cyan) 50%, white);
+  color: color-mix(in oklab, var(--cyan) 50%, white);
   background: linear-gradient(transparent, currentColor);
   box-shadow: 0 0 6px currentColor;
   opacity: 0;
@@ -2563,7 +2563,7 @@ h2 {
   0% {
     opacity: 0;
     transform: translateY(0);
-    color: color-mix(in oklch, var(--cyan) 50%, white);
+    color: color-mix(in oklab, var(--cyan) 50%, white);
   }
 
   15% {
@@ -3579,17 +3579,24 @@ button.queue-play:disabled {
 }
 
 /* The belts either side of the gears: a still line, and dashes walking toward
-   the output while it works. */
+   the output while it works. Each takes its slot's colour: amber from the old
+   module into the gears, cyan from the gears to the new one. Soft at rest,
+   like the slots' hairline; whole while it works. */
 .machine-belt {
+  --belt: var(--amber);
   height: 1px;
   margin: 0 6px;
-  background: var(--border-strong);
+  background: color-mix(in oklch, var(--belt) 35%, transparent);
+}
+
+.machine-belt-out {
+  --belt: var(--cyan);
 }
 
 .machine[data-machine="run"] .machine-belt {
   background: repeating-linear-gradient(
     90deg,
-    var(--machine) 0 6px,
+    var(--belt) 0 6px,
     transparent 6px 12px
   );
   animation: belt-run 0.9s linear infinite;
@@ -3960,10 +3967,13 @@ button.queue-play:disabled {
   padding: 0 32px;
 }
 
-/* Work flows through the blocks: while a module runs the arrows and the wires
-   are amber, the colour of the belts and the gears. */
+/* Work flows through the blocks, and the module turns from what it was into
+   what it becomes: while it runs the arrows go from the input's amber to the
+   output's cyan along the steps. `--along` is each step's place, 0 to 1, set
+   by wires.js; without it they are amber. Mixed in oklab: oklch turns the hue
+   through green on the way, and green here means passed. */
 .workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node + .ribbon-node::before {
-  color: var(--amber);
+  color: color-mix(in oklab, var(--cyan) calc(var(--along, 0) * 100%), var(--amber));
 }
 
 /* The wires from the input slot into the first step and from the last step
@@ -3978,22 +3988,32 @@ button.queue-play:disabled {
   pointer-events: none;
 }
 
+/* The way in is the input slot's amber, the way out the output slot's cyan:
+   soft at rest, whole while a module runs. */
+.runner-wire-in {
+  --wire: var(--amber);
+}
+
+.runner-wire-out {
+  --wire: var(--cyan);
+}
+
 .runner-wire {
   fill: none;
-  stroke: var(--muted-low);
+  stroke: color-mix(in oklch, var(--wire) 45%, transparent);
   stroke-width: 1;
 }
 
 .runner-wire-head {
-  fill: var(--muted-low);
+  fill: color-mix(in oklch, var(--wire) 45%, transparent);
 }
 
 .workspace-panel:has(.machine[data-machine="run"]) .runner-wire {
-  stroke: var(--amber);
+  stroke: var(--wire);
 }
 
 .workspace-panel:has(.machine[data-machine="run"]) .runner-wire-head {
-  fill: var(--amber);
+  fill: var(--wire);
 }
 
 .ribbon-box {

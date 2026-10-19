@@ -408,7 +408,11 @@ function fillResultCornerGlyph(glyph, kind) {
        event before this one drew it: no notice, and nothing to reload. */
     if (ready && !document.querySelector("[data-queue-review]")) {
       /* A link, not a reload: the page may hold a half-typed answer, and
-         the review is built server-side. */
+         the review is built server-side. A stop is not a finish. */
+      const text = ready.querySelector("[data-checkpoint-ready-text]");
+      if (text) {
+        text.textContent = data.stopped ? "The run was stopped." : "This batch has finished.";
+      }
       ready.hidden = false;
     }
   });

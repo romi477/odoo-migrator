@@ -702,7 +702,17 @@ def _announce_review(hub: EventHub, migration_id: str, batch_id: int) -> None:
     from odoo_migrator.pipeline_queue import publish_queue
 
     publish_queue(hub, migration_id)
-    hub.publish("checkpoint", {"migration_id": migration_id, "batch_id": batch_id})
+    # A batch a person stopped did not finish, and the page says which.
+    with database.connection_context():
+        stopped = (
+            Job.select()
+            .where((Job.batch == batch_id) & (Job.status == "stopped"))
+            .exists()
+        )
+    hub.publish(
+        "checkpoint",
+        {"migration_id": migration_id, "batch_id": batch_id, "stopped": stopped},
+    )
 
 
 def _end_batch(batch_id: int, migration_id: str, executor, hub: EventHub) -> None:
