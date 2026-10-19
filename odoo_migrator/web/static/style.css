@@ -3494,7 +3494,7 @@ button.queue-play:disabled {
   }
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden]) .machine[data-machine="run"])::after {
+.workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -3506,7 +3506,7 @@ button.queue-play:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-panel:has(.pipeline-live:not([hidden]) .machine[data-machine="run"])::after {
+  .workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])::after {
     animation: none;
   }
 }

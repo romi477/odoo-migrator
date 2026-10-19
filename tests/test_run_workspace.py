@@ -733,7 +733,7 @@ def test_the_card_of_the_run_has_a_cyan_edge_and_an_amber_glow_that_breathes(cli
     css = client.get("/static/style.css").text
     live = ".workspace-panel:has(.pipeline-live:not([hidden]))"
     edge = css.split(live + " {")[1].split("}")[0]
-    running = '.workspace-panel:has(.pipeline-live:not([hidden]) .machine[data-machine="run"])'
+    running = '.workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])'
     breathing = css.split(running + "::after {")[1].split("}")[0]
     frames = css.split("@keyframes work-breathe")[1].split("}\n\n.")[0]
 
@@ -824,3 +824,18 @@ def test_the_gears_turn_slightly_red_while_the_failure_lane_is_at_work(client):
     # Between the amber of work and the red of a failure, and it fades back.
     assert "var(--amber) 35%, var(--red)" in rule
     assert "transition: color" in machine
+
+
+def test_the_glow_selector_matches_how_the_page_nests_the_machine_and_the_live_panel(client):
+    """The machine is the live panel's sibling, not its child: a selector that
+    asked for one inside the other never matched, and the card never breathed."""
+    _prepared(client)
+    page = client.get("/run").text
+    live_at = page.index('class="pipeline-live"')
+    machine_at = page.index('class="machine"')
+
+    assert machine_at < live_at
+    # The machine's element closes before the live panel opens.
+    assert "</div>" in page[machine_at:live_at]
+    css = client.get("/static/style.css").text
+    assert ".workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine=\"run\"])::after" in css
