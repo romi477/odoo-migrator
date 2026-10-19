@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from odoo_migrator.runner.prompting import run_agent_step
-from odoo_migrator.runner.steps import ask_human, lint, tests, upgrade, verdict
+from odoo_migrator.runner.steps import ask_human, lint, smoke, tests, upgrade, verdict
 
 _RUNNERS = {
     "agent": run_agent_step,
     "lint": lint.run,
     "upgrade": upgrade.run,
     "tests": tests.run,
+    "smoke": smoke.run,
     "verdict": verdict.run,
     "ask_human": ask_human.run,
 }

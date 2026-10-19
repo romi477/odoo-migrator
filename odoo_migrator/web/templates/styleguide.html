@@ -140,6 +140,11 @@
       container. No test classes is a success that raises
       <span class="mono">no_tests</span>, which is what opens the next two
       blocks. A failing test leaves the pipeline for the side lane.</li>
+      <li><strong>smoke</strong> uses the module the way a person would, with
+      no model and nothing written: a new record of each of its models, its
+      fields read on existing ones, each action's domain, each report, and the
+      asset bundles it adds to, compiled. Tests prove only what they assert;
+      this is what they do not try. A break in the module fails the lap.</li>
       <li><strong>probe</strong> <span class="mono">if no_tests</span> replays
       the understand recipe on both versions, calls the same methods, and
       reports every difference. A recipe that will not replay on the new

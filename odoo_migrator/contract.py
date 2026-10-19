@@ -23,6 +23,7 @@ KNOWN_STAGES = (
     "lint",
     "upgrade",
     "tests",
+    "smoke",
     "probe",
     "write_test",
     "verdict",

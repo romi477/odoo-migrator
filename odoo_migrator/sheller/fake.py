@@ -193,6 +193,11 @@ class FakeShellerClient:
         # fragment -> fields merged into the answer of an exec whose code
         # contains it. How a test makes Odoo raise, or log, for one command.
         self.exec_answers: dict[str, dict] = {}
+        # What the smoke step's script finds, as the script reports it: each
+        # problem a dict of where, error, own and trace. Empty is a module that
+        # nothing broke; `smoke_checked` is what the script says it tried.
+        self.smoke_problems: list[dict] = []
+        self.smoke_checked: dict[str, int] = {"models": 1, "fields": 2, "bundles": 1}
         # spec -> fields merged into that run's `test` block.
         self.test_outcomes: dict[str, dict] = {}
         # Specs whose run outlives the call: `run_test` raises ShellerTimeout
@@ -447,6 +452,8 @@ class FakeShellerClient:
             result = repr(
                 json.dumps({"installed": sorted(names), "addons_path": addons_path})
             )
+        elif "_get_asset_bundle" in code and "'problems'" in code:
+            result = repr(json.dumps({"checked": self.smoke_checked, "problems": self.smoke_problems}))
         answer = {
             "id": command_id,
             "stdout": "",

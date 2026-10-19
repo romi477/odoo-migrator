@@ -143,6 +143,7 @@ pipeline:
   - step: lint
   - step: upgrade
   - step: tests
+  - step: smoke
 
   - step: agent
     id: probe

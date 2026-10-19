@@ -45,6 +45,13 @@ _HINTS = {
         "Runs the module's own test classes on the target container. No classes "
         "is a success that raises no_tests. A failing test leaves the pipeline."
     ),
+    "smoke": (
+        "No model. Uses the module the way a person would, on the target "
+        "container: a new record's defaults and computed fields, its fields "
+        "read on existing records, each action's domain, each report, and the "
+        "asset bundles it adds to, compiled. Nothing is written. A break in "
+        "the module's own fails the lap; one in another module's is a finding."
+    ),
     "probe": (
         "Only when the module has no tests. Replays the understand recipe on "
         "both versions and reports every difference. A real one raises "
@@ -88,6 +95,7 @@ _KIND_HINTS = {
     "lint": _HINTS["lint"],
     "upgrade": _HINTS["upgrade"],
     "tests": _HINTS["tests"],
+    "smoke": _HINTS["smoke"],
     "verdict": _HINTS["verdict"],
     "ask_human": _HINTS["ask_human"],
 }

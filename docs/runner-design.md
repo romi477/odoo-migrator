@@ -546,6 +546,7 @@ pipeline:
   - step: lint
   - step: upgrade
   - step: tests
+  - step: smoke
 
   - step: agent
     id: probe
@@ -738,6 +739,22 @@ with target. A change under a `# migrator: target-differs` line is explained:
 the lap goes on and the change is a finding in the review. One without it fails
 the lap, before running anything, and the failure lane puts the assertion back
 or explains it (`test_names.test_expectations`).
+
+**After the tests, the module is used the way a person would use it.** A test
+proves what it asserts and is only Python. The `smoke` step, with no model and
+nothing written, asks the target database what the module registered
+(`ir.model.data` under its name, and its manifest's `assets`) and tries each
+thing: a new record of each model it declares fields on, with the defaults a
+form opens with and the module's fields computed; its fields read on the latest
+twenty records; each window action's domain evaluated and searched; each report
+rendered as HTML on one record; each asset bundle it adds to compiled past the
+cache, its styles, its templates, and every file its manifest lists. Odoo checks
+views and XML references when it installs a module; it does none of these. Each
+check runs under a savepoint and the session is rolled back after. A
+`UserError` is the module refusing as it would refuse a person, not a break. A
+break in what the module declared, or with a traceback through its files, fails
+the lap and the failure lane gets where and why; a bundle broken by another
+module is a finding, and so are checks that could not run.
 
 A difference
 nobody can trace to a rule is not marked: the assertion stays as the source had

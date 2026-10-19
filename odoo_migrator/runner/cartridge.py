@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from odoo_migrator.runner.tools import TOOL_SIDES
 
-DETERMINISTIC = ("lint", "upgrade", "tests", "verdict", "ask_human")
+DETERMINISTIC = ("lint", "upgrade", "tests", "smoke", "verdict", "ask_human")
 KINDS = DETERMINISTIC + ("agent",)
 BUILTIN_FLAGS = {"no_tests": "tests", "tests_failed": "tests", "lint_failed": "lint"}
 # Flags a deterministic step reads, by that step's kind. A cartridge raises

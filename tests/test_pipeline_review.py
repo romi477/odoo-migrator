@@ -261,6 +261,96 @@ def test_a_failed_upgrade_is_a_failed_line_in_the_run_log(ctx_for, sheller):
     assert "ParseError: while parsing views.xml" in calls[0][6]
 
 
+# -- smoke: the module used the way a person would, no model, nothing written ----
+
+
+def test_smoke_tries_the_module_and_rolls_the_session_back(ctx_for, sheller):
+    from odoo_migrator.runner.steps import smoke
+
+    calls = []
+    ctx = ctx_for()
+    ctx.record_tool = lambda *args: calls.append(args)
+
+    result = smoke.run(Step(kind="smoke"), ctx)
+
+    assert result.ok is True
+    assert result.output == "sale_custom: 1 model, 2 fields, 1 bundle; nothing broke"
+    code = sheller.execs[-1]
+    assert "'sale_custom'" in code and "_get_asset_bundle" in code and "savepoint" in code
+    assert ctx.sessions["target"] in sheller.rollbacks
+    assert ctx.sessions["target"] not in sheller.commits
+    ((tool, side, _session, command_id, _ms, ok, preview),) = calls
+    assert (tool, side, ok) == ("smoke", "target", True) and command_id
+    assert preview.endswith("nothing broke")
+
+
+def test_a_break_in_the_module_fails_smoke_with_where_and_why(ctx_for, sheller):
+    from odoo_migrator.runner.steps import smoke
+
+    sheller.smoke_problems = [
+        {
+            "where": "sale.order: a new record (defaults and computed fields)",
+            "error": "AttributeError: 'sale.order' object has no attribute 'mig_colour'",
+            "own": True,
+            "trace": 'File "/opt/project/sale_custom/models/sale_order.py", line 12',
+        },
+        {
+            "where": "bundle web.assets_backend: styles",
+            "error": "Undefined variable: $o-brand in /other_module/static/x.scss",
+            "own": False,
+            "trace": "",
+        },
+    ]
+    ctx = ctx_for()
+
+    result = smoke.run(Step(kind="smoke"), ctx)
+
+    assert result.ok is False
+    assert "broke 1 time(s)" in result.output
+    assert "sale.order: a new record" in result.output and "mig_colour" in result.output
+    assert "sale_order.py" in result.output
+    # Another module's break is not this port's to fix: the review is told.
+    assert "$o-brand" not in result.output
+    assert any("$o-brand" in finding["text"] for finding in ctx.findings)
+
+
+def test_checks_that_could_not_run_do_not_fail_the_lap(ctx_for, sheller):
+    from odoo_migrator.runner.steps import smoke
+
+    sheller.exec_answers["_get_asset_bundle"] = {
+        "error": {"type": "ImportError", "message": "cannot import name 'safe_eval'"},
+        "result": None,
+    }
+    ctx = ctx_for()
+
+    result = smoke.run(Step(kind="smoke"), ctx)
+
+    assert result.ok is True
+    assert result.output.startswith("not run: ImportError")
+    assert any(finding["source"] == "smoke" for finding in ctx.findings)
+    assert ctx.sessions["target"] in sheller.rollbacks
+
+
+def test_the_smoke_script_runs_as_python_for_any_module_name():
+    from odoo_migrator.runner.steps.smoke import _SCRIPT
+
+    code = _SCRIPT.format(name="sale_custom")
+
+    compile(code, "smoke", "exec")
+    assert "_name = 'sale_custom'" in code
+    # The last line is the answer the step reads.
+    assert code.rstrip().splitlines()[-1].startswith("_json.dumps(")
+
+
+def test_the_stock_flow_smokes_after_the_tests():
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    flow = load_cartridge_file(Path("cartridges/stock.yaml"))
+    kinds = [step.id or step.kind for step in flow.pipeline]
+
+    assert kinds.index("smoke") == kinds.index("tests") + 1
+
+
 def test_upgrade_drops_the_old_versions_migration_scripts_first(ctx_for, tmp_path):
     """Before Odoo reads the ported module: an old `migrations/17.0.*` would
     run on the new framework."""
