@@ -4082,10 +4082,12 @@ button.queue-play:disabled {
   zoom: var(--fit, 1);
 }
 
-/* Too long for one line even scaled down: a snake on a grid. Every row shares
-   the columns, so the steps stand in a chessboard, each as wide as its column;
-   a row run back, right to left, has its arrows on the right, turned round.
-   The first step of a row has no arrow: the turn wires.js draws leads in. */
+/* Too long for one line even scaled down: a snake in columns on a grid. The
+   first column runs down, the next up, and so on; every column is as wide as
+   its widest step. Inside a column the arrow is in the gap above the step
+   (down) or below it (up), turned to point the way the column runs. The first
+   step of a column sits in the same row as the last of the one before, so
+   its arrow is the plain one, along the row. */
 .ribbon.is-snake {
   display: grid;
   grid-template-columns: repeat(var(--snake-columns), auto);
@@ -4106,20 +4108,25 @@ button.queue-play:disabled {
 
 .ribbon.is-snake > .ribbon-node + .ribbon-node::before {
   position: absolute;
-  top: 50%;
-  left: -4px;
+  left: 50%;
   margin: 0;
-  transform: translateY(-50%);
 }
 
-.ribbon.is-snake > .ribbon-node[data-snake="back"]::before {
-  left: auto;
-  right: -4px;
-  transform: translateY(-50%) scaleX(-1);
+.ribbon.is-snake > .ribbon-node[data-snake="down"]::before {
+  top: -10px;
+  transform: translateX(-50%) rotate(90deg);
+}
+
+.ribbon.is-snake > .ribbon-node[data-snake="up"]::before {
+  bottom: -10px;
+  transform: translateX(-50%) rotate(-90deg);
 }
 
 .ribbon.is-snake > .ribbon-node[data-snake-turn]::before {
-  display: none;
+  top: 50%;
+  bottom: auto;
+  left: -4px;
+  transform: translateY(-50%);
 }
 
 /* Work flows through the blocks, and the module turns from what it was into
@@ -4151,28 +4158,6 @@ button.queue-play:disabled {
 
 .runner-wire-out {
   --wire: var(--cyan);
-}
-
-/* A turn between the rows of a snaking ribbon is an arrow between two steps,
-   and takes theirs: grey at rest, amber to cyan along the steps while a module
-   runs. */
-.runner-wire-turn {
-  --wire: var(--muted-low);
-}
-
-.workspace-panel:has(.machine[data-machine="run"]) .runner-wire-turn {
-  --wire: color-mix(in oklab, var(--cyan) calc(var(--along, 0) * 100%), var(--amber));
-}
-
-/* Whole, like the arrows it stands for, at rest and at work. */
-.runner-wire.runner-wire-turn,
-.workspace-panel:has(.machine[data-machine="run"]) .runner-wire.runner-wire-turn {
-  stroke: var(--wire);
-}
-
-.runner-wire-head.runner-wire-turn,
-.workspace-panel:has(.machine[data-machine="run"]) .runner-wire-head.runner-wire-turn {
-  fill: var(--wire);
 }
 
 .runner-wire {

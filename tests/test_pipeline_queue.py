@@ -1542,20 +1542,21 @@ def test_steps_that_end_together_are_drawn_a_beat_apart(client):
 
 def test_a_long_flow_is_scaled_to_one_line_and_snakes_past_that(client):
     """Twelve steps wrapped the last one onto a line of its own. The ribbon
-    is scaled down to fit first; past the smallest size it snakes on a grid,
-    the next row run back, joined by a turn, so the flow never jumps back."""
+    is scaled down to fit first; past the smallest size it snakes in columns,
+    down, then up, then down, so the flow never jumps back."""
     script = client.get("/static/wires.js").text
     css = client.get("/static/style.css").text
 
     assert "const SMALLEST = 0.78" in script
     assert 'setProperty("--fit"' in script
     assert "zoom: var(--fit, 1)" in css
-    # The snake: every row shares the columns, a row back runs right to left.
+    # The snake: columns on a grid, the first down, the next up.
     assert 'classList.add("is-snake")' in script
     assert "grid-template-columns: repeat(var(--snake-columns), auto)" in css
-    assert '[data-snake="back"]::before' in css and "scaleX(-1)" in css
-    # Rows are joined by a turn, and the first step of a row has no arrow of its own.
-    assert "function turn(" in script and "runner-wire-turn" in script
+    assert 'node.setAttribute("data-snake", up ? "up" : "down")' in script
+    assert '[data-snake="down"]::before' in css and "rotate(90deg)" in css
+    assert '[data-snake="up"]::before' in css and "rotate(-90deg)" in css
+    # Two columns meet in one row: the first step of a column takes the plain
+    # arrow along the row, and no wire is drawn for the turn.
     assert "[data-snake-turn]::before" in css
-    # A snake that ends on a row run back leaves under the rows.
-    assert 'getAttribute("data-snake") === "back"' in script
+    assert "runner-wire-turn" not in script and "runner-wire-turn" not in css

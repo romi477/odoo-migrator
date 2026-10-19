@@ -38,14 +38,12 @@
   /* The steps on one line. A flow with more steps than the card is wide
      wrapped one or two of them onto a line of their own, under the rest. The
      ribbon is scaled down to fit, as a whole, to no less than SMALLEST. Past
-     that it keeps that size and snakes: rows on a grid whose columns every
-     row shares, the first left to right, the next back right to left, and
-     so on, joined at the ends by a turn, so the flow never jumps back to the
-     start of a line. Measured at full size each time, so a wider card, or a
-     flow with fewer steps, gets its full size back. */
+     that it keeps that size and snakes in columns: the first top to bottom,
+     the next bottom to top, and so on. Two columns meet in the same row, so
+     the step from one into the next is a plain arrow along the row and the
+     flow never jumps back. Measured at full size each time, so a wider card,
+     or a flow with fewer steps, gets its full size back. */
   const SMALLEST = 0.78;
-  /* How far a turn between two rows reaches past the end of the rows. */
-  const TURN = 12;
 
   function unsnake(ribbon, nodes) {
     ribbon.classList.remove("is-snake");
@@ -63,13 +61,13 @@
     ribbon.classList.add("is-snake");
     ribbon.style.setProperty("--snake-columns", String(columns));
     nodes.forEach(function (node, index) {
-      const row = Math.floor(index / columns);
-      const place = index % columns;
-      const back = row % 2 === 1;
-      node.style.setProperty("--snake-row", String(row + 1));
-      node.style.setProperty("--snake-column", String(back ? columns - place : place + 1));
-      node.setAttribute("data-snake", back ? "back" : "forward");
-      node.toggleAttribute("data-snake-turn", row > 0 && place === 0);
+      const column = Math.floor(index / rows);
+      const place = index % rows;
+      const up = column % 2 === 1;
+      node.style.setProperty("--snake-row", String(up ? rows - place : place + 1));
+      node.style.setProperty("--snake-column", String(column + 1));
+      node.setAttribute("data-snake", up ? "up" : "down");
+      node.toggleAttribute("data-snake-turn", column > 0 && place === 0);
     });
   }
 
@@ -97,43 +95,14 @@
     }
     ribbon.style.setProperty("--fit", String(SMALLEST));
     /* The grid's columns are as wide as their widest step, so a guess from
-       the total can come out too wide: one more row until it fits. */
+       the total can come out too wide: one more row, so one column fewer,
+       until it fits. */
     for (let rows = Math.max(2, Math.ceil((natural * SMALLEST) / room)); rows <= nodes.length; rows++) {
       snake(ribbon, nodes, rows);
       if (ribbon.scrollWidth <= ribbon.clientWidth + 1) {
         break;
       }
     }
-  }
-
-  /* A turn between two rows: out of the end of one row, round and back into
-     the end of the next, on the side the rows meet. */
-  function turn(svg, prev, next, right, along) {
-    const x = right ? Math.max(prev.right, next.right) + 2 + TURN : Math.min(prev.left, next.left) - 2 - TURN;
-    const sign = right ? 1 : -1;
-    const start = right ? prev.right + 2 : prev.left - 2;
-    const end = right ? next.right + 2 : next.left - 2;
-    const path = el("path", {
-      class: "runner-wire runner-wire-turn",
-      d:
-        "M" + start + " " + prev.middle +
-        " H" + (x - sign * RADIUS) +
-        " Q" + x + " " + prev.middle + " " + x + " " + (prev.middle + RADIUS) +
-        " V" + (next.middle - RADIUS) +
-        " Q" + x + " " + next.middle + " " + (x - sign * RADIUS) + " " + next.middle +
-        " H" + (end + sign * HEAD),
-    });
-    const head = el("path", {
-      class: "runner-wire-head runner-wire-turn",
-      d:
-        "M" + (end + sign * HEAD) + " " + (next.middle - 4) +
-        " L" + end + " " + next.middle +
-        " L" + (end + sign * HEAD) + " " + (next.middle + 4) + " Z",
-    });
-    [path, head].forEach(function (node) {
-      node.style.setProperty("--along", String(along));
-      svg.appendChild(node);
-    });
   }
 
   function draw(panel) {
@@ -203,44 +172,18 @@
       })
     );
 
-    /* The turns of a snaking ribbon, in the colour of the step they lead into. */
-    const nodes = Array.prototype.slice.call(boxes);
-    nodes.forEach(function (node, index) {
-      const step = node.closest(".ribbon-node");
-      if (index && step && step.hasAttribute("data-snake-turn")) {
-        const before = boxes[index - 1].closest(".ribbon-node");
-        turn(
-          svg,
-          box(boxes[index - 1]),
-          box(node),
-          before.getAttribute("data-snake") === "forward",
-          boxes.length > 1 ? index / (boxes.length - 1) : 0
-        );
-      }
-    });
-
+    /* The last step is in the last column, at its top or its bottom: either
+       way nothing stands to its right, and the way out leaves along its row. */
     const x1 = to.right - INSET;
     const up = to.bottom + 1;
-    const lastStep = boxes[boxes.length - 1].closest(".ribbon-node");
-    /* A ribbon that ends on a row run right to left ends at its left: the
-       way out goes under the rows, then up the right side to the slot. */
-    const under = lastStep && lastStep.getAttribute("data-snake") === "back";
-    const floor = box(ribbon).bottom + 10;
-    const centre = (last.left + last.right) / 2;
     svg.appendChild(
       el("path", {
         class: "runner-wire runner-wire-out",
-        d: under
-          ? "M" + centre + " " + (last.bottom + 2) +
-            " V" + (floor - RADIUS) +
-            " Q" + centre + " " + floor + " " + (centre + RADIUS) + " " + floor +
-            " H" + (x1 - RADIUS) +
-            " Q" + x1 + " " + floor + " " + x1 + " " + (floor - RADIUS) +
-            " V" + (up + HEAD)
-          : "M" + (last.right + 2) + " " + last.middle +
-            " H" + (x1 - RADIUS) +
-            " Q" + x1 + " " + last.middle + " " + x1 + " " + (last.middle - RADIUS) +
-            " V" + (up + HEAD),
+        d:
+          "M" + (last.right + 2) + " " + last.middle +
+          " H" + (x1 - RADIUS) +
+          " Q" + x1 + " " + last.middle + " " + x1 + " " + (last.middle - RADIUS) +
+          " V" + (up + HEAD),
       })
     );
     svg.appendChild(
