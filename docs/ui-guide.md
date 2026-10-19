@@ -240,7 +240,10 @@ tick. A thin cable is plugged into the bar's lower edge and runs into the
 Queue card, and a second one, also on the left, leaves the Queue card, runs down the
 gutter and enters the card of the run. Both, and the Queue card's edge, are colourless while the queue is empty
 and cyan once it holds something; a pulse of light travels down each
-cable, from the bar to the queue and from the queue to the run, while the queue runs. The log is not a card: it is the canvas at the bottom of
+cable, from the bar to the queue and from the queue to the run, while the queue runs.
+The pulse is paler than the cable, and the second cable shades from cyan, the
+queue's colour, to amber, the colour of the card of the run; its arrowhead is
+amber while the queue runs The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
 window. The log follows one job and starts each on a clean page: the moment a
 new job begins, by the queue taking the next module or by a module started by

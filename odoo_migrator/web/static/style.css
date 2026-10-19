@@ -2448,7 +2448,7 @@ h2 {
   width: 3px;
   height: 10px;
   border-radius: 2px;
-  background: linear-gradient(transparent, var(--cable));
+  background: linear-gradient(transparent, color-mix(in oklch, var(--cyan) 50%, white));
   opacity: 0;
 }
 
@@ -2537,9 +2537,48 @@ h2 {
   border-left: 5px solid var(--cable);
 }
 
-/* The pulse on the cable from the queue to the run: a short bright bar that
-   leaves the plug and runs down the cable, again and again, for as long as the
-   queue runs. Idle, it is not drawn. The head leads, the tail fades behind. */
+/* While the queue runs the cable from the queue to the run changes colour on
+   its way: cyan where it leaves the queue, amber where it enters the run, the
+   colours of the two cards. A cable cannot take a gradient on a border with a
+   radius, so the wire is a ring cut out of a gradient box, and the cable's own
+   border is hidden meanwhile. The plug stays cyan, the arrowhead turns amber.
+   Idle, the wire is not drawn. */
+.runner-link-wire {
+  display: none;
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  right: 0;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-right: 0;
+  border-radius: 9px 0 0 9px;
+  background: linear-gradient(to bottom, var(--cyan), var(--amber)) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0);
+}
+
+.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link,
+.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link {
+  border-color: transparent;
+}
+
+.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link-wire,
+.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link-wire {
+  display: block;
+}
+
+.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link::after,
+.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link::after {
+  border-left-color: var(--amber);
+}
+
+/* The pulse: a short bar, paler than the cable so it shows on either colour,
+   that leaves the plug and runs down the cable, again and again, for as long
+   as the queue runs, taking the cable's colours on the way. Idle, it is not
+   drawn. The head leads, the tail fades behind. */
 .runner-link-pulse {
   position: absolute;
   left: -2px;
@@ -2547,8 +2586,9 @@ h2 {
   width: 3px;
   height: 14px;
   border-radius: 2px;
-  background: linear-gradient(transparent, var(--cable));
-  box-shadow: 0 0 6px var(--cable);
+  color: color-mix(in oklch, var(--cyan) 50%, white);
+  background: linear-gradient(transparent, currentColor);
+  box-shadow: 0 0 6px currentColor;
   opacity: 0;
 }
 
@@ -2561,6 +2601,7 @@ h2 {
   0% {
     opacity: 0;
     transform: translateY(0);
+    color: color-mix(in oklch, var(--cyan) 50%, white);
   }
 
   15% {
@@ -2570,12 +2611,14 @@ h2 {
   70% {
     opacity: 1;
     transform: translateY(34px);
+    color: color-mix(in oklch, var(--amber) 50%, white);
   }
 
   85%,
   100% {
     opacity: 0;
     transform: translateY(40px);
+    color: color-mix(in oklch, var(--amber) 50%, white);
   }
 }
 
