@@ -320,6 +320,7 @@ def start_job(
     batch_id: int | None = None,
     smoke: bool = False,
     cartridge=None,
+    auto_continue: bool = False,
 ) -> Job:
     with database.connection_context():
         module_row = Module.get_or_none(
@@ -385,6 +386,7 @@ def start_job(
                     # has to be written when its result lands rather than
                     # read back a millisecond after the trigger left.
                     status="smoke" if smoke else "running",
+                    auto_continue=auto_continue,
                     cartridge_id=migration.cartridge_id or "stock",
                     cartridge_version=migration.cartridge_version or "1.0.0",
                     model_webhook_url=(

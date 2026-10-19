@@ -735,7 +735,7 @@ def test_the_card_of_the_run_has_a_cyan_edge_and_an_amber_glow_that_breathes(cli
     live = ".workspace-panel:has(.pipeline-live:not([hidden]))"
     edge = css.split(live + " {")[1].split("}")[0]
     breathing = css.split(
-        ".workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {"
+        '.workspace-panel:has(.pipeline-live:not([hidden]) .machine[data-machine="run"]) {'
     )[1].split("}")[0]
     frames = css.split("@keyframes work-breathe")[1].split("@media")[0]
 

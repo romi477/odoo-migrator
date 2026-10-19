@@ -279,24 +279,24 @@ the module that is running stays too. A step missing a card does not count
 as queued for the steps after it; pressing its chip again brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
 stopped and no module is still running. Passed
-modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
-cartridge's steps, each with how it went in the attempt on screen: done,
+modules drop off the list and show on **Result**. The live panel below is the step and attempt the run is in, and a ribbon of the
+cartridge's steps, framed by the module's old version on the left and its new one on the right, with an arrow into the first step and out of the last (amber while a module runs), each with how it went in the attempt on screen: done,
 failed, running, not yet run, or — dashed green — passed in an earlier
 attempt and not run again, because a retry loops back part way (the stock
 flow returns to `lint`). The failure lane that attempt ran (diagnose,
 patch) is a smaller row under it. From a second attempt on, numbers above
 the ribbon read any attempt back; the latest one follows the run live. A
 parked question sits
-under the ribbon as a thread. **Stop this run** ends the module after
+under the ribbon as a thread. **Stop** on the queue card, in the place of Run while a module is in flight, a filled square before its word, ends the module after
 the model turn in flight (Cursor: at the step's end), between two test
 runs inside `tests`, and a parked one at once, withdrawing the question.
-The button reads *Stopping…* from the press until the run gets there.
+The button reads *Stopping…* from the press until the run gets there. The runner card does not say the module's name or status again: the machine's input slot has the name and the gears have the state. The cables carry their pulse for any work in hand: the queue running, or one module run on its own from a play button.
 The card opens with the **machine**: a black box with a slot at each
 end, labelled with the migration's versions (`17.0 in`, `18.0 out`), and a pair of
 meshed gears between them. The slots have a hairline border, soft, because they hold a name and are not buttons: the input is amber and the output cyan, whatever the state, and a module in a slot only firms the edge. At rest it is grey with both slots empty. While a
 module runs its name is in the input slot, the gears turn in amber and the
 belts carry dashes toward the output; a module waiting for a person stops them
-(amber); a passed module leaves at the output with the gears green; a failed
+(amber); a passed module leaves at the output and the gears rest in cyan, the colour of the output (Result is where passed is said); a failed
 or stopped one stays at the input with the gears red. While the failure lane is
 at work (diagnose and what it opens) the gears keep turning, tinted toward red, and a few small red
 sparks leave the mesh, most of them down; they stop when the lap is mended and goes on. A reload shows the

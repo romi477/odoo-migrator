@@ -172,6 +172,7 @@
              data-pipeline-queue-panel
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}
              data-running="{{ 'true' if pipeline_queue.run_state == 'running' else 'false' }}"
+             data-working="{{ 'false' if pipeline_queue.idle else 'true' }}"
              data-has-items="{{ 'true' if pipeline_queue.modules else 'false' }}"
              data-queue-expandable="{{ 'true' if pipeline_queue.modules | length > 1 else 'false' }}"
              x-data="{ expanded: false }"
@@ -215,10 +216,29 @@
           </p>
         </div>
         <div class="pipeline-queue-controls">
-          <form method="post" action="/run/queue/run">
+          {# One button, two faces. Run while nothing is in a module; while one is,
+             the same place holds Stop, a square, which ends that run. The queue's
+             own Stop, after this module, stays beside it. #}
+          {% set parked = live and live.status == 'waiting_for_human' %}
+          {% set stopping = live and live.stopping %}
+          {% set hint_parked = "Nothing is running: the question is withdrawn and the run ends now." %}
+          {% set hint_running = "The model turn in flight finishes — it cannot be called back — and the run ends before the next one." %}
+          {% set hint_stopping = "Stop was heard. The model turn in flight finishes first, then the run ends." %}
+          {% set module_live = live and live.status in ('running', 'waiting_for_human') %}
+          <form method="post" action="/run/queue/run"{% if module_live %} hidden{% endif %}>
             <button type="submit" class="primary"
                     {% if pipeline_queue.run_state == 'running' or not pipeline_queue.modules %}disabled{% endif %}
                     aria-label="Run the pipeline queue">Run</button>
+          </form>
+          <form method="post" class="pipeline-stop" data-pipeline-stop
+                data-hint-parked="{{ hint_parked }}" data-hint-running="{{ hint_running }}"
+                data-hint-stopping="{{ hint_stopping }}"
+                action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
+                {% if not module_live %}hidden{% endif %}>
+            <button type="submit" aria-label="Stop this run after the model turn in flight"
+                    data-label="Stop"
+                    title="{{ hint_stopping if stopping else (hint_parked if parked else hint_running) }}"
+                    {% if stopping %}disabled{% endif %}>{% if stopping %}Stopping…{% else %}Stop{% endif %}</button>
           </form>
           {# Only while the queue runs: with nothing in progress there is nothing
              to stop, and a greyed button was a control that never applied. #}
@@ -294,34 +314,11 @@
       {% include "_machine.html" %}
       {% endwith %}
       <div class="pipeline-live"{% if not live %} hidden{% endif %}>
-        {# One line: who and how, the step it is in at the centre, Stop at the
-           end. The step had a line of its own, and the card's middle stood
-           empty beside it. #}
+        {# The step it is in, and the attempt. The module's name is in the
+           machine's input slot above and its state is the machine's, so neither
+           is said again here; Stop is on the queue card, where Run is. #}
         <header class="name-line pipeline-head">
-          <span class="pipeline-head-who">
-            <span class="name mono" data-pipeline-module>{% if live %}{{ live.module }}{% endif %}</span>
-            <span class="badge{% if live %} {{ live.status }}{% endif %}" data-pipeline-status>{% if live %}{{ live.status }}{% endif %}</span>
-          </span>
           <span class="pipeline-stage mono" data-stage>{% if live %}{{ live.stage }}{% if live.attempt %} · attempt {{ live.attempt }}{% endif %}{% endif %}</span>
-          {# The queue's Stop lets the module finish, which is not what someone
-             watching a run spend tokens is asking for. Drawn hidden when
-             nothing runs, so a page opened between two modules has it for the
-             next one; sse.js points it at the module and picks the hint. #}
-          {% set parked = live and live.status == 'waiting_for_human' %}
-          {% set stopping = live and live.stopping %}
-          {% set hint_parked = "Nothing is running: the question is withdrawn and the run ends now." %}
-          {% set hint_running = "The model turn in flight finishes — it cannot be called back — and the run ends before the next one." %}
-          {% set hint_stopping = "Stop was heard. The model turn in flight finishes first, then the run ends." %}
-          <form method="post" class="pipeline-stop" data-pipeline-stop
-                data-hint-parked="{{ hint_parked }}" data-hint-running="{{ hint_running }}"
-                data-hint-stopping="{{ hint_stopping }}"
-                action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
-                {% if not live or live.status not in ('running', 'waiting_for_human') %}hidden{% endif %}>
-            <button type="submit" aria-label="Stop this run after the model turn in flight"
-                    data-label="Stop this run"
-                    title="{{ hint_stopping if stopping else (hint_parked if parked else hint_running) }}"
-                    {% if stopping %}disabled{% endif %}>{% if stopping %}Stopping…{% else %}Stop this run{% endif %}</button>
-          </form>
         </header>
         {% if ribbon %}
         {# Which attempt the ribbon shows. A retry loops back part way, so
@@ -343,6 +340,9 @@
           <button type="button" data-attempt-follow>Follow</button>
         </p>
         <ol class="ribbon" data-ribbon>
+          {# The module goes in on the left, in its old version, and comes out on
+             the right, in the new one: the two ends of what the steps do. #}
+          <li class="ribbon-end ribbon-start" title="The module in its old version goes in here">{{ current.source_version if current else "in" }}</li>
           {% for node in ribbon.steps %}
           <li class="ribbon-node" data-step="{{ node.id }}" data-state="{{ node.state }}">
             {# The block names a step of the pinned cartridge, and Flow is
@@ -356,6 +356,7 @@
             </a>
           </li>
           {% endfor %}
+          <li class="ribbon-end ribbon-finish" title="The ported module comes out here">{{ current.target_version if current else "out" }}</li>
         </ol>
         {# The failure lane this attempt ran: diagnose, patch. Not the
            pipeline, so a row of its own under it. #}

@@ -31,6 +31,7 @@
 
   <h2>Pipeline ribbon</h2>
   <ol class="ribbon" data-ribbon>
+    <li class="ribbon-end ribbon-start">17.0</li>
     <li class="ribbon-node" data-step="understand" data-state="done">
       <a class="ribbon-box" href="/flow#understand"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></a>
     </li>
@@ -46,7 +47,12 @@
     <li class="ribbon-node" data-step="tests" data-state="pending">
       <a class="ribbon-box" href="/flow#tests"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">tests</span></a>
     </li>
+    <li class="ribbon-end ribbon-finish">18.0</li>
   </ol>
+  <p>The two ends of what the steps do: the module in its old version goes in at
+  the left, the ported one comes out at the right, in the colours of the
+  machine's slots, joined to the first and last step by arrows. While a module
+  runs the arrows are amber.</p>
 
   <h2>Checkpoint thread</h2>
   <ol class="checkpoint-thread">
@@ -584,7 +590,10 @@ tools offered: exec, read_file, report, source</pre>
         </div>
         <div class="pipeline-queue-controls">
           <button type="button" class="primary">Run</button>
-          <button type="button">Stop</button>
+          {# While a module is in flight Run gives its place to this: a square, and Stop. #}
+          <form class="pipeline-stop"><button type="button">Stop</button></form>
+          <form class="pipeline-stop"><button type="button" disabled>Stopping…</button></form>
+          <button type="button">Stop after this module</button>
           <button type="button">Clear</button>
         </div>
       </header>
@@ -635,21 +644,7 @@ tools offered: exec, read_file, report, source</pre>
     <article class="workspace-panel" data-pipeline>
       <div class="pipeline-live">
         <header class="name-line pipeline-head">
-          <span class="pipeline-head-who">
-            <span class="name mono" data-pipeline-module>sale_custom</span>
-            <span class="badge running" data-pipeline-status>running</span>
-          </span>
           <span class="pipeline-stage mono" data-stage>rewrite · attempt 2</span>
-          <form class="pipeline-stop"><button type="button">Stop this run</button></form>
-        </header>
-        {# Stop heard, the model turn in flight not over yet. #}
-        <header class="name-line pipeline-head">
-          <span class="pipeline-head-who">
-            <span class="name mono">stock_custom</span>
-            <span class="badge running">running</span>
-          </span>
-          <span class="pipeline-stage mono">port · attempt 1</span>
-          <form class="pipeline-stop"><button type="button" disabled>Stopping…</button></form>
         </header>
       </div>
     </article>
@@ -733,7 +728,7 @@ tools offered: exec, read_file, report, source</pre>
   left, the ported one comes out at the right, and a pair of meshed gears turns
   between them. Idle, waiting for a person, done and failed rest; only a run
   turns the gears, and the belts carry dashes toward the output. Top to
-  bottom: idle, running, waiting for you (amber gears, still), done (green
+  bottom: idle, running, waiting for you (amber gears, still), done (cyan
   gears, the module at the output), failed (red gears, the module still at the
   input). Under them, running through a failure: the gears turn and red sparks
   leave the mesh until the lap is mended. The input slot is amber and the output slot cyan in every state; the
@@ -742,12 +737,20 @@ tools offered: exec, read_file, report, source</pre>
   <h2>Working card</h2>
   <div class="workspace">
     <article class="workspace-panel">
+      {% with machine_state = "run", machine_src = "17.0", machine_dst = "18.0", machine_in = "mig_test_crm", machine_out = "" %}
+      {% include "_machine.html" %}
+      {% endwith %}
       <div class="pipeline-live">
-        <header class="name-line">
-          <span class="name mono">mig_test_crm</span>
-          <span class="badge running" data-pipeline-status>running</span>
+        <header class="name-line pipeline-head">
+          <span class="pipeline-stage mono">port · attempt 1</span>
         </header>
-        <p class="mono">port · attempt 1</p>
+        <ol class="ribbon">
+          <li class="ribbon-end ribbon-start">17.0</li>
+          <li class="ribbon-node" data-state="done"><a class="ribbon-box" href="/flow#understand"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></a></li>
+          <li class="ribbon-node" data-state="running"><a class="ribbon-box" href="/flow#port"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">port</span></a></li>
+          <li class="ribbon-node" data-state="pending"><a class="ribbon-box" href="/flow#lint"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">lint</span></a></li>
+          <li class="ribbon-end ribbon-finish">18.0</li>
+        </ol>
       </div>
     </article>
   </div>

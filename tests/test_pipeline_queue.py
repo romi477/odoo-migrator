@@ -722,7 +722,7 @@ def test_the_cable_to_the_run_carries_a_pulse_while_the_queue_runs(client):
 
     assert 'class="runner-link-pulse"' in link
     assert "opacity: 0" in css.split(".runner-link-pulse {")[1].split("}")[0]
-    assert 'data-running="true"]) .runner-link-pulse' in css
+    assert 'data-working="true"]) .runner-link-pulse' in css
     # Down the cable, again and again, and still under reduced motion.
     assert "link-pulse 1.6s linear infinite" in css
     assert "translateY(34px)" in css.split("@keyframes link-pulse")[1].split("@media")[0]
@@ -858,3 +858,136 @@ def test_every_row_has_a_play_button_and_it_is_an_outlined_triangle_that_gives_w
     assert "pipeline-lamp" not in css and "pipeline-lamp" not in page
     assert not (static_dir() / "lamp-ball.js").exists()
     assert "has-ball" not in css
+
+
+def _running_page(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+
+    return row, first, client.get("/run").text
+
+
+def test_the_cables_pulse_for_any_work_in_hand_not_only_a_running_queue(client):
+    row, _first, page = _running_page(client)
+    card = page.split("data-pipeline-queue-panel", 1)[1].split(">", 1)[0]
+    css = client.get("/static/style.css").text
+
+    # One module run on its own: the queue is stopped, and work is going on.
+    assert 'data-running="false"' in card
+    assert 'data-working="true"' in card
+    assert queue_snapshot(row.id)["idle"] is False
+    assert 'data-running="true"]) .runner-hook::after' not in css
+    assert 'data-working="true"]) .runner-hook::after' in css
+    assert 'data-working="true"]) .runner-link-pulse' in css
+
+
+def test_the_runner_card_does_not_say_the_module_or_its_state_again(client):
+    _row, first, page = _running_page(client)
+    live = page.split('class="pipeline-live"', 1)[1].split('class="ribbon"', 1)[0]
+    machine = page.split('class="machine"', 1)[1].split("</article>", 1)[0]
+
+    assert first["technical_name"] in machine
+    # Neither the name, nor a badge with the status, below the machine.
+    assert "data-pipeline-module" not in page
+    assert "data-pipeline-status" not in page
+    assert first["technical_name"] not in live
+    assert 'class="badge' not in live
+    assert "pipeline-head-who" not in page
+
+
+def test_stop_is_on_the_queue_card_in_the_place_of_run_while_a_module_is_in_flight(client):
+    _row, _first, page = _running_page(client)
+    controls = page.split('class="pipeline-queue-controls"', 1)[1].split("</header>", 1)[0]
+    run = controls.split('action="/run/queue/run"')[1].split(">", 1)[0]
+    stop = controls.split("data-pipeline-stop")[1].split(">", 1)[0]
+    live = page.split('class="pipeline-live"', 1)[1].split("</article>", 1)[0]
+
+    assert "hidden" in run
+    assert "hidden" not in stop
+    assert 'action="/run/modules/' in controls
+    # Not in the runner card any more.
+    assert "data-pipeline-stop" not in live
+    # The queue's own Stop, after this module, stays its own button.
+    assert "Stop after this module" in controls
+    css = client.get("/static/style.css").text
+
+    assert ".pipeline-stop button::before" in css
+    assert "border-radius: 2px" in css.split(".pipeline-stop button::before {")[1].split("}")[0]
+
+    script = client.get("/static/sse.js").text
+    assert 'document.querySelector("[data-pipeline-stop]")' in script
+    assert "run.hidden = !!LIVE[data.status]" in script
+
+
+def test_a_module_that_came_out_rests_in_cyan_not_green(client):
+    css = client.get("/static/style.css").text
+    rule = css.split('.machine[data-machine="done"] {')[1].split("}")[0]
+
+    assert "--machine: var(--cyan)" in rule
+    assert "green" not in rule
+
+
+def test_the_steps_are_framed_by_the_two_versions_and_their_arrows_turn_amber_at_work(client):
+    _row, _first, page = _running_page(client)
+    ribbon = page.split('class="ribbon" data-ribbon>', 1)[1].split("</ol>", 1)[0]
+    css = client.get("/static/style.css").text
+
+    # The old version before the first step, the new one after the last.
+    assert ribbon.index("ribbon-start") < ribbon.index('class="ribbon-node"')
+    assert ribbon.rindex("ribbon-node") < ribbon.index("ribbon-finish")
+    assert ">17.0<" in ribbon and ">18.0<" in ribbon
+    amber = css.split('.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane)')[1].split("}")[0]
+
+    assert "color: var(--amber)" in amber
+    assert "ribbon-start::after" in amber and "ribbon-finish::before" in amber
+
+
+def test_a_module_run_on_its_own_does_not_stop_for_review_when_it_passed(client):
+    """The play button asked for one module. A review screen with a diff and a
+    Continue button, and every other play barred until it is pressed, is the
+    wrong end to it."""
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    # An executor that answers at once, through the app's own callback.
+    from test_batch import OutcomeExecutor
+
+    client.app.state.executor = OutcomeExecutor({}, client.app)
+    started = _play(client, first["id"])
+
+    assert started.status_code == 200
+    with database.connection_context():
+        batches = list(Batch.select().where(Batch.migration == row.id))
+    assert batches and all(batch.status != "checkpoint" for batch in batches)
+    assert _statuses(row.id)[first["technical_name"]] == "passed"
+    page = client.get("/run").text
+
+    assert 'aria-label="Continue ' not in page
+    assert "Review the last batch" not in page
+    # And the next module's play is not barred behind a review.
+    after = queue_snapshot(row.id)["modules"]
+    assert all("Review the last batch" not in module["play"] for module in after)
+
+
+def test_a_module_run_on_its_own_that_failed_still_waits_for_review(client):
+    from odoo_migrator.models import Batch, Job
+
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+    with database.connection_context():
+        job = Job.select().order_by(Job.id.desc()).get()
+        job.status = "failed"
+        job.save()
+        batch = Batch.get_by_id(job.batch_id)
+    from odoo_migrator.jobs import close_batch
+    from odoo_migrator.pipeline_queue import after_batch_checkpoint
+
+    close_batch(batch.id)
+    after_batch_checkpoint(row.id, batch.id, client.app.state.executor, client.app.state.hub)
+    with database.connection_context():
+        assert Batch.get_by_id(batch.id).status == "checkpoint"

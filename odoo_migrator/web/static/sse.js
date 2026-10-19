@@ -113,9 +113,14 @@ function fillResultCornerGlyph(glyph, kind) {
     } else {
       setMachine(pipe, "idle", "");
     }
-    const stop = pipe.querySelector("[data-pipeline-stop]");
+    /* Stop and Run share a place on the queue card, outside this card. */
+    const stop = document.querySelector("[data-pipeline-stop]");
     if (stop) {
       stop.hidden = true;
+    }
+    const run = document.querySelector('form[action="/run/queue/run"]');
+    if (run) {
+      run.hidden = false;
     }
     const ask = pipe.querySelector("[data-pipeline-ask]");
     if (ask) {
@@ -169,15 +174,6 @@ function fillResultCornerGlyph(glyph, kind) {
       pipe.setAttribute("data-module-id", String(data.id));
       pipe.removeAttribute("data-stopping");
     }
-    const name = pipe.querySelector("[data-pipeline-module]");
-    if (name && data.technical_name) {
-      name.textContent = data.technical_name;
-    }
-    const pipeBadge = pipe.querySelector("[data-pipeline-status]");
-    if (pipeBadge && data.status) {
-      pipeBadge.className = "badge " + data.status;
-      pipeBadge.textContent = data.status;
-    }
     const pipeStage = pipe.querySelector("[data-stage]");
     if (pipeStage) {
       const attempt = data.attempt ? " · attempt " + data.attempt : "";
@@ -191,7 +187,11 @@ function fillResultCornerGlyph(glyph, kind) {
       pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
     }
     const parked = data.status === "waiting_for_human";
-    const stop = pipe.querySelector("[data-pipeline-stop]");
+    const stop = document.querySelector("[data-pipeline-stop]");
+    const run = document.querySelector('form[action="/run/queue/run"]');
+    if (run) {
+      run.hidden = !!LIVE[data.status];
+    }
     if (stop) {
       stop.hidden = !LIVE[data.status];
       stop.setAttribute("action", "/run/modules/" + data.id + "/stop");

@@ -197,6 +197,9 @@
     /* The step chips read this: which steps are queued, and which of those can be taken out. */
     window.dispatchEvent(new CustomEvent("queue-changed", { detail: data.steps || [] }));
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
+    /* Work in hand: the queue is running, or a module is in flight (one run on
+       its own, from a play button). The cables carry their pulse for either. */
+    panel.setAttribute("data-working", data.idle ? "false" : "true");
     /* The queue's edge and the cables into and out of it are colourless while
        it is empty. */
     panel.setAttribute("data-has-items", data.modules.length ? "true" : "false");

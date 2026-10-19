@@ -179,6 +179,10 @@ class Batch(BaseModel):
     # every module's `batch_group` to its own wave — until someone regroups
     # a module by hand on Tree, which is what that control is for.
     step = IntegerField(null=True)
+    # A batch of one started from a play button on the queue. It ends without a
+    # review stop when its module passed: the person asked for one module, not
+    # for a wave to look over. A failure still waits for review.
+    auto_continue = BooleanField(default=False)
     model_webhook_url = TextField(default="")
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)

@@ -2439,7 +2439,7 @@ h2 {
   box-shadow: inset 0 -2px 0 var(--cable);
 }
 
-/* The pulse. Off until the queue runs. */
+/* The pulse. Off until there is work in hand: the queue runs, or a module does. */
 .runner-hook::after {
   content: "";
   position: absolute;
@@ -2452,8 +2452,8 @@ h2 {
   opacity: 0;
 }
 
-.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after,
-.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
+.screen-pipeline:has(.pipeline-queue-card[data-working="true"]) .runner-hook::after,
+.screen-components:has(.pipeline-queue-card[data-working="true"]) .runner-hook::after {
   opacity: 1;
   animation: cable-pulse 1.4s ease-in infinite;
 }
@@ -2470,7 +2470,7 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-hook::after {
+  .screen-pipeline:has(.pipeline-queue-card[data-working="true"]) .runner-hook::after {
     animation: none;
     opacity: 0;
   }
@@ -2554,8 +2554,8 @@ h2 {
   opacity: 0;
 }
 
-.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse,
-.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse {
+.screen-pipeline:has(.pipeline-queue-card[data-working="true"]) .runner-link-pulse,
+.screen-components:has(.pipeline-queue-card[data-working="true"]) .runner-link-pulse {
   animation: link-pulse 1.6s linear infinite;
 }
 
@@ -2585,8 +2585,8 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse,
-  .screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse {
+  .screen-pipeline:has(.pipeline-queue-card[data-working="true"]) .runner-link-pulse,
+  .screen-components:has(.pipeline-queue-card[data-working="true"]) .runner-link-pulse {
     animation: none;
   }
 }
@@ -3443,12 +3443,12 @@ pre.test-output {
   }
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
+.workspace-panel:has(.pipeline-live:not([hidden]) .machine[data-machine="run"]) {
   animation: work-breathe 3.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
+  .workspace-panel:has(.pipeline-live:not([hidden]) .machine[data-machine="run"]) {
     animation: none;
   }
 }
@@ -3481,8 +3481,10 @@ pre.test-output {
   --machine: color-mix(in oklch, var(--amber) 35%, var(--red));
 }
 
+/* A module that came out is not a verdict: Result says passed. The machine
+   rests in cyan, the colour of the output it came out of. */
 .machine[data-machine="done"] {
-  --machine: var(--green);
+  --machine: var(--cyan);
 }
 
 .machine[data-machine="failed"] {
@@ -3664,18 +3666,11 @@ pre.test-output {
   margin: 0;
 }
 
-/* Three columns, the outer two of equal width, so the step sits at the
-   card's centre whatever the module's name and Stop take. */
+/* The step the run is in, and the attempt, on a line of its own, centred. The
+   module's name and state are the machine's. */
 .pipeline-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-}
-
-.pipeline-head-who {
   display: flex;
-  align-items: center;
-  gap: 2ch;
-  min-width: 0;
+  justify-content: center;
 }
 
 /* Cyan: the ribbon's colour for the step running now. */
@@ -3683,23 +3678,6 @@ pre.test-output {
   color: var(--text);
   text-align: center;
   white-space: nowrap;
-}
-
-.pipeline-head .pipeline-stop {
-  justify-self: end;
-}
-
-/* Too narrow for three columns: the step goes under the name. */
-@media (max-width: 640px) {
-  .pipeline-head {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .pipeline-stage {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    text-align: left;
-  }
 }
 
 .checkpoint-ready {
@@ -3880,11 +3858,22 @@ pre.test-output {
   color: #c4552a;
 }
 
-/* Stopping the run that is on screen, at the right end of its name line.
-   The queue's own Stop is about the queue and lets this module finish.
-   What a stop does now is the button's tooltip. */
-.pipeline-stop {
-  margin: 0 0 0 auto;
+/* Stopping the run that is on screen. It takes the place of Run on the queue
+   card while a module is in flight, a filled square before its word, the way a
+   player's play turns into stop. The queue's own Stop, after this module, lets
+   the module finish. What a stop does now is the button's tooltip. */
+.pipeline-stop button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pipeline-stop button::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
 }
 
 /* The pipeline, left to right, centred under the module's name. Each block
@@ -3908,10 +3897,66 @@ pre.test-output {
 
 /* The arrow is the li's own, so it sits between the boxes and not inside
    one. */
-.ribbon-node + .ribbon-node::before {
+.ribbon-node + .ribbon-node::before,
+.ribbon-start::after,
+.ribbon-finish::before {
   content: "→";
   color: var(--muted-low);
   padding: 0 6px;
+}
+
+/* The two ends of what the steps do: the old version in, the new one out, in
+   the colours of the machine's slots. Their arrows are the ribbon's own. */
+.ribbon-end {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 0.5px solid color-mix(in oklch, var(--amber) 55%, transparent);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.ribbon-finish {
+  border-color: color-mix(in oklch, var(--cyan) 55%, transparent);
+}
+
+/* The arrow sits outside the end's box, so it is drawn on a wrapper:
+   the end is a flex item and its own pseudo-element would be inside the border. */
+.ribbon-start,
+.ribbon-finish {
+  position: relative;
+  margin-right: 28px;
+}
+
+.ribbon-finish {
+  margin-right: 0;
+  margin-left: 28px;
+}
+
+.ribbon-start::after {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 7px;
+}
+
+.ribbon-finish::before {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 7px;
+}
+
+/* Work flows through the blocks: while a module runs the arrows are amber, the
+   colour of the belts and the gears. */
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node + .ribbon-node::before,
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon-start::after,
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon-finish::before {
+  color: var(--amber);
 }
 
 .ribbon-box {

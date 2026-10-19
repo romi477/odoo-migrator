@@ -373,6 +373,7 @@ def run_one(migration_id: str, module_id: int, executor, hub: EventHub) -> None:
             module_id=module_id,
             executor=executor,
             hub=hub,
+            auto_continue=True,
         )
     except ContractError as refused:
         raise ValueError(str(refused)) from refused
@@ -646,6 +647,25 @@ def after_batch_checkpoint(
     hub: EventHub,
 ) -> None:
     """Auto-continue through the queue when a step batch finishes cleanly."""
+    with database.connection_context():
+        batch = Batch.get_or_none(Batch.id == batch_id)
+        passed = bool(batch) and all(
+            job.status == "passed" for job in Job.select().where(Job.batch == batch_id)
+        )
+    if batch is not None and batch.auto_continue:
+        # One module run on its own: if it passed there is nothing to review,
+        # and a review stop would also bar the next play until someone pressed
+        # Continue. A failure keeps its stop.
+        if passed:
+            remove_finished_steps(migration_id)
+            try:
+                continue_batch(migration_id, override=True)
+            except ContractError:
+
+                return
+            publish_queue(hub, migration_id)
+
+        return
     if run_state(migration_id) != "running":
 
         return
