@@ -1463,3 +1463,16 @@ def test_the_runs_card_is_named_engine_in_a_break_of_its_edge(client):
     assert '<span class="engine-plate">Engine</span>' in card
     plate = css.split("\n.engine-plate {", 1)[1].split("}", 1)[0]
     assert "position: absolute" in plate and "translateY(-50%)" in plate
+
+
+def test_while_it_runs_the_steps_edges_turn_from_amber_to_cyan(client):
+    """Ahead of the work each step has its place's colour; behind it, cyan."""
+    css = client.get("/static/style.css").text
+    scope = '.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) '
+    edge = css.split(scope + ".ribbon-node {", 1)[1].split("}", 1)[0]
+
+    assert "color-mix(in oklab, var(--cyan) calc(var(--along, 0) * 100%), var(--amber))" in edge
+    running = css.split(scope + '.ribbon-node[data-state="running"] .ribbon-box {', 1)[1].split("}", 1)[0]
+    assert "var(--step-edge)" in running
+    done = css.split(scope + '.ribbon-node[data-state="done"] .ribbon-box,', 1)[1].split("}", 1)[0]
+    assert "var(--cyan)" in done

@@ -4186,6 +4186,33 @@ a.ribbon-box:focus-visible {
   animation: ribbon-pulse 1.1s ease-in-out infinite;
 }
 
+/* While a module runs the steps' edges carry the same turn as the arrows:
+   each step its place between the input's amber and the output's cyan, soft
+   ahead of the work and whole on the step at work, so the work's front shows
+   how far the module has come. A step behind it is done, and done is the
+   output's colour, cyan, wherever it stands; the lamp still says passed. A
+   failed step stays red. Mixed in oklab, like the arrows: not through green. */
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node {
+  --step-edge: color-mix(in oklab, var(--cyan) calc(var(--along, 0) * 100%), var(--amber));
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-box {
+  border-color: color-mix(in oklch, var(--step-edge) 40%, transparent);
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node[data-state="running"] .ribbon-box {
+  border-color: var(--step-edge);
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node[data-state="done"] .ribbon-box,
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node[data-state="earlier"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--cyan) 75%, transparent);
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node[data-state="failed"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--red) 75%, transparent);
+}
+
 @keyframes ribbon-pulse {
   0%,
   100% {
