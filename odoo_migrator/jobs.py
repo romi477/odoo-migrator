@@ -71,17 +71,6 @@ class AlreadyRunning(ContractError):
     """That module already has an executor working on it."""
 
 
-def running_migration_count() -> int:
-    with database.connection_context():
-
-        return (
-            Module.select(Module.migration)
-            .where(Module.status == "running")
-            .distinct()
-            .count()
-        )
-
-
 def lamp_state() -> str:
     """`needs-attention` beats `running`: a stall is what the lamp is for, and
     a run somewhere else must not hide it."""
@@ -246,7 +235,6 @@ def module_payload(job: Job, module: Module) -> dict:
 
 def _emit(hub: EventHub, job: Job, module: Module) -> None:
     hub.publish("module", module_payload(job, module))
-    hub.publish("running", {"count": running_migration_count()})
     hub.publish("lamp", {"state": lamp_state()})
 
 
@@ -555,7 +543,6 @@ def _undo_start(
                 "current_session_id": "",
             },
         )
-        hub.publish("running", {"count": running_migration_count()})
         hub.publish("lamp", {"state": lamp_state()})
 
 

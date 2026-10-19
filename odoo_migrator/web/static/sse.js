@@ -1,5 +1,5 @@
 /* One EventSource per page. Named events patch a row, the lamp and the
-   running count. They must not replace the page — a half-typed answer in
+   queue count. They must not replace the page — a half-typed answer in
    an Alpine field has to survive a background update. */
 function fillResultCornerGlyph(glyph, kind) {
   glyph.className = "";
@@ -369,19 +369,20 @@ function fillResultCornerGlyph(glyph, kind) {
     );
   });
 
-  src.addEventListener("running", function (event) {
+  /* The bar's counter is the open migration's queue. Every queue event
+     carries it, so it moves with the queue panel and needs no event of its own. */
+  src.addEventListener("queue", function (event) {
     const data = parse(event);
-    const count = document.querySelector(".nav-end .running-count");
-    if (!count || !data) {
+    const count = document.querySelector(".nav-end .queue-count");
+    if (!count || !data || !data.count) {
       return;
     }
-    const n = data.count == null ? 0 : data.count;
-    count.setAttribute("data-running", String(n));
-    const figure = count.querySelector(".count");
-    if (figure) {
-      figure.textContent = String(n);
-    } else {
-      count.textContent = String(n);
+    if (String(data.migration_id) !== count.getAttribute("data-migration-id")) {
+      return;
     }
+    count.setAttribute("data-queued", String(data.count.queued));
+    count.setAttribute("title", data.count.title);
+    count.querySelector(".count").textContent = data.count.text;
+    count.querySelector(".unit").textContent = data.count.unit;
   });
 })();

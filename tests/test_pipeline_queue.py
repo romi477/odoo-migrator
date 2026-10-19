@@ -624,3 +624,91 @@ def test_the_chips_can_take_a_queued_step_out(client):
     # step and, pressed again, take it out.
     assert 'formaction="/run/queue/remove-step"' in page
     assert "is-undo" in page
+
+
+def _bar_count(client):
+    html = client.get("/run").text
+    bar = html.split('class="queue-count"', 1)[1].split("</span></span>", 1)[0]
+
+    return " ".join(
+        part.strip()
+        for part in bar.replace("<span", "|<span").split("|")
+        if part.strip()
+    )
+
+
+def _hold(client):
+    client.app.state.executor = type("Hold", (), {"start": lambda self, payload: None})()
+
+
+def test_the_bar_counts_zero_for_an_empty_queue(client):
+    row, _sale = _prepared(client)
+
+    count = queue_snapshot(row.id)["count"]
+
+    assert (count["text"], count["unit"], count["queued"]) == ("0", "queued", 0)
+    assert 'data-queued="0"' in client.get("/run").text
+
+
+def test_the_bar_counts_the_modules_in_the_queue(client):
+    row = _queue_both_steps(client)
+    waiting = len(queue_snapshot(row.id)["modules"])
+
+    count = queue_snapshot(row.id)["count"]
+
+    assert waiting >= 2
+    assert (count["text"], count["unit"]) == (str(waiting), "queued")
+    assert f'data-queued="{waiting}"' in client.get("/run").text
+    assert f">{waiting}</span> <span class=\"unit\">queued<" in client.get("/run").text
+
+
+def test_a_running_queue_reads_the_place_out_of_the_total(client):
+    row = _queue_both_steps(client)
+    total = len(queue_snapshot(row.id)["modules"])
+    _hold(client)
+
+    client.post("/run/queue/run", follow_redirects=True)
+    first = queue_snapshot(row.id)["count"]
+
+    assert (first["text"], first["unit"]) == (f"1/{total}", "run")
+    assert first["title"] == f"Module 1 of {total} in the queue."
+
+    from odoo_migrator.models import Module
+
+    one = queue_snapshot(row.id)["modules"][0]["id"]
+    with database.connection_context():
+        Module.update(status="passed").where(Module.id == one).execute()
+
+    assert queue_snapshot(row.id)["count"]["text"] == f"2/{total}"
+    assert f"2/{total}" in _bar_count(client)
+
+
+def test_cards_added_to_a_running_queue_grow_the_total(client):
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"})
+    first_step = len(queue_snapshot(row.id)["modules"])
+    _hold(client)
+    client.post("/run/queue/run", follow_redirects=True)
+
+    client.post("/run/queue/add", data={"step": "2"}, headers={"Accept": "application/json"})
+    both = len(queue_snapshot(row.id)["modules"])
+
+    assert both > first_step
+    assert queue_snapshot(row.id)["count"]["text"] == f"1/{both}"
+
+    client.post("/run/queue/remove-step", data={"step": "2"}, headers={"Accept": "application/json"})
+
+    assert queue_snapshot(row.id)["count"]["text"] == f"1/{first_step}"
+
+
+def test_a_stopped_queue_keeps_its_place_while_a_module_finishes(client):
+    """Stop lets the module in flight finish, so the run is not over yet."""
+    row = _queue_both_steps(client)
+    total = len(queue_snapshot(row.id)["modules"])
+    _hold(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    client.post("/run/queue/stop", follow_redirects=True)
+
+    count = queue_snapshot(row.id)["count"]
+
+    assert (count["text"], count["unit"]) == (f"1/{total}", "run")

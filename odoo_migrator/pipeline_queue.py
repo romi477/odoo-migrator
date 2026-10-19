@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
@@ -40,6 +42,34 @@ def set_run_state(migration_id: str, state: str) -> None:
         row, _ = PipelineQueueState.get_or_create(migration=migration_id)
         row.run_state = state
         row.save()
+
+
+def _run_active(migration_id: str) -> bool:
+    """A run is going: the pipe is on, or a module is still in flight."""
+
+    return run_state(migration_id) == "running" or live_run(migration_id) is not None
+
+
+@contextmanager
+def _run_total_follows(migration_id: str):
+    """Keep the run's total right when the queue gains or loses cards.
+
+    Modules that finish leave the queue without changing the total: that is
+    what "6/10" counts. Cards put in or taken out while the run is going move
+    it by as many.
+    """
+    before = len(_pending_modules_sorted(migration_id))
+    yield
+    if not _run_active(migration_id):
+
+        return
+    moved = len(_pending_modules_sorted(migration_id)) - before
+    if moved:
+        row = _state_row(migration_id)
+        with database.connection_context():
+            PipelineQueueState.update(
+                run_total=max(row.run_total + moved, 0)
+            ).where(PipelineQueueState.migration == migration_id).execute()
 
 
 def _skipped(migration_id: str) -> set[int]:
@@ -101,6 +131,12 @@ def step_blocked_by(migration_id: str, step: int, queued: set[int]) -> int | Non
 
 
 def add_step(migration_id: str, step: int) -> bool:
+    with _run_total_follows(migration_id):
+
+        return _add_step(migration_id, step)
+
+
+def _add_step(migration_id: str, step: int) -> bool:
     """Append a step if it is not already queued. Returns False when deduped.
 
     A step is not queued ahead of an earlier step its modules depend on, while
@@ -246,10 +282,12 @@ def queue_snapshot(migration_id: str) -> dict:
     )
 
     state = run_state(migration_id)
+    idle = state != "running" and live is None
 
     return {
         "run_state": state,
-        "idle": state != "running" and live is None,
+        "idle": idle,
+        "count": queue_count(migration_id, len(modules), active=not idle),
         "steps": [
             {
                 "step": item.step,
@@ -261,6 +299,42 @@ def queue_snapshot(migration_id: str) -> dict:
         ],
         "modules": modules,
     }
+
+
+def queue_count(migration_id: str, pending: int, *, active: bool) -> dict:
+    """The counter in the bar: how many modules wait, or where a run is.
+
+    Idle, it is the size of the queue. While a run goes it is the place of the
+    module in flight out of the run's total, "6/10", the way the person counts
+    them.
+    """
+    if active and pending:
+        total = max(_state_row(migration_id).run_total, pending)
+        at = total - pending + 1
+
+        return {
+            "text": f"{at}/{total}",
+            "unit": "run",
+            "queued": pending,
+            "title": f"Module {at} of {total} in the queue.",
+        }
+
+    return {
+        "text": str(pending),
+        "unit": "queued",
+        "queued": pending,
+        "title": "Modules in the queue.",
+    }
+
+
+def nav_count(migration_id: str | None) -> dict:
+    """`queue_count` for the open migration, or an empty queue when none is open."""
+    if not migration_id:
+
+        return queue_count("", 0, active=False)
+    snapshot = queue_snapshot(migration_id)
+
+    return snapshot["count"]
 
 
 def _why_not_out(
@@ -301,6 +375,11 @@ def _why_not_out(
 
 
 def remove_step(migration_id: str, step: int) -> None:
+    with _run_total_follows(migration_id):
+        _remove_step(migration_id, step)
+
+
+def _remove_step(migration_id: str, step: int) -> None:
     """Take a queued step out, every card of it. Raises ValueError when it cannot go."""
     flags = {item["step"]: item for item in queue_snapshot(migration_id)["steps"]}
     if step not in flags:
@@ -316,6 +395,11 @@ def remove_step(migration_id: str, step: int) -> None:
 
 
 def remove_last_module(migration_id: str, module_id: int) -> None:
+    with _run_total_follows(migration_id):
+        _remove_last_module(migration_id, module_id)
+
+
+def _remove_last_module(migration_id: str, module_id: int) -> None:
     """Take the last card out of the queue. Raises ValueError when it cannot go.
 
     The step stays queued with the cards it has left, and leaves with the last
@@ -414,6 +498,14 @@ def kick(migration_id: str, executor, hub: EventHub) -> None:
 
 
 def start(migration_id: str, executor, hub: EventHub) -> None:
+    if not _run_active(migration_id):
+        # A new run counts from its first module.
+        pending = len(_pending_modules_sorted(migration_id))
+        _state_row(migration_id)
+        with database.connection_context():
+            PipelineQueueState.update(run_total=pending).where(
+                PipelineQueueState.migration == migration_id
+            ).execute()
     set_run_state(migration_id, "running")
     try:
         kick(migration_id, executor, hub)

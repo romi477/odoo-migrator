@@ -2,7 +2,7 @@
 
 The app restarts on every edit during development. EventSource reconnects
 on its own, but whatever happened while it was down was lost: the hello
-carried the lamp and the running count, and the pipeline card, the queue
+carried the lamp and the queue count, and the pipeline card, the queue
 and the statuses on Tree and Result stayed as they were until a reload.
 """
 
@@ -83,7 +83,21 @@ def test_a_stream_without_a_migration_says_only_what_the_nav_bar_needs(client, m
 
     names = [event for event, _data in _events(client.get("/sse").text)]
 
-    assert sorted(names) == ["lamp", "running"]
+    assert sorted(names) == ["lamp"]
+
+
+def test_a_page_without_its_own_migration_still_gets_the_bars_queue_count(
+    client, tmp_path, monkeypatch
+):
+    _short(monkeypatch)
+    created = _migration(tmp_path)
+    client.cookies.set(api.OPEN_COOKIE, created["id"])
+
+    told = dict(_events(client.get("/sse").text))
+
+    assert told["queue"]["migration_id"] == created["id"]
+    assert told["queue"]["count"]["text"] == "0"
+    assert "modules" not in told["queue"]
 
 
 def test_only_what_a_page_listens_to_goes_down_the_stream(client, monkeypatch):

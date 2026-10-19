@@ -330,6 +330,10 @@ class CheckpointMessage(BaseModel):
 class PipelineQueueState(BaseModel):
     migration = ForeignKeyField(Migration, backref="pipeline_queue_state", unique=True)
     run_state = CharField(default="stopped")
+    # How many modules this run set out to do: what the counter in the bar
+    # reads as "6/10". Set when Run starts a run, moved when cards are added
+    # to or taken out of a queue that is running.
+    run_total = IntegerField(default=0)
 
 
 class PipelineQueueItem(BaseModel):

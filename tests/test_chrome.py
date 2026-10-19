@@ -42,7 +42,7 @@ def test_chrome_brand_bar_is_present(client, path, active, heading):
     # to its left; a migration's own screens are the row under the switcher.
     end = html.split('class="nav-end"', 1)[1].split("</div>", 1)[0]
     assert end.rfind("App settings") > end.rfind("attention-lamp")
-    assert end.rfind("App settings") > end.rfind("running-count")
+    assert end.rfind("App settings") > end.rfind("queue-count")
     # The anchor, not a fixed attribute order: app settings are a gear with
     # its own class now, and the question is only whether the screen you are
     # on is marked as the current one.
@@ -227,22 +227,18 @@ def test_the_guide_reads_as_one_column_in_the_middle(client):
     assert "max-width" in rule
 
 
-def test_the_lamp_flashes_in_the_open_migrations_colour(client):
-    """The arrows of the open migration are drawn in its accent; the lamp that
-    flashes beside them takes the same one, not a colour of its own."""
+def test_the_lamp_flashes_amber_whichever_migration_is_open(client):
+    """It is global: a stall on another migration must read the same, so it
+    carries no colour of the open one."""
     from test_batch import _prepared
 
     _prepared(client)
     html = client.get("/run").text
 
     lamp = re.search(r'<a href="/attention"[^>]*>', html).group(0)
-    steps = re.search(r'<div class="nav-tabs nav-steps"[^>]*>', html).group(0)
-    lamp_accent = re.search(r"--accent: ([^;\"]+)", lamp)
-    steps_accent = re.search(r"--accent: ([^;\"]+)", steps)
-
-    assert lamp_accent is not None
-    assert lamp_accent.group(1) == steps_accent.group(1)
-
     css = client.get("/static/style.css").text
+    flashing = css.split(".attention-lamp.needs-attention .lamp-dot {")[1].split("}")[0]
 
-    assert "var(--accent, var(--amber))" in css
+    assert "--accent" not in lamp
+    assert "background: var(--amber)" in flashing
+    assert "--accent" not in css.split(".attention-lamp.running .lamp-dot {")[1].split("}")[0]

@@ -68,7 +68,6 @@ from odoo_migrator.jobs import (
     reconcile_jobs,
     reopen_finished,
     reopen_module,
-    running_migration_count,
     save_notes,
     start_batch,
     start_job,
@@ -93,7 +92,7 @@ from odoo_migrator.paths import static_dir, templates_dir
 from odoo_migrator.pipeline_queue import add_all_steps as queue_add_all_steps
 from odoo_migrator.pipeline_queue import add_step as queue_add_step
 from odoo_migrator.pipeline_queue import clear as queue_clear
-from odoo_migrator.pipeline_queue import queue_snapshot
+from odoo_migrator.pipeline_queue import nav_count, queue_snapshot
 from odoo_migrator.pipeline_queue import remove_last_module as queue_remove_last_module
 from odoo_migrator.pipeline_queue import remove_step as queue_remove_step
 from odoo_migrator.pipeline_queue import start as queue_start
@@ -141,7 +140,7 @@ SSE_MAX_SECONDS = 300
 # What the pages listen to. The runner also publishes its steps, tool calls
 # and job ends, for its own record and the tests; sent to every open page,
 # each tool call was one more message to every tab with nothing listening.
-PAGE_EVENTS = frozenset({"module", "checkpoint", "lamp", "running", "log", "queue"})
+PAGE_EVENTS = frozenset({"module", "checkpoint", "lamp", "log", "queue"})
 PROVISION_ACTIONS = {
     "up": up,
     "attach": attach,
@@ -308,8 +307,9 @@ def create_app(
             "current": current,
             # Rendered, not hardcoded. The lamp and the counter only ever
             # moved on an SSE event, so opening a page — or reloading one —
-            # while a module waited for an answer showed a calm nav bar.
-            "running_count": running_migration_count(),
+            # while a module waited for an answer showed a calm nav bar. The
+            # counter is the open migration's queue.
+            "queue_count": nav_count(current["id"] if current else None),
             "lamp": lamp_state(),
         }
 
@@ -1798,11 +1798,19 @@ def create_app(
                 # Hello with the current state, not a fixed zero: the stream
                 # closes on its own every few minutes, and anything that
                 # happened during the reconnect would otherwise be lost.
-                count, lamp = await asyncio.to_thread(
-                    lambda: (running_migration_count(), lamp_state())
-                )
-                yield f'event: running\ndata: {{"count": {count}}}\n\n'
+                lamp = await asyncio.to_thread(lamp_state)
                 yield f'event: lamp\ndata: {{"state": "{lamp}"}}\n\n'
+                # The bar's counter is the open migration's queue. A page that
+                # names no migration of its own still has one in its bar.
+                if not migration:
+                    opened = get_active(request.cookies.get(OPEN_COOKIE))
+                    if opened:
+                        told = await asyncio.to_thread(nav_count, opened["id"])
+                        yield (
+                            "event: queue\ndata: "
+                            + json.dumps({"migration_id": opened["id"], "count": told})
+                            + "\n\n"
+                        )
                 # The page's own migration as it is now. Whatever was
                 # published while the stream was down is gone, and a page
                 # that missed a run ending kept showing it running.

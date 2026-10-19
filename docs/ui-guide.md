@@ -55,8 +55,13 @@ The bar is two rows, on every page.
   Clicking it opens that migration and focuses the node on Tree
   (`?focus=`): a module waiting for an answer first, else the newest
   failure. There is no "which one?" picker; the lamp is not a list.
-- **Running count** — how many migrations currently have work in
-  flight, labelled “N run”. It is a number, not a button.
+- **Queue count** — the open migration's queue, beside the lamp. Idle it is
+  the number of modules waiting, “10 queued”, and “0 queued” for an empty
+  queue. While the queue runs it is the place of the module in flight out of
+  the run's total, “6/10 run”: the total is what the run set out to do, and it
+  moves when cards are added to a running queue or taken out of it. It is a
+  number, not a button. The lamp beside it flashes amber, whichever migration
+  is open.
 - **Settings** — an outline gear at the far right of the top row,
   set off by a vertical rule. App-wide only. What belongs to one
   migration lives in that migration's row on Overview.

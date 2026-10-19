@@ -285,7 +285,7 @@ def test_migration_settings_say_when_nothing_was_saved(client):
         assert Migration.get_by_id(row.id).retry_limit == 5
 
 
-def test_attention_lamp_and_running_count_are_rendered_from_the_database(client):
+def test_attention_lamp_and_queue_count_are_rendered_from_the_database(client):
     """They used to be hardcoded idle/0 and moved only on an SSE event, so a
     reload while a module waited for an answer showed a calm nav bar."""
     from test_tree import _open
@@ -295,7 +295,7 @@ def test_attention_lamp_and_running_count_are_rendered_from_the_database(client)
     html = client.get("/").text
 
     assert 'class="attention-lamp idle"' in html
-    assert 'data-running="0"' in html
+    assert 'data-queued="0"' in html
 
     row = _open(client, "Waiting")
     with database.connection_context():
@@ -304,7 +304,7 @@ def test_attention_lamp_and_running_count_are_rendered_from_the_database(client)
     busy = client.get("/").text
 
     assert 'class="attention-lamp needs-attention"' in busy
-    assert 'data-running="1"' in busy
+    assert 'data-queued="0"' in busy
     assert 'id="sse-hook"' in html
     assert "/static/sse.js" in html
     assert "/sse" in html
@@ -328,7 +328,6 @@ def test_sse_stream_stays_open_heartbeats_and_reconnects_promptly(client, monkey
     assert "text/event-stream" in response.headers["content-type"]
     # The hello carries the current state, so a reconnect re-syncs a nav
     # bar that missed events while the stream was down.
-    assert "event: running" in response.text
     assert "event: lamp" in response.text
     assert ": ping" in response.text
 
@@ -358,9 +357,6 @@ def test_the_stream_reads_the_database_off_the_event_loop(client, monkeypatch):
 
     monkeypatch.setattr(api, "SSE_HEARTBEAT_SECONDS", 0.02)
     monkeypatch.setattr(api, "SSE_MAX_SECONDS", 0.05)
-    monkeypatch.setattr(
-        api, "running_migration_count", watched("count", api.running_migration_count)
-    )
     monkeypatch.setattr(api, "lamp_state", watched("lamp", api.lamp_state))
 
     assert "event: lamp" in client.get("/sse").text

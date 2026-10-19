@@ -77,8 +77,8 @@ there is a branch to make; one inside another repository is left alone.
 
 **Does opening a second migration stop the first?**
 
-No. The switcher only changes the screen. The running count in the
-header is how many are in flight.
+No. The switcher only changes the screen. The count in the header is the
+queue of the migration that is open.
 
 **What is a batch?**
 

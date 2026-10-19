@@ -321,12 +321,14 @@ tools offered: exec, read_file, report, source</pre>
     <span class="attention-lamp needs-attention" title="A module is waiting.">
       <span class="lamp-dot"></span>
     </span>
-    <span class="running-count" data-running="0">0</span>
-    <span class="running-count" data-running="2">2</span>
+    <span class="queue-count" data-queued="0"><span class="count">0</span> <span class="unit">queued</span></span>
+    <span class="queue-count" data-queued="10"><span class="count">10</span> <span class="unit">queued</span></span>
+    <span class="queue-count" data-queued="5"><span class="count">6/10</span> <span class="unit">run</span></span>
   </div>
   <p>The lamp is global: a stall on another migration must still be visible.
-  Idle is muted; running pulses green; needs-attention pulses amber and wins over running. The count is how many
-  migrations are running, not how many modules.</p>
+  Idle is muted; running and needs-attention both pulse amber, and
+  needs-attention wins over running. The count is the open migration's queue:
+  the modules waiting, or &ldquo;6/10&rdquo; while the queue runs.</p>
 
   <h2>Destructive</h2>
   <div class="row">

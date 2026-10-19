@@ -966,17 +966,17 @@ a.attention-lamp:hover {
   background: var(--muted-low);
 }
 
-/* The lamp flashes in the open migration's colour, the one its arrows are
-   drawn in, and in amber when no migration is open. */
+/* The lamp is amber. It is global, and a stall on another migration must
+   read the same whichever one is open. */
 .attention-lamp.needs-attention .lamp-dot {
-  background: var(--accent, var(--amber));
+  background: var(--amber);
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
 /* Work is going on and nothing is stuck: the same colour, the same slow
-   pulse. The run count beside it stays its own colour. */
+   pulse. The queue count beside it stays its own colour. */
 .attention-lamp.running .lamp-dot {
-  background: var(--accent, var(--amber));
+  background: var(--amber);
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
@@ -987,13 +987,14 @@ a.attention-lamp:hover {
   }
 }
 
-.running-count {
+.queue-count {
+  white-space: nowrap;
   color: var(--muted-low);
   font-family: var(--mono);
   font-size: 12px;
 }
 
-.running-count:not([data-running="0"]) {
+.queue-count:not([data-queued="0"]) {
   color: var(--cyan);
 }
 
