@@ -146,14 +146,6 @@
     return body;
   }
 
-  /* The ball in the lamp of the module that runs: lamp-ball.js gives one to
-     each running row and takes it off the others. */
-  function ballSync() {
-    if (window.lampBall) {
-      window.lampBall.sync(panel);
-    }
-  }
-
   function setActive(moduleId) {
     panel.querySelectorAll(".pipeline-queue-item").forEach(function (row) {
       row.classList.remove("pipeline-queue-active");
@@ -257,7 +249,6 @@
         list.appendChild(buildRow(mod, "li"));
       });
     }
-    ballSync();
   }
 
   function showStartError(message) {
@@ -407,8 +398,7 @@
       } else if (panel.querySelector('.pipeline-queue-active[data-module-id="' + data.id + '"]')) {
         setActive(null);
       }
-      ballSync();
-    });
+      });
   }
 
   if (window.migratorSse) {

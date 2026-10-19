@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — components{% endblock %}
 {% block extra_head %}
-<script defer src="/static/lamp-ball.js"></script>
 {% endblock %}
 {% block screen %}
 <section class="screen screen-components">
@@ -600,8 +599,7 @@ tools offered: exec, read_file, report, source</pre>
           </div>
         </div>
         <ol class="pipeline-queue-list">
-          {# Running: the lamp is a ball bouncing in a ring. Parked on a question
-             (next row): the still dot. #}
+          {# In work, running or parked on a question: the amber dot. #}
           <li class="pipeline-queue-item pipeline-queue-active" data-status="running">
             <span class="pipeline-queue-order">0</span>
             <span class="graph-node-index">#2/1</span>
@@ -730,8 +728,10 @@ tools offered: exec, read_file, report, source</pre>
   left, the ported one comes out at the right, and a pair of meshed gears turns
   between them. Idle, waiting for a person, done and failed rest; only a run
   turns the gears, and the belts carry dashes toward the output. Top to
-  bottom: idle, running, waiting for you (amber, still), done (green, the
-  module at the output), failed (red, the module still at the input).</p>
+  bottom: idle, running, waiting for you (amber gears, still), done (green
+  gears, the module at the output), failed (red gears, the module still at the
+  input). The input slot is amber and the output slot cyan in every state; the
+  gears carry the state.</p>
 
   <h2>Working card</h2>
   <div class="workspace">

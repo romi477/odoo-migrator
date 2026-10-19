@@ -758,6 +758,26 @@ def test_the_machine_slots_have_a_hairline_border(client):
     slot = css.split(".machine-slot {")[1].split("}")[0]
     full = css.split(".machine-slot.is-full {")[1].split("}")[0]
 
-    assert "border: 0.5px dashed" in slot
-    assert "transparent)" in slot
-    assert "color-mix(in oklch, var(--machine) 55%, transparent)" in full
+    # Both slots, empty or full, have an edge of the same width. The input is
+    # amber and the output cyan, in every state; a module only firms the edge.
+    assert "--slot: var(--amber)" in slot
+    assert "border: 0.5px solid color-mix(in oklch, var(--slot) 40%, transparent)" in slot
+    assert "--slot: var(--cyan)" in css.split(".machine-out {")[1].split("}")[0]
+    assert "border-style" not in full
+    assert "var(--slot) 75%" in full
+    assert "var(--machine)" not in slot + full
+
+
+def test_the_gears_touch_without_sinking_into_each_other(client):
+    """Teeth that reach past the other gear's root read as jammed. The distance
+    between the centres must clear a tip against a root, both ways."""
+    _prepared(client)
+    page = client.get("/run").text
+    gears = re.findall(r'<circle cx="(\d+)" cy="38" r="\d+">', page)
+    big, small = (int(x) for x in gears[:2])
+    distance = small - big
+
+    # Tips and roots of the two gears, as drawn: 29/23 and 20/15.
+    assert distance >= 29 + 15
+    assert distance >= 20 + 23
+    assert 'transform-origin: 78px 38px' in client.get("/static/style.css").text

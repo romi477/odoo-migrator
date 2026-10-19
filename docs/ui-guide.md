@@ -272,8 +272,8 @@ Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count
 as queued for the steps after it; pressing its chip again brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
-stopped and no module is still running. The module that runs has a ball bouncing in a ring in place of its lamp
-(a module parked on a question keeps the still amber dot); passed
+stopped and no module is still running. The lamp of a row is a plain indicator: amber for the module in work, running or
+parked on a question, grey for the rest; it does not move. Passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
 cartridge's steps, each with how it went in the attempt on screen: done,
 failed, running, not yet run, or — dashed green — passed in an earlier
@@ -288,7 +288,7 @@ runs inside `tests`, and a parked one at once, withdrawing the question.
 The button reads *Stopping…* from the press until the run gets there.
 The card opens with the **machine**: a black box with a slot at each
 end, labelled with the migration's versions (`17.0 in`, `18.0 out`), and a pair of
-meshed gears between them. The slots have a hairline border, soft, because they hold a name and are not buttons. At rest it is grey with both slots empty. While a
+meshed gears between them. The slots have a hairline border, soft, because they hold a name and are not buttons: the input is amber and the output cyan, whatever the state, and a module in a slot only firms the edge. At rest it is grey with both slots empty. While a
 module runs its name is in the input slot, the gears turn in amber and the
 belts carry dashes toward the output; a module waiting for a person stops them
 (amber); a passed module leaves at the output with the gears green; a failed

@@ -2872,30 +2872,11 @@ button.queue-remove:active:not(:disabled) {
 }
 
 /* The lamp of the module in work: the queue row and the run card below it
-   are the same module, and this is what says so. (The rule used `--orange`,
-   which is not a token here, so the lamp and the row's edge were never
-   drawn.) */
+   are the same module, and this is what says so. A plain indicator: amber while
+   the module is in work (running, or parked on a question), grey otherwise. It
+   does not move; the gears, the cable and the glow already do. */
 .pipeline-queue-active .pipeline-lamp {
   background: var(--amber);
-}
-
-/* While the module runs the lamp is a ball in a ring (`lamp-ball.js` draws it
-   into a canvas): a 16px ring round the dot's own centre, so the row keeps
-   the dot's place and its symmetry. Without the script, or with the ball not
-   yet drawn, it is the plain amber dot. A module parked on a question keeps
-   the still dot: nothing is moving while it waits on a person. */
-.pipeline-lamp.has-ball {
-  position: relative;
-  background: transparent;
-  color: var(--amber);
-}
-
-.pipeline-lamp.has-ball canvas {
-  position: absolute;
-  left: -4px;
-  top: -4px;
-  width: 16px;
-  height: 16px;
 }
 
 /* The two buttons of the Selection bar. */
@@ -3497,7 +3478,7 @@ pre.test-output {
 }
 
 .gear-small {
-  transform-origin: 68px 38px;
+  transform-origin: 78px 38px;
 }
 
 @keyframes gear-turn {
@@ -3551,8 +3532,12 @@ pre.test-output {
   min-height: 2.6rem;
   padding: 0 12px;
   box-sizing: border-box;
-  /* A hairline, and a soft one: the slots hold a name, they are not buttons. */
-  border: 0.5px dashed color-mix(in oklch, var(--border-strong) 80%, transparent);
+  /* A hairline, and a soft one: the slots hold a name, they are not buttons.
+     The input is amber, the colour of the work it feeds; the output is cyan, the
+     colour of what leaves for the queue and the result. Fixed whatever the
+     state, which the gears show; a module in a slot only makes the edge firmer. */
+  --slot: var(--amber);
+  border: 0.5px solid color-mix(in oklch, var(--slot) 40%, transparent);
   border-radius: 8px;
   color: var(--muted-low);
   font-size: 12px;
@@ -3565,9 +3550,12 @@ pre.test-output {
   font-size: 13px;
 }
 
+.machine-out {
+  --slot: var(--cyan);
+}
+
 .machine-slot.is-full {
-  border-style: solid;
-  border-color: color-mix(in oklch, var(--machine) 55%, transparent);
+  border-color: color-mix(in oklch, var(--slot) 75%, transparent);
   color: var(--muted);
 }
 

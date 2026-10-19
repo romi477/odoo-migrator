@@ -743,3 +743,22 @@ def test_the_cable_to_the_run_stays_cyan_and_only_its_pulse_turns_amber(client):
 
     assert "var(--cyan) 50%, white" in frames
     assert "var(--amber) 50%, white" in frames
+
+
+def test_a_queue_lamp_is_a_still_indicator_amber_when_active_and_grey_otherwise(client):
+    """The ball in a ring is gone: the gears, the cable and the glow move
+    already, so the lamp only says whether the module is in work."""
+    from odoo_migrator.paths import static_dir
+
+    css = client.get("/static/style.css").text
+    script = client.get("/static/pipeline.js").text
+    page = client.get("/run").text
+    lamp = css.split(".pipeline-lamp {")[1].split("}")[0]
+    active = css.split(".pipeline-queue-active .pipeline-lamp {")[1].split("}")[0]
+
+    assert "background: var(--muted-low)" in lamp
+    assert "background: var(--amber)" in active
+    assert "animation" not in lamp and "animation" not in active
+    assert not (static_dir() / "lamp-ball.js").exists()
+    assert "lamp-ball" not in page and "lampBall" not in script
+    assert "has-ball" not in css
