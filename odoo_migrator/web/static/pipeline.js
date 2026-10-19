@@ -176,8 +176,8 @@
     return form;
   }
 
-  /* Its run is in the review a finished batch waits on: Continue, and Discard
-     run, which asks first. The same pair as _queue_play.html, made from
+  /* Its run is in the review a finished batch waits on: Continue, which runs
+     the queue again, and Discard run, which asks first. The same pair as _queue_play.html, made from
      nodes; confirm.js listens on the document, so a form built here asks too. */
   function reviewButtons(mod) {
     const box = cell("div", "queue-review", null);
@@ -185,13 +185,18 @@
     const go = cell("form", "", null);
     go.method = "post";
     go.action = "/run/continue";
+    const again = cell("input", "", null);
+    again.type = "hidden";
+    again.name = "run";
+    again.value = "1";
+    go.appendChild(again);
     const goButton = cell("button", "", "Continue");
     goButton.type = "submit";
     goButton.disabled = !!mod.review.unread;
-    goButton.setAttribute("aria-label", "Continue after " + mod.technical_name);
+    goButton.setAttribute("aria-label", "Continue " + mod.technical_name);
     goButton.title = mod.review.unread
       ? "A failed or waiting run is unread: dismiss it in the review below, or override there."
-      : "Keep this run as it is and go on to the next batch.";
+      : "Keep the files this run left and run the queue again. The module starts over at its first step, on those files.";
     go.appendChild(goButton);
     box.appendChild(go);
     const discard = mod.review.discard;

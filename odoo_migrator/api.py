@@ -1379,7 +1379,11 @@ def create_app(
         return RedirectResponse("/run", status_code=303)
 
     @app.post("/run/continue")
-    def run_continue(request: Request, override: str = Form("")):
+    def run_continue(request: Request, override: str = Form(""), run: str = Form("")):
+        """Close the review. From a queue card it also runs the queue again:
+        a person who presses Continue there means the work to go on, and a
+        review that closed with nothing moving read as a button that did
+        nothing."""
         current = get_active(request.cookies.get(OPEN_COOKIE))
         if current is None:
 
@@ -1389,6 +1393,9 @@ def create_app(
         except ContractError as refused:
 
             return _run_page(request, error=str(refused))
+        if run.strip() == "1":
+
+            return _start_queue(request, current)
 
         return RedirectResponse("/run", status_code=303)
 

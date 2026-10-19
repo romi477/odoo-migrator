@@ -1067,3 +1067,36 @@ def test_the_page_script_draws_the_review_pair_and_keeps_run_off(client):
     assert "function reviewButtons" in script
     assert "if (mod.review)" in script
     assert "|| !!data.review" in script
+
+
+def test_continue_on_the_queue_card_closes_the_review_and_runs_the_queue_again(client):
+    """Continue closed the review and nothing moved: Run came back and the
+    person was left to guess that Continue had not meant go on."""
+    from odoo_migrator.models import Batch
+    from odoo_migrator.pipeline_queue import run_state
+
+    row, first = _stopped_in_review(client)
+    _hold(client)
+
+    answered = client.post("/run/continue", data={"run": "1"}, follow_redirects=False)
+
+    assert answered.status_code == 303
+    with database.connection_context():
+        statuses = {batch.status for batch in Batch.select().where(Batch.migration == row.id)}
+    assert "checkpoint" not in statuses
+    assert run_state(row.id) == "running"
+    assert _statuses(row.id)[first["technical_name"]] == "running"
+    page = client.get("/run").text
+    review = page.split("data-queue-review", 1)
+    assert len(review) == 1
+
+
+def test_the_cards_continue_says_the_queue_runs_again(client):
+    _row, _first = _stopped_in_review(client)
+    page = client.get("/run").text
+    form = page.split("data-queue-review", 1)[1].split("</form>", 1)[0]
+
+    assert 'name="run" value="1"' in form
+    assert "run the queue again" in form
+    script = client.get("/static/pipeline.js").text
+    assert 'again.name = "run"' in script

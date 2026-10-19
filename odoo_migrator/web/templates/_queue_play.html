@@ -23,15 +23,17 @@
   </button>
 </form>
 {% elif mod.review %}
-{# Its run is in the review a finished batch waits on. Continue goes on to the
-   next batch and leaves the run as it is; Discard run deletes it and queues
-   the module again. Either one frees Run. White beside orange: the colour is
+{# Its run is in the review a finished batch waits on. Continue keeps the
+   files the run left and runs the queue again; the module starts over at its
+   first step, since a stopped run cannot be picked up mid-step. Discard run
+   deletes the run, puts the files back and leaves Run to the person. White beside orange: the colour is
    what tells the one that deletes apart. #}
 <div class="queue-review" data-queue-review>
   <form method="post" action="/run/continue">
+    <input type="hidden" name="run" value="1">
     <button type="submit"{% if mod.review.unread %} disabled{% endif %}
-            aria-label="Continue after {{ mod.technical_name }}"
-            title="{{ 'A failed or waiting run is unread: dismiss it in the review below, or override there.' if mod.review.unread else 'Keep this run as it is and go on to the next batch.' }}">Continue</button>
+            aria-label="Continue {{ mod.technical_name }}"
+            title="{{ 'A failed or waiting run is unread: dismiss it in the review below, or override there.' if mod.review.unread else 'Keep the files this run left and run the queue again. The module starts over at its first step, on those files.' }}">Continue</button>
   </form>
   {% if mod.review.discard and mod.review.discard.files is none %}
   <button type="button" class="discard-run" disabled aria-label="Discard the run of {{ mod.technical_name }}"
