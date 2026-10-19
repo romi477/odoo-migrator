@@ -3970,20 +3970,20 @@ button.queue-play:disabled {
 
 /* The arrow is the li's own, so it sits between the boxes and not inside
    one. One size for every arrow, small, so they lead the eye and do not
-   compete with the steps. Drawn, so its line is the card's hairline and not
-   the weight of the font's glyph. The way in and the way out are the wires
-   below. */
+   compete with the steps, and short, so ten steps hold one line on a laptop.
+   Drawn, so its line is the card's hairline and not the weight of the font's
+   glyph. The way in and the way out are the wires below. */
 .ribbon-node + .ribbon-node::before {
   content: "";
   flex: none;
-  width: 12px;
+  width: 8px;
   height: 8px;
-  margin: 0 6px;
+  margin: 0 2px;
   color: var(--muted-low);
   background: currentColor;
   -webkit-mask: var(--arrow-right) center / contain no-repeat;
   mask: var(--arrow-right) center / contain no-repeat;
-  --arrow-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='black' stroke-width='0.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0.5 4H11.2M8.2 1L11.2 4L8.2 7'/%3E%3C/svg%3E");
+  --arrow-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' fill='none' stroke='black' stroke-width='0.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0.5 4H7.4M5 1.6L7.4 4L5 6.4'/%3E%3C/svg%3E");
 }
 
 /* Room at both ends for the wires to turn their corner in. */
@@ -4043,8 +4043,8 @@ button.queue-play:disabled {
 .ribbon-box {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 6px 7px;
   border: 0.5px solid var(--border);
   border-radius: var(--chrome-radius-inner);
   background: var(--panel);
