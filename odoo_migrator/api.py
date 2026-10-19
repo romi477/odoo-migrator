@@ -96,6 +96,7 @@ from odoo_migrator.pipeline_queue import nav_count, queue_snapshot
 from odoo_migrator.pipeline_queue import remove_last_module as queue_remove_last_module
 from odoo_migrator.pipeline_queue import remove_step as queue_remove_step
 from odoo_migrator.pipeline_queue import run_one as queue_run_one
+from odoo_migrator.pipeline_queue import run_state as queue_state
 from odoo_migrator.pipeline_queue import start as queue_start
 from odoo_migrator.pipeline_queue import stop as queue_stop
 from odoo_migrator.port_guard import HandEdits, discard_hand_edits, keep_hand_edits
@@ -1397,6 +1398,11 @@ def create_app(
         try:
             continue_batch(current["id"], override=override.strip() == "1")
         except ContractError as refused:
+            # A second press of the same button: the first closed the review
+            # and started the queue, and that is what was asked for.
+            if run.strip() == "1" and queue_state(current["id"]) == "running":
+
+                return RedirectResponse("/run", status_code=303)
 
             return _run_page(request, error=str(refused))
         _announce_queue(request, current)
@@ -1857,7 +1863,9 @@ def create_app(
                 # The bar's counter is the open migration's queue. A page that
                 # names no migration of its own still has one in its bar.
                 if not migration:
-                    opened = get_active(request.cookies.get(OPEN_COOKIE))
+                    opened = await asyncio.to_thread(
+                        get_active, request.cookies.get(OPEN_COOKIE)
+                    )
                     if opened:
                         told = await asyncio.to_thread(nav_count, opened["id"])
                         yield (

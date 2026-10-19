@@ -287,10 +287,14 @@ flow returns to `lint`). The failure lane that attempt ran (diagnose,
 patch) is a smaller row under it. From a second attempt on, numbers above
 the ribbon read any attempt back; the latest one follows the run live. A
 parked question sits
-under the ribbon as a thread. **Stop** on the queue card, in the place of Run while a module is in flight, a filled square before its word, ends the module after
+under the ribbon as a thread. There are two stops. The grey filled square on the card of the module in work ends that run after
 the model turn in flight (Cursor: at the step's end), between two test
-runs inside `tests`, and a parked one at once, withdrawing the question.
-The button reads *Stopping…* from the press until the run gets there. The runner card does not say the module's name or status again: the machine's input slot has the name and the gears have the state. The cables carry their pulse for any work in hand: the queue running, or one module run on its own from a play button.
+runs inside `tests`, and a parked one at once, withdrawing the question; it
+reads *Stopping…* from the press until the run gets there. **Stop** in the
+queue card's header, shown while the queue runs, is the queue's: no more
+modules, and the one in work finishes. Run gives its place while a module is in work. A run that is not
+in the queue, started from Tree, has no card here, so its Stop now stands in the
+header. The runner card does not say the module's name or status again: the machine's input slot has the name and the gears have the state. The cables carry their pulse for any work in hand: the queue running, or one module run on its own from a play button.
 The card opens with the **machine**: a black box with a slot at each
 end, labelled with the migration's versions (`17.0 in`, `18.0 out`), and a pair of
 meshed gears between them. The slots have a hairline border, soft, because they hold a name and are not buttons: the input is amber and the output cyan, whatever the state, and a module in a slot only firms the edge. At rest it is grey with both slots empty. While a
@@ -303,8 +307,10 @@ sparks leave the mesh, most of them down; they stop when the lap is mended and g
 machine at rest: how the last run ended is not kept. SSE fills the stage; when the stream
 comes back after a drop or a restart, its first message repaints the card,
 the queue and the statuses. When a batch stops at checkpoint a banner
-appears: *This batch has finished. Reload to review it.* A wave the queue
-approves and carries on from is not announced. The screen does not swap
+appears under the card: *This batch has finished. Reload to review it.*, or
+*The run was stopped.* when a person stopped it. A wave the queue
+approves and carries on from is not announced, nor is a module run on its own
+that passed, and neither is a review that a queue card already answers. The screen does not swap
 itself for the review while you are looking at a live stage.
 
 **Flow** (`/flow`) draws the pinned cartridge. The picture is computed
@@ -364,7 +370,11 @@ graph yet, the page points you at Tree → Resolve.
 
 ### Checkpoint
 
-A finished batch (not a smoke-run) stops here. Flow id and version
+A finished batch (not a smoke-run) stops here, except one module run on its
+own from its play button that passed: there is nothing to review, and it closes
+by itself. One that failed, or was stopped, waits here, and its module's
+card in the queue carries **Continue** and **Discard** in the place of the play
+button; **Run** stays off until the review is answered. Flow id and version
 are in the heading — swapping the pin later does not rewrite this
 review.
 
@@ -373,8 +383,8 @@ review.
 | **Continue** | Starts the next work. Disabled while any job is still `failed` or `waiting_for_human` and not dismissed. |
 | **Override** | Continues anyway. Named, not hidden in Continue. |
 | **Dismiss** | Marks one stalled job reviewed so Continue can enable. Only failed or waiting jobs. Nothing is deleted. |
-| **Continue** (on a card) | The same Continue as the one above the cards, beside Dismiss and Discard run so the next step is not outside the card being read. White, like the one above; it stays off until every failed or waiting run is read. |
-| **Discard run** | The word is orange, the only button that deletes; the outline is plain until the pointer is over it, then cyan like every button. Forgets the module's runs as if it had never started, after a question that says what goes. Deletes every job of the module with its log, findings and checkpoint thread; puts the module's directory in the target project back to its last commit (changed files restored, files git does not know removed; other modules and ignored files are not touched); queues the module again; closes the batch if it was the last job in it. Offered for stopped, failed and unknown runs; a module that passed is Reopen's, because the app committed its port. Off, with the reason on hover, when the directory is not a git checkout: half a discard is not offered. The target container's database is not touched. |
+| **Continue** (on a queue card) | Closes the review and runs the queue again. It stays off until every failed or waiting run is read. A second press, a double click, is held off, and one that arrives after the first started the queue is not an error. The card that carries the review cannot be taken out of the queue, nor its step, until the review is answered. |
+| **Discard run** (also **Discard** on the queue card) | The word is orange, the only button that deletes; the outline is plain until the pointer is over it, then cyan like every button. Forgets the module's runs as if it had never started, after a question that says what goes. Deletes every job of the module with its log, findings and checkpoint thread; puts the module's directory in the target project back to its last commit (changed files restored, files git does not know removed; other modules and ignored files are not touched); queues the module again; closes the batch if it was the last job in it. Offered for stopped, failed and unknown runs; a module that passed is Reopen's, because the app committed its port. Off, with the reason on hover, when the directory is not a git checkout: half a discard is not offered. The target container's database is not touched. |
 | **Promote** | Appends a finding to a `rules/<version>.md`. You pick the version file; the app does not guess. A 17→19 finding that belongs in 18.0.md must not land in 19.0.md by default. |
 
 Each job lists attempts (iteration, verdict, diagnosis, unified diff,

@@ -35,6 +35,26 @@
      event, and the one being stopped stays off until its run ends. */
   let stoppingId = panel.getAttribute("data-stopping-module") || "";
 
+  /* Continue closes the review and starts the queue. A second press of it, a
+     double click, has nothing left to answer: it is held off. Discard asks
+     first and is left to the dialog. */
+  panel.addEventListener("submit", function (event) {
+    const go = event.target.closest('[data-queue-review] form[action="/run/continue"]');
+    if (!go) {
+      return;
+    }
+    const button = go.querySelector("button");
+    if (!button || button.getAttribute("aria-busy") === "true") {
+      event.preventDefault();
+
+      return;
+    }
+    button.setAttribute("aria-busy", "true");
+    setTimeout(function () {
+      button.disabled = true;
+    }, 0);
+  });
+
   panel.addEventListener("submit", function (event) {
     const form = event.target.closest("[data-queue-stop]");
     if (!form) {
@@ -346,9 +366,59 @@
     });
   }
 
+  /* Rows are rebuilt on each queue event, and a keyboard user's focus went
+     with the node it was on. Where it was is kept as the module and the part
+     of the row, and put back on the new one; a button that became another
+     (a play that turned into a stop) hands it to the row's first live button. */
+  function focusedPart() {
+    const node = document.activeElement;
+    if (!node || !panel.contains(node)) {
+      return null;
+    }
+    const where = node.closest("[data-pipeline-queue-next]")
+      ? "[data-pipeline-queue-next] "
+      : "[data-pipeline-queue] ";
+    const row = node.closest("[data-module-id]");
+    if (!row || !node.closest("button")) {
+      return null;
+    }
+    const id = row.getAttribute("data-module-id");
+    let part = "button";
+    if (node.closest("[data-queue-play]")) {
+      part = "[data-queue-play]";
+    } else if (node.closest("[data-queue-remove]")) {
+      part = "[data-queue-remove]";
+    } else if (node.closest("[data-queue-stop]")) {
+      part = "[data-queue-stop] button";
+    } else if (node.closest(".discard-run")) {
+      part = ".discard-run";
+    } else if (node.closest('form[action="/run/continue"]')) {
+      part = 'form[action="/run/continue"] button';
+    }
+
+    return { where: where + '[data-module-id="' + id + '"] ', part: part };
+  }
+
+  function restoreFocus(kept) {
+    if (!kept || (document.activeElement && panel.contains(document.activeElement))) {
+      return;
+    }
+    const target =
+      panel.querySelector(kept.where + kept.part + ":not(:disabled)") ||
+      panel.querySelector(kept.where + "button:not(:disabled)");
+    if (target) {
+      target.focus();
+    }
+  }
+
   function renderQueue(data) {
     const migrationId = panel.getAttribute("data-migration-id");
     if (!migrationId || String(data.migration_id) !== migrationId) {
+      return;
+    }
+    /* The hello a page without a migration of its own gets carries only the
+       bar's count; it has no cards to draw. */
+    if (!Array.isArray(data.modules)) {
       return;
     }
     const key = queueKey(data);
@@ -439,6 +509,7 @@
     if (empty) {
       empty.hidden = true;
     }
+    const kept = focusedPart();
     const nextSlot = panel.querySelector("[data-pipeline-queue-next]");
     if (nextSlot) {
       nextSlot.textContent = "";
@@ -451,6 +522,7 @@
         list.appendChild(buildRow(mod, "li"));
       });
     }
+    restoreFocus(kept);
   }
 
   function showStartError(message) {
