@@ -13,7 +13,7 @@
      which screen this is and the card below says the rest. What is left is
      the notice that asks for something, and the empty state. #}
   {% if screen != 'sheller' %}
-  {% if checkpoint %}
+  {% if checkpoint and screen != 'pipeline' %}
   <p class="screen-note">Review this batch before the next one. Flow
   <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
   {% elif not current %}
@@ -26,9 +26,6 @@
   {% endif %}
 
   {% if screen == 'pipeline' %}
-  <p class="checkpoint-ready" data-checkpoint-ready hidden>
-    This batch has finished. <a href="/run">Reload to review it.</a>
-  </p>
 
   {% if current %}
   {# Selection is the bar the run hangs from: full width, always there, and it
@@ -174,6 +171,7 @@
              data-running="{{ 'true' if pipeline_queue.run_state == 'running' else 'false' }}"
              data-working="{{ 'false' if pipeline_queue.idle else 'true' }}"
              data-has-items="{{ 'true' if pipeline_queue.modules else 'false' }}"
+             data-stopping-module="{{ live.module_id if live and live.stopping else '' }}"
              data-queue-expandable="{{ 'true' if pipeline_queue.modules | length > 1 else 'false' }}"
              x-data="{ expanded: false }"
              :class="{ 'is-queue-expanded': expanded }">
@@ -216,15 +214,18 @@
           </p>
         </div>
         <div class="pipeline-queue-controls">
-          {# One button, two faces. Run while nothing is in a module; while one is,
-             the same place holds Stop, a square, which ends that run. The queue's
-             own Stop, after this module, stays beside it. #}
+          {# Two stops, two places. The square on the module's own card stops
+             that run now. The header's Stop is the queue's: no more modules,
+             and the one in work finishes. Run gives its place while a module
+             is in work. A run that is not in the queue, started from Tree,
+             has no card here, so its square, Stop now, stands in the header. #}
           {% set parked = live and live.status == 'waiting_for_human' %}
           {% set stopping = live and live.stopping %}
           {% set hint_parked = "Nothing is running: the question is withdrawn and the run ends now." %}
           {% set hint_running = "The model turn in flight finishes — it cannot be called back — and the run ends before the next one." %}
           {% set hint_stopping = "Stop was heard. The model turn in flight finishes first, then the run ends." %}
           {% set module_live = live and live.status in ('running', 'waiting_for_human') %}
+          {% set module_queued = live and (pipeline_queue.modules | selectattr('id', 'equalto', live.module_id) | list) %}
           <form method="post" action="/run/queue/run"{% if module_live %} hidden{% endif %}>
             <button type="submit" class="primary"
                     {% if pipeline_queue.run_state == 'running' or not pipeline_queue.modules %}disabled{% endif %}
@@ -234,7 +235,7 @@
                 data-hint-parked="{{ hint_parked }}" data-hint-running="{{ hint_running }}"
                 data-hint-stopping="{{ hint_stopping }}"
                 action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
-                {% if not module_live %}hidden{% endif %}>
+                {% if not module_live or module_queued %}hidden{% endif %}>
             <button type="submit" aria-label="Stop this run after the model turn in flight"
                     data-label="Stop"
                     title="{{ hint_stopping if stopping else (hint_parked if parked else hint_running) }}"
@@ -242,10 +243,11 @@
           </form>
           {# Only while the queue runs: with nothing in progress there is nothing
              to stop, and a greyed button was a control that never applied. #}
-          <form method="post" action="/run/queue/stop"
+          <form method="post" class="pipeline-stop" action="/run/queue/stop"
                 {% if pipeline_queue.run_state != 'running' %}hidden{% endif %}>
             <button type="submit"
-                    aria-label="Take no more modules; let this one finish">Stop after this module</button>
+                    title="The queue takes no more modules. The one in work finishes; its own square stops it now."
+                    aria-label="Take no more modules; let this one finish">Stop</button>
           </form>
           <form method="post" action="/run/queue/clear">
             <button type="submit"
@@ -340,9 +342,9 @@
           <button type="button" data-attempt-follow>Follow</button>
         </p>
         <ol class="ribbon" data-ribbon>
-          {# The module goes in on the left, in its old version, and comes out on
-             the right, in the new one: the two ends of what the steps do. #}
-          <li class="ribbon-end ribbon-start" title="The module in its old version goes in here">{{ current.source_version if current else "in" }}</li>
+          {# The two ends are the machine's slots above: the version and the
+             name go in there and come out there. Said again as blocks here,
+             they pushed the steps onto a second line. #}
           {% for node in ribbon.steps %}
           <li class="ribbon-node" data-step="{{ node.id }}" data-state="{{ node.state }}">
             {# The block names a step of the pinned cartridge, and Flow is
@@ -356,7 +358,6 @@
             </a>
           </li>
           {% endfor %}
-          <li class="ribbon-end ribbon-finish" title="The ported module comes out here">{{ current.target_version if current else "out" }}</li>
         </ol>
         {# The failure lane this attempt ran: diagnose, patch. Not the
            pipeline, so a row of its own under it. #}
@@ -481,8 +482,18 @@
   {% endif %}
   {% endif %}
 
+  {# Under the card, beside Continue. Above the Selection bar they sat
+     under it: the bar is pulled up flush with the frame and stays there,
+     so a line in front of it was covered. #}
+  {% if screen == 'pipeline' and current %}
+  <p class="checkpoint-ready" data-checkpoint-ready hidden>
+    This batch has finished. <a href="/run">Reload to review it.</a>
+  </p>
+  {% endif %}
   {% if screen == 'pipeline' and checkpoint %}
   <div class="checkpoint">
+    <p class="screen-note">Review this batch before the next one. Flow
+    <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
     <div class="row">
       <form method="post" action="/run/continue">
         <button type="submit"{% if checkpoint.unread %} disabled{% endif %}

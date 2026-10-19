@@ -810,20 +810,28 @@ def test_play_on_a_module_of_a_later_step_waits_for_the_earlier_ones(client):
     assert _statuses(row.id)[later["technical_name"]] != "running"
 
 
-def test_the_module_in_flight_has_an_amber_play_that_cannot_be_pressed(client):
+def test_the_module_in_flight_has_an_amber_square_that_stops_it_now(client):
     row = _queue_both_steps(client)
     _hold(client)
     first = queue_snapshot(row.id)["modules"][0]
     _play(client, first["id"])
     page = client.get("/run").text
-    button = page.split(f'data-queue-play data-module="{first["id"]}"')[1].split(">")[0]
+    square = page.split(f'data-queue-stop data-module="{first["id"]}"')[1].split("</form>")[0]
 
-    assert "disabled" in button
-    assert f'{first["technical_name"]} is running.' in button
+    # Its own run, stopped now: the same route as the card's Stop always was.
+    assert f'action="/run/modules/{first["id"]}/stop"' in square
+    assert "disabled" not in square.split(">", 2)[1]
+    assert f'Stop {first["technical_name"]} now' in square
+    assert "<rect" in square
+    assert f'data-queue-play data-module="{first["id"]}"' not in page
     css = client.get("/static/style.css").text
 
-    assert ".pipeline-queue-active .queue-play" in css
     assert "color: var(--amber)" in css.split(".pipeline-queue-active .queue-play,")[1].split("}")[0]
+    assert "var(--red)" in css.split(".queue-stop button.queue-play:hover:not(:disabled),")[1].split("}")[0]
+    script = client.get("/static/pipeline.js").text
+
+    assert "function stopSquare" in script
+    assert "mod.active && IN_WORK[mod.status]" in script
 
 
 def test_every_row_has_a_play_button_and_it_is_an_outlined_triangle_that_gives_when_pressed(client):
@@ -897,20 +905,24 @@ def test_the_runner_card_does_not_say_the_module_or_its_state_again(client):
     assert "pipeline-head-who" not in page
 
 
-def test_stop_is_on_the_queue_card_in_the_place_of_run_while_a_module_is_in_flight(client):
-    _row, _first, page = _running_page(client)
+def test_a_queued_run_is_stopped_from_its_card_and_the_header_stop_is_the_queues(client):
+    _row, first, page = _running_page(client)
     controls = page.split('class="pipeline-queue-controls"', 1)[1].split("</header>", 1)[0]
     run = controls.split('action="/run/queue/run"')[1].split(">", 1)[0]
-    stop = controls.split("data-pipeline-stop")[1].split(">", 1)[0]
+    now = controls.split("data-pipeline-stop")[1].split(">", 1)[0]
     live = page.split('class="pipeline-live"', 1)[1].split("</article>", 1)[0]
 
     assert "hidden" in run
-    assert "hidden" not in stop
-    assert 'action="/run/modules/' in controls
-    # Not in the runner card any more.
+    # The module has a card in the queue, and its square stops it now; the
+    # header does not say it a second time.
+    assert "hidden" in now
+    assert f'data-queue-stop data-module="{first["id"]}"' in page
     assert "data-pipeline-stop" not in live
-    # The queue's own Stop, after this module, stays its own button.
-    assert "Stop after this module" in controls
+    # The header's Stop is the queue's: after this module. One word, and it
+    # is there only while the queue runs.
+    queue = controls.split('action="/run/queue/stop"')[1].split("</form>", 1)[0]
+    assert ">Stop</button>" in queue
+    assert "Stop after this module" not in controls
     css = client.get("/static/style.css").text
 
     assert ".pipeline-stop button::before" in css
@@ -919,6 +931,7 @@ def test_stop_is_on_the_queue_card_in_the_place_of_run_while_a_module_is_in_flig
     script = client.get("/static/sse.js").text
     assert 'document.querySelector("[data-pipeline-stop]")' in script
     assert "run.hidden = !!LIVE[data.status]" in script
+    assert "stop.hidden = !LIVE[data.status] || !!carded" in script
 
 
 def test_a_module_that_came_out_rests_in_cyan_not_green(client):
@@ -929,19 +942,23 @@ def test_a_module_that_came_out_rests_in_cyan_not_green(client):
     assert "green" not in rule
 
 
-def test_the_steps_are_framed_by_the_two_versions_and_their_arrows_turn_amber_at_work(client):
+def test_the_steps_lead_from_the_input_slot_with_one_small_arrow_that_turns_amber_at_work(client):
     _row, _first, page = _running_page(client)
     ribbon = page.split('class="ribbon" data-ribbon>', 1)[1].split("</ol>", 1)[0]
     css = client.get("/static/style.css").text
 
-    # The old version before the first step, the new one after the last.
-    assert ribbon.index("ribbon-start") < ribbon.index('class="ribbon-node"')
-    assert ribbon.rindex("ribbon-node") < ribbon.index("ribbon-finish")
-    assert ">17.0<" in ribbon and ">18.0<" in ribbon
-    amber = css.split('.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane)')[1].split("}")[0]
+    # The versions are the machine's slots; said again as blocks they pushed
+    # the steps onto a second line.
+    assert "ribbon-end" not in ribbon
+    assert ">17.0<" not in ribbon and ">18.0<" not in ribbon
+    # Every arrow is one rule, so one size; the first step's included.
+    arrow = css.split(".ribbon:not(.ribbon-lane) .ribbon-node::before,\n.ribbon-node + .ribbon-node::before {")[1].split("}")[0]
+
+    assert "font-size: 12px" in arrow
+    assert css.count('content: "→"') == 1
+    amber = css.split('.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node::before {')[1].split("}")[0]
 
     assert "color: var(--amber)" in amber
-    assert "ribbon-start::after" in amber and "ribbon-finish::before" in amber
 
 
 def test_a_module_run_on_its_own_does_not_stop_for_review_when_it_passed(client):

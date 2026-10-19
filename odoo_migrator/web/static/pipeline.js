@@ -31,6 +31,30 @@
     return;
   }
 
+  /* The module whose square was pressed. Rows are rebuilt on every queue
+     event, and the one being stopped stays off until its run ends. */
+  let stoppingId = panel.getAttribute("data-stopping-module") || "";
+
+  panel.addEventListener("submit", function (event) {
+    const form = event.target.closest("[data-queue-stop]");
+    if (!form) {
+      return;
+    }
+    const button = form.querySelector("button");
+    if (!button || button.getAttribute("aria-busy") === "true") {
+      event.preventDefault();
+
+      return;
+    }
+    stoppingId = form.getAttribute("data-module") || "";
+    button.setAttribute("aria-busy", "true");
+    button.title = HINT_STOPPING;
+    /* After this turn: the submission has already taken the form's data. */
+    setTimeout(function () {
+      button.disabled = true;
+    }, 0);
+  });
+
   let lastQueueKey = "";
 
   function queueKey(data) {
@@ -51,7 +75,7 @@
         return mod.id + ":" + mod.position + (mod.removable ? "x" : "") + (mod.play ? "p" : "");
       }).join(",") +
       "|" +
-      (active ? active.id : "")
+      (active ? active.id + ":" + active.status : "")
     );
   }
 
@@ -93,9 +117,68 @@
     return button;
   }
 
+  const HINT_STOPPING =
+    "Stop was heard. The model turn in flight finishes first, then the run ends.";
+  const IN_WORK = { running: true, waiting_for_human: true };
+
+  /* The square on the module in work: stop this run now. The same form as
+     _queue_play.html, made from nodes. */
+  function stopSquare(mod) {
+    const form = cell("form", "queue-stop", null);
+    form.method = "post";
+    form.action = "/run/modules/" + mod.id + "/stop";
+    form.setAttribute("data-queue-stop", "");
+    form.setAttribute("data-module", String(mod.id));
+    const button = cell("button", "queue-play", null);
+    button.type = "submit";
+    const stopping = stoppingId === String(mod.id);
+    if (stopping) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      button.title = HINT_STOPPING;
+    } else if (mod.status === "waiting_for_human") {
+      button.title =
+        "Stop " + mod.technical_name + " now: the question is withdrawn and the run ends.";
+    } else {
+      button.title =
+        "Stop " +
+        mod.technical_name +
+        " now: the model turn in flight finishes, then the run ends.";
+    }
+    button.setAttribute("aria-label", "Stop " + mod.technical_name + " now");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "play-glyph stop-glyph");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "18");
+    svg.setAttribute("height", "18");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.6");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", "7");
+    rect.setAttribute("y", "7");
+    rect.setAttribute("width", "10");
+    rect.setAttribute("height", "10");
+    rect.setAttribute("rx", "2.5");
+    svg.appendChild(rect);
+    button.appendChild(svg);
+    form.appendChild(button);
+
+    return form;
+  }
+
   /* The play button: this module alone, where the queue's Run goes on through
-     all of them. The same button as _queue_play.html, made from nodes. */
+     all of them. The same button as _queue_play.html, made from nodes. On the
+     module in work, the square that stops it. */
   function playButton(mod) {
+    if (mod.active && IN_WORK[mod.status]) {
+      return stopSquare(mod);
+    }
+    if (stoppingId === String(mod.id)) {
+      stoppingId = "";
+    }
     const button = cell("button", "queue-play", null);
     button.type = "button";
     button.setAttribute("data-queue-play", "");

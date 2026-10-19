@@ -31,7 +31,6 @@
 
   <h2>Pipeline ribbon</h2>
   <ol class="ribbon" data-ribbon>
-    <li class="ribbon-end ribbon-start">17.0</li>
     <li class="ribbon-node" data-step="understand" data-state="done">
       <a class="ribbon-box" href="/flow#understand"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></a>
     </li>
@@ -47,12 +46,10 @@
     <li class="ribbon-node" data-step="tests" data-state="pending">
       <a class="ribbon-box" href="/flow#tests"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">tests</span></a>
     </li>
-    <li class="ribbon-end ribbon-finish">18.0</li>
   </ol>
-  <p>The two ends of what the steps do: the module in its old version goes in at
-  the left, the ported one comes out at the right, in the colours of the
-  machine's slots, joined to the first and last step by arrows. While a module
-  runs the arrows are amber.</p>
+  <p>The steps, joined by small arrows. The first step has one as well: the
+  module comes into it from the machine's input slot, which already says the
+  version and the name. While a module runs the arrows are amber.</p>
 
   <h2>Checkpoint thread</h2>
   <ol class="checkpoint-thread">
@@ -590,10 +587,11 @@ tools offered: exec, read_file, report, source</pre>
         </div>
         <div class="pipeline-queue-controls">
           <button type="button" class="primary">Run</button>
-          {# While a module is in flight Run gives its place to this: a square, and Stop. #}
+          {# While the queue runs: its Stop, no more modules, the one in work
+             finishes. A run from Tree, with no card here, gets Stop now in
+             the same place, and Stopping… once it is heard. #}
           <form class="pipeline-stop"><button type="button">Stop</button></form>
           <form class="pipeline-stop"><button type="button" disabled>Stopping…</button></form>
-          <button type="button">Stop after this module</button>
           <button type="button">Clear</button>
         </div>
       </header>
@@ -602,25 +600,26 @@ tools offered: exec, read_file, report, source</pre>
           <div class="pipeline-queue-item pipeline-queue-active" data-status="running">
             <span class="pipeline-queue-order">1</span>
             <span class="graph-node-index">#3/2</span>
-            {% with mod = {"id": 1, "technical_name": "sale_custom", "play": "sale_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
+            {% with mod = {"id": 1, "technical_name": "sale_custom", "active": true, "status": "running", "play": "sale_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">sale_custom</span>
             <span class="badge">step 1</span>
           </div>
         </div>
         <ol class="pipeline-queue-list">
-          {# In work, running or parked on a question: the amber triangle, not
-             pressable. The others are grey and run that module alone. #}
+          {# In work, running or parked on a question: an amber square that
+             stops that run now, red under the pointer. The others are grey
+             triangles and run that module alone. #}
           <li class="pipeline-queue-item pipeline-queue-active" data-status="running">
             <span class="pipeline-queue-order">0</span>
             <span class="graph-node-index">#2/1</span>
-            {% with mod = {"id": 3, "technical_name": "partner_custom", "play": "partner_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
+            {% with mod = {"id": 3, "technical_name": "partner_custom", "active": true, "status": "running", "play": "partner_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">partner_custom</span>
             <span class="badge">step 1</span>
           </li>
           <li class="pipeline-queue-item pipeline-queue-active" data-status="waiting_for_human">
             <span class="pipeline-queue-order">1</span>
             <span class="graph-node-index">#3/2</span>
-            {% with mod = {"id": 1, "technical_name": "sale_custom", "play": "sale_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
+            {% with mod = {"id": 1, "technical_name": "sale_custom", "active": true, "status": "waiting_for_human", "play": "sale_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">sale_custom</span>
             <span class="badge">step 1</span>
           </li>
@@ -745,12 +744,10 @@ tools offered: exec, read_file, report, source</pre>
           <span class="pipeline-stage mono">port · attempt 1</span>
         </header>
         <ol class="ribbon">
-          <li class="ribbon-end ribbon-start">17.0</li>
-          <li class="ribbon-node" data-state="done"><a class="ribbon-box" href="/flow#understand"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></a></li>
+                <li class="ribbon-node" data-state="done"><a class="ribbon-box" href="/flow#understand"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></a></li>
           <li class="ribbon-node" data-state="running"><a class="ribbon-box" href="/flow#port"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">port</span></a></li>
           <li class="ribbon-node" data-state="pending"><a class="ribbon-box" href="/flow#lint"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">lint</span></a></li>
-          <li class="ribbon-end ribbon-finish">18.0</li>
-        </ol>
+              </ol>
       </div>
     </article>
   </div>

@@ -2867,6 +2867,39 @@ button.queue-play:disabled {
   opacity: 1;
 }
 
+/* On the module in work the triangle gives its place to a square that stops
+   the run now. The form is the row's flex item, so it takes the button's
+   place in the row; red under the pointer, because it ends something. */
+.queue-stop {
+  order: 2;
+  display: flex;
+  margin: 0 0 0 auto;
+}
+
+.queue-remove + .queue-stop {
+  margin-left: 0;
+}
+
+.queue-stop button.queue-play:hover:not(:disabled),
+.queue-stop button.queue-play:focus-visible {
+  color: var(--red);
+  background: color-mix(in oklch, var(--red) 14%, transparent);
+}
+
+.queue-stop button.queue-play:active:not(:disabled) {
+  background: color-mix(in oklch, var(--red) 24%, transparent);
+}
+
+.queue-stop button.queue-play:focus-visible {
+  outline-color: var(--red);
+}
+
+/* Heard: the square stays amber and still until the run ends. */
+.queue-stop button.queue-play:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
 .queue-play .play-glyph {
   display: block;
   width: 18px;
@@ -3314,6 +3347,10 @@ button.queue-play:disabled {
 }
 
 .checkpoint .row form {
+  margin: 0;
+}
+
+.checkpoint .screen-note {
   margin: 0;
 }
 
@@ -3858,10 +3895,11 @@ pre.test-output {
   color: #c4552a;
 }
 
-/* Stopping the run that is on screen. It takes the place of Run on the queue
-   card while a module is in flight, a filled square before its word, the way a
-   player's play turns into stop. The queue's own Stop, after this module, lets
-   the module finish. What a stop does now is the button's tooltip. */
+/* The queue card's Stop, a filled square before its word, in the place of Run.
+   While the queue runs it is the queue's: no more modules, and the one in work
+   finishes; that module's own square stops it now. A run from Tree has no card
+   in the queue, and its Stop now stands here instead. What a stop does is the
+   button's tooltip. */
 .pipeline-stop button {
   display: inline-flex;
   align-items: center;
@@ -3896,66 +3934,22 @@ pre.test-output {
 }
 
 /* The arrow is the li's own, so it sits between the boxes and not inside
-   one. */
-.ribbon-node + .ribbon-node::before,
-.ribbon-start::after,
-.ribbon-finish::before {
+   one. The first step has one too: the module comes down into it from the
+   machine's input slot, which says the version and the name already. One
+   size for every arrow, small, so they lead the eye and do not compete with
+   the steps. */
+.ribbon:not(.ribbon-lane) .ribbon-node::before,
+.ribbon-node + .ribbon-node::before {
   content: "→";
   color: var(--muted-low);
-  padding: 0 6px;
-}
-
-/* The two ends of what the steps do: the old version in, the new one out, in
-   the colours of the machine's slots. Their arrows are the ribbon's own. */
-.ribbon-end {
-  display: flex;
-  align-items: center;
-  padding: 6px 10px;
-  border: 0.5px solid color-mix(in oklch, var(--amber) 55%, transparent);
-  border-radius: 6px;
-  color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
-}
-
-.ribbon-finish {
-  border-color: color-mix(in oklch, var(--cyan) 55%, transparent);
-}
-
-/* The arrow sits outside the end's box, so it is drawn on a wrapper:
-   the end is a flex item and its own pseudo-element would be inside the border. */
-.ribbon-start,
-.ribbon-finish {
-  position: relative;
-  margin-right: 28px;
-}
-
-.ribbon-finish {
-  margin-right: 0;
-  margin-left: 28px;
-}
-
-.ribbon-start::after {
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 0 7px;
-}
-
-.ribbon-finish::before {
-  position: absolute;
-  right: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 0 7px;
+  padding: 0 6px;
 }
 
 /* Work flows through the blocks: while a module runs the arrows are amber, the
    colour of the belts and the gears. */
-.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node + .ribbon-node::before,
-.workspace-panel:has(.machine[data-machine="run"]) .ribbon-start::after,
-.workspace-panel:has(.machine[data-machine="run"]) .ribbon-finish::before {
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node::before {
   color: var(--amber);
 }
 
