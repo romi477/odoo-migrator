@@ -145,6 +145,11 @@
       fields read on existing ones, each action's domain, each report, and the
       asset bundles it adds to, compiled. Tests prove only what they assert;
       this is what they do not try. A break in the module fails the lap.</li>
+      <li><strong>click</strong> <span class="mono">if has_buttons</span>
+      presses every button the module puts in a view, on a record it shows
+      on, as a person would, and rolls back. A button that reaches outside
+      the database is not pressed. One that breaks on the new version and
+      works on the old one fails the lap.</li>
       <li><strong>probe</strong> <span class="mono">if no_tests</span> replays
       the understand recipe on both versions, calls the same methods, and
       reports every difference. A recipe that will not replay on the new

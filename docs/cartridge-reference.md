@@ -61,7 +61,7 @@ A step is one entry of `pipeline` or `on_failure.pipeline`.
 | `upgrade` | installs or upgrades the module on the target container, then commits | none |
 | `tests` | first checks, where the source's tests were written by the migrator, that each of those test methods is defined on the target; then runs the module's tests with Odoo's own runner | raises `no_tests` when the module declares none, `tests_failed` when a test failed or a characterization test is missing |
 | `smoke` | no model, nothing written. On the target container: each model the module declares fields on gets a new record (defaults, and the module's fields computed) and its latest records read; each window action's domain is evaluated and searched; each report renders as HTML; each asset bundle the manifest adds to is compiled past the cache. Every button the module puts in a view is listed, and checked without pressing: its method exists, is public and takes no argument; its action exists. A break in the module's own fails the step; one in another module's, and checks that could not run, are findings | raises `has_buttons` when the module puts a button in a view |
-| `verdict` | judges the lap against the migration's strictness | reads `behaviour_differs` |
+| `verdict` | judges the lap against the migration's strictness | reads `behaviour_differs` and `button_broken` |
 | `ask_human` | parks the job and opens a checkpoint. The diagnosis in the last answer is the question | none |
 
 A deterministic step (everything but `agent`) takes only `step`, `id` and
@@ -82,6 +82,7 @@ vocabulary is closed: you pick from this list and never write an expression.
 | `hand_changes` | what a person committed in the module's directory on the target since the app's last commit there; `(none)` when nothing |
 | `last_failure` | the output of the step that failed: test report, traceback, lint findings |
 | `test_guide` | `prompts/test_guide.md`: what to pin, what to assert on, how to write and name a test |
+| `buttons` | the buttons `smoke` found in the module's views, one line each: model, method or action, label, when it is hidden, its context, its confirmation, the view; `(none: …)` when smoke found none or did not run |
 
 Every agent step also gets the standing prompt and the shell notes (fetched from the
 daemon when the job starts, the same for every step of it), and a
@@ -133,6 +134,7 @@ The built-in flags are raised, or read, by the deterministic steps:
 | `lint_failed` | raised by `lint` |
 | `has_buttons` | raised by `smoke`: the module puts at least one button in a view, and the catalogue of them is ready for the next step |
 | `behaviour_differs` | read by `verdict`: the lap fails at every strictness. A cartridge raises it from an agent step |
+| `button_broken` | read by `verdict`: the lap fails at every strictness. A cartridge raises it from an agent step |
 
 Two flags cannot be raised in one report: `small_fix` and `start_over`. They ask
 for different repairs, and the report is refused with an explanation.
@@ -143,6 +145,7 @@ for different repairs, and the report is refused with an explanation.
 |---|---|---|
 | `needs_tests` | `understand` | `characterize` |
 | `behaviour_differs` | `probe` | `verdict` |
+| `button_broken` | `click` | `verdict` |
 | `needs_human` | `diagnose` | `ask_human` |
 | `reexamine_source` | `diagnose` | `reprobe` |
 | `small_fix` | `diagnose` | `patch` |

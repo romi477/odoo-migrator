@@ -1269,6 +1269,64 @@ def test_the_stock_probe_raises_the_flag_the_verdict_reads():
     assert "rules" in stock.step_by_id("probe").context
 
 
+# -- click: every button pressed, a break the port made fails the lap ----------
+
+
+@pytest.mark.parametrize("level", ["basic", "enhanced", "strict"])
+def test_a_button_the_port_broke_fails_the_lap(ctx_for, level):
+    ctx = ctx_for()
+    ctx.migration.strictness_default = level
+    ctx.prior_answers["click"] = "action_stamp on sale.order: AttributeError on 18.0, works on 17.0"
+    ctx.lap_flags = {"has_buttons", "button_broken"}
+
+    result = verdict.run(Step(kind="verdict"), ctx)
+
+    assert result.ok is False
+    assert "breaks on the target" in result.output
+    assert "action_stamp on sale.order" in result.output
+
+
+def test_the_stock_click_presses_the_smoke_catalogue_on_both_sides():
+    from pathlib import Path
+
+    from odoo_migrator.runner.cartridge import load_cartridge_file
+
+    stock = load_cartridge_file(Path("cartridges/stock.yaml"))
+    click = stock.step_by_id("click")
+    order = [step.id or step.kind for step in stock.pipeline]
+    prompt = " ".join(click.prompt.split())
+
+    assert order.index("click") == order.index("smoke") + 1
+    assert click.when == "has_buttons"
+    assert set(click.sessions) == {"source", "target"}
+    assert "buttons" in click.context and "prior_answers" in click.context
+    assert click.raises == ["button_broken"]
+    # Nothing that reaches outside the database is pressed; nothing is kept.
+    assert "do not press it" in prompt
+    assert "Never commit" in prompt
+    assert "rollback" in click.tools and "write_file" not in click.tools
+    # The source decides whether the port broke it.
+    assert "Broken on both: the port did not cause it" in prompt
+
+
+def test_the_buttons_item_is_one_line_a_button(ctx_for):
+    from odoo_migrator.runner.prompting import _render
+
+    ctx = ctx_for()
+    assert _render("buttons", ctx).startswith("(none")
+    ctx.buttons = [
+        {
+            "model": "sale.order", "type": "object", "name": "action_stamp", "label": "Stamp",
+            "invisible": "state != 'sale'", "context": "{'default_x': 1}", "confirm": "", "view": "sale.view_order_form",
+        }
+    ]
+
+    assert _render("buttons", ctx) == (
+        "- sale.order · action_stamp (object) “Stamp” · hidden when: state != 'sale'"
+        " · context: {'default_x': 1} · in sale.view_order_form"
+    )
+
+
 def test_a_flag_only_verdict_reads_needs_a_verdict_in_the_file():
     text = """
 cartridge: t

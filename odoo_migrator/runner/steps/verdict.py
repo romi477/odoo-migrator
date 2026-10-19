@@ -50,6 +50,16 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             ok=False,
             output=f"the probe found behaviour that differs between the versions:\n{found}",
         )
+    if "button_broken" in ctx.lap_flags:
+        # At every level, like a behaviour that differs: a button that works
+        # on the source and raises on the target is a break a person meets on
+        # the first click.
+        found = (ctx.prior_answers.get("click") or "").strip() or "(the click step gave no detail)"
+
+        return StepResult(
+            ok=False,
+            output=f"a button works on the source version and breaks on the target:\n{found}",
+        )
     if ctx.log_errors:
         shown = "\n".join(ctx.log_errors[:_SHOWN])
         more = len(ctx.log_errors) - _SHOWN

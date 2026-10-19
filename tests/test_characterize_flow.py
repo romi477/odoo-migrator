@@ -522,3 +522,37 @@ def test_an_expectation_is_the_assertion_and_its_literals_not_the_expression(tmp
     assert sorted(old["expects"]) == ["assert('sale')", "assertEqual(10)", "assertRaises(UserError)"]
     assert old["expects"] == new["expects"]
     assert new["marked"] == []
+
+
+# -- the buttons smoke found are pressed, with the catalogue in the prompt -------
+
+
+def test_a_module_with_buttons_runs_click_with_the_catalogue(app, fake_sheller, sandbox):
+    make_repo(_source(sandbox))
+    fake_sheller.tests_for(
+        "sale_custom", fake_sheller.catalogue("sale_custom", {"TestX": ["test_x"]})
+    )
+    fake_sheller.smoke_buttons = [
+        {
+            "model": "sale.order", "type": "object", "name": "action_stamp", "label": "Stamp",
+            "invisible": "", "context": "", "confirm": "", "view": "sale.view_order_form",
+        }
+    ]
+    script = CharacterizeScript()
+
+    job = _run(app, fake_sheller, sandbox, script)
+
+    assert "click" in script.ran
+    assert _status(job) == "passed"
+
+
+def test_a_module_without_buttons_skips_click(app, fake_sheller, sandbox):
+    make_repo(_source(sandbox))
+    fake_sheller.tests_for(
+        "sale_custom", fake_sheller.catalogue("sale_custom", {"TestX": ["test_x"]})
+    )
+    script = CharacterizeScript()
+
+    _run(app, fake_sheller, sandbox, script)
+
+    assert "click" not in script.ran

@@ -20,7 +20,7 @@ BUILTIN_FLAGS = {
 }
 # Flags a deterministic step reads, by that step's kind. A cartridge raises
 # them; the step is what gives them a meaning.
-BUILTIN_READS = {"behaviour_differs": "verdict"}
+BUILTIN_READS = {"behaviour_differs": "verdict", "button_broken": "verdict"}
 CONTEXT_ITEMS = (
     "rules",
     "project_notes",
@@ -30,6 +30,7 @@ CONTEXT_ITEMS = (
     "hand_changes",
     "last_failure",
     "test_guide",
+    "buttons",
 )
 SCHEMA_VERSION = 1
 SIDES = frozenset({"source", "target"})

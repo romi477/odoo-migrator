@@ -182,6 +182,9 @@ def _render(item: str, ctx: StepContext) -> str:
     if item == "test_guide":
 
         return load_test_guide()
+    if item == "buttons":
+
+        return _buttons(ctx)
 
     return ""
 
@@ -442,6 +445,29 @@ def _old_root(ctx: StepContext) -> Path | None:
 
 # A person's answer should read as one, not as the name of a step kind.
 _ANSWER_NAMES = {"ask_human": "ask_human (the answer a person gave to the question above)"}
+
+
+def _buttons(ctx: StepContext) -> str:
+    """The buttons `smoke` found in the module's views, one line each: what a
+    person would see, and what pressing it calls."""
+    if not ctx.buttons:
+
+        return "(none: the smoke step found no button, or did not run)"
+    lines = []
+    for button in ctx.buttons:
+        line = f"- {button.get('model')} · {button.get('name')} ({button.get('type')})"
+        if button.get("label"):
+            line += f" “{button['label']}”"
+        if button.get("invisible"):
+            line += f" · hidden when: {button['invisible']}"
+        if button.get("context"):
+            line += f" · context: {button['context']}"
+        if button.get("confirm"):
+            line += f" · asks first: {button['confirm']}"
+        line += f" · in {button.get('view')}"
+        lines.append(line)
+
+    return "\n".join(lines)
 
 
 def _prior_answers(ctx: StepContext) -> str:

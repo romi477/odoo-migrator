@@ -549,6 +549,50 @@ pipeline:
   - step: smoke
 
   - step: agent
+    id: click
+    when: has_buttons
+    sessions: [source, target]
+    tools: [exec, source, rollback, reopen]
+    context: [rules, prior_answers, buttons]
+    raises: [button_broken]
+    prompt: |
+      Press every button in the list above the way a person would, on the
+      target version, and say which ones break. The list is every button this
+      module puts in a view, with the model it belongs to, when it is hidden,
+      and the context it passes.
+
+      For each button:
+
+      - Read its method first, with `source`. If it reaches outside the
+        database (an HTTP request, an API client, mail sent at once rather
+        than queued, a file, a printer), do not press it. Name it in your
+        answer as not pressed, and say what it calls.
+      - Find or build a record it shows on: one for which its hidden-when
+        expression is false. The understand answer has a recipe for the
+        records this module needs; reuse it.
+      - Press it as the web client does: on that record, with the button's
+        context and `active_id`, `active_ids` and `active_model` set to the
+        record. For a method button, `record.with_context(**context).method()`.
+        For an action button, read the action and check that its model exists
+        and its domain searches.
+      - When it returns a window action on a wizard, open the wizard as the
+        client would, with the action's context, and press the wizard's
+        buttons from the list the same way.
+      - A `UserError` or a `ValidationError` is the module refusing, the way it
+        would refuse a person: not a break. Any other exception is one.
+      - Roll back after each button, with `rollback` on that side. Never
+        commit.
+
+      For each button that broke on the target, press it the same way on the
+      source version, with the same records built there. Broken on the target
+      and working on the source: the port broke it. Raise `button_broken`, and
+      give the button and the last lines of the traceback. Broken on both: the
+      port did not cause it. Say so, and do not raise the flag.
+
+      Finish with one line per button: pressed and worked; pressed and broke,
+      with where; refused, with the message; or not pressed, and why.
+
+  - step: agent
     id: probe
     when: no_tests
     sessions: [source, target]
@@ -754,7 +798,21 @@ check runs under a savepoint and the session is rolled back after. A
 `UserError` is the module refusing as it would refuse a person, not a break. A
 break in what the module declared, or with a traceback through its files, fails
 the lap and the failure lane gets where and why; a bundle broken by another
-module is a finding, and so are checks that could not run.
+module is a finding, and so are checks that could not run. It also lists every button the
+module puts in a view, placed in the view as Odoo assembles it, and checks each
+without pressing it: the method is there, public, and takes no argument a
+button cannot pass; an action exists. When there is one it raises `has_buttons`.
+
+**Then the buttons are pressed.** A button is a method a person reaches with
+one click, and a traceback there is the first thing they meet. `click`, an
+agent step, gets the catalogue as the `buttons` context item, builds a record
+each button shows on, and presses it as the web client does, with the button's
+context and `active_id`, following a wizard it opens. A `UserError` is the
+module refusing, not a break. A button whose method reaches outside the
+database (an HTTP request, mail sent at once) is not pressed. A button broken
+on the target is pressed again on the source: broken only on the target raises
+`button_broken`, and the verdict fails the lap on it at every strictness;
+broken on both is said in the answer and fails nothing.
 
 A difference
 nobody can trace to a rule is not marked: the assertion stays as the source had

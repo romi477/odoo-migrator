@@ -52,6 +52,13 @@ _HINTS = {
         "asset bundles it adds to, compiled. Nothing is written. A break in "
         "the module's own fails the lap; one in another module's is a finding."
     ),
+    "click": (
+        "Only when smoke found buttons. Presses each one on the target as a "
+        "person would, on a record it shows on, then rolls back. A button "
+        "that reaches outside the database is not pressed. One that breaks "
+        "on the target and works on the source raises button_broken, and the "
+        "verdict fails the lap on it."
+    ),
     "probe": (
         "Only when the module has no tests. Replays the understand recipe on "
         "both versions and reports every difference. A real one raises "
@@ -62,8 +69,8 @@ _HINTS = {
         "real test in the ported module and runs it."
     ),
     "verdict": (
-        "Judges the lap. It fails when probe raised behaviour_differs, at "
-        "every strictness. An error in Odoo's log fails it above basic and "
+        "Judges the lap. It fails when probe raised behaviour_differs, or click "
+        "raised button_broken, at every strictness. An error in Odoo's log fails it above basic and "
         "is a finding at basic. At strict it also fails when probe left no "
         "answer."
     ),
