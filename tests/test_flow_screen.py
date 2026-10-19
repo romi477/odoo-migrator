@@ -73,6 +73,7 @@ def test_flow_draws_the_pinned_cartridge_with_nothing_running(client, migration)
     assert 'aria-label="Close the step"' in page
     assert "Agent. A model turn." in page
     assert "Function. The app runs it." in page
+    assert "Runs only if an earlier step set the flag named on the block." in page
 
 
 def test_a_step_card_hangs_over_the_canvas_instead_of_shrinking_it(client):
