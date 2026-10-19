@@ -1,5 +1,8 @@
-{# A triangle pointing right, the usual play: filled, in the button's colour. #}
-<svg class="play-glyph" viewBox="0 0 16 16" width="12" height="12"
-     fill="currentColor" aria-hidden="true">
-  <path d="M5 3l8 5-8 5z"></path>
+{# A triangle pointing right, the usual play: outlined, not filled, with
+   rounded corners from the round joins of its stroke. `currentColor`, so the
+   button's colour rules apply. #}
+<svg class="play-glyph" viewBox="0 0 24 24" width="22" height="22"
+     fill="none" stroke="currentColor" stroke-width="1.6"
+     stroke-linejoin="round" aria-hidden="true">
+  <path d="M6.5 4l13 8-13 8z"></path>
 </svg>

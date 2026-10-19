@@ -2772,47 +2772,61 @@ h2 {
   border-radius: 4px;
 }
 
-/* The right end of a queue row. Every card has a play button there, the usual
-   triangle, and the last one has a cross before it that takes it out of the
-   queue. Both are bare glyphs, grey until the pointer is on them; the play of
-   the module in work is amber and does not move. The page's own button:hover
-   paints a cyan edge, so each rule here says it wants no edge of its own. */
+/* The right end of a queue row. Every card has a play button there, the
+   outlined triangle of a media player, and the last one has a cross before it
+   that takes it out of the queue. The triangle is white, amber on the module in
+   work, and a press makes it give a little, as a player's does; the cross is
+   grey and red under the pointer. The page's own button:hover paints a cyan
+   edge, so each rule here says it wants no edge of its own. */
 .queue-remove,
 .queue-play {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin: -3px 0;
+  margin: -7px 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--muted-low);
   cursor: pointer;
 }
 
 .queue-remove {
   order: 1;
+  width: 22px;
+  height: 22px;
   margin-left: auto;
-  margin-right: 4px;
+  margin-right: 6px;
+  color: var(--muted-low);
 }
 
 .queue-play {
   order: 2;
+  width: 32px;
+  height: 32px;
   margin-left: auto;
+  color: color-mix(in oklch, var(--text) 90%, transparent);
+  transition: background 0.12s ease, color 0.12s ease, transform 0.08s ease;
 }
 
 .queue-remove + .queue-play {
   margin-left: 0;
 }
 
+/* Under the pointer the outline turns amber and a soft amber plate comes up
+   behind it: it is a button, and it says so before it is pressed. */
 button.queue-play:hover:not(:disabled),
 button.queue-play:focus-visible {
   border-color: transparent;
-  color: var(--cyan);
+  color: var(--amber);
+  background: color-mix(in oklch, var(--amber) 14%, transparent);
+}
+
+button.queue-play:active:not(:disabled) {
+  transform: scale(0.9);
+  box-shadow: none;
+  background: color-mix(in oklch, var(--amber) 24%, transparent);
 }
 
 /* Red, because this one takes something away. */
@@ -2822,14 +2836,13 @@ button.queue-remove:focus-visible {
   color: var(--red);
 }
 
-button.queue-play:active:not(:disabled),
 button.queue-remove:active:not(:disabled) {
   transform: none;
   box-shadow: none;
 }
 
 .queue-play:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--amber);
   outline-offset: 0;
 }
 
@@ -2838,21 +2851,28 @@ button.queue-remove:active:not(:disabled) {
   outline-offset: 0;
 }
 
-/* Off: not pressable, and the reason is its tooltip. The grey stays what it is. */
+/* Off: not pressable, and the reason is its tooltip. Dimmer, so the ones that
+   can be pressed stand out. */
 button.queue-play:disabled {
   cursor: default;
-  opacity: 1;
+  opacity: 0.4;
 }
 
 /* The module in work, running or parked on a question: the same triangle,
-   amber. A plain indicator; it does not move, the gears, the cable and the glow
-   already do. */
+   amber, full strength, and not pressable. It does not move; the gears, the
+   cable and the glow already do. */
 .pipeline-queue-active .queue-play,
 .pipeline-queue-active button.queue-play:disabled {
   color: var(--amber);
+  opacity: 1;
 }
 
-.queue-play .play-glyph,
+.queue-play .play-glyph {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
 .queue-remove .card-glyph {
   display: block;
   width: 12px;

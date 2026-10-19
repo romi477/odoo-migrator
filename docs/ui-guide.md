@@ -268,7 +268,7 @@ Excluded modules stay out. **Add all** skips finished waves. Duplicates are igno
 drive the sequential pipe (you can add steps while it runs; Stop finishes
 the current module first, and is there only while the queue runs). Every card ends in a **play** button, the usual triangle: it runs that one
 module and nothing after it, where **Run** in the header carries on through the
-whole queue. The triangle is grey, and amber on the module in work, where it
+whole queue. The triangle is the outlined one of a media player, white, amber on the module in work, where it
 cannot be pressed. It is off, with the reason as its tooltip, while the queue
 runs, while another module does, while a batch waits for review, and while a
 step before the module's own is not done. The module runs in a batch of its own and the queue stays

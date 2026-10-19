@@ -826,7 +826,7 @@ def test_the_module_in_flight_has_an_amber_play_that_cannot_be_pressed(client):
     assert "color: var(--amber)" in css.split(".pipeline-queue-active .queue-play,")[1].split("}")[0]
 
 
-def test_every_row_has_a_play_button_and_it_is_a_still_grey_triangle(client):
+def test_every_row_has_a_play_button_and_it_is_an_outlined_triangle_that_gives_when_pressed(client):
     from odoo_migrator.paths import static_dir
 
     row = _queue_both_steps(client)
@@ -834,16 +834,25 @@ def test_every_row_has_a_play_button_and_it_is_a_still_grey_triangle(client):
     script = client.get("/static/pipeline.js").text
     css = client.get("/static/style.css").text
     cards = len(queue_snapshot(row.id)["modules"])
-    play = css.split(".queue-remove,\n.queue-play {")[1].split("}")[0]
+    play = css.split(".queue-play {\n  order: 2;")[1].split("}")[0]
 
     # The collapsed first row and the list: the first card twice.
     assert page.count("data-queue-play") == cards + 1
-    assert 'd="M5 3l8 5-8 5z"' in page
-    assert "color: var(--muted-low)" in play
-    assert "animation" not in css.split(".queue-play {")[1].split("}")[0]
+    assert 'd="M6.5 4l13 8-13 8z"' in page
+    # Outlined, not filled, and the corners are rounded by the stroke's joins.
+    glyph = page.split('class="play-glyph"')[1].split("</svg>")[0]
+    assert 'fill="none"' in glyph and 'stroke-linejoin="round"' in glyph
+    # A real target, white; amber and a plate under the pointer; it gives when
+    # pressed, as a player's button does.
+    assert "width: 32px" in play and "height: 32px" in play
+    assert "var(--text)" in play
+    hover = css.split("button.queue-play:hover:not(:disabled),")[1].split("}")[0]
+    assert "color: var(--amber)" in hover and "background:" in hover
+    assert "transform: scale(0.9)" in css.split("button.queue-play:active:not(:disabled) {")[1].split("}")[0]
+    assert "animation" not in play
     # The page script draws the same one for a row it builds, and the lamp and
     # the ball in a ring are gone.
-    assert "function playButton" in script
+    assert "function playButton" in script and 'setAttribute("fill", "none")' in script.split("function playButton")[1]
     assert "pipeline-lamp" not in css and "pipeline-lamp" not in page
     assert not (static_dir() / "lamp-ball.js").exists()
     assert "has-ball" not in css

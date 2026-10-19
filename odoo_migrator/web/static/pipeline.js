@@ -106,13 +106,16 @@
     button.setAttribute("aria-label", "Run " + mod.technical_name + " only");
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "play-glyph");
-    svg.setAttribute("viewBox", "0 0 16 16");
-    svg.setAttribute("width", "12");
-    svg.setAttribute("height", "12");
-    svg.setAttribute("fill", "currentColor");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "22");
+    svg.setAttribute("height", "22");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.6");
+    svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("aria-hidden", "true");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M5 3l8 5-8 5z");
+    path.setAttribute("d", "M6.5 4l13 8-13 8z");
     svg.appendChild(path);
     button.appendChild(svg);
 
