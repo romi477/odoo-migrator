@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — components{% endblock %}
 {% block extra_head %}
+<script defer src="/static/wires.js"></script>
 {% endblock %}
 {% block screen %}
 <section class="screen screen-components">
@@ -47,9 +48,11 @@
       <a class="ribbon-box" href="/flow#tests"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">tests</span></a>
     </li>
   </ol>
-  <p>The steps, joined by small arrows. The first step has one as well: the
-  module comes into it from the machine's input slot, which already says the
-  version and the name. While a module runs the arrows are amber.</p>
+  <p>The steps, joined by small arrows. On the run's card two wires join them
+  to the machine: down from the input slot into the first step, and from the
+  last step up into the output slot, each an elbow with a rounded corner, drawn
+  where the steps land however many there are. While a module runs the arrows
+  and the wires are amber.</p>
 
   <h2>Checkpoint thread</h2>
   <ol class="checkpoint-thread">

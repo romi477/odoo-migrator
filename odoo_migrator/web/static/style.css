@@ -3945,11 +3945,8 @@ button.queue-play:disabled {
 }
 
 /* The arrow is the li's own, so it sits between the boxes and not inside
-   one. The first step has one too: the module comes down into it from the
-   machine's input slot, which says the version and the name already. One
-   size for every arrow, small, so they lead the eye and do not compete with
-   the steps. */
-.ribbon:not(.ribbon-lane) .ribbon-node::before,
+   one. One size for every arrow, small, so they lead the eye and do not
+   compete with the steps. The way in and the way out are the wires below. */
 .ribbon-node + .ribbon-node::before {
   content: "→";
   color: var(--muted-low);
@@ -3958,10 +3955,45 @@ button.queue-play:disabled {
   padding: 0 6px;
 }
 
-/* Work flows through the blocks: while a module runs the arrows are amber, the
-   colour of the belts and the gears. */
-.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node::before {
+/* Room at both ends for the wires to turn their corner in. */
+.ribbon:not(.ribbon-lane) {
+  padding: 0 32px;
+}
+
+/* Work flows through the blocks: while a module runs the arrows and the wires
+   are amber, the colour of the belts and the gears. */
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node + .ribbon-node::before {
   color: var(--amber);
+}
+
+/* The wires from the input slot into the first step and from the last step
+   into the output slot (wires.js): the header hook's elbow, a 9px corner and a
+   small filled head. Over the card, never in the way of a click. */
+.runner-wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.runner-wire {
+  fill: none;
+  stroke: var(--muted-low);
+  stroke-width: 1;
+}
+
+.runner-wire-head {
+  fill: var(--muted-low);
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .runner-wire {
+  stroke: var(--amber);
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .runner-wire-head {
+  fill: var(--amber);
 }
 
 .ribbon-box {

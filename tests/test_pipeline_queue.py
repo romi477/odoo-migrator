@@ -942,23 +942,30 @@ def test_a_module_that_came_out_rests_in_cyan_not_green(client):
     assert "green" not in rule
 
 
-def test_the_steps_lead_from_the_input_slot_with_one_small_arrow_that_turns_amber_at_work(client):
+def test_the_steps_are_wired_to_the_machine_slots_with_one_small_arrow_between_them(client):
     _row, _first, page = _running_page(client)
     ribbon = page.split('class="ribbon" data-ribbon>', 1)[1].split("</ol>", 1)[0]
     css = client.get("/static/style.css").text
+    script = client.get("/static/wires.js").text
 
     # The versions are the machine's slots; said again as blocks they pushed
     # the steps onto a second line.
     assert "ribbon-end" not in ribbon
     assert ">17.0<" not in ribbon and ">18.0<" not in ribbon
-    # Every arrow is one rule, so one size; the first step's included.
-    arrow = css.split(".ribbon:not(.ribbon-lane) .ribbon-node::before,\n.ribbon-node + .ribbon-node::before {")[1].split("}")[0]
-
+    # One rule for the arrows between steps, so one size.
+    arrow = css.split(".ribbon-node + .ribbon-node::before {")[1].split("}")[0]
     assert "font-size: 12px" in arrow
     assert css.count('content: "→"') == 1
-    amber = css.split('.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node::before {')[1].split("}")[0]
-
-    assert "color: var(--amber)" in amber
+    # The way in and out are wires, measured from where the first and the last
+    # step land, so any number of steps and a wrapped ribbon keep them.
+    assert '<script defer src="/static/wires.js"></script>' in page
+    assert 'querySelectorAll(".ribbon:not(.ribbon-lane) .ribbon-box")' in script
+    assert "boxes[boxes.length - 1]" in script
+    assert "new ResizeObserver" in script and "new MutationObserver" in script
+    # Rounded like the header's hook.
+    assert "RADIUS = 9" in script and " Q" in script
+    amber = css.split('.workspace-panel:has(.machine[data-machine="run"]) .runner-wire {')[1].split("}")[0]
+    assert "var(--amber)" in amber
 
 
 def test_a_module_run_on_its_own_does_not_stop_for_review_when_it_passed(client):
