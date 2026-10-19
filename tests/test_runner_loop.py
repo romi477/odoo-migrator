@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from odoo_migrator.runner.cartridge import load_cartridge
 from odoo_migrator.runner.context import StepResult
-from odoo_migrator.runner.loop import run_job
+from odoo_migrator.runner.loop import run_job, why_skipped
 from odoo_migrator.runner.steps import ask_human
 
 ALWAYS_FAILS = """
@@ -132,6 +132,65 @@ def test_a_gated_step_is_skipped_when_its_flag_is_not_raised():
 
     assert "probe" not in ran
     assert outcome == "passed"
+
+
+def test_a_skipped_step_is_told_why():
+    cartridge = load_cartridge(CARTRIDGE_WITH_PROBE)
+    heard: list[tuple[str, str]] = []
+
+    def resolve(kind: str):
+        return lambda step, current: StepResult(ok=True)
+
+    run_job(
+        cartridge,
+        loop_ctx(),
+        retry_limit=3,
+        resolve=resolve,
+        skipped=lambda step, current, reason: heard.append((step.id, reason)),
+    )
+
+    assert heard == [
+        (
+            "probe",
+            (
+                "skipped: runs only when no_tests is raised, and tests ran and did "
+                "not raise it (the module has tests of its own)"
+            ),
+        )
+    ]
+
+
+def test_a_skipped_lane_step_is_told_why_too():
+    cartridge = load_cartridge(ASKS_A_HUMAN)
+    heard: list[str] = []
+
+    def resolve(kind: str):
+        def runner(step, current):
+            return StepResult(ok=step.kind != "upgrade", output="no")
+
+        return runner
+
+    run_job(
+        cartridge,
+        loop_ctx(),
+        retry_limit=1,
+        resolve=resolve,
+        skipped=lambda step, current, reason: heard.append(reason),
+    )
+
+    assert heard == [
+        "skipped: runs only when needs_human is raised, and diagnose ran and did not raise it"
+    ]
+
+
+def test_a_flag_whose_step_did_not_run_in_this_attempt_says_so():
+    cartridge = load_cartridge(CARTRIDGE_WITH_PROBE)
+    probe = cartridge.step_by_id("probe")
+
+    assert why_skipped(cartridge, probe, ["port"]) == (
+        "skipped: runs only when no_tests is raised, and tests, which raises it, "
+        "did not run in this attempt"
+    )
 
 
 def test_a_lane_that_changes_nothing_stops_instead_of_spending_every_attempt():

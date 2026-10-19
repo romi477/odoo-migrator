@@ -161,7 +161,8 @@ file names the one it was written for, and a card can still replace it.
 ## The lap
 
 1. The steps of `pipeline` run in order. A step with a `when` whose flag is not
-   in the lap's flags is skipped.
+   in the lap's flags is skipped, and the run log says why: which step raises
+   the flag, and whether it ran in this attempt and did not raise it.
 2. A step that fails runs the lane: each step of `on_failure.pipeline` in order,
    with its `when`.
 3. The lap restarts from the earlier of `retry.resume_at` and the step that

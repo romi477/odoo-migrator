@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from odoo_migrator.runner.cartridge import Cartridge
+from odoo_migrator.runner.cartridge import BUILTIN_FLAGS, Cartridge
 from odoo_migrator.runner.context import StepContext
 from odoo_migrator.runner.registry import resolve as _default_resolve
 
@@ -45,6 +45,40 @@ def _label(step) -> str:
     return step.id or step.kind
 
 
+# What a built-in flag left unraised says about the module, after the step
+# that raises it ran.
+_NOT_RAISED = {
+    "no_tests": "the module has tests of its own",
+    "tests_failed": "its tests passed",
+    "lint_failed": "lint found nothing",
+    "has_buttons": "the module puts no button in a view and defines no action a person runs",
+}
+
+
+def why_skipped(cartridge: Cartridge, step, ran: list[str]) -> str:
+    """The run log's line for a step its `when` kept out of this attempt.
+
+    ``ran`` is what ran in this attempt so far. Flags start empty on each, so
+    a step that raises the flag and ran in an earlier attempt does not count.
+    """
+    flag = step.when
+    steps = [*cartridge.pipeline, *cartridge.on_failure.pipeline]
+    raisers = [
+        _label(each)
+        for each in steps
+        if flag in each.raises or BUILTIN_FLAGS.get(flag) == each.kind
+    ]
+    seen = [name for name in raisers if name in ran]
+    if seen:
+        reason = f"{' and '.join(seen)} ran and did not raise it"
+        if flag in _NOT_RAISED:
+            reason += f" ({_NOT_RAISED[flag]})"
+    else:
+        reason = f"{' or '.join(raisers)}, which raises it, did not run in this attempt"
+
+    return f"skipped: runs only when {flag} is raised, and {reason}"
+
+
 def _keep_answer(ctx: StepContext, step, result) -> None:
     """Under the step's name, so a later prompt can read it.
 
@@ -63,6 +97,7 @@ def run_job(
     *,
     retry_limit: int,
     resolve=_default_resolve,
+    skipped=None,
 ) -> str:
     """``resolve`` is a parameter because the runner wraps every step.
 
@@ -70,6 +105,9 @@ def run_job(
     ``finally``. Two jobs in flight — the queue and a Migrate on the tree can
     overlap — would instrument each other, and whichever finished first put
     the bare resolver back under the other one.
+
+    ``skipped(step, ctx, reason)`` hears of each step a `when` kept out, so
+    the run log says why a step never ran instead of saying nothing.
     """
     pipeline = list(cartridge.pipeline)
     names = [_label(step) for step in pipeline]
@@ -87,12 +125,16 @@ def run_job(
         ctx.log_errors = []
         flags: set[str] = set()
         ctx.lap_flags = flags
+        ran: list[str] = []
         finished = True
         while index < len(pipeline):
             step = pipeline[index]
             index += 1
             if step.when and step.when not in flags:
+                if skipped:
+                    skipped(step, ctx, why_skipped(cartridge, step, ran))
                 continue
+            ran.append(_label(step))
             result = resolve(step.kind)(step, ctx)
             flags.update(result.flags)
             if _PARKED in result.flags:
@@ -110,7 +152,10 @@ def run_job(
             lane_failures: list[str] = []
             for lane in cartridge.on_failure.pipeline:
                 if lane.when and lane.when not in flags:
+                    if skipped:
+                        skipped(lane, ctx, why_skipped(cartridge, lane, ran))
                     continue
+                ran.append(_label(lane))
                 handled = resolve(lane.kind)(lane, ctx)
                 flags.update(handled.flags)
                 if _PARKED in handled.flags:

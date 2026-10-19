@@ -553,6 +553,20 @@ def test_a_module_without_buttons_skips_click(app, fake_sheller, sandbox):
     )
     script = CharacterizeScript()
 
-    _run(app, fake_sheller, sandbox, script)
+    job = _run(app, fake_sheller, sandbox, script)
 
     assert "click" not in script.ran
+    from odoo_migrator.models import RunLog
+
+    with database.connection_context():
+        rows = list(RunLog.select().where(RunLog.job_id == job, RunLog.source == "click"))
+    # The run log says why, not only the ribbon: a step that never ran used to
+    # leave no line at all.
+    assert [str(row.text) for row in rows] == [
+        (
+            "skipped: runs only when has_buttons is raised, and smoke ran and did not "
+            "raise it (the module puts no button in a view and defines no action a "
+            "person runs)"
+        )
+    ]
+    assert "Flags raised in attempt 1:" in str(rows[0].detail)

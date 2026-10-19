@@ -286,7 +286,8 @@ attempt and not run again, because a retry loops back part way (the stock
 flow returns to `lint`), or — dashed grey, a hollow lamp — passed over: its
 `when` was not raised and the lap went on past it (`probe`, `write_test` and
 `retest` run only on `no_tests`, so a module with tests skips all three; the
-tooltip names the flag). Steps that end together, as the ones without a model do, are drawn a beat apart in the order they ran, each lamp pulsing once as it ends; a run that has just ended is drawn to its last step and held a moment before the card folds. The states are the run's, only the drawing takes its time. The upgrade is a line of its own in the run log, the
+tooltip names the flag, and the run log has a `skipped` line under the step's name saying which step
+was to raise it and whether that step ran in this attempt; its detail lists the flags that were raised). Steps that end together, as the ones without a model do, are drawn a beat apart in the order they ran, each lamp pulsing once as it ends; a run that has just ended is drawn to its last step and held a moment before the card folds. The states are the run's, only the drawing takes its time. The upgrade is a line of its own in the run log, the
 way a test run is: how long it took, whether the module was installed or
 upgraded and from what state, and the command to open in Sheller's journal. The failure lane that attempt ran (diagnose,
 patch) is a smaller row under it. From a second attempt on, numbers above

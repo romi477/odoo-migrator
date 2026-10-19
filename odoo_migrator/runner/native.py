@@ -335,6 +335,15 @@ class NativeRunner:
 
             return wrapped
 
+        def skipped(step, current, reason):
+            raised = ", ".join(sorted(current.lap_flags)) or "none"
+            self._log(
+                job_id,
+                step.id or step.kind,
+                reason,
+                detail=f"Flags raised in attempt {current.attempt}: {raised}",
+            )
+
         try:
             # Building the context is part of the run, not a prelude to it: a
             # container that is not up, a probe that fails, a cartridge that
@@ -377,6 +386,7 @@ class NativeRunner:
                     ctx,
                     retry_limit=(ctx.migration.retry_limit or _RETRY_LIMIT),
                     resolve=resolve_step,
+                    skipped=skipped,
                 )
             finally:
                 self._release_target(ctx)
