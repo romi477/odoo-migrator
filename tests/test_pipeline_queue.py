@@ -712,3 +712,20 @@ def test_a_stopped_queue_keeps_its_place_while_a_module_finishes(client):
     count = queue_snapshot(row.id)["count"]
 
     assert (count["text"], count["unit"]) == (f"1/{total}", "run")
+
+
+def test_the_cable_to_the_run_carries_a_pulse_while_the_queue_runs(client):
+    _prepared(client)
+    page = client.get("/run").text
+    css = client.get("/static/style.css").text
+    link = page.split('class="runner-link"', 1)[1].split("</span></span>", 1)[0]
+
+    assert 'class="runner-link-pulse"' in link
+    assert "opacity: 0" in css.split(".runner-link-pulse {")[1].split("}")[0]
+    assert 'data-running="true"]) .runner-link-pulse' in css
+    # Down the cable, again and again, and still under reduced motion.
+    assert "link-pulse 1.6s linear infinite" in css
+    assert "translateY(34px)" in css.split("@keyframes link-pulse")[1].split("@media")[0]
+    reduced = css.split("@keyframes link-pulse")[1].split("@media (prefers-reduced-motion: reduce) {")[1]
+
+    assert "animation: none" in reduced.split("}\n}")[0]

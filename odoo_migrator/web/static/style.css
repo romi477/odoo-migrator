@@ -2537,6 +2537,55 @@ h2 {
   border-left: 5px solid var(--cable);
 }
 
+/* The pulse on the cable from the queue to the run: a short bright bar that
+   leaves the plug and runs down the cable, again and again, for as long as the
+   queue runs. Idle, it is not drawn. The head leads, the tail fades behind. */
+.runner-link-pulse {
+  position: absolute;
+  left: -2px;
+  top: 6px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(transparent, var(--cable));
+  box-shadow: 0 0 6px var(--cable);
+  opacity: 0;
+}
+
+.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse,
+.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse {
+  animation: link-pulse 1.6s linear infinite;
+}
+
+@keyframes link-pulse {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(34px);
+  }
+
+  85%,
+  100% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse,
+  .screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link-pulse {
+    animation: none;
+  }
+}
+
 @media (max-width: 760px) {
   .runner-hook,
   .runner-hook-head,
@@ -4297,16 +4346,6 @@ a.ribbon-box:focus-visible {
 
 .run-log-line.error .run-log-text {
   color: #c4552a;
-}
-
-/* The seam between two runs. The panel holds one job at a time, so the
-   lines above it are gone; without this the wipe read as the same run
-   starting over. */
-.run-log-switch {
-  color: var(--muted);
-  border-bottom: 1px dashed var(--border);
-  padding: 4px 0 6px;
-  margin-bottom: 4px;
 }
 
 .run-log-at,

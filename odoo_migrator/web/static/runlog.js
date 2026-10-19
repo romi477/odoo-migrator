@@ -170,18 +170,23 @@
     jobId.title = "Copy this job's id: " + id;
   }
 
-  /* Named for the run that has just ended, because that is the one whose
-     lines are leaving the panel. */
-  function handoverLine(ended) {
-    var item = document.createElement("li");
-    item.className = "run-log-switch mono";
-    item.textContent =
-      (named ? named + " · " : "") +
-      "job " +
-      ended.slice(0, 8) +
-      " ended. A new run starts below.";
-
-    return item;
+  /* The panel follows one job, and a new job starts on a clean page: the
+     previous run's lines leave with it. The run is still on record, and the
+     header names the new one. Nothing is deleted here — Clear does that. The
+     last run of a queue is not swept away: nothing replaces it until the next
+     module is taken, by the queue or by hand. */
+  function takeJob(id, module) {
+    panel.setAttribute("data-job", id);
+    job = id;
+    last = 0;
+    loading = false;
+    held = [];
+    list.replaceChildren();
+    closeBody();
+    if (empty) {
+      empty.hidden = true;
+    }
+    showJob(id, module);
   }
 
   function closeBody() {
@@ -362,11 +367,22 @@
       } catch (err) {
         return;
       }
+      var live = data.status === "queued" || data.status === "running" || data.status === "waiting_for_human";
+      /* A job that begins is the clean page's moment, before its first line:
+         a module started by hand showed the last run's lines until then. */
+      if (
+        job &&
+        data.job_id &&
+        data.job_id !== job &&
+        (data.status === "queued" || data.status === "running") &&
+        (!migration || !data.migration_id || String(data.migration_id) === migration)
+      ) {
+        takeJob(data.job_id, data.technical_name);
+      }
       if (!job || data.job_id !== job || !name) {
         return;
       }
       named = data.technical_name || named;
-      var live = data.status === "queued" || data.status === "running" || data.status === "waiting_for_human";
       name.textContent = named + " · " + data.status + (live ? "" : " · last run");
     });
     src.addEventListener("log", function (event) {
@@ -382,20 +398,7 @@
       /* A job that started after this page was rendered is the one to
          follow: the panel was showing the previous run until now. */
       if (job && data.job_id !== job) {
-        /* The panel holds one job: Clear, Copy and the body fetch all act
-           on that one. Wiping it silently read as the same run starting
-           over at `understand` — which is what a queue of three modules
-           looks like from here. The previous run is still on record; this
-           says so rather than leaving a list that lost its history. */
-        var handover = handoverLine(job);
-        panel.setAttribute("data-job", data.job_id);
-        job = data.job_id;
-        last = 0;
-        loading = false;
-        held = [];
-        list.replaceChildren();
-        list.appendChild(handover);
-        showJob(data.job_id, data.module);
+        takeJob(data.job_id, data.module);
       } else if (!job) {
         panel.setAttribute("data-job", data.job_id);
         job = data.job_id;

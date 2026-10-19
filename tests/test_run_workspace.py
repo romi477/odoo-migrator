@@ -700,3 +700,31 @@ def test_the_stream_moves_the_machine(client):
     assert '"stuck"' in script and '"done"' in script and '"failed"' in script
     # A reconnect says idle: it must not wipe how the run just ended.
     assert "keep[machine.getAttribute" in script
+
+
+def test_a_new_job_starts_the_log_on_a_clean_page():
+    """The queue takes the next module, or a module is started by hand: the
+    lines of the run before must be gone at once, not when the first line of
+    the new one lands."""
+    from odoo_migrator.paths import static_dir
+
+    script = (static_dir() / "runlog.js").read_text(encoding="utf-8")
+    css = (static_dir() / "style.css").read_text(encoding="utf-8")
+    module = script.split('src.addEventListener("module"')[1].split('src.addEventListener("log"')[0]
+    log = script.split('src.addEventListener("log"')[1]
+
+    # On the module event, before any line: a job that is queued or running
+    # and is not the one on the page.
+    assert "takeJob(data.job_id, data.technical_name)" in module
+    assert '"queued"' in module and '"running"' in module
+    assert "takeJob(data.job_id, data.module)" in log
+    take = script.split("function takeJob")[1].split("\n  }\n")[0]
+
+    assert "list.replaceChildren()" in take
+    assert "closeBody()" in take
+    # No seam line is left behind: the page is clean.
+    assert "appendChild" not in take
+    assert "handoverLine" not in script
+    assert ".run-log-switch" not in css
+    # Nothing clears it when the queue has nothing more: only a new job does.
+    assert script.count("takeJob(") == 3

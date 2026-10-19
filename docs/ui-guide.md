@@ -239,10 +239,14 @@ under the chips lists the picked step's modules, passed ones dimmed with a
 tick. A thin cable is plugged into the bar's lower edge and runs into the
 Queue card, and a second one, also on the left, leaves the Queue card, runs down the
 gutter and enters the card of the run. Both, and the Queue card's edge, are colourless while the queue is empty
-and cyan once it holds something; a pulse of light travels down the first
-while the queue runs. The log is not a card: it is the canvas at the bottom of
+and cyan once it holds something; a pulse of light travels down each
+cable, from the bar to the queue and from the queue to the run, while the queue runs. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
-window. A chip is also the button that queues its step: the one with an arrow down puts
+window. The log follows one job and starts each on a clean page: the moment a
+new job begins, by the queue taking the next module or by a module started by
+hand, the lines of the previous run leave the panel (they stay on record;
+only **Clear** deletes) and the header names the new one. When the queue has
+nothing more, the last run's log stays for reading. A chip is also the button that queues its step: the one with an arrow down puts
 every module of the step in the queue with one press, and the step it
 depends on has to be queued first, which is what the padlock on the others
 says. Pointing at a chip, or focusing it, shows that step's modules in the
