@@ -948,8 +948,8 @@ def test_the_steps_are_wired_to_the_machine_slots_with_one_small_arrow_between_t
     # the steps onto a second line.
     assert "ribbon-end" not in ribbon
     assert ">17.0<" not in ribbon and ">18.0<" not in ribbon
-    # One rule for the arrows between steps.
-    assert css.count('content: "→"') == 1
+    # One rule for the arrows between steps, drawn so its line is a hairline.
+    assert css.count("--arrow-right: url(") == 1
     # The way in and out are wires, measured from where the first and the last
     # step land, so any number of steps and a wrapped ribbon keep them.
     assert '<script defer src="/static/wires.js"></script>' in page

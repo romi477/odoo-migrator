@@ -3554,6 +3554,13 @@ button.queue-play:disabled {
   flex: none;
 }
 
+/* Every line inside the run's card is the slots' hairline, a little
+   see-through: the gears, the belts, the wires, the arrows and the steps'
+   edges. A mechanism seen through glass, not drawn over the card. */
+.machine-gears .gear {
+  stroke: color-mix(in oklch, currentColor 75%, transparent);
+}
+
 .gear-big {
   transform-origin: 30px 38px;
 }
@@ -3591,12 +3598,12 @@ button.queue-play:disabled {
 /* The belts either side of the gears: a still line, and dashes walking toward
    the output while it works. Each takes its slot's colour: amber from the old
    module into the gears, cyan from the gears to the new one. Soft at rest,
-   like the slots' hairline; whole while it works. */
+   like an empty slot's hairline; firmer while it works, like a full one. */
 .machine-belt {
   --belt: var(--amber);
-  height: 1px;
+  height: 0.5px;
   margin: 0 6px;
-  background: color-mix(in oklch, var(--belt) 35%, transparent);
+  background: color-mix(in oklch, var(--belt) 40%, transparent);
 }
 
 .machine-belt-out {
@@ -3606,7 +3613,7 @@ button.queue-play:disabled {
 .machine[data-machine="run"] .machine-belt {
   background: repeating-linear-gradient(
     90deg,
-    var(--belt) 0 6px,
+    color-mix(in oklch, var(--belt) 75%, transparent) 0 6px,
     transparent 6px 12px
   );
   animation: belt-run 0.9s linear infinite;
@@ -3963,13 +3970,20 @@ button.queue-play:disabled {
 
 /* The arrow is the li's own, so it sits between the boxes and not inside
    one. One size for every arrow, small, so they lead the eye and do not
-   compete with the steps. The way in and the way out are the wires below. */
+   compete with the steps. Drawn, so its line is the card's hairline and not
+   the weight of the font's glyph. The way in and the way out are the wires
+   below. */
 .ribbon-node + .ribbon-node::before {
-  content: "→";
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 8px;
+  margin: 0 6px;
   color: var(--muted-low);
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 0 6px;
+  background: currentColor;
+  -webkit-mask: var(--arrow-right) center / contain no-repeat;
+  mask: var(--arrow-right) center / contain no-repeat;
+  --arrow-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='black' stroke-width='0.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0.5 4H11.2M8.2 1L11.2 4L8.2 7'/%3E%3C/svg%3E");
 }
 
 /* Room at both ends for the wires to turn their corner in. */
@@ -3999,7 +4013,7 @@ button.queue-play:disabled {
 }
 
 /* The way in is the input slot's amber, the way out the output slot's cyan:
-   soft at rest, whole while a module runs. */
+   soft at rest, firmer while a module runs, and a hairline either way. */
 .runner-wire-in {
   --wire: var(--amber);
 }
@@ -4010,20 +4024,20 @@ button.queue-play:disabled {
 
 .runner-wire {
   fill: none;
-  stroke: color-mix(in oklch, var(--wire) 45%, transparent);
-  stroke-width: 1;
+  stroke: color-mix(in oklch, var(--wire) 40%, transparent);
+  stroke-width: 0.5;
 }
 
 .runner-wire-head {
-  fill: color-mix(in oklch, var(--wire) 45%, transparent);
+  fill: color-mix(in oklch, var(--wire) 40%, transparent);
 }
 
 .workspace-panel:has(.machine[data-machine="run"]) .runner-wire {
-  stroke: var(--wire);
+  stroke: color-mix(in oklch, var(--wire) 75%, transparent);
 }
 
 .workspace-panel:has(.machine[data-machine="run"]) .runner-wire-head {
-  fill: var(--wire);
+  fill: color-mix(in oklch, var(--wire) 75%, transparent);
 }
 
 .ribbon-box {
@@ -4031,7 +4045,7 @@ button.queue-play:disabled {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--chrome-radius-inner);
   background: var(--panel);
   color: var(--muted);
@@ -4077,7 +4091,7 @@ a.ribbon-box:focus-visible {
 }
 
 .ribbon-node[data-state="failed"] .ribbon-box {
-  border-color: var(--red);
+  border-color: color-mix(in oklch, var(--red) 75%, transparent);
   color: var(--red);
 }
 
@@ -4086,7 +4100,7 @@ a.ribbon-box:focus-visible {
 }
 
 .ribbon-node[data-state="running"] .ribbon-box {
-  border-color: var(--cyan);
+  border-color: color-mix(in oklch, var(--cyan) 75%, transparent);
   color: var(--text);
 }
 
