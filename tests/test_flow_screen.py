@@ -99,3 +99,14 @@ def test_the_cards_close_button_is_as_plain_as_the_help_link(client):
     assert "font-size: 11px" in close and "font-size: 11px" in help_
     assert "border: 0" in close
     assert "padding: 0" in close
+
+
+def test_the_hint_sits_in_the_picture_not_on_the_bar(client):
+    page = client.get("/flow").text
+    bar = page.split('class="flow-bar"')[1].split('class="flow-board"')[0]
+    board = page.split('class="flow-board"')[1]
+    css = client.get("/static/style.css").text
+
+    assert "Select a block to read what it does." not in bar
+    assert 'class="flow-canvas-hint"' in board
+    assert "position: absolute" in css.split(".flow-canvas-hint {")[1].split("}")[0]

@@ -3499,10 +3499,15 @@ pre.test-output {
   color: var(--muted);
 }
 
-.flow-bar-hint {
-  margin-left: auto;
+/* The hint lives in the picture's corner, not on a line of its own above it. */
+.flow-canvas-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  margin: 0;
   color: var(--muted-low);
   font-size: 12px;
+  pointer-events: none;
 }
 
 .flow-legend {
