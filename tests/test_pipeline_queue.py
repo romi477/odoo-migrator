@@ -745,20 +745,105 @@ def test_the_cable_to_the_run_stays_cyan_and_only_its_pulse_turns_amber(client):
     assert "var(--amber) 50%, white" in frames
 
 
-def test_a_queue_lamp_is_a_still_indicator_amber_when_active_and_grey_otherwise(client):
-    """The ball in a ring is gone: the gears, the cable and the glow move
-    already, so the lamp only says whether the module is in work."""
+def _play(client, module_id):
+    return client.post(
+        "/run/queue/run-module",
+        data={"module": str(module_id)},
+        headers={"Accept": "application/json"},
+    )
+
+
+def _statuses(migration_id):
+    from odoo_migrator.models import Module
+
+    with database.connection_context():
+        return {
+            row.technical_name: row.status
+            for row in Module.select().where(Module.migration == migration_id)
+        }
+
+
+def test_a_play_button_runs_that_module_and_nothing_after_it(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    others = [module["technical_name"] for module in queue_snapshot(row.id)["modules"][1:]]
+    before = _statuses(row.id)
+
+    started = _play(client, first["id"])
+
+    assert started.status_code == 200
+    after = _statuses(row.id)
+    assert after[first["technical_name"]] == "running"
+    # The queue itself did not start: nothing after this module moved.
+    assert run_state(row.id) == "stopped"
+    assert all(after[name] == before[name] for name in others)
+    assert started.json()["modules"][0]["active"] is True
+
+
+def test_play_is_off_with_a_reason_while_something_else_is_running(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    modules = queue_snapshot(row.id)["modules"]
+
+    assert modules[0]["play"] == ""
+    client.post("/run/queue/run", follow_redirects=True)
+    running = queue_snapshot(row.id)["modules"]
+
+    assert all("queue is running" in module["play"] for module in running)
+    refused = _play(client, running[-1]["id"])
+
+    assert refused.status_code == 400
+    assert "queue is running" in refused.json()["error"]
+
+
+def test_play_on_a_module_of_a_later_step_waits_for_the_earlier_ones(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    later = next(m for m in queue_snapshot(row.id)["modules"] if m["step"] == 2)
+
+    assert later["play"]
+    refused = _play(client, later["id"])
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == later["play"]
+    assert _statuses(row.id)[later["technical_name"]] != "running"
+
+
+def test_the_module_in_flight_has_an_amber_play_that_cannot_be_pressed(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+    page = client.get("/run").text
+    button = page.split(f'data-queue-play data-module="{first["id"]}"')[1].split(">")[0]
+
+    assert "disabled" in button
+    assert f'{first["technical_name"]} is running.' in button
+    css = client.get("/static/style.css").text
+
+    assert ".pipeline-queue-active .queue-play" in css
+    assert "color: var(--amber)" in css.split(".pipeline-queue-active .queue-play,")[1].split("}")[0]
+
+
+def test_every_row_has_a_play_button_and_it_is_a_still_grey_triangle(client):
     from odoo_migrator.paths import static_dir
 
-    css = client.get("/static/style.css").text
-    script = client.get("/static/pipeline.js").text
+    row = _queue_both_steps(client)
     page = client.get("/run").text
-    lamp = css.split(".pipeline-lamp {")[1].split("}")[0]
-    active = css.split(".pipeline-queue-active .pipeline-lamp {")[1].split("}")[0]
+    script = client.get("/static/pipeline.js").text
+    css = client.get("/static/style.css").text
+    cards = len(queue_snapshot(row.id)["modules"])
+    play = css.split(".queue-remove,\n.queue-play {")[1].split("}")[0]
 
-    assert "background: var(--muted-low)" in lamp
-    assert "background: var(--amber)" in active
-    assert "animation" not in lamp and "animation" not in active
+    # The collapsed first row and the list: the first card twice.
+    assert page.count("data-queue-play") == cards + 1
+    assert 'd="M5 3l8 5-8 5z"' in page
+    assert "color: var(--muted-low)" in play
+    assert "animation" not in css.split(".queue-play {")[1].split("}")[0]
+    # The page script draws the same one for a row it builds, and the lamp and
+    # the ball in a ring are gone.
+    assert "function playButton" in script
+    assert "pipeline-lamp" not in css and "pipeline-lamp" not in page
     assert not (static_dir() / "lamp-ball.js").exists()
-    assert "lamp-ball" not in page and "lampBall" not in script
     assert "has-ball" not in css

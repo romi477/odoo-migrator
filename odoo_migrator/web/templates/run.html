@@ -242,7 +242,8 @@
                data-module-id="{{ mod.id }}" data-status="{{ mod.status }}">
             <span class="pipeline-queue-order">{{ mod.position }}</span>
             <span class="graph-node-index">#{{ mod.migration_rank }}/{{ mod.step }}</span>
-            {% if mod.removable %}{% include "_queue_remove.html" %}{% else %}<span class="pipeline-lamp" aria-hidden="true"></span>{% endif %}
+            {% if mod.removable %}{% include "_queue_remove.html" %}{% endif %}
+            {% include "_queue_play.html" %}
             <span class="name mono">{{ mod.technical_name }}</span>
             <span class="badge">step {{ mod.step }}</span>
           </div>
@@ -254,7 +255,8 @@
               data-module-id="{{ mod.id }}" data-status="{{ mod.status }}">
             <span class="pipeline-queue-order">{{ mod.position }}</span>
             <span class="graph-node-index">#{{ mod.migration_rank }}/{{ mod.step }}</span>
-            {% if mod.removable %}{% include "_queue_remove.html" %}{% else %}<span class="pipeline-lamp" aria-hidden="true"></span>{% endif %}
+            {% if mod.removable %}{% include "_queue_remove.html" %}{% endif %}
+            {% include "_queue_play.html" %}
             <span class="name mono">{{ mod.technical_name }}</span>
             <span class="badge">step {{ mod.step }}</span>
           </li>

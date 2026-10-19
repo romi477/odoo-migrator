@@ -95,6 +95,7 @@ from odoo_migrator.pipeline_queue import clear as queue_clear
 from odoo_migrator.pipeline_queue import nav_count, queue_snapshot
 from odoo_migrator.pipeline_queue import remove_last_module as queue_remove_last_module
 from odoo_migrator.pipeline_queue import remove_step as queue_remove_step
+from odoo_migrator.pipeline_queue import run_one as queue_run_one
 from odoo_migrator.pipeline_queue import start as queue_start
 from odoo_migrator.pipeline_queue import stop as queue_stop
 from odoo_migrator.port_guard import HandEdits, discard_hand_edits, keep_hand_edits
@@ -1133,6 +1134,43 @@ def create_app(
         from odoo_migrator.pipeline_queue import publish_queue
 
         publish_queue(request.app.state.hub, current["id"])
+        if wants_json:
+
+            return JSONResponse(
+                {"migration_id": current["id"], **queue_snapshot(current["id"])}
+            )
+
+        return RedirectResponse("/run", status_code=303)
+
+    @app.post("/run/queue/run-module")
+    def run_queue_run_module(request: Request, module: str = Form("")):
+        current = get_active(request.cookies.get(OPEN_COOKIE))
+        wants_json = "application/json" in request.headers.get("accept", "")
+        if current is None:
+            if wants_json:
+
+                return JSONResponse({"error": "no open migration"}, status_code=400)
+
+            return RedirectResponse("/run", status_code=303)
+        message = ""
+        if not module.strip().isdigit():
+            message = "Pick a module to run."
+        else:
+            try:
+                queue_run_one(
+                    current["id"],
+                    int(module),
+                    request.app.state.executor,
+                    request.app.state.hub,
+                )
+            except ValueError as refused:
+                message = str(refused)
+        if message:
+            if wants_json:
+
+                return JSONResponse({"error": message}, status_code=400)
+
+            return _run_page(request, error=message)
         if wants_json:
 
             return JSONResponse(

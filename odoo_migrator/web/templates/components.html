@@ -593,33 +593,35 @@ tools offered: exec, read_file, report, source</pre>
           <div class="pipeline-queue-item pipeline-queue-active" data-status="running">
             <span class="pipeline-queue-order">1</span>
             <span class="graph-node-index">#3/2</span>
-            <span class="pipeline-lamp"></span>
+            {% with mod = {"id": 1, "technical_name": "sale_custom", "play": "sale_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">sale_custom</span>
             <span class="badge">step 1</span>
           </div>
         </div>
         <ol class="pipeline-queue-list">
-          {# In work, running or parked on a question: the amber dot. #}
+          {# In work, running or parked on a question: the amber triangle, not
+             pressable. The others are grey and run that module alone. #}
           <li class="pipeline-queue-item pipeline-queue-active" data-status="running">
             <span class="pipeline-queue-order">0</span>
             <span class="graph-node-index">#2/1</span>
-            <span class="pipeline-lamp"></span>
+            {% with mod = {"id": 3, "technical_name": "partner_custom", "play": "partner_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">partner_custom</span>
             <span class="badge">step 1</span>
           </li>
           <li class="pipeline-queue-item pipeline-queue-active" data-status="waiting_for_human">
             <span class="pipeline-queue-order">1</span>
             <span class="graph-node-index">#3/2</span>
-            <span class="pipeline-lamp"></span>
+            {% with mod = {"id": 1, "technical_name": "sale_custom", "play": "sale_custom is running."} %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">sale_custom</span>
             <span class="badge">step 1</span>
           </li>
-          {# The last card's lamp is the remove button: a dot that turns into a red
-             cross under the pointer. #}
+          {# The last card has a cross before its triangle that takes it out; it is
+             red under the pointer. Off, as here while a module is in work, the
+             triangle says why. #}
           <li class="pipeline-queue-item" data-status="queued">
             <span class="pipeline-queue-order">2</span>
             <span class="graph-node-index">#4/2</span>
-            {% with mod = {"id": 2, "technical_name": "stock_custom"} %}{% include "_queue_remove.html" %}{% endwith %}
+            {% with mod = {"id": 2, "technical_name": "stock_custom", "play": "A module is running: let it finish, or stop it."} %}{% include "_queue_remove.html" %}{% include "_queue_play.html" %}{% endwith %}
             <span class="name mono">stock_custom</span>
             <span class="badge">step 2</span>
           </li>

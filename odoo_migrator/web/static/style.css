@@ -2772,73 +2772,91 @@ h2 {
   border-radius: 4px;
 }
 
-/* The button that takes the last card out of the queue. It is the lamp of that
-   row: the same dot in the same place, so the row stays as symmetric as the
-   others, and under the pointer (or the keyboard's focus) the dot gives way
-   to a red cross. The button is larger than the dot to give the pointer room;
-   the negative margins keep the dot where a plain lamp would be. */
-.queue-remove {
-  order: 1;
+/* The right end of a queue row. Every card has a play button there, the usual
+   triangle, and the last one has a cross before it that takes it out of the
+   queue. Both are bare glyphs, grey until the pointer is on them; the play of
+   the module in work is amber and does not move. The page's own button:hover
+   paints a cyan edge, so each rule here says it wants no edge of its own. */
+.queue-remove,
+.queue-play {
   flex: none;
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 18px;
   height: 18px;
-  margin: -5px -5px -5px auto;
+  margin: -3px 0;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: 4px;
   background: transparent;
   color: var(--muted-low);
   cursor: pointer;
 }
 
-.queue-remove::before {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 5px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted-low);
-  transition: opacity 0.12s ease;
+.queue-remove {
+  order: 1;
+  margin-left: auto;
+  margin-right: 4px;
 }
 
-.queue-remove .card-glyph {
-  position: absolute;
-  left: 3px;
-  top: 3px;
-  width: 12px;
-  height: 12px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+.queue-play {
+  order: 2;
+  margin-left: auto;
 }
 
-/* The page's own button:hover paints a cyan edge and colour; this is a red one. */
+.queue-remove + .queue-play {
+  margin-left: 0;
+}
+
+button.queue-play:hover:not(:disabled),
+button.queue-play:focus-visible {
+  border-color: transparent;
+  color: var(--cyan);
+}
+
+/* Red, because this one takes something away. */
 button.queue-remove:hover:not(:disabled),
 button.queue-remove:focus-visible {
   border-color: transparent;
   color: var(--red);
 }
 
+button.queue-play:active:not(:disabled),
 button.queue-remove:active:not(:disabled) {
   transform: none;
   box-shadow: none;
 }
 
-.queue-remove:hover::before,
-.queue-remove:focus-visible::before {
-  opacity: 0;
-}
-
-.queue-remove:hover .card-glyph,
-.queue-remove:focus-visible .card-glyph {
-  opacity: 1;
+.queue-play:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 0;
 }
 
 .queue-remove:focus-visible {
   outline: 2px solid var(--red);
   outline-offset: 0;
+}
+
+/* Off: not pressable, and the reason is its tooltip. The grey stays what it is. */
+button.queue-play:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+/* The module in work, running or parked on a question: the same triangle,
+   amber. A plain indicator; it does not move, the gears, the cable and the glow
+   already do. */
+.pipeline-queue-active .queue-play,
+.pipeline-queue-active button.queue-play:disabled {
+  color: var(--amber);
+}
+
+.queue-play .play-glyph,
+.queue-remove .card-glyph {
+  display: block;
+  width: 12px;
+  height: 12px;
 }
 
 .pipeline-queue-order {
@@ -2853,30 +2871,6 @@ button.queue-remove:active:not(:disabled) {
   position: static;
   margin: 0;
   pointer-events: none;
-}
-
-.pipeline-lamp {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted-low);
-  flex: none;
-}
-
-/* On a queue row the lamp is the last thing, at the right edge: the row reads
-   as order, rank, name and step, and the lamp says whether it is being worked
-   on, out of the way of the name. */
-.pipeline-queue-item .pipeline-lamp {
-  order: 1;
-  margin-left: auto;
-}
-
-/* The lamp of the module in work: the queue row and the run card below it
-   are the same module, and this is what says so. A plain indicator: amber while
-   the module is in work (running, or parked on a question), grey otherwise. It
-   does not move; the gears, the cable and the glow already do. */
-.pipeline-queue-active .pipeline-lamp {
-  background: var(--amber);
 }
 
 /* The two buttons of the Selection bar. */

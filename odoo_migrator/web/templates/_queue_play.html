@@ -1,0 +1,11 @@
+{# The play button of a queue row: runs this module and nothing after it, where
+   the queue's own Run carries on through all of them. Grey; amber on the
+   module in work. Off, with the reason as its tooltip, while the queue runs,
+   while another module does, or while a step before this one is not done. The
+   page script draws the same one for a row it builds. #}
+<button type="button" class="queue-play" data-queue-play data-module="{{ mod.id }}"
+        {% if mod.play %}disabled{% endif %}
+        title="{{ mod.play or 'Run ' ~ mod.technical_name ~ ' only: the rest of the queue waits' }}"
+        aria-label="{{ 'Run ' ~ mod.technical_name ~ ' only' }}">
+  {% include "_play_icon.svg" %}
+</button>

@@ -48,7 +48,7 @@
       (data.steps ? data.steps.length : 0) +
       "|" +
       data.modules.map(function (mod) {
-        return mod.id + ":" + mod.position + (mod.removable ? "x" : "");
+        return mod.id + ":" + mod.position + (mod.removable ? "x" : "") + (mod.play ? "p" : "");
       }).join(",") +
       "|" +
       (active ? active.id : "")
@@ -93,6 +93,32 @@
     return button;
   }
 
+  /* The play button: this module alone, where the queue's Run goes on through
+     all of them. The same button as _queue_play.html, made from nodes. */
+  function playButton(mod) {
+    const button = cell("button", "queue-play", null);
+    button.type = "button";
+    button.setAttribute("data-queue-play", "");
+    button.setAttribute("data-module", String(mod.id));
+    button.disabled = !!mod.play;
+    button.title =
+      mod.play || "Run " + mod.technical_name + " only: the rest of the queue waits";
+    button.setAttribute("aria-label", "Run " + mod.technical_name + " only");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "play-glyph");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("fill", "currentColor");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M5 3l8 5-8 5z");
+    svg.appendChild(path);
+    button.appendChild(svg);
+
+    return button;
+  }
+
   /* Built from nodes, as every other row on the page is. The name is data
      from the project on disk, and went in through innerHTML. */
   function buildRow(mod, tag) {
@@ -104,14 +130,11 @@
     if (mod.migration_rank != null && mod.step != null) {
       row.appendChild(cell("span", "graph-node-index", "#" + mod.migration_rank + "/" + mod.step));
     }
-    /* The last card's lamp is the button that takes it out of the queue. */
+    /* The last card can be taken back out; every card can be run on its own. */
     if (mod.removable) {
       row.appendChild(removeButton(mod));
-    } else {
-      const lamp = cell("span", "pipeline-lamp", null);
-      lamp.setAttribute("aria-hidden", "true");
-      row.appendChild(lamp);
     }
+    row.appendChild(playButton(mod));
     row.appendChild(cell("span", "name mono", mod.technical_name));
     row.appendChild(cell("span", "badge", "step " + mod.step));
 
@@ -326,7 +349,8 @@
 
   /* One listener on the panel: rows are rebuilt on every change. */
   panel.addEventListener("click", function (event) {
-    const button = event.target.closest("[data-queue-remove]");
+    const play = event.target.closest("[data-queue-play]");
+    const button = play || event.target.closest("[data-queue-remove]");
     if (!button || button.disabled) {
       return;
     }
@@ -334,7 +358,7 @@
     showStartError("");
     const data = new FormData();
     data.append("module", button.getAttribute("data-module"));
-    fetch("/run/queue/remove", {
+    fetch(play ? "/run/queue/run-module" : "/run/queue/remove", {
       method: "POST",
       headers: { Accept: "application/json" },
       body: data,

@@ -266,14 +266,19 @@ still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
-the current module first, and is there only while the queue runs). The lamp of the last card is a button: under the pointer its dot gives way to
-a red cross, and a click takes that one module back out of the queue; its step stays queued with the cards it has left.
+the current module first, and is there only while the queue runs). Every card ends in a **play** button, the usual triangle: it runs that one
+module and nothing after it, where **Run** in the header carries on through the
+whole queue. The triangle is grey, and amber on the module in work, where it
+cannot be pressed. It is off, with the reason as its tooltip, while the queue
+runs, while another module does, while a batch waits for review, and while a
+step before the module's own is not done. The module runs in a batch of its own and the queue stays
+stopped, so when it ends nothing else starts; press the next triangle, or Run.
+The last card has a cross before its triangle: grey, red under the pointer, and a click takes that one module back out of the queue; its step stays queued with the cards it has left.
 Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count
 as queued for the steps after it; pressing its chip again brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
-stopped and no module is still running. The lamp of a row is a plain indicator: amber for the module in work, running or
-parked on a question, grey for the rest; it does not move. Passed
+stopped and no module is still running. Passed
 modules drop off the list and show on **Result**. The live panel below is the module, its status, and a ribbon of the
 cartridge's steps, each with how it went in the attempt on screen: done,
 failed, running, not yet run, or — dashed green — passed in an earlier

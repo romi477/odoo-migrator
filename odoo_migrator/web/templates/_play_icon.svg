@@ -1,0 +1,5 @@
+{# A triangle pointing right, the usual play: filled, in the button's colour. #}
+<svg class="play-glyph" viewBox="0 0 16 16" width="12" height="12"
+     fill="currentColor" aria-hidden="true">
+  <path d="M5 3l8 5-8 5z"></path>
+</svg>

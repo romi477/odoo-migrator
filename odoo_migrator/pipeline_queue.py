@@ -7,7 +7,12 @@ from contextlib import contextmanager
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
-from odoo_migrator.graph import DONE, list_modules, modules_in_step_order
+from odoo_migrator.graph import (
+    DONE,
+    earlier_steps_blocking,
+    list_modules,
+    modules_in_step_order,
+)
 from odoo_migrator.jobs import continue_batch, live_run, start_batch
 from odoo_migrator.models import (
     Batch,
@@ -274,6 +279,9 @@ def queue_snapshot(migration_id: str) -> dict:
         module["removable"] = False
     if modules:
         modules[-1]["removable"] = not modules[-1]["active"]
+    blocked = _play_blocked(migration_id, modules, live, run_state(migration_id))
+    for module in modules:
+        module["play"] = blocked.get(module["id"], "")
     partial = _partial_steps(migration_id)
     why = _why_not_out(
         migration_id,
@@ -299,6 +307,76 @@ def queue_snapshot(migration_id: str) -> dict:
         ],
         "modules": modules,
     }
+
+
+def _play_blocked(
+    migration_id: str, modules: list[dict], live: dict | None, state: str
+) -> dict[int, str]:
+    """For each queued module that cannot be run on its own, the sentence that says why.
+
+    The play button of a row runs that module and nothing after it, so it
+    needs the pipe free and the steps before the module's own behind it. The
+    module in flight is no exception to the first: its own lamp is the button
+    shown amber, and not pressable.
+    """
+    if state == "running":
+
+        return {
+            module["id"]: "The queue is running: stop it first, or let it finish."
+            for module in modules
+        }
+    if live is not None:
+
+        return {
+            module["id"]: (
+                f"{module['technical_name']} is running."
+                if module["active"]
+                else "A module is running: let it finish, or stop it."
+            )
+            for module in modules
+        }
+    reason = _batch_block_reason(migration_id)
+    if reason is not None:
+
+        return {module["id"]: reason for module in modules}
+    steps: dict[int, str | None] = {}
+    blocked: dict[int, str] = {}
+    for module in modules:
+        step = module["step"]
+        if step not in steps:
+            steps[step] = earlier_steps_blocking(migration_id, step)
+        if steps[step]:
+            blocked[module["id"]] = steps[step]
+
+    return blocked
+
+
+def run_one(migration_id: str, module_id: int, executor, hub: EventHub) -> None:
+    """Run one queued module and stop: the queue itself stays as it is.
+
+    Not the queue's Run, which carries on through every module. The pipe stays
+    stopped, so nothing after this module starts when it is done; the person
+    presses its play button, or Run, for the next. Raises ValueError when the
+    module cannot go, with the sentence that says why.
+    """
+    from odoo_migrator.jobs import start_job
+
+    modules = queue_snapshot(migration_id)["modules"]
+    chosen = next((module for module in modules if module["id"] == module_id), None)
+    if chosen is None:
+        raise ValueError("That module is not in the queue.")
+    if chosen["play"]:
+        raise ValueError(chosen["play"])
+    try:
+        start_job(
+            migration_id=migration_id,
+            module_id=module_id,
+            executor=executor,
+            hub=hub,
+        )
+    except ContractError as refused:
+        raise ValueError(str(refused)) from refused
+    publish_queue(hub, migration_id)
 
 
 def queue_count(migration_id: str, pending: int, *, active: bool) -> dict:
