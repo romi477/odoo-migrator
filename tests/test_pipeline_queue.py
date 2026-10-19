@@ -1448,6 +1448,7 @@ def test_the_batch_review_is_one_slim_row_a_module(client):
     assert first["technical_name"] in line
     assert 'class="badge stopped"' in line
     assert 'class="job-review-attempt">attempt 1 · ' in line
-    assert "max-width" in css.split("\n.checkpoint {", 1)[1].split("}", 1)[0]
+    column = css.split("\n.checkpoint {", 1)[1].split("}", 1)[0]
+    assert "max-width" in column and "margin-inline: auto" in column
     row = css.split("\n.job-review {", 1)[1].split("}", 1)[0]
     assert "background" not in row and "border-radius: 4px" in row

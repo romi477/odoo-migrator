@@ -3365,11 +3365,14 @@ button.queue-play:disabled {
 }
 
 /* What is left of a batch is secondary to the queue and the run above it:
-   narrower than they are, and its rows slimmer than a queue row. */
+   narrower than they are, centred under them, and its rows slimmer than a
+   queue row. The line above the rows keeps to their left edge. */
 .checkpoint {
   display: grid;
   gap: 8px;
+  width: 100%;
   max-width: 52rem;
+  margin-inline: auto;
 }
 
 .checkpoint .row form {
