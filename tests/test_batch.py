@@ -115,7 +115,8 @@ def test_a_passing_batch_runs_dependents_after_their_parents(client):
     with database.connection_context():
         assert Module.get_by_id(sale["id"]).status == "passed"
         assert Module.get_by_id(stock["id"]).status == "passed"
-        assert Batch.select().where(Batch.migration == row.id).get().status == "checkpoint"
+        # Every module passed: nothing to review, so the batch does not wait.
+        assert Batch.select().where(Batch.migration == row.id).get().status == "idle"
         assert Job.select().join(Module).where(Module.migration == row.id).count() == 2
 
 
@@ -259,7 +260,7 @@ def test_a_single_module_batch_stays_open_until_its_result(client):
     with database.connection_context():
         assert Batch.select().where(Batch.migration == row.id).get().status == "running"
 
-    executor.answer("passed")
+    executor.answer("failed")
 
     with database.connection_context():
         assert Batch.select().where(Batch.migration == row.id).get().status == "checkpoint"

@@ -781,11 +781,13 @@ def after_batch_checkpoint(
         )
     running = run_state(migration_id) == "running"
     auto = batch is not None and batch.auto_continue
-    if auto and not running:
-        # One module run on its own: if it passed there is nothing to review,
-        # and a review stop would also bar the next play until someone pressed
-        # Continue. A failure keeps its stop. Its own batch is the one closed,
-        # not whichever review is newest.
+    if not running:
+        # Nothing carries on from here: a module run on its own, or a queue
+        # that was stopped while its module finished. If every module passed
+        # there is nothing to review, and a review stop barred the next Run
+        # and every play until someone pressed a Continue that started
+        # nothing. A failure or a stop keeps its review. Its own batch is the
+        # one closed, not whichever review is newest.
         if passed:
             remove_finished_steps(migration_id)
             try:
@@ -794,9 +796,7 @@ def after_batch_checkpoint(
 
                 return
             publish_queue(hub, migration_id)
-
-        return
-    if not running:
+            _announce_passed(hub, migration_id, batch_id)
 
         return
     with database.connection_context():
@@ -821,6 +821,27 @@ def after_batch_checkpoint(
     except ContractError:
 
         return
+
+
+def _announce_passed(hub: EventHub, migration_id: str, batch_id: int) -> None:
+    """Say which modules passed, once, on the page that watched them.
+
+    Not a review: nothing waits on it, and a reload does not draw it again.
+    """
+    with database.connection_context():
+        names = [
+            job.module.technical_name
+            for job in Job.select().where(Job.batch == batch_id).order_by(Job.id)
+        ]
+    hub.publish(
+        "checkpoint",
+        {
+            "migration_id": migration_id,
+            "batch_id": batch_id,
+            "stopped": False,
+            "passed": names,
+        },
+    )
 
 
 def on_module_finished(migration_id: str, hub: EventHub) -> None:

@@ -315,8 +315,8 @@ comes back after a drop or a restart, its first message repaints the card,
 the queue and the statuses. When a batch stops at checkpoint a banner
 appears under the card: *This batch has finished. Reload to review it.*, or
 *The run was stopped.* when a person stopped it. A wave the queue
-approves and carries on from is not announced, nor is a module run on its own
-that passed, and neither is a review that a queue card already answers. The screen does not swap
+approves and carries on from is not announced, a batch that passed and stops
+there says *… is migrated. Nothing to review.* with no link, and a review that a queue card already answers. The screen does not swap
 itself for the review while you are looking at a live stage.
 
 **Flow** (`/flow`) draws the pinned cartridge. The picture is computed
@@ -376,9 +376,11 @@ graph yet, the page points you at Tree → Resolve.
 
 ### Checkpoint
 
-A finished batch (not a smoke-run) stops here, except one module run on its
-own from its play button that passed: there is nothing to review, and it closes
-by itself. One that failed, or was stopped, waits here, and its module's
+A finished batch (not a smoke-run) stops here, except one in which every module
+passed: there is nothing to review, and it closes by itself, whether the module
+ran on its own from its play button or the queue was stopped while it ran. The
+banner under the card says which modules were migrated, once; a reload does not
+draw it again, and the next run takes it down. One that failed, or was stopped, waits here, and its module's
 card in the queue carries **Continue** and **Discard** in the place of the play
 button; **Run** stays off until the review is answered. Flow id and version
 are in the heading — swapping the pin later does not rewrite this

@@ -1023,6 +1023,37 @@ def test_a_module_run_on_its_own_does_not_stop_for_review_when_it_passed(client)
     assert all("Review the last batch" not in module["play"] for module in after)
 
 
+def test_a_queue_stopped_while_its_module_passed_does_not_stop_for_review(client):
+    """Job e50a1a28: Run on the queue, Stop on the queue while the module ran,
+    and the module passed. Runner showed a review with a lone Continue that
+    started nothing, and Run stayed off until it was pressed."""
+    from test_batch import DeferredExecutor
+
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    executor = DeferredExecutor(client.app)
+    client.app.state.executor = executor
+    client.post("/run/queue/run", follow_redirects=True)
+    client.post("/run/queue/stop", follow_redirects=True)
+
+    executor.answer("passed")
+
+    with database.connection_context():
+        assert all(batch.status != "checkpoint" for batch in Batch.select())
+    assert executor.started == [first["technical_name"]]
+    page = client.get("/run").text
+    assert 'aria-label="Continue ' not in page
+    assert "Review this batch" not in page
+    # Said once, on the page that watched it: which module, and that nothing waits.
+    said = [event[1] for event in client.app.state.hub.published if event[0] == "checkpoint"]
+    assert said[-1]["passed"] == [first["technical_name"]]
+    script = client.get("/static/sse.js").text
+    assert '" migrated. Nothing to review."' in script
+    assert '[data-checkpoint-ready][data-kind="passed"]' in client.get("/static/pipeline.js").text
+
+
 def test_a_module_run_on_its_own_that_failed_still_waits_for_review(client):
     from odoo_migrator.models import Batch, Job
 

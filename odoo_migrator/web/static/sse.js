@@ -422,9 +422,31 @@ function fillResultCornerGlyph(glyph, kind) {
       return;
     }
     const ready = document.querySelector("[data-checkpoint-ready]");
+    /* Every module passed and the review closed itself: the notice says
+       which, and has nothing to reload for. It is not drawn again on a
+       reload, and the next run takes it down. */
+    if (ready && data.passed) {
+      const said = ready.querySelector("[data-checkpoint-ready-text]");
+      const link = ready.querySelector("[data-checkpoint-ready-link]");
+      if (said) {
+        said.textContent = data.passed.join(", ") + (data.passed.length === 1 ? " is" : " are") + " migrated. Nothing to review.";
+      }
+      if (link) {
+        link.hidden = true;
+      }
+      ready.setAttribute("data-kind", "passed");
+      ready.hidden = false;
+
+      return;
+    }
     /* A queue card that carries the review is answered there, and the queue
        event before this one drew it: no notice, and nothing to reload. */
     if (ready && !document.querySelector("[data-queue-review]")) {
+      const link = ready.querySelector("[data-checkpoint-ready-link]");
+      if (link) {
+        link.hidden = false;
+      }
+      ready.removeAttribute("data-kind");
       /* A link, not a reload: the page may hold a half-typed answer, and
          the review is built server-side. A stop is not a finish. */
       const text = ready.querySelector("[data-checkpoint-ready-text]");

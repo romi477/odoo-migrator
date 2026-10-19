@@ -434,6 +434,14 @@
         ready.hidden = true;
       }
     }
+    /* "Migrated, nothing to review" is about the run that ended; the next
+       one takes it down. */
+    if (!data.idle) {
+      const done = document.querySelector('[data-checkpoint-ready][data-kind="passed"]');
+      if (done) {
+        done.hidden = true;
+      }
+    }
     /* The step chips read this: which steps are queued, and which of those can be taken out. */
     window.dispatchEvent(new CustomEvent("queue-changed", { detail: data.steps || [] }));
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
