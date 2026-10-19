@@ -2240,12 +2240,42 @@ h2 {
   flex: none;
 }
 
-/* The mark says the state without colour alone: a tick, a dot, a padlock. */
+/* The mark says the state without colour alone: a plus (it queues the step
+   when pressed), a tick, a dot, a padlock. */
+.step-chip.is-open .step-chip-mark,
 .step-chip.is-passed .step-chip-mark,
 .step-chip.is-queued .step-chip-mark,
 .step-chip.is-locked .step-chip-mark,
 .runner-bar-note .step-chip-mark {
   display: inline-block;
+}
+
+/* A chip that can be pressed says so; the others are not buttons yet. */
+.step-chip {
+  cursor: pointer;
+}
+
+.step-chip[aria-disabled="true"] {
+  cursor: default;
+}
+
+.step-chip.is-locked {
+  cursor: not-allowed;
+}
+
+/* The plus: two strokes, the colour of the chip's text. */
+.step-chip.is-open .step-chip-mark {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  background:
+    linear-gradient(currentColor, currentColor) center / 8px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 1.5px 8px no-repeat;
+}
+
+.step-chip.is-open:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
 }
 
 .step-chip.is-passed .step-chip-mark {

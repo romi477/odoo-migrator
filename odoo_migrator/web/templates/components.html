@@ -539,18 +539,19 @@ tools offered: exec, read_file, report, source</pre>
   directory is not a git checkout.</p>
 
   <h2>Run workspace</h2>
-    {# The bar the run hangs from: a chip for each step (passed, picked, in the
-       queue, waiting on an earlier one), the step's modules under them. #}
+    {# The bar the run hangs from: a chip for each step (a plus queues it, a tick
+       is passed, a dot is in the queue, a padlock waits on an earlier one), the
+       modules of the step under the pointer below them. #}
     <section class="runner-bar runner-bar-specimen" aria-label="Selection">
       <form class="runner-bar-form">
         <div class="runner-bar-main">
           <div class="runner-bar-row">
-          <div class="step-chips" role="radiogroup" aria-label="Migration step to queue">
-            <button type="button" role="radio" aria-checked="false" class="step-chip is-passed is-blocker"><span class="step-chip-mark"></span>1</button>
-            <button type="button" role="radio" aria-checked="true" class="step-chip is-picked">2 <span class="step-chip-count">2</span></button>
-            <button type="button" role="radio" aria-checked="false" class="step-chip is-queued"><span class="step-chip-mark"></span>3 <span class="step-chip-count">3</span></button>
-            <button type="button" role="radio" aria-checked="false" class="step-chip">4 <span class="step-chip-count">3</span></button>
-            <button type="button" role="radio" aria-checked="false" class="step-chip is-locked"><span class="step-chip-mark"></span>5 <span class="step-chip-count">2</span></button>
+          <div class="step-chips" role="group" aria-label="Migration step to queue">
+            <button type="button" class="step-chip is-passed is-blocker" aria-disabled="true"><span class="step-chip-mark"></span>1</button>
+            <button type="button" class="step-chip is-open is-picked" aria-disabled="false"><span class="step-chip-mark"></span>2 <span class="step-chip-count">2</span></button>
+            <button type="button" class="step-chip is-queued" aria-disabled="true"><span class="step-chip-mark"></span>3 <span class="step-chip-count">3</span></button>
+            <button type="button" class="step-chip is-open" aria-disabled="false"><span class="step-chip-mark"></span>4 <span class="step-chip-count">3</span></button>
+            <button type="button" class="step-chip is-locked" aria-disabled="true"><span class="step-chip-mark"></span>5 <span class="step-chip-count">2</span></button>
           </div>
         </div>
         <div class="runner-bar-row runner-bar-modules">
@@ -562,8 +563,7 @@ tools offered: exec, read_file, report, source</pre>
         </div>
         </div>
           <div class="pipeline-start-actions">
-            <button type="button">Add step 2</button>
-            <button type="button" class="primary">Add all steps</button>
+            <button type="button" class="primary">Add all</button>
           </div>
       </form>
     </section>

@@ -167,8 +167,8 @@ def test_run_batch_control_lives_on_pipeline(client):
     run = client.get("/run").text
 
     assert ">Run batch<" not in tree
-    assert "Add step" in run
-    assert ">Add all steps<" in run
+    assert "Add the selected step to the queue" not in run
+    assert ">Add all<" in run
     assert ">Queue<" in run
     # The chips are drawn in the browser from the steps the page carries.
     assert '"step": 1' in run
@@ -192,7 +192,7 @@ def test_an_empty_or_missing_batch_is_loud(client):
 def test_styleguide_shows_the_pipeline_queue(client):
     html = client.get("/components").text
 
-    assert ">Add all steps<" in html
+    assert ">Add all<" in html
     assert "step-chip" in html
     assert "pipeline-queue-list" in html
 

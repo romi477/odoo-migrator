@@ -73,7 +73,7 @@
             tip(row) {
               const state = this.stateOf(row.step);
               const what = state === "passed" ? "passed" : row.pending + " module" + (row.pending === 1 ? "" : "s");
-              const note = { passed: "", queued: ", in the queue", locked: ", waits for step " + this.blockedBy(row.step), open: "" }[state];
+              const note = { passed: "", queued: ", in the queue", locked: ", waits for step " + this.blockedBy(row.step), open: ": click to queue it" }[state];
               return "Step " + row.step + " · " + what + note;
             },
             modules() {
@@ -88,22 +88,31 @@
               }
               return row.needs.filter((n) => this.queued.indexOf(n) === -1);
             },
-            canAdd() {
-              const row = this.steps.find((s) => s.step === this.pick);
-              return !!(row && row.pending && this.blockedBy(row.step) === null);
+            add(step) {
+              if (this.stateOf(step) !== "open") {
+                return;
+              }
+              this.pick = step;
+              this.$nextTick(() => this.$root.requestSubmit());
             }
           }'>
       <input type="hidden" name="step" :value="pick">
       <div class="runner-bar-main">
         <div class="runner-bar-row">
-          <div class="step-chips" role="radiogroup" aria-label="Migration step to queue"
+          <div class="step-chips" role="group" aria-label="Migration step to queue"
                @queue-changed.window="queuedChanged($event.detail)">
             <template x-for="row in steps" :key="row.step">
-              <button type="button" role="radio" class="step-chip"
+              {# A chip queues its step: one click, every module of it. Pointing at
+                 one (or focusing it) shows its modules in the row below; a chip
+                 that cannot be queued yet says why instead and does nothing. #}
+              <button type="button" class="step-chip"
                       :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '') + (missing().indexOf(row.step) !== -1 ? ' is-blocker' : '')"
-                      :aria-checked="pick === row.step ? 'true' : 'false'"
+                      :aria-disabled="stateOf(row.step) === 'open' ? 'false' : 'true'"
+                      :aria-label="tip(row)"
                       :title="tip(row)"
-                      @click="pick = row.step">
+                      @mouseenter="pick = row.step"
+                      @focus="pick = row.step"
+                      @click="add(row.step)">
                 <span class="step-chip-mark" aria-hidden="true"></span>
                 <span x-text="row.step"></span>
                 <span class="step-chip-count" x-text="row.pending ? row.pending : ''"></span>
@@ -117,8 +126,8 @@
             <span class="module-chip mono" :class="module.passed ? 'is-passed' : ''" x-text="module.name"
                   :title="module.passed ? module.name + ' · passed' : module.name"></span>
           </template>
-          {# Why Add is off: the padlock of the chip, then the chips it waits on
-             are drawn in the same amber as this line. #}
+          {# Why a chip cannot be queued: the padlock of the chip, then the chips it
+             waits on are drawn in the same amber as this line. #}
           <span class="runner-bar-note" x-show="missing().length" x-cloak>
             <span class="step-chip-mark" aria-hidden="true"></span>
             <span x-text="'Waits for step' + (missing().length === 1 ? ' ' : 's ') + missing().join(', ') + ': queue ' + (missing().length === 1 ? 'it' : 'them') + ' first.'"></span>
@@ -127,14 +136,10 @@
         <p class="form-error" id="pipeline-start-error" hidden></p>
       </div>
       <div class="pipeline-start-actions">
-        <button type="submit"
-                title="Add this step to the pipeline queue"
-                aria-label="Add the selected step to the queue"
-                :disabled="!canAdd()">Add step <span x-text="pick"></span></button>
         <button type="submit" class="primary"
                 formaction="/run/queue/add-all" formmethod="post"
                 title="Add every dependency step to the pipeline queue"
-                aria-label="Add all dependency steps to the queue">Add all steps</button>
+                aria-label="Add all dependency steps to the queue">Add all</button>
       </div>
     </form>
     {% else %}

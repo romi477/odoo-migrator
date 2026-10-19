@@ -44,13 +44,15 @@ def test_queue_run_page_has_selection_and_queue(client):
     page = client.get("/run")
 
     # Selection is a bar, not a card that folds: the step chips are always there.
-    assert 'role="radiogroup" aria-label="Migration step to queue"' in page.text
+    assert 'role="group" aria-label="Migration step to queue"' in page.text
     assert "runner-bar" in page.text
     assert "pipeline-selection-head" not in page.text
     assert ">Queue<" in page.text
     assert "FIFO · First in, first out" in page.text
-    assert "Add step" in page.text
-    assert ">Add all steps<" in page.text
+    # A step is queued by its own chip; the only button is the one for them all.
+    assert "Add the selected step to the queue" not in page.text
+    assert ">Add all<" in page.text
+    assert "requestSubmit()" in page.text
     assert 'aria-label="Clear the pipeline queue"' in page.text
     assert 'aria-label="Run the pipeline queue"' in page.text
 

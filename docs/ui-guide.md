@@ -237,9 +237,14 @@ gutter and enters the card of the run. Both, and the Queue card's edge, are colo
 and cyan once it holds something; a pulse of light travels down the first
 while the queue runs. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
-window. The two buttons stand at the right edge of the bar, one above the other:
-**Add step N** queues the picked step and the pick then moves to the next
-step that can be queued; **Add all steps** queues every wave still in the plan.
+window. A chip is also the button that queues its step: the one with a plus puts
+every module of the step in the queue with one press, and the step it
+depends on has to be queued first, which is what the padlock on the others
+says. Pointing at a chip, or focusing it, shows that step's modules in the
+row below; a padlocked one says what it waits on and does nothing when
+pressed. After a press the preview moves on to the next step that can be
+queued. **Add all**, alone at the right edge of the bar, queues every wave
+still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
@@ -247,7 +252,7 @@ the current module first, and is there only while the queue runs). The lamp of t
 a red cross, and a click takes that one module back out of the queue; its step stays queued with the cards it has left.
 Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count
-as queued for the steps after it; **Add step N** on it brings the card
+as queued for the steps after it; pressing its chip again brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
 stopped and no module is still running. The module that runs has a ball bouncing in a ring in place of its lamp
 (a module parked on a question keeps the still amber dot); passed
