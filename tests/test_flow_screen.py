@@ -88,3 +88,13 @@ def test_a_step_card_hangs_over_the_canvas_instead_of_shrinking_it(client):
     assert "grid-template-columns" not in css.split(".flow-board {")[1].split("}")[0]
     assert "is-inspecting" not in css
     assert "is-inspecting" not in script
+
+
+def test_the_cards_close_button_is_as_plain_as_the_help_link(client):
+    css = client.get("/static/style.css").text
+    close = css.split(".flow-inspect-head button {")[1].split("}")[0]
+    help_ = css.split(".tree-help {")[1].split("}")[0]
+
+    assert "font-size: 11px" in close and "font-size: 11px" in help_
+    assert "border: 0" in close
+    assert "padding: 0" in close

@@ -3583,6 +3583,16 @@ pre.test-output {
   gap: 8px;
 }
 
+/* Close is the size and weight of Tree's Help: plain muted text, no outline. */
+.flow-inspect-head button {
+  flex: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .flow-inspect-head h2 {
   margin: 0;
   font-size: 15px;
