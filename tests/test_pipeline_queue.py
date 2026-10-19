@@ -1100,3 +1100,18 @@ def test_the_cards_continue_says_the_queue_runs_again(client):
     assert "run the queue again" in form
     script = client.get("/static/pipeline.js").text
     assert 'again.name = "run"' in script
+
+
+def test_a_review_on_a_queue_card_raises_no_reload_notice(client):
+    """The finished-batch notice asked for a reload, to a review whose answer
+    was already on the queue card."""
+    hub = client.app.state.hub
+    _row, _first = _stopped_in_review(client)
+    names = [event[0] for event in hub.published]
+
+    # The queue goes out first, so the page knows a card answers the review.
+    last_checkpoint = len(names) - 1 - names[::-1].index("checkpoint")
+    assert "queue" in names[:last_checkpoint]
+    assert names[last_checkpoint - 1] == "queue"
+    script = client.get("/static/sse.js").text
+    assert '!document.querySelector("[data-queue-review]")' in script

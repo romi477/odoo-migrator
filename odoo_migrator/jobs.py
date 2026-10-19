@@ -696,12 +696,13 @@ def _announce_review(hub: EventHub, migration_id: str, batch_id: int) -> None:
     # The run screen exists to be watched. Without this the batch ends,
     # the pipeline panel says nothing is running, and the review the
     # human is waiting for only appears if they think to reload.
-    hub.publish("checkpoint", {"migration_id": migration_id, "batch_id": batch_id})
     # The queue's cards carry Continue and Discard while a review waits, and
-    # its Run goes off: they are drawn from the snapshot.
+    # its Run goes off: they are drawn from the snapshot. First, so the page
+    # knows on "checkpoint" whether a card already answers it.
     from odoo_migrator.pipeline_queue import publish_queue
 
     publish_queue(hub, migration_id)
+    hub.publish("checkpoint", {"migration_id": migration_id, "batch_id": batch_id})
 
 
 def _end_batch(batch_id: int, migration_id: str, executor, hub: EventHub) -> None:

@@ -485,7 +485,8 @@
 
   {# Under the card, beside Continue. Above the Selection bar they sat
      under it: the bar is pulled up flush with the frame and stays there,
-     so a line in front of it was covered. #}
+     so a line in front of it was covered. Shown only for a review no queue
+     card carries; one that does is answered there without a reload. #}
   {% if screen == 'pipeline' and current %}
   <p class="checkpoint-ready" data-checkpoint-ready hidden>
     This batch has finished. <a href="/run">Reload to review it.</a>
@@ -567,17 +568,15 @@
       {% if job.answer %}
       <p>{{ job.answer }}</p>
       {% endif %}
+      {# What happened, in words: the verdict and the diagnosis. The diff and
+         the raw test output are not drawn. Nobody decided Continue or
+         Discard by reading them, and whoever wants the code reads it in the
+         project, where the diff is git's. #}
       {% for attempt in job.attempts %}
       <section class="attempt">
         <p>attempt {{ attempt.iteration }} · {{ attempt.verdict }}</p>
         {% if attempt.diagnosis %}
         <p class="diagnosis">{{ attempt.diagnosis }}</p>
-        {% endif %}
-        {% if attempt.diff %}
-        <pre class="diff">{{ attempt.diff }}</pre>
-        {% endif %}
-        {% if attempt.test_output %}
-        <pre class="test-output">{{ attempt.test_output }}</pre>
         {% endif %}
       </section>
       {% endfor %}

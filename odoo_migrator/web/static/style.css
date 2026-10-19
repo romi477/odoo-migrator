@@ -3412,18 +3412,6 @@ button.queue-play:disabled {
 }
 
 
-pre.diff,
-pre.test-output {
-  margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--panel-raised);
-  overflow: auto;
-  font-size: 12px;
-  white-space: pre-wrap;
-}
-
 .workspace {
   display: flex;
   flex-direction: column;

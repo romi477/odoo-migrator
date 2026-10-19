@@ -219,7 +219,7 @@ def test_checkpoint_renders_on_the_pipeline_screen(client):
     assert 'class="checkpoint"' in page.text
     assert 'class="checkpoint"' not in client.get("/sheller").text
     assert FINDING in page.text
-    assert DIFF in page.text
+    assert DIFF not in page.text
     assert ">Continue<" in page.text
 
 

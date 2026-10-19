@@ -512,15 +512,12 @@ tools offered: exec, read_file, report, source</pre>
       </header>
       <div class="row job-review-actions">
         <button type="submit" title="Mark this run as read. Nothing is deleted.">Dismiss</button>
-        <button type="submit" title="Go on to the next batch.">Continue</button>
         <button type="submit" class="discard-run" title="Delete this run and queue the module again.">Discard run</button>
         <button type="button" class="discard-run" disabled title="Its directory in the target project is not a git checkout, so its files cannot be put back.">Discard run</button>
       </div>
       <p>attempt 2 &middot; retry</p>
       <p class="diagnosis">The tax mapping moved to account.tax; the rewrite
       still assigned the 17.0 field.</p>
-      <pre class="diff">- mapping = old
-+ mapping = new</pre>
       <form class="promote">
         <label>
           Version file
@@ -536,10 +533,13 @@ tools offered: exec, read_file, report, source</pre>
   </div>
   <p>Continue stays off while a failed or waiting job is unread. Override
   is the explicit skip. Promote asks which version file; the app does not
-  pick one. Dismiss only marks the run as read. Continue on a card is the same
-  Continue, white. Discard run is the orange one: it deletes the run and
-  asks first; it is off, with the reason on hover, when the module's
-  directory is not a git checkout.</p>
+  pick one. Dismiss only marks the run as read. A run of a queued module is
+  answered on its queue card, Continue and Discard; this block then holds
+  neither. A run with no card, from Tree, keeps Continue above and Discard
+  run on its card, orange: it deletes the run and asks first; it is off, with
+  the reason on hover, when the module's directory is not a git checkout.
+  The run is said in words, the verdict and the diagnosis: no diff, no raw
+  test output.</p>
 
   <h2>Run workspace</h2>
     {# The bar the run hangs from: a chip for each step (an arrow down queues it; once queued it turns over, orange, and takes it

@@ -45,7 +45,6 @@ def test_a_new_side_write_fills_an_empty_attempt_diff(client):
         attempt = Attempt.select().join(Job).where(Job.job_id == holder.job_id).get()
     assert f"+{marker.rstrip()}" in attempt.diff
     assert "sale_custom/models.py" in attempt.diff
-    assert marker.rstrip() in client.get("/run").text
 
 
 def test_a_cartridge_diff_is_kept_when_it_sent_one(client):
@@ -140,7 +139,6 @@ def test_a_module_that_passes_first_time_still_shows_its_diff(client):
     assert len(stored) == 1
     assert stored[0].verdict == "passed"
     assert marker.strip() in stored[0].diff
-    assert "sale_custom/models.py" in client.get("/run").text
 
 
 def test_a_module_nested_under_addons_is_still_attributed(client):

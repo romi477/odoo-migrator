@@ -404,7 +404,9 @@ function fillResultCornerGlyph(glyph, kind) {
       return;
     }
     const ready = document.querySelector("[data-checkpoint-ready]");
-    if (ready) {
+    /* A queue card that carries the review is answered there, and the queue
+       event before this one drew it: no notice, and nothing to reload. */
+    if (ready && !document.querySelector("[data-queue-review]")) {
       /* A link, not a reload: the page may hold a half-typed answer, and
          the review is built server-side. */
       ready.hidden = false;

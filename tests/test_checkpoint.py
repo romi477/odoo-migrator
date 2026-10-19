@@ -80,7 +80,9 @@ def test_the_run_page_shows_the_checkpoint(client):
     assert page.status_code == 200
     assert "sale_custom" in page.text
     assert FINDING in page.text
-    assert DIFF in page.text
+    # Said in words; the diff and the raw test output are not drawn.
+    assert DIFF not in page.text
+    assert "test-output" not in page.text
     assert "stock" in page.text
     assert "1.0.0" in page.text
     assert ASSUMPTION_Q in page.text
