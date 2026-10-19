@@ -3366,7 +3366,7 @@ button.queue-play:disabled {
 
 /* What is left of a batch is secondary to the queue and the run above it:
    narrower than they are, centred under them, and its rows slimmer than a
-   queue row. The line above the rows keeps to their left edge. */
+   queue row. The line above the rows is centred too. */
 .checkpoint {
   display: grid;
   gap: 8px;
@@ -3381,6 +3381,7 @@ button.queue-play:disabled {
 
 .checkpoint .screen-note {
   margin: 0;
+  text-align: center;
 }
 
 /* The one button that deletes. The word is orange; Continue beside it is
