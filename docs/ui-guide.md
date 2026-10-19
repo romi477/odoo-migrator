@@ -295,7 +295,7 @@ queue card's header, shown while the queue runs, is the queue's: no more
 modules, and the one in work finishes. Run gives its place while a module is in work. A run that is not
 in the queue, started from Tree, has no card here, so its Stop now stands in the
 header. The runner card does not say the module's name or status again: the machine's input slot has the name and the gears have the state. The cables carry their pulse for any work in hand: the queue running, or one module run on its own from a play button.
-The card opens with the **machine**: a black box with a slot at each
+The card is called **Engine**, the word set in a break of its top edge, grey at rest and amber while a module is in it: the name to use when telling someone which card. The card opens with the **machine**: a black box with a slot at each
 end, labelled with the migration's versions (`17.0 in`, `18.0 out`), and a pair of
 meshed gears between them. The slots have a hairline border, soft, because they hold a name and are not buttons: the input is amber and the output cyan, whatever the state, and a module in a slot only firms the edge. At rest it is grey with both slots empty. While a
 module runs its name is in the input slot, the gears turn in amber and the

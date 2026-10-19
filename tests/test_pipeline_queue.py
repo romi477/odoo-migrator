@@ -1452,3 +1452,14 @@ def test_the_batch_review_is_one_slim_row_a_module(client):
     assert "max-width" in column and "margin-inline: auto" in column
     row = css.split("\n.job-review {", 1)[1].split("}", 1)[0]
     assert "background" not in row and "border-radius: 4px" in row
+
+
+def test_the_runs_card_is_named_engine_in_a_break_of_its_edge(client):
+    """A name colleagues can use for the card, without a header row."""
+    _row, _first, page = _running_page(client)
+    css = client.get("/static/style.css").text
+    card = page.split('<article class="workspace-panel"', 1)[1].split("</article>", 1)[0]
+
+    assert '<span class="engine-plate">Engine</span>' in card
+    plate = css.split("\n.engine-plate {", 1)[1].split("}", 1)[0]
+    assert "position: absolute" in plate and "translateY(-50%)" in plate

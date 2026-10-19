@@ -3553,6 +3553,32 @@ button.queue-play:disabled {
   animation: work-breathe 3.6s ease-in-out infinite;
 }
 
+/* The card's name, Engine, in a break of its top edge, the way a fieldset's
+   legend sits in its own: a plate on the machine's casing rather than a
+   header row. The break is the page above the edge and the card below it.
+   Grey at rest; amber, the colour of the work, while a module is in it. The
+   glow paints over its lower half like over the rest of the inside. */
+.engine-plate {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  background: linear-gradient(var(--pane, var(--background)) 50%, var(--panel) 50%);
+  color: var(--muted-low);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  pointer-events: none;
+  transition: color 0.6s ease;
+}
+
+.workspace-panel:has(.pipeline-live:not([hidden])) .engine-plate {
+  color: var(--amber);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])::after {
     animation: none;

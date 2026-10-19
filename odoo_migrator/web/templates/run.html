@@ -305,6 +305,8 @@
              data-pipeline
              {% if current %}data-migration-id="{{ current.id }}"{% endif %}
              {% if live %}data-module-id="{{ live.module_id }}"{% endif %}>
+      {# Its name, in a break of its top edge: what a colleague calls it. #}
+      <span class="engine-plate">Engine</span>
       {# The machine is always there. Empty it says nothing is running, with no
          sentence to say it; sse.js turns its gears and fills its slots. #}
       {% with machine_state = ('stuck' if live.status == 'waiting_for_human' else 'run') if live else 'idle',
