@@ -239,6 +239,11 @@ def queue_snapshot(migration_id: str) -> dict:
     if modules:
         modules[-1]["removable"] = not modules[-1]["active"]
     partial = _partial_steps(migration_id)
+    why = _why_not_out(
+        migration_id,
+        [item.step for item in items],
+        {module["step"] for module in modules if module["active"]},
+    )
 
     state = run_state(migration_id)
 
@@ -246,10 +251,68 @@ def queue_snapshot(migration_id: str) -> dict:
         "run_state": state,
         "idle": state != "running" and live is None,
         "steps": [
-            {"step": item.step, "whole": item.step not in partial} for item in items
+            {
+                "step": item.step,
+                "whole": item.step not in partial,
+                "removable": not why.get(item.step),
+                "why": why.get(item.step, ""),
+            }
+            for item in items
         ],
         "modules": modules,
     }
+
+
+def _why_not_out(
+    migration_id: str, queued: list[int], in_flight: set[int]
+) -> dict[int, str]:
+    """For each queued step that cannot be taken out, the sentence that says why.
+
+    A step that has started stays: a module of it is in flight, or its batch is
+    running. A step another queued step waits on stays too, until that one is
+    out: dependency, not position, as everywhere else in the queue.
+    """
+    from odoo_migrator.graph import list_pipeline_steps
+
+    with database.connection_context():
+        running = {
+            batch.step
+            for batch in Batch.select().where(
+                (Batch.migration == migration_id)
+                & (Batch.status == "running")
+                & (Batch.step.is_null(False))
+            )
+        }
+    started = running | in_flight
+    needs = {row["step"]: row["needs"] for row in list_pipeline_steps(migration_id)}
+    why: dict[int, str] = {}
+    for step in queued:
+        if step in started:
+            why[step] = f"Step {step} has started: let it finish or stop it."
+
+            continue
+        waiting = next(
+            (other for other in sorted(queued) if step in needs.get(other, [])), None
+        )
+        if waiting is not None:
+            why[step] = f"Step {waiting} waits for step {step}: take step {waiting} out first."
+
+    return why
+
+
+def remove_step(migration_id: str, step: int) -> None:
+    """Take a queued step out, every card of it. Raises ValueError when it cannot go."""
+    flags = {item["step"]: item for item in queue_snapshot(migration_id)["steps"]}
+    if step not in flags:
+        raise ValueError(f"Step {step} is not in the queue.")
+    if flags[step]["why"]:
+        raise ValueError(flags[step]["why"])
+    with database.connection_context():
+        PipelineQueueItem.delete().where(
+            (PipelineQueueItem.migration == migration_id)
+            & (PipelineQueueItem.step == step)
+        ).execute()
+    _forget_skips(migration_id, step)
 
 
 def remove_last_module(migration_id: str, module_id: int) -> None:

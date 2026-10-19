@@ -539,8 +539,8 @@ tools offered: exec, read_file, report, source</pre>
   directory is not a git checkout.</p>
 
   <h2>Run workspace</h2>
-    {# The bar the run hangs from: a chip for each step (an arrow down queues it, a tick
-       is passed, a dot is in the queue, a padlock waits on an earlier one), the
+    {# The bar the run hangs from: a chip for each step (an arrow down queues it; once queued it turns over, orange, and takes it
+       out again; a tick is passed, a dot is in the queue and cannot come out, a padlock waits on an earlier one), the
        modules of the step under the pointer below them. #}
     <section class="runner-bar runner-bar-specimen" aria-label="Selection">
       <form class="runner-bar-form">
@@ -549,7 +549,8 @@ tools offered: exec, read_file, report, source</pre>
           <div class="step-chips" role="group" aria-label="Migration step to queue">
             <button type="button" class="step-chip is-passed is-blocker" aria-disabled="true"><span class="step-chip-mark"></span>1</button>
             <button type="button" class="step-chip is-open is-picked" aria-disabled="false"><span class="step-chip-mark"></span>2 <span class="step-chip-count">2</span></button>
-            <button type="button" class="step-chip is-queued" aria-disabled="true"><span class="step-chip-mark"></span>3 <span class="step-chip-count">3</span></button>
+            <button type="button" class="step-chip is-queued is-undo" aria-disabled="false"><span class="step-chip-mark"></span>3 <span class="step-chip-count">3</span></button>
+            <button type="button" class="step-chip is-queued" aria-disabled="true"><span class="step-chip-mark"></span>3 <span class="step-chip-count">1</span></button>
             <button type="button" class="step-chip is-open" aria-disabled="false"><span class="step-chip-mark"></span>4 <span class="step-chip-count">3</span></button>
             <button type="button" class="step-chip is-locked" aria-disabled="true"><span class="step-chip-mark"></span>5 <span class="step-chip-count">2</span></button>
           </div>

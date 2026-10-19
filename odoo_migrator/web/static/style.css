@@ -2263,41 +2263,42 @@ h2 {
   cursor: not-allowed;
 }
 
-/* The arrow: a stem and a head pointing down, at the queue below. Two strokes
-   in the colour of the chip's text. */
-.step-chip.is-open .step-chip-mark {
-  position: relative;
-  width: 8px;
-  height: 9px;
-}
-
-.step-chip.is-open .step-chip-mark::before {
-  content: "";
-  position: absolute;
-  left: 3.25px;
-  top: 0;
-  width: 1.5px;
-  height: 8px;
-  border-radius: 1px;
+/* The arrow down, at the queue below. One drawn shape, not two boxes laid
+   together: a stem on the axis and a head that meets it at its tip, so it is
+   symmetric to the pixel. A mask, so it takes the chip's text colour. */
+.step-chip.is-open .step-chip-mark,
+.step-chip.is-undo .step-chip-mark {
+  width: 10px;
+  height: 10px;
   background: currentColor;
-}
-
-.step-chip.is-open .step-chip-mark::after {
-  content: "";
-  position: absolute;
-  left: 1px;
-  top: 2.5px;
-  width: 5px;
-  height: 5px;
-  box-sizing: border-box;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg);
+  -webkit-mask: var(--arrow-down) center / contain no-repeat;
+  mask: var(--arrow-down) center / contain no-repeat;
+  --arrow-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 1.2V8.6M1.9 5.6L5 8.7L8.1 5.6'/%3E%3C/svg%3E");
 }
 
 .step-chip.is-open:hover {
   border-color: var(--cyan);
   color: var(--cyan);
+}
+
+/* Queued, and still able to come out: the same arrow turned over and orange,
+   the colour of what can be undone. Once the step has started, or a queued one
+   waits on it, it is the plain cyan dot again. */
+.step-chip.is-queued.is-undo .step-chip-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  background: var(--amber);
+  transform: rotate(180deg);
+}
+
+.step-chip.is-undo {
+  cursor: pointer;
+}
+
+.step-chip.is-undo:hover {
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .step-chip.is-passed .step-chip-mark {

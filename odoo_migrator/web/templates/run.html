@@ -41,7 +41,13 @@
     <form method="post" action="/run/queue/add" class="runner-bar-form"
           x-data='{
             steps: {{ pipeline_steps | tojson }},
-            queued: {{ (pipeline_queue.steps | selectattr("whole") | map(attribute="step") | list if pipeline_queue else []) | tojson }},
+            qs: {{ (pipeline_queue.steps if pipeline_queue else []) | tojson }},
+            get queued() {
+              return this.qs.filter((q) => q.whole).map((q) => q.step);
+            },
+            undoOf(step) {
+              return this.qs.find((q) => q.whole && q.step === step);
+            },
             blockedBy(step) {
               if (this.queued.indexOf(step) !== -1) {
                 return null;
@@ -61,8 +67,8 @@
               return this.blockedBy(step) === null ? "open" : "locked";
             },
             pick: {{ (pipeline_steps | selectattr("pending") | list | first).step if (pipeline_steps | selectattr("pending") | list) else pipeline_steps[0].step }},
-            queuedChanged(queued) {
-              this.queued = queued;
+            queuedChanged(qs) {
+              this.qs = qs;
               if (this.stateOf(this.pick) === "queued" || this.stateOf(this.pick) === "passed") {
                 const next = this.steps.find((s) => this.stateOf(s.step) === "open");
                 if (next) {
@@ -73,7 +79,9 @@
             tip(row) {
               const state = this.stateOf(row.step);
               const what = state === "passed" ? "passed" : row.pending + " module" + (row.pending === 1 ? "" : "s");
-              const note = { passed: "", queued: ", in the queue", locked: ", waits for step " + this.blockedBy(row.step), open: ": click to queue it" }[state];
+              const out = this.undoOf(row.step);
+              const queued = out && out.removable ? ", in the queue: click to take it out" : ", in the queue" + (out && out.why ? ": " + out.why : "");
+              const note = { passed: "", queued: queued, locked: ", waits for step " + this.blockedBy(row.step), open: ": click to queue it" }[state];
               return "Step " + row.step + " · " + what + note;
             },
             modules() {
@@ -88,31 +96,42 @@
               }
               return row.needs.filter((n) => this.queued.indexOf(n) === -1);
             },
-            add(step) {
-              if (this.stateOf(step) !== "open") {
-                return;
+            undo(step) {
+              const out = this.undoOf(step);
+              return !!(out && out.removable);
+            },
+            press(step) {
+              const state = this.stateOf(step);
+              if (state === "open") {
+                this.pick = step;
+                this.$nextTick(() => this.$root.requestSubmit());
+              } else if (state === "queued" && this.undo(step)) {
+                this.pick = step;
+                this.$nextTick(() => this.$root.requestSubmit(this.$refs.takeOut));
               }
-              this.pick = step;
-              this.$nextTick(() => this.$root.requestSubmit());
             }
           }'>
       <input type="hidden" name="step" :value="pick">
+      <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="takeOut"
+              formaction="/run/queue/remove-step" formmethod="post"></button>
       <div class="runner-bar-main">
         <div class="runner-bar-row">
           <div class="step-chips" role="group" aria-label="Migration step to queue"
                @queue-changed.window="queuedChanged($event.detail)">
             <template x-for="row in steps" :key="row.step">
-              {# A chip queues its step: one click, every module of it. Pointing at
-                 one (or focusing it) shows its modules in the row below; a chip
-                 that cannot be queued yet says why instead and does nothing. #}
+              {# A chip queues its step: one click, every module of it, and the
+                 arrow turns over, orange: pressed again it takes the step back
+                 out, until the step has started or a queued one waits on it.
+                 Pointing at one (or focusing it) shows its modules in the row
+                 below; a chip that cannot be pressed says why and does nothing. #}
               <button type="button" class="step-chip"
-                      :class="'is-' + stateOf(row.step) + (pick === row.step ? ' is-picked' : '') + (missing().indexOf(row.step) !== -1 ? ' is-blocker' : '')"
-                      :aria-disabled="stateOf(row.step) === 'open' ? 'false' : 'true'"
+                      :class="'is-' + stateOf(row.step) + (undo(row.step) ? ' is-undo' : '') + (pick === row.step ? ' is-picked' : '') + (missing().indexOf(row.step) !== -1 ? ' is-blocker' : '')"
+                      :aria-disabled="stateOf(row.step) === 'open' || undo(row.step) ? 'false' : 'true'"
                       :aria-label="tip(row)"
                       :title="tip(row)"
                       @mouseenter="pick = row.step"
                       @focus="pick = row.step"
-                      @click="add(row.step)">
+                      @click="press(row.step)">
                 <span class="step-chip-mark" aria-hidden="true"></span>
                 <span x-text="row.step"></span>
                 <span class="step-chip-count" x-text="row.pending ? row.pending : ''"></span>

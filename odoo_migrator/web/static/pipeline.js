@@ -176,18 +176,8 @@
       return;
     }
     lastQueueKey = key;
-    /* The picker greys a step whose earlier step is not queued; it reads this. */
-    window.dispatchEvent(
-      new CustomEvent("queue-changed", {
-        detail: (data.steps || [])
-          .filter(function (item) {
-            return item.whole;
-          })
-          .map(function (item) {
-            return item.step;
-          }),
-      }),
-    );
+    /* The step chips read this: which steps are queued, and which of those can be taken out. */
+    window.dispatchEvent(new CustomEvent("queue-changed", { detail: data.steps || [] }));
     panel.setAttribute("data-running", data.run_state === "running" ? "true" : "false");
     /* The queue's edge and the cables into and out of it are colourless while
        it is empty. */
@@ -290,7 +280,11 @@
         const submitter = event.submitter;
         const action =
           (submitter && submitter.getAttribute("formaction")) || form.action;
-        if (!action || action.indexOf("/run/queue/add") === -1) {
+        if (
+          !action ||
+          (action.indexOf("/run/queue/add") === -1 &&
+            action.indexOf("/run/queue/remove-step") === -1)
+        ) {
           return;
         }
         event.preventDefault();

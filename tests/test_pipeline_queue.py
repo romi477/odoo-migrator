@@ -432,7 +432,9 @@ def test_a_step_missing_a_card_is_not_whole_for_the_steps_after_it(client):
     _remove(client, _last(row.id)["id"])
     snapshot = queue_snapshot(row.id)
 
-    assert snapshot["steps"] == [{"step": 1, "whole": False}]
+    assert snapshot["steps"] == [
+        {"step": 1, "whole": False, "removable": True, "why": ""}
+    ]
 
     refused = client.post(
         "/run/queue/add", data={"step": "2"}, headers={"Accept": "application/json"}
@@ -455,7 +457,9 @@ def test_adding_a_step_again_brings_its_removed_cards_back(client):
 
     assert added.status_code == 200
     assert _cards(row.id) == ["sale_custom", "web_enterprise_helper"]
-    assert queue_snapshot(row.id)["steps"] == [{"step": 1, "whole": True}]
+    assert queue_snapshot(row.id)["steps"] == [
+        {"step": 1, "whole": True, "removable": True, "why": ""}
+    ]
 
 
 def test_a_removed_card_is_not_run_with_its_step(client):
@@ -531,3 +535,92 @@ def test_stop_is_there_only_while_the_queue_runs(client):
     set_run_state(row.id, "running")
 
     assert " hidden" not in _stop_form(client.get("/run").text)
+
+
+def _unqueue(client, step):
+    return client.post(
+        "/run/queue/remove-step",
+        data={"step": str(step)},
+        headers={"Accept": "application/json"},
+    )
+
+
+def _flags(migration_id):
+
+    return {
+        item["step"]: (item["removable"], item["why"])
+        for item in queue_snapshot(migration_id)["steps"]
+    }
+
+
+def test_a_queued_step_is_taken_out_whole(client):
+    row = _queue_both_steps(client)
+
+    removed = _unqueue(client, 2)
+
+    assert removed.status_code == 200
+    assert _queued_steps(row.id) == [1]
+    assert {module["step"] for module in removed.json()["modules"]} == {1}
+
+
+def test_a_step_a_queued_one_waits_on_cannot_be_taken_out_first(client):
+    row = _queue_both_steps(client)
+
+    refused = _unqueue(client, 1)
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == (
+        "Step 2 waits for step 1: take step 2 out first."
+    )
+    assert _queued_steps(row.id) == [1, 2]
+    removable, why = _flags(row.id)[1]
+    assert removable is False
+    assert why == "Step 2 waits for step 1: take step 2 out first."
+    assert _flags(row.id)[2] == (True, "")
+
+
+def test_a_step_that_has_started_stays(client):
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    with database.connection_context():
+        Batch.create(migration=row.id, status="running", step=2)
+
+    refused = _unqueue(client, 2)
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == "Step 2 has started: let it finish or stop it."
+    assert _queued_steps(row.id) == [1, 2]
+    assert _flags(row.id)[2][0] is False
+
+
+def test_a_step_that_is_not_queued_cannot_be_taken_out(client):
+    row, _sale = _prepared(client)
+
+    refused = _unqueue(client, 1)
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == "Step 1 is not in the queue."
+    assert _queued_steps(row.id) == []
+
+
+def test_taking_a_step_out_forgets_the_cards_taken_off_it(client):
+    row = _queue_both_steps(client)
+    _remove(client, _last(row.id)["id"])
+    _remove(client, _last(row.id)["id"])
+
+    _unqueue(client, 1)
+    client.post("/run/queue/add", data={"step": "1"}, headers={"Accept": "application/json"})
+
+    assert _cards(row.id) == ["sale_custom", "web_enterprise_helper"]
+
+
+def test_the_chips_can_take_a_queued_step_out(client):
+    _queue_both_steps(client)
+
+    page = client.get("/run").text
+
+    # A hidden submit button carries the second action, so a chip can queue a
+    # step and, pressed again, take it out.
+    assert 'formaction="/run/queue/remove-step"' in page
+    assert "is-undo" in page

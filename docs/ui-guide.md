@@ -243,7 +243,11 @@ depends on has to be queued first, which is what the padlock on the others
 says. Pointing at a chip, or focusing it, shows that step's modules in the
 row below; a padlocked one says what it waits on and does nothing when
 pressed. After a press the preview moves on to the next step that can be
-queued. **Add all**, alone at the right edge of the bar, queues every wave
+queued, and the chip of the step just queued shows the arrow turned over, in
+orange: pressing it again takes the step, every module of it, back out of the
+queue. That works until the step has started (a module of it is in flight) and
+while no queued step waits on it; then the chip is the plain cyan dot, and its
+tooltip says which of the two it is. **Add all**, alone at the right edge of the bar, queues every wave
 still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
