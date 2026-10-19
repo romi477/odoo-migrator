@@ -3459,37 +3459,55 @@ pre.test-output {
   background: var(--panel);
 }
 
-/* The card of the module in work is the one the eye should find: while a
-   run is live its edge is amber, the colour of what is being worked on. The
-   live block is shown and hidden from the event stream, and `:has` follows it
-   without a second signal. */
-.workspace-panel:has(.pipeline-live:not([hidden])) {
-  border-color: var(--amber);
+/* The card of the module in work is framed twice. The outer edge is cyan, the
+   colour of the queue it came from and the same one the cable arrives in; the
+   amber of the work itself sits inside it, a smaller frame a few pixels in.
+   The live block is shown and hidden from the event stream, and `:has`
+   follows it without a second signal. Nothing is drawn while nothing runs. */
+.workspace-panel {
+  position: relative;
 }
 
-/* While the module is actually working, the edge of its card breathes: it
-   brightens and dims, slowly, at the pace of the lamps in the bar. Not while
-   the module waits for a person — that is not work, and the card keeps its
-   plain amber edge. Nothing moves, so it can stay on for hours. */
+.workspace-panel:has(.pipeline-live:not([hidden])) {
+  border-color: var(--cyan);
+}
+
+.workspace-panel:has(.pipeline-live:not([hidden]))::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--amber);
+  border-radius: 5px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* While the module is actually working, the inner frame breathes: it
+   brightens and dims, slowly, at the pace of the lamps in the bar, with a
+   glow inside it. Not while the module waits for a person — that is not work,
+   and the frame stays plain. Nothing moves otherwise, so it can stay on for
+   hours. */
 @keyframes work-breathe {
   0%,
   100% {
-    border-color: color-mix(in oklch, var(--amber) 45%, var(--border));
-    box-shadow: 0 0 0 0 transparent;
+    opacity: 0.25;
+    box-shadow: inset 0 0 0 0 transparent;
   }
 
   50% {
-    border-color: var(--amber);
-    box-shadow: 0 0 12px 0 color-mix(in oklch, var(--amber) 28%, transparent);
+    opacity: 1;
+    box-shadow:
+      inset 0 0 12px 0 color-mix(in oklch, var(--amber) 22%, transparent),
+      0 0 8px 0 color-mix(in oklch, var(--amber) 22%, transparent);
   }
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
+.workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running)::after {
   animation: work-breathe 3.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
+  .workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running)::after {
     animation: none;
   }
 }

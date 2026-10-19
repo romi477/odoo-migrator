@@ -728,3 +728,25 @@ def test_a_new_job_starts_the_log_on_a_clean_page():
     assert ".run-log-switch" not in css
     # Nothing clears it when the queue has nothing more: only a new job does.
     assert script.count("takeJob(") == 3
+
+
+def test_the_card_of_the_run_has_a_cyan_edge_and_a_breathing_amber_frame_inside(client):
+    css = client.get("/static/style.css").text
+    live = ".workspace-panel:has(.pipeline-live:not([hidden]))"
+    edge = css.split(live + " {")[1].split("}")[0]
+    frame = css.split(live + "::after {")[1].split("}")[0]
+    breathing = css.split(
+        ".workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running)::after {"
+    )[1].split("}")[0]
+
+    assert "border-color: var(--cyan)" in edge
+    # Smaller than the card, amber, and out of the way of the pointer.
+    assert "inset: 4px" in frame
+    assert "border: 1px solid var(--amber)" in frame
+    assert "pointer-events: none" in frame
+    # Only a module that is running breathes; the rest of the time it is still.
+    assert "animation: work-breathe" in breathing
+    assert css.count("animation: work-breathe") == 1
+    reduced = css.split("@media (prefers-reduced-motion: reduce) {\n  .workspace-panel:has(")[1]
+
+    assert "animation: none" in reduced.split("}\n}")[0]
