@@ -2240,8 +2240,8 @@ h2 {
   flex: none;
 }
 
-/* The mark says the state without colour alone: a plus (it queues the step
-   when pressed), a tick, a dot, a padlock. */
+/* The mark says the state without colour alone: an arrow down (it drops the
+   step into the queue when pressed), a tick, a dot, a padlock. */
 .step-chip.is-open .step-chip-mark,
 .step-chip.is-passed .step-chip-mark,
 .step-chip.is-queued .step-chip-mark,
@@ -2263,14 +2263,36 @@ h2 {
   cursor: not-allowed;
 }
 
-/* The plus: two strokes, the colour of the chip's text. */
+/* The arrow: a stem and a head pointing down, at the queue below. Two strokes
+   in the colour of the chip's text. */
 .step-chip.is-open .step-chip-mark {
   position: relative;
   width: 8px;
+  height: 9px;
+}
+
+.step-chip.is-open .step-chip-mark::before {
+  content: "";
+  position: absolute;
+  left: 3.25px;
+  top: 0;
+  width: 1.5px;
   height: 8px;
-  background:
-    linear-gradient(currentColor, currentColor) center / 8px 1.5px no-repeat,
-    linear-gradient(currentColor, currentColor) center / 1.5px 8px no-repeat;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.step-chip.is-open .step-chip-mark::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 2.5px;
+  width: 5px;
+  height: 5px;
+  box-sizing: border-box;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
 }
 
 .step-chip.is-open:hover {

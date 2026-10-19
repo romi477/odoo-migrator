@@ -237,7 +237,7 @@ gutter and enters the card of the run. Both, and the Queue card's edge, are colo
 and cyan once it holds something; a pulse of light travels down the first
 while the queue runs. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
-window. A chip is also the button that queues its step: the one with a plus puts
+window. A chip is also the button that queues its step: the one with an arrow down puts
 every module of the step in the queue with one press, and the step it
 depends on has to be queued first, which is what the padlock on the others
 says. Pointing at a chip, or focusing it, shows that step's modules in the
