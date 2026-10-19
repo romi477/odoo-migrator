@@ -385,6 +385,19 @@ def test_the_button_checks_are_in_the_script():
     assert "'buttons': sorted(" in code
 
 
+def test_the_actions_a_person_runs_without_a_button_are_in_the_catalogue():
+    """A server or window action bound to a model's Action menu, and a
+    scheduled action with Run manually, named by XML id."""
+    from odoo_migrator.runner.steps.smoke import _SCRIPT
+
+    code = _SCRIPT.format(name="sale_custom")
+
+    assert "env['ir.cron']" in code and "'cron'" in code
+    assert "binding_model_id" in code and "'server'" in code and "'window'" in code
+    # The server action behind a cron is the cron, not a second entry.
+    assert "_behind_crons" in code
+
+
 def test_the_stock_flow_smokes_after_the_tests():
     from odoo_migrator.runner.cartridge import load_cartridge_file
 
@@ -1307,6 +1320,9 @@ def test_the_stock_click_presses_the_smoke_catalogue_on_both_sides():
     assert "rollback" in click.tools and "write_file" not in click.tools
     # The source decides whether the port broke it.
     assert "Broken on both: the port did not cause it" in prompt
+    # Actions from the Action menu, and scheduled ones, are run as a person runs them.
+    assert ".run()" in prompt and "method_direct_trigger()" in prompt
+    assert "Code that commits" in prompt
 
 
 def test_the_buttons_item_is_one_line_a_button(ctx_for):

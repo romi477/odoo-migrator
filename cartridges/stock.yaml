@@ -156,7 +156,10 @@ pipeline:
       Press every button in the list above the way a person would, on the
       target version, and say which ones break. The list is every button this
       module puts in a view, with the model it belongs to, when it is hidden,
-      and the context it passes.
+      and the context it passes; and every action it defines that a person
+      runs without one: from a model's Action menu (`server`, `window`), or
+      as a scheduled action with Run manually (`cron`). An action is named by
+      its XML id.
 
       For each button:
 
@@ -170,8 +173,15 @@ pipeline:
       - Press it as the web client does: on that record, with the button's
         context and `active_id`, `active_ids` and `active_model` set to the
         record. For a method button, `record.with_context(**context).method()`.
-        For an action button, read the action and check that its model exists
-        and its domain searches.
+        For an action button, and a `window` action, read the action: a
+        server action is run, a window action is checked (its model exists,
+        its domain searches, its context evaluates). A `server` action is
+        `env.ref(xml_id).with_context(active_model=..., active_id=...,
+        active_ids=[...]).run()`, on one record and on two. A `cron` is
+        `env.ref(xml_id).method_direct_trigger()`.
+      - Read a server action's or a scheduled action's code before you run
+        it, as you read a method. Code that commits (`cr.commit()`) is not
+        run either: a rollback would not undo it.
       - When it returns a window action on a wizard, open the wizard as the
         client would, with the action's context, and press the wizard's
         buttons from the list the same way.

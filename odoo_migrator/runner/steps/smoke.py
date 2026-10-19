@@ -6,7 +6,9 @@ ones, an action, a print, and the browser loading what the module put in an
 asset bundle. Odoo checks views and references when it installs a module; it
 does not compile the bundles, compute the fields, evaluate an action's domain
 or render a report. It also lists every button the module puts in a view, and
-checks each without pressing it; the `click` step presses them. This step does, without a model: one script, the same for
+checks each without pressing it, and every action it defines that a person
+runs from a model's Action menu or as a scheduled action; the `click` step
+presses them. This step does, without a model: one script, the same for
 every module, that asks the database what this module registered and tries
 each thing. Nothing is written: every check runs under a savepoint, and the
 session is rolled back after.
@@ -271,7 +273,44 @@ for _button in _buttons.values():
         _found.append({{'where': 'button %s on %s (%s)' % (_button['name'], _button['model'], _button['view']),
                        'error': _problem, 'own': True, 'trace': ''}})
 
-_json.dumps({{'checked': _seen, 'problems': _found, 'buttons': sorted(_buttons.values(), key=lambda _b: (_b['model'], _b['name']))[:300]}})
+# Actions the module defines in XML that a person runs without a button of a
+# view: a server action or a window action bound to a model, from its Action
+# menu, and a scheduled action, from Run manually. In the same catalogue,
+# named by XML id; an unbound server action is reached from a button, which
+# is listed above.
+def _xmlid(_record):
+    _data = env['ir.model.data'].sudo().search(
+        [('module', '=', _name), ('model', '=', _record._name), ('res_id', '=', _record.id)], limit=1)
+    return '%s.%s' % (_data.module, _data.name) if _data else str(_record.id)
+
+
+def _entry(_record, _model, _kind, _where, _context=''):
+    _key = (_model, _kind, _xmlid(_record))
+    _buttons.setdefault(_key, {{
+        'model': _model, 'type': _kind, 'name': _key[2], 'label': _record.name or '',
+        'invisible': '', 'context': _context, 'confirm': '', 'view': _where,
+    }})
+    if _model and _model not in env:
+        _found.append({{'where': '%s %s' % (_kind, _key[2]), 'error': 'its model %s does not exist' % _model,
+                       'own': True, 'trace': ''}})
+
+
+_crons = env['ir.cron'].sudo().browse(_ids.get('ir.cron', [])).exists()
+_behind_crons = set(_crons.mapped('ir_actions_server_id').ids)
+for _cron in _crons:
+    _entry(_cron, _cron.model_id.model, 'cron', 'scheduled action, Run manually')
+for _server in env['ir.actions.server'].sudo().browse(_ids.get('ir.actions.server', [])).exists():
+    if _server.id in _behind_crons or not _server.binding_model_id:
+        continue
+    _entry(_server, _server.model_id.model, 'server', 'Action menu of %s' % _server.binding_model_id.model)
+for _window in env['ir.actions.act_window'].sudo().browse(_ids.get('ir.actions.act_window', [])).exists():
+    if not _window.binding_model_id:
+        continue
+    _entry(_window, _window.res_model, 'window', 'Action menu of %s' % _window.binding_model_id.model,
+           _window.context or '')
+_seen['buttons'] = len(_buttons)
+
+_json.dumps({{'checked': _seen, 'problems': _found, 'buttons': sorted(_buttons.values(), key=lambda _b: (_b['model'], _b['type'], _b['name']))[:300]}})
 """
 
 

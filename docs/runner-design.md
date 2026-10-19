@@ -559,7 +559,10 @@ pipeline:
       Press every button in the list above the way a person would, on the
       target version, and say which ones break. The list is every button this
       module puts in a view, with the model it belongs to, when it is hidden,
-      and the context it passes.
+      and the context it passes; and every action it defines that a person
+      runs without one: from a model's Action menu (`server`, `window`), or
+      as a scheduled action with Run manually (`cron`). An action is named by
+      its XML id.
 
       For each button:
 
@@ -573,8 +576,15 @@ pipeline:
       - Press it as the web client does: on that record, with the button's
         context and `active_id`, `active_ids` and `active_model` set to the
         record. For a method button, `record.with_context(**context).method()`.
-        For an action button, read the action and check that its model exists
-        and its domain searches.
+        For an action button, and a `window` action, read the action: a
+        server action is run, a window action is checked (its model exists,
+        its domain searches, its context evaluates). A `server` action is
+        `env.ref(xml_id).with_context(active_model=..., active_id=...,
+        active_ids=[...]).run()`, on one record and on two. A `cron` is
+        `env.ref(xml_id).method_direct_trigger()`.
+      - Read a server action's or a scheduled action's code before you run
+        it, as you read a method. Code that commits (`cr.commit()`) is not
+        run either: a rollback would not undo it.
       - When it returns a window action on a wizard, open the wizard as the
         client would, with the action's context, and press the wizard's
         buttons from the list the same way.
@@ -801,15 +811,20 @@ the lap and the failure lane gets where and why; a bundle broken by another
 module is a finding, and so are checks that could not run. It also lists every button the
 module puts in a view, placed in the view as Odoo assembles it, and checks each
 without pressing it: the method is there, public, and takes no argument a
-button cannot pass; an action exists. When there is one it raises `has_buttons`.
+button cannot pass; an action exists. The same catalogue holds every action the
+module defines in XML that a person runs without a view's button: a server or
+window action bound to a model's Action menu, and a scheduled action, which has
+Run manually. When there is one it raises `has_buttons`.
 
 **Then the buttons are pressed.** A button is a method a person reaches with
 one click, and a traceback there is the first thing they meet. `click`, an
 agent step, gets the catalogue as the `buttons` context item, builds a record
 each button shows on, and presses it as the web client does, with the button's
-context and `active_id`, following a wizard it opens. A `UserError` is the
+context and `active_id`, following a wizard it opens; an action is run as its
+menu entry runs it, and a scheduled action as Run manually. A `UserError` is the
 module refusing, not a break. A button whose method reaches outside the
-database (an HTTP request, mail sent at once) is not pressed. A button broken
+database (an HTTP request, mail sent at once), or code that commits, is not
+pressed. A button broken
 on the target is pressed again on the source: broken only on the target raises
 `button_broken`, and the verdict fails the lap on it at every strictness;
 broken on both is said in the answer and fails nothing.
