@@ -731,20 +731,14 @@ def test_the_cable_to_the_run_carries_a_pulse_while_the_queue_runs(client):
     assert "animation: none" in reduced.split("}\n}")[0]
 
 
-def test_the_cable_to_the_run_turns_from_cyan_to_amber_while_the_queue_runs(client):
-    """The colours of the two cards: the queue's at the plug, the run's at the
-    arrowhead. The pulse is paler than the cable and takes the colours on the
-    way, so it shows on either."""
+def test_the_cable_to_the_run_stays_cyan_and_only_its_pulse_turns_amber(client):
+    """The card it enters has a cyan edge, so the cable is one colour. What it
+    carries is paler and takes the amber of the work on the way."""
     _prepared(client)
     page = client.get("/run").text
     css = client.get("/static/style.css").text
-    wire = css.split(".runner-link-wire {")[1].split("}")[0]
 
-    assert 'class="runner-link-wire"' in page
-    assert "display: none" in wire
-    assert "linear-gradient(to bottom, var(--cyan), var(--amber))" in wire
-    assert 'data-running="true"]) .runner-link-wire {\n  display: block' in css
-    assert 'data-running="true"]) .runner-link::after' in css
+    assert "runner-link-wire" not in page and "runner-link-wire" not in css
     frames = css.split("@keyframes link-pulse")[1].split("@media")[0]
 
     assert "var(--cyan) 50%, white" in frames

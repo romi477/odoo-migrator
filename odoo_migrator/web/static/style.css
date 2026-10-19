@@ -2537,48 +2537,10 @@ h2 {
   border-left: 5px solid var(--cable);
 }
 
-/* While the queue runs the cable from the queue to the run changes colour on
-   its way: cyan where it leaves the queue, amber where it enters the run, the
-   colours of the two cards. A cable cannot take a gradient on a border with a
-   radius, so the wire is a ring cut out of a gradient box, and the cable's own
-   border is hidden meanwhile. The plug stays cyan, the arrowhead turns amber.
-   Idle, the wire is not drawn. */
-.runner-link-wire {
-  display: none;
-  position: absolute;
-  top: -1px;
-  bottom: -1px;
-  left: -1px;
-  right: 0;
-  box-sizing: border-box;
-  border: 1px solid transparent;
-  border-right: 0;
-  border-radius: 9px 0 0 9px;
-  background: linear-gradient(to bottom, var(--cyan), var(--amber)) border-box;
-  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0);
-}
-
-.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link,
-.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link {
-  border-color: transparent;
-}
-
-.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link-wire,
-.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link-wire {
-  display: block;
-}
-
-.screen-pipeline:has(.pipeline-queue-card[data-running="true"]) .runner-link::after,
-.screen-components:has(.pipeline-queue-card[data-running="true"]) .runner-link::after {
-  border-left-color: var(--amber);
-}
-
-/* The pulse: a short bar, paler than the cable so it shows on either colour,
-   that leaves the plug and runs down the cable, again and again, for as long
-   as the queue runs, taking the cable's colours on the way. Idle, it is not
-   drawn. The head leads, the tail fades behind. */
+/* The pulse: a short bar, paler than the cable, that leaves the plug cyan and
+   runs down the cable, again and again, for as long as the queue runs. It turns
+   amber on the way, the colour of the work it is carrying into the run. Idle, it
+   is not drawn. The head leads, the tail fades behind. */
 .runner-link-pulse {
   position: absolute;
   left: -2px;
@@ -3459,55 +3421,39 @@ pre.test-output {
   background: var(--panel);
 }
 
-/* The card of the module in work is framed twice. The outer edge is cyan, the
-   colour of the queue it came from and the same one the cable arrives in; the
-   amber of the work itself sits inside it, a smaller frame a few pixels in.
-   The live block is shown and hidden from the event stream, and `:has`
-   follows it without a second signal. Nothing is drawn while nothing runs. */
+/* The card of the module in work has one edge, cyan like the queue's and the
+   cable's, and it is always whole. The work shows as light inside it: an amber
+   glow along the inner side of the edge that breathes while the module runs, at
+   the pace of the lamps in the bar. It never changes what is drawn, only how
+   bright, so the boundary does not flicker. A module waiting for a person keeps
+   a quiet glow that does not move. The live block is shown and hidden from the
+   event stream, and `:has` follows it without a second signal. */
 .workspace-panel {
   position: relative;
 }
 
 .workspace-panel:has(.pipeline-live:not([hidden])) {
   border-color: var(--cyan);
+  box-shadow: inset 0 0 10px 0 color-mix(in oklch, var(--amber) 9%, transparent);
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden]))::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border: 1px solid var(--amber);
-  border-radius: 5px;
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-/* While the module is actually working, the inner frame breathes: it
-   brightens and dims, slowly, at the pace of the lamps in the bar, with a
-   glow inside it. Not while the module waits for a person — that is not work,
-   and the frame stays plain. Nothing moves otherwise, so it can stay on for
-   hours. */
 @keyframes work-breathe {
   0%,
   100% {
-    opacity: 0.25;
-    box-shadow: inset 0 0 0 0 transparent;
+    box-shadow: inset 0 0 8px 0 color-mix(in oklch, var(--amber) 6%, transparent);
   }
 
   50% {
-    opacity: 1;
-    box-shadow:
-      inset 0 0 12px 0 color-mix(in oklch, var(--amber) 22%, transparent),
-      0 0 8px 0 color-mix(in oklch, var(--amber) 22%, transparent);
+    box-shadow: inset 0 0 22px 2px color-mix(in oklch, var(--amber) 24%, transparent);
   }
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running)::after {
+.workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
   animation: work-breathe 3.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running)::after {
+  .workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {
     animation: none;
   }
 }
@@ -3605,7 +3551,8 @@ pre.test-output {
   min-height: 2.6rem;
   padding: 0 12px;
   box-sizing: border-box;
-  border: 1px dashed var(--border-strong);
+  /* A hairline, and a soft one: the slots hold a name, they are not buttons. */
+  border: 0.5px dashed color-mix(in oklch, var(--border-strong) 80%, transparent);
   border-radius: 8px;
   color: var(--muted-low);
   font-size: 12px;
@@ -3620,7 +3567,7 @@ pre.test-output {
 
 .machine-slot.is-full {
   border-style: solid;
-  border-color: var(--machine);
+  border-color: color-mix(in oklch, var(--machine) 55%, transparent);
   color: var(--muted);
 }
 

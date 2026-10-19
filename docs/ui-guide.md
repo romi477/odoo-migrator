@@ -241,11 +241,10 @@ Queue card, and a second one, also on the left, leaves the Queue card, runs down
 gutter and enters the card of the run. Both, and the Queue card's edge, are colourless while the queue is empty
 and cyan once it holds something; a pulse of light travels down each
 cable, from the bar to the queue and from the queue to the run, while the queue runs.
-The pulse is paler than the cable, and the second cable shades from cyan, the
-queue's colour, to amber, the colour of the card of the run; its arrowhead is
-amber while the queue runs. The card of the module in work is framed twice: a
-cyan edge, the queue's colour, and a smaller amber frame a few pixels inside
-it that breathes while the module runs and stays still while it waits for a
+The pulse is paler than the cable, and turns from cyan to amber on its way
+into the run. The card of the module in work has one cyan edge, the queue's
+colour, that is always whole, and an amber glow along its inner side that
+breathes while the module runs and stays quiet and still while it waits for a
 person. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
 window. The log follows one job and starts each on a clean page: the moment a
@@ -289,7 +288,7 @@ runs inside `tests`, and a parked one at once, withdrawing the question.
 The button reads *Stopping…* from the press until the run gets there.
 The card opens with the **machine**: a black box with a slot at each
 end, labelled with the migration's versions (`17.0 in`, `18.0 out`), and a pair of
-meshed gears between them. At rest it is grey with both slots empty. While a
+meshed gears between them. The slots have a hairline border, soft, because they hold a name and are not buttons. At rest it is grey with both slots empty. While a
 module runs its name is in the input slot, the gears turn in amber and the
 belts carry dashes toward the output; a module waiting for a person stops them
 (amber); a passed module leaves at the output with the gears green; a failed

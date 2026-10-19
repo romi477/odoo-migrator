@@ -730,23 +730,34 @@ def test_a_new_job_starts_the_log_on_a_clean_page():
     assert script.count("takeJob(") == 3
 
 
-def test_the_card_of_the_run_has_a_cyan_edge_and_a_breathing_amber_frame_inside(client):
+def test_the_card_of_the_run_has_a_cyan_edge_and_an_amber_glow_that_breathes(client):
     css = client.get("/static/style.css").text
     live = ".workspace-panel:has(.pipeline-live:not([hidden]))"
     edge = css.split(live + " {")[1].split("}")[0]
-    frame = css.split(live + "::after {")[1].split("}")[0]
     breathing = css.split(
-        ".workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running)::after {"
+        ".workspace-panel:has(.pipeline-live:not([hidden]) [data-pipeline-status].running) {"
     )[1].split("}")[0]
+    frames = css.split("@keyframes work-breathe")[1].split("@media")[0]
 
     assert "border-color: var(--cyan)" in edge
-    # Smaller than the card, amber, and out of the way of the pointer.
-    assert "inset: 4px" in frame
-    assert "border: 1px solid var(--amber)" in frame
-    assert "pointer-events: none" in frame
-    # Only a module that is running breathes; the rest of the time it is still.
+    # A glow inside the one edge, not a second line.
+    assert "box-shadow: inset" in edge
+    assert "::after" not in css.split(live)[1].split("}")[0]
+    # Only a module that is running breathes, and only the light does: the
+    # frames change no opacity, so the boundary never half-disappears.
     assert "animation: work-breathe" in breathing
+    assert "opacity" not in frames
     assert css.count("animation: work-breathe") == 1
     reduced = css.split("@media (prefers-reduced-motion: reduce) {\n  .workspace-panel:has(")[1]
 
     assert "animation: none" in reduced.split("}\n}")[0]
+
+
+def test_the_machine_slots_have_a_hairline_border(client):
+    css = client.get("/static/style.css").text
+    slot = css.split(".machine-slot {")[1].split("}")[0]
+    full = css.split(".machine-slot.is-full {")[1].split("}")[0]
+
+    assert "border: 0.5px dashed" in slot
+    assert "transparent)" in slot
+    assert "color-mix(in oklch, var(--machine) 55%, transparent)" in full
