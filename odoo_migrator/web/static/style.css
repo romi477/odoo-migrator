@@ -4167,6 +4167,20 @@ a.ribbon-box:focus-visible {
   background: color-mix(in oklch, var(--green) 55%, transparent);
 }
 
+/* Passed over: its `when` was not raised and the lap went on. Not a step
+   still to come, so not the plain grey of one: a dashed edge, quieter text,
+   and a hollow lamp, since it has nothing to say about this lap. */
+.ribbon-node[data-state="skipped"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--muted-low) 60%, transparent);
+  border-style: dashed;
+  color: var(--muted-low);
+}
+
+.ribbon-node[data-state="skipped"] .ribbon-led {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--muted-low);
+}
+
 .ribbon-node[data-state="failed"] .ribbon-box {
   border-color: color-mix(in oklch, var(--red) 75%, transparent);
   color: var(--red);
@@ -4191,7 +4205,7 @@ a.ribbon-box:focus-visible {
    ahead of the work and whole on the step at work, so the work's front shows
    how far the module has come. A step behind it is done, and done is the
    output's colour, cyan, wherever it stands; the lamp still says passed. A
-   failed step stays red. Mixed in oklab, like the arrows: not through green. */
+   failed step stays red, and a step passed over stays grey. Mixed in oklab, like the arrows: not through green. */
 .workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node {
   --step-edge: color-mix(in oklab, var(--cyan) calc(var(--along, 0) * 100%), var(--amber));
 }
@@ -4211,6 +4225,10 @@ a.ribbon-box:focus-visible {
 
 .workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node[data-state="failed"] .ribbon-box {
   border-color: color-mix(in oklch, var(--red) 75%, transparent);
+}
+
+.workspace-panel:has(.machine[data-machine="run"]) .ribbon:not(.ribbon-lane) .ribbon-node[data-state="skipped"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--muted-low) 60%, transparent);
 }
 
 @keyframes ribbon-pulse {

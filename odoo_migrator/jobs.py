@@ -132,7 +132,9 @@ def ribbon_states(job: Job, attempt: int | None = None, pipeline=None) -> list[d
     A retry loops back into the pipeline part way (the stock flow returns to
     `lint`), so the steps before that point do not run again. Shown as not
     run, they read as never done; they are `earlier`, with the attempt that
-    passed them. The failure lane is not here: see `lane_states`.
+    passed them. A step whose `when` nobody raised, with the work already
+    past it, is `skipped`, with that `when`. The failure lane is not here:
+    see `lane_states`.
 
     ``pipeline`` is the cartridge's, when the caller already has it.
     Caller holds the connection.
@@ -152,14 +154,22 @@ def ribbon_states(job: Job, attempt: int | None = None, pipeline=None) -> list[d
             passed_before[run.step_id or run.kind] = run.attempt
     if pipeline is None:
         pipeline = pinned_for(job.module.migration).pipeline
+    names = [step.id or step.kind for step in pipeline]
+    # A step whose `when` was not raised is passed over, and the lap goes on.
+    # It is behind the work once a step after it has run in this attempt;
+    # shown as pending it read as not reached yet, and the run looked as if it
+    # had leapt over it.
+    reached = max((index for index, name in enumerate(names) if name in this), default=-1)
     states = []
-    for step in pipeline:
-        name = step.id or step.kind
+    for index, step in enumerate(pipeline):
+        name = names[index]
         run = this.get(name)
         if run is not None:
             states.append({"id": name, "state": _run_state(run)})
         elif name in passed_before:
             states.append({"id": name, "state": "earlier", "attempt": passed_before[name]})
+        elif step.when and index < reached:
+            states.append({"id": name, "state": "skipped", "when": step.when})
         else:
             states.append({"id": name, "state": "pending"})
 

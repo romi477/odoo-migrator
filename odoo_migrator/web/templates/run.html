@@ -356,7 +356,7 @@
                answered "where are we" and nothing else, and the screen that
                answers "what is this step" was two tabs away. #}
             <a class="ribbon-box" href="/flow#{{ node.id }}"
-               title="{% if node.state == 'earlier' %}{{ node.id }}: done in attempt {{ node.attempt }}, not run again{% else %}Read what {{ node.id }} does, on Flow{% endif %}">
+               title="{% if node.state == 'earlier' %}{{ node.id }}: done in attempt {{ node.attempt }}, not run again{% elif node.state == 'skipped' %}{{ node.id }}: not run. It runs when a step before it raises {{ node.when }}, and none did{% else %}Read what {{ node.id }} does, on Flow{% endif %}">
               <span class="ribbon-led" aria-hidden="true"></span>
               <span class="ribbon-name">{{ node.id }}</span>
             </a>

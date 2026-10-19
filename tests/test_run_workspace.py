@@ -503,6 +503,42 @@ def test_a_step_done_in_an_earlier_attempt_is_not_grey(client, live_job):
     assert 'data-step="verdict" data-state="pending"' in page
 
 
+def test_a_step_whose_when_was_not_raised_is_skipped_not_pending(client, live_job):
+    """probe, write_test and retest run only on `no_tests`. A module with
+    tests passes them over; left grey, the run seemed to leap three steps."""
+    from odoo_migrator.db import database
+    from odoo_migrator.jobs import ribbon_states
+    from odoo_migrator.models import Job, StepRun
+
+    now = datetime.now(UTC)
+    with database.connection_context():
+        job = Job.select().where(Job.module == live_job["id"]).order_by(Job.id.desc()).first()
+        for step in ("understand", "port", "lint", "upgrade", "tests", "verdict"):
+            StepRun.create(job=job, attempt=job.attempt, step_id=step, kind=step, ok=True, finished_at=now)
+        states = {node["id"]: node for node in ribbon_states(job)}
+
+    assert states["probe"] == {"id": "probe", "state": "skipped", "when": "no_tests"}
+    assert states["retest"]["state"] == "skipped"
+    assert states["characterize"]["state"] == "skipped"
+    page = client.get("/run").text
+    assert 'data-step="probe" data-state="skipped"' in page
+    assert "probe: not run. It runs when a step before it raises no_tests, and none did" in page
+
+
+def test_a_conditional_step_ahead_of_the_work_is_still_pending(client, live_job):
+    from odoo_migrator.db import database
+    from odoo_migrator.jobs import ribbon_states
+    from odoo_migrator.models import Job, StepRun
+
+    with database.connection_context():
+        job = Job.select().where(Job.module == live_job["id"]).order_by(Job.id.desc()).first()
+        StepRun.create(job=job, attempt=job.attempt, step_id="tests", kind="tests")
+        states = {node["id"]: node["state"] for node in ribbon_states(job)}
+
+    assert states["probe"] == "pending"
+    assert states["characterize"] == "skipped"
+
+
 def test_an_attempt_can_be_read_back_with_its_retry_lane(client, live_job):
     job_id = _attempts(live_job["id"])
 

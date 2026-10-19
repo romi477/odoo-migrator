@@ -227,6 +227,40 @@ def test_upgrade_runs_in_a_fresh_session(ctx_for, sheller):
     assert ctx.sessions["target"] in sheller.commits
 
 
+def test_upgrade_is_a_line_of_its_own_in_the_run_log(ctx_for, sheller):
+    """It said only "ok", and a four-second upgrade read as nothing having
+    happened. Now it is a tool call, the way a test run is: the time it took,
+    what was done, and the command to open in Sheller's journal."""
+    sheller.exec_answers["button_immediate"] = {"result": "('upgraded', 'installed')"}
+    calls = []
+    ctx = ctx_for()
+    ctx.record_tool = lambda *args: calls.append(args)
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert result.ok is True
+    assert result.output == "sale_custom: upgraded, was installed"
+    ((tool, side, session_id, command_id, duration_ms, ok, preview),) = calls
+    assert (tool, side, ok) == ("upgrade", "target", True)
+    assert session_id == ctx.sessions["target"] and command_id
+    assert duration_ms >= 0
+    assert preview == "sale_custom · upgraded, was installed"
+
+
+def test_a_failed_upgrade_is_a_failed_line_in_the_run_log(ctx_for, sheller):
+    sheller.exec_answers["button_immediate"] = {
+        "error": {"type": "ParseError", "message": "while parsing views.xml", "traceback": ""},
+    }
+    calls = []
+    ctx = ctx_for()
+    ctx.record_tool = lambda *args: calls.append(args)
+
+    upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert calls[0][0] == "upgrade" and calls[0][5] is False
+    assert "ParseError: while parsing views.xml" in calls[0][6]
+
+
 def test_upgrade_drops_the_old_versions_migration_scripts_first(ctx_for, tmp_path):
     """Before Odoo reads the ported module: an old `migrations/17.0.*` would
     run on the new framework."""

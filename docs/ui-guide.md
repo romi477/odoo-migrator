@@ -283,7 +283,12 @@ modules drop off the list and show on **Result**. The live panel below is the st
 cartridge's steps, framed by the module's old version on the left and its new one on the right, with an arrow into the first step and out of the last (amber while a module runs), each with how it went in the attempt on screen: done,
 failed, running, not yet run, or — dashed green — passed in an earlier
 attempt and not run again, because a retry loops back part way (the stock
-flow returns to `lint`). The failure lane that attempt ran (diagnose,
+flow returns to `lint`), or — dashed grey, a hollow lamp — passed over: its
+`when` was not raised and the lap went on past it (`probe`, `write_test` and
+`retest` run only on `no_tests`, so a module with tests skips all three; the
+tooltip names the flag). The upgrade is a line of its own in the run log, the
+way a test run is: how long it took, whether the module was installed or
+upgraded and from what state, and the command to open in Sheller's journal. The failure lane that attempt ran (diagnose,
 patch) is a smaller row under it. From a second attempt on, numbers above
 the ribbon read any attempt back; the latest one follows the run live. A
 parked question sits

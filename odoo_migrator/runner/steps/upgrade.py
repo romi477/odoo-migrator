@@ -11,6 +11,7 @@ from odoo_migrator.runner.context import StepContext, StepResult
 from odoo_migrator.runner.prune import prune_old_migrations
 from odoo_migrator.runner.sessions import reopen_side, wait_ready
 from odoo_migrator.runner.steps.verdict import note_log_errors
+from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
 
 # The daemon stops waiting for an exec at 300s and says so with a 504. The
@@ -27,7 +28,8 @@ _TAIL = 40
 # `update_list` first: a module this database has never seen is not in
 # `ir.module.module` until the addons paths are scanned, and a manifest the
 # port changed is not read again without it. `to upgrade` is upgraded, not
-# installed: `button_install` does not take that state.
+# installed: `button_install` does not take that state. The last line is the
+# answer: what was done, and the state the module was in before.
 _UPGRADE = """\
 Module = env['ir.module.module']
 Module.update_list()
@@ -37,10 +39,12 @@ if not mod:
 if mod.state == 'uninstallable':
     raise RuntimeError({name!r} + ' is uninstallable: its manifest says installable False, '
                        'or its dependencies are not on the addons path')
-if mod.state in ('installed', 'to upgrade'):
+was = mod.state
+if was in ('installed', 'to upgrade'):
     mod.button_immediate_upgrade()
 else:
     mod.button_immediate_install()
+('upgraded' if was in ('installed', 'to upgrade') else 'installed', was)
 """
 
 # `button_immediate_*` commits the states it marks before it rebuilds the
@@ -108,20 +112,35 @@ def _upgrade(step: Step, ctx: StepContext) -> StepResult:
         return StepResult(ok=False, output=f"could not open a fresh target session: {exc}")
     session_id = ctx.sessions["target"]
     write_key = ctx.write_keys["target"]
+    started = time.perf_counter()
     try:
         executed = ctx.sheller.exec(
             session_id, _UPGRADE.format(name=name), write_key=write_key, timeout=UPGRADE_TIMEOUT
         )
     except ShellerTimeout:
+        _record(
+            ctx, "upgrade", "target", session_id, "", _elapsed(started), False,
+            f"{name} · no answer within {UPGRADE_TIMEOUT:.0f}s; still running in the session",
+        )
 
         return _outlived(ctx, name)
     except ShellerError as exc:
+        _record(ctx, "upgrade", "target", session_id, "", _elapsed(started), False, f"{name} · {exc}")
 
         return _failed(ctx, str(exc))
+    # A line of its own in the run log, the way a test run has one: how long
+    # it took, what was done, and the command to open in Sheller's journal.
+    # The step used to say only "ok", and a four-second upgrade read as
+    # nothing having happened.
+    command_id = str(executed.get("id") or "")
     note_log_errors(ctx, executed.get("stderr"))
     if executed.get("error"):
+        head = _describe(executed).splitlines()[0]
+        _record(ctx, "upgrade", "target", session_id, command_id, _elapsed(started), False, f"{name} · {head}")
 
         return _failed(ctx, _describe(executed))
+    done = _done(executed.get("result"))
+    _record(ctx, "upgrade", "target", session_id, command_id, _elapsed(started), True, f"{name} · {done}")
     try:
         committed = ctx.sheller.commit(session_id, write_key=write_key)
     except ShellerError as exc:
@@ -132,7 +151,19 @@ def _upgrade(step: Step, ctx: StepContext) -> StepResult:
         return _failed(ctx, f"commit: {committed['error']}")
     ctx.emit({"kind": "upgrade", "module": name, "job_id": ctx.job_id})
 
-    return StepResult(ok=True, output=f"upgraded {name}")
+    return StepResult(ok=True, output=f"{name}: {done}")
+
+
+def _done(result) -> str:
+    """`upgraded, was installed`, from the script's last line; `upgraded`
+    when the answer cannot be read, which says no less than the step did."""
+    try:
+        action, was = ast.literal_eval(result or "")
+    except (ValueError, SyntaxError, TypeError):
+
+        return "upgraded"
+
+    return f"{action}, was {was}"
 
 
 def _outlived(ctx: StepContext, name: str) -> StepResult:

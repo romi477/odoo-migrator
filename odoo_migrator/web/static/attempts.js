@@ -51,6 +51,9 @@
     if (step.state === "earlier") {
       return step.id + ": done in attempt " + step.attempt + ", not run again";
     }
+    if (step.state === "skipped") {
+      return step.id + ": not run. It runs when a step before it raises " + step.when + ", and none did";
+    }
 
     return "Read what " + step.id + " does, on Flow";
   }

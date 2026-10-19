@@ -838,6 +838,7 @@ tools offered: exec, read_file, report, source</pre>
       <li class="ribbon-node" data-state="earlier"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">understand</span></span></li>
       <li class="ribbon-node" data-state="done"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">lint</span></span></li>
       <li class="ribbon-node" data-state="failed"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">tests</span></span></li>
+      <li class="ribbon-node" data-state="skipped"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">probe</span></span></li>
       <li class="ribbon-node" data-state="pending"><span class="ribbon-box"><span class="ribbon-led"></span><span class="ribbon-name">verdict</span></span></li>
     </ol>
     <ol class="ribbon ribbon-lane">
@@ -847,6 +848,8 @@ tools offered: exec, read_file, report, source</pre>
     </ol>
   </div>
   <p>A step passed in an earlier attempt and not run again is dashed green.
+  A step passed over, its <code>when</code> not raised while the lap went on
+  past it, is dashed grey with a hollow lamp; its tooltip names the flag.
   The retry lane an attempt ran sits under the pipeline. Any attempt can be
   read back; the latest follows the run live. While an older attempt is
   read the card stays on it: when another module starts, or the run ends, a
