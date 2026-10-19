@@ -838,13 +838,15 @@ def test_every_row_has_a_play_button_and_it_is_an_outlined_triangle_that_gives_w
 
     # The collapsed first row and the list: the first card twice.
     assert page.count("data-queue-play") == cards + 1
-    assert 'd="M6.5 4l13 8-13 8z"' in page
+    assert 'd="M10.41 6.10 Q7.00 4.00 7.00 8.00 L7.00 16.00 Q7.00 20.00 10.41 17.90 L16.59 14.10 Q20.00 12.00 16.59 9.90 Z"' in page
     # Outlined, not filled, and the corners are rounded by the stroke's joins.
     glyph = page.split('class="play-glyph"')[1].split("</svg>")[0]
     assert 'fill="none"' in glyph and 'stroke-linejoin="round"' in glyph
+    # The corners are curves in the path, three of them, not sharp vertices.
+    assert glyph.count(" Q") == 3
     # A real target, white; amber and a plate under the pointer; it gives when
     # pressed, as a player's button does.
-    assert "width: 32px" in play and "height: 32px" in play
+    assert "width: 26px" in play and "height: 26px" in play
     assert "var(--text)" in play
     hover = css.split("button.queue-play:hover:not(:disabled),")[1].split("}")[0]
     assert "color: var(--amber)" in hover and "background:" in hover

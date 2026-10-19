@@ -107,15 +107,15 @@
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "play-glyph");
     svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("width", "22");
-    svg.setAttribute("height", "22");
+    svg.setAttribute("width", "18");
+    svg.setAttribute("height", "18");
     svg.setAttribute("fill", "none");
     svg.setAttribute("stroke", "currentColor");
     svg.setAttribute("stroke-width", "1.6");
     svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("aria-hidden", "true");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M6.5 4l13 8-13 8z");
+    path.setAttribute("d", "M10.41 6.10 Q7.00 4.00 7.00 8.00 L7.00 16.00 Q7.00 20.00 10.41 17.90 L16.59 14.10 Q20.00 12.00 16.59 9.90 Z");
     svg.appendChild(path);
     button.appendChild(svg);
 
