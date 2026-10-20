@@ -39,8 +39,7 @@ _SHOWN = 20
 
 # Doubled braces: this is a `str.format` template, filled with the module's name.
 # Raw: the script's own `'\n'` must reach the daemon as written.
-_SCRIPT = r"""import fnmatch as _fnmatch
-import inspect as _inspect
+_SCRIPT = r"""import inspect as _inspect
 import json as _json
 import re as _re
 import traceback as _traceback
@@ -57,6 +56,26 @@ _seen = {{'models': 0, 'fields': 0, 'new': 0, 'read': 0, 'actions': 0, 'reports'
 
 def _own(text):
     return ('/%s/' % _name) in text
+
+
+def _matches(path, pattern):
+    # Odoo expands a manifest entry with glob(recursive=True): `**/` is any
+    # number of directories, none included, and `*` stops at a slash.
+    # fnmatch's `*` does not stop, and its `**/*` wants a directory in between.
+    regex = (_re.escape(pattern).replace('\\*\\*/', '(?:.*/)?')
+             .replace('\\*', '[^/]*').replace('\\?', '[^/]'))
+    return _re.fullmatch(regex, path) is not None
+
+
+def _listed(entry):
+    # The file pattern a manifest entry adds to a bundle, or '' when it adds
+    # none: `('remove', path)` takes files out, so a pattern that matches
+    # nothing is what it is meant to do.
+    if isinstance(entry, str):
+        return entry
+    if not entry or not isinstance(entry[-1], str) or entry[0] == 'remove':
+        return ''
+    return entry[-1]
 
 
 def _check(where, call, own=None, names=()):
@@ -173,8 +192,8 @@ for _bundle_name, _entries in sorted(_assets.items()):
         continue
     _urls = [f.get('url', '') for f in getattr(_bundle, 'files', [])]
     for _entry in _entries:
-        _path = _entry if isinstance(_entry, str) else (_entry[-1] if _entry and isinstance(_entry[-1], str) else '')
-        if _path.startswith(_name + '/') and not any(_fnmatch.fnmatch(u.lstrip('/'), _path) for u in _urls):
+        _path = _listed(_entry)
+        if _path.startswith(_name + '/') and not any(_matches(u.lstrip('/'), _path) for u in _urls):
             _found.append({{'where': 'bundle %s' % _bundle_name, 'error': 'the manifest lists %s and no file matches it' % _path, 'own': True, 'trace': ''}})
     try:
         _bundle.preprocess_css()
