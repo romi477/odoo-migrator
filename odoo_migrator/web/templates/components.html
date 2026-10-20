@@ -811,6 +811,34 @@ tools offered: exec, read_file, report, source</pre>
   <p>The card of the module in work has one cyan edge, always whole, and an amber
   glow along its inner side. While the module runs only the light breathes. A
   module waiting for a person keeps a quiet glow that stands still.</p>
+  <div class="workspace">
+    <article class="workspace-panel">
+      {% with machine_state = "run", machine_src = "17.0", machine_dst = "18.0", machine_in = "mig_test_dashboard", machine_out = "", machine_lane = "failure" %}
+      {% include "_machine.html" %}
+      {% endwith %}
+      <div class="pipeline-live">
+        <header class="name-line pipeline-head">
+          <span class="pipeline-stage mono">diagnose · attempt 1</span>
+        </header>
+        <ol class="ribbon">
+          <li class="ribbon-node" data-state="done"><a class="ribbon-box" href="/flow#understand"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">understand</span></a></li>
+          <li class="ribbon-node" data-state="done"><a class="ribbon-box" href="/flow#characterize"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">characterize</span></a></li>
+          <li class="ribbon-node" data-state="failed"><a class="ribbon-box" href="/flow#port"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">port</span></a></li>
+          <li class="ribbon-node" data-state="pending"><a class="ribbon-box" href="/flow#lint"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">lint</span></a></li>
+          <li class="ribbon-node" data-state="pending"><a class="ribbon-box" href="/flow#upgrade"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">upgrade</span></a></li>
+          <li class="ribbon-node" data-state="pending"><a class="ribbon-box" href="/flow#tests"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">tests</span></a></li>
+          <li class="ribbon-node" data-state="pending"><a class="ribbon-box" href="/flow#verdict"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">verdict</span></a></li>
+        </ol>
+        <ol class="ribbon ribbon-lane">
+          <li class="ribbon-lane-label">retry</li>
+          <li class="ribbon-node" data-state="running"><a class="ribbon-box" href="/flow#diagnose"><span class="ribbon-led" aria-hidden="true"></span><span class="ribbon-name">diagnose</span></a></li>
+        </ol>
+      </div>
+    </article>
+  </div>
+  <p>An attempt whose port failed: the failure lane forks from the
+  step that failed, its row starting under that step, with a red wire down
+  from it into the lane's first step.</p>
 
   <h2>Import group</h2>
   <form class="stack-form">

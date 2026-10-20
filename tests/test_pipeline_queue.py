@@ -1639,3 +1639,22 @@ def test_the_cold_start_has_a_row_on_components(client):
     assert "<h2>Cold start</h2>" in page
     assert "data-engine-demo-toggle" in page
     assert '<script defer src="/static/engine.js"></script>' in page
+
+
+def test_the_failure_lane_forks_from_the_step_that_failed(client):
+    """Job 0e33aae4: port, the third step, failed, and diagnose stood in the
+    middle of the card with nothing to say which step it was looking at."""
+    script = client.get("/static/wires.js").text
+    css = client.get("/static/style.css").text
+    page = client.get("/components").text
+
+    assert ':scope > .ribbon-node[data-state="failed"] .ribbon-box' in script
+    assert 'lane.setAttribute("data-forked", "")' in script
+    assert 'class: "runner-wire runner-wire-fork"' in script
+    # A step that fails is a redraw: the lane forks from it.
+    assert 'attributeFilter: ["hidden", "data-state"]' in script
+    forked = css.split(".ribbon-lane[data-forked] {", 1)[1].split("}", 1)[0]
+    assert "justify-content: flex-start" in forked
+    assert "padding-left: var(--lane-start, 0px)" in forked
+    assert "--wire: var(--red)" in css.split(".runner-wire-fork {", 1)[1].split("}", 1)[0]
+    assert "An attempt whose port failed" in page

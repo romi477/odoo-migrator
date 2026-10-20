@@ -295,7 +295,7 @@ tooltip names the flag, and the run log has a `skipped` line under the step's na
 was to raise it and whether that step ran in this attempt; its detail lists the flags that were raised). Steps that end together, as the ones without a model do, are drawn a beat apart in the order they ran, each lamp pulsing once as it ends; a run that has just ended is drawn to its last step and held a moment before the card folds. The states are the run's, only the drawing takes its time. The upgrade is a line of its own in the run log, the
 way a test run is: how long it took, whether the module was installed or
 upgraded and from what state, and the command to open in Sheller's journal. The failure lane that attempt ran (diagnose,
-patch) is a smaller row under it. From a second attempt on, numbers above
+patch) is a smaller row under it, forked from the step that failed: the row starts under that step, as far as it fits, and a red wire runs down from the step into the lane's first. From a second attempt on, numbers above
 the ribbon read any attempt back; the latest one follows the run live. A
 parked question sits
 under the ribbon as a thread. There are two stops. The grey filled square on the card of the module in work ends that run after

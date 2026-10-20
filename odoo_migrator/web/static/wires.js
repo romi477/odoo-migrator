@@ -105,6 +105,69 @@
     }
   }
 
+  /* The failure lane forks from the step that failed. It used to be a row of
+     its own, centred under the pipeline, and `diagnose` stood mid-card with
+     nothing to say which step it was looking at. The row now starts under the
+     step that failed, as far as it fits, and a wire runs down from that step
+     into the lane's first. In a snake the step below would be in the way, so
+     the wire leaves from the step's side, in the gap between columns. */
+  function fork(svg, ribbon, box) {
+    const lane = ribbon.parentElement && ribbon.parentElement.querySelector(".ribbon-lane");
+    if (!lane) {
+      return;
+    }
+    const failed = ribbon.querySelectorAll(':scope > .ribbon-node[data-state="failed"] .ribbon-box');
+    const into = lane.querySelector(".ribbon-node .ribbon-box");
+    lane.style.setProperty("--lane-start", "0px");
+    if (lane.hidden || !failed.length || !into) {
+      lane.removeAttribute("data-forked");
+
+      return;
+    }
+    lane.setAttribute("data-forked", "");
+    const from = box(failed[failed.length - 1]);
+    const snaked = ribbon.classList.contains("is-snake");
+    const x0 = snaked ? from.left - 5 : (from.left + from.right) / 2;
+    /* As far right as the step that failed, and no further than the lane's
+       own row has room for. */
+    const nodes = lane.querySelectorAll(".ribbon-node");
+    const room = lane.getBoundingClientRect().right - nodes[nodes.length - 1].getBoundingClientRect().right;
+    const first = box(into);
+    const shift = Math.max(0, Math.min(x0 - (first.left + first.right) / 2, room));
+    lane.style.setProperty("--lane-start", shift + "px");
+    const to = box(into);
+    const x1 = (to.left + to.right) / 2;
+    const y0 = snaked ? from.middle : from.bottom + 1;
+    const bend = (box(ribbon).bottom + to.top) / 2;
+    const end = to.top - 1;
+    let d = "M" + (snaked ? from.left - 1 : x0) + " " + y0;
+    if (snaked) {
+      d += " H" + x0;
+    }
+    if (Math.abs(x1 - x0) < 1) {
+      d += " V" + (end - HEAD);
+    } else {
+      const r = Math.min(RADIUS / 2, Math.abs(x1 - x0) / 2, (end - bend) / 2);
+      const way = x1 > x0 ? 1 : -1;
+      d +=
+        " V" + (bend - r) +
+        " Q" + x0 + " " + bend + " " + (x0 + way * r) + " " + bend +
+        " H" + (x1 - way * r) +
+        " Q" + x1 + " " + bend + " " + x1 + " " + (bend + r) +
+        " V" + (end - HEAD);
+    }
+    svg.appendChild(el("path", { class: "runner-wire runner-wire-fork", d: d }));
+    svg.appendChild(
+      el("path", {
+        class: "runner-wire-head runner-wire-fork",
+        d:
+          "M" + (x1 - 4) + " " + (end - HEAD) +
+          " L" + x1 + " " + end +
+          " L" + (x1 + 4) + " " + (end - HEAD) + " Z",
+      })
+    );
+  }
+
   function draw(panel) {
     const svg = wire(panel);
     svg.textContent = "";
@@ -140,6 +203,7 @@
         step.style.setProperty("--along", boxes.length > 1 ? String(index / (boxes.length - 1)) : "0");
       }
     });
+    fork(svg, ribbon, box);
     const from = box(inSlot);
     const to = box(outSlot);
     const first = box(boxes[0]);
@@ -227,7 +291,8 @@
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["hidden"],
+      /* A step that fails is where the lane forks from. */
+      attributeFilter: ["hidden", "data-state"],
     });
     later();
   }

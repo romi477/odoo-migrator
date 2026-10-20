@@ -4307,6 +4307,11 @@ button.queue-play:disabled {
   --wire: var(--cyan);
 }
 
+/* From the step that failed into the failure lane. */
+.runner-wire-fork {
+  --wire: var(--red);
+}
+
 .runner-wire {
   fill: none;
   stroke: color-mix(in oklch, var(--wire) 40%, transparent);
@@ -5102,6 +5107,14 @@ a.ribbon-box:focus-visible {
 .ribbon-lane {
   margin-top: 6px;
   font-size: 12px;
+}
+
+/* Forked from the step that failed (wires.js): the row starts under that
+   step, and there is room above it for the wire to turn. */
+.ribbon-lane[data-forked] {
+  justify-content: flex-start;
+  margin-top: 22px;
+  padding-left: var(--lane-start, 0px);
 }
 
 .ribbon-lane .ribbon-box {
