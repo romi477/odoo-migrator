@@ -353,11 +353,24 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
     if name == "history":
         return sheller.feed(session_id)
     if name == "list_tests":
-        return sheller.list_tests(
-            session_id,
-            module=kwargs.get("module") or ctx.module.technical_name,
-            write_key=write_key,
-        )
+        module = kwargs.get("module") or ctx.module.technical_name
+        try:
+            return sheller.list_tests(session_id, module=module, write_key=write_key)
+        except ShellerError as exc:
+            if not _module_missing(exc):
+                raise
+
+            # Early in a port the target has no directory for the module yet:
+            # an answer to read, not a failed call.
+            return {
+                "module": module,
+                "classes": [],
+                "not_on_this_side": True,
+                "note": (
+                    f"{module} is not on this container yet: it has no directory there. "
+                    "Write its files first, then list its tests again."
+                ),
+            }
     if name == "run_test":
         result = _run_test(
             ctx, session_id, write_key, kwargs.get("test", ""), kwargs.get("params") or ""
@@ -789,6 +802,9 @@ def _preview(name: str, value, text: str) -> str:
                 f"{outcome.get('errors') or 0} error(s){counted}{named}"
             )
     if name == "list_tests":
+        if isinstance(value, dict) and value.get("not_on_this_side"):
+
+            return f"{value.get('module')} is not on this container yet"
         classes = value.get("classes")
         if isinstance(classes, list):
             named = [
@@ -802,6 +818,11 @@ def _preview(name: str, value, text: str) -> str:
             )
 
     return text
+
+
+def _module_missing(exc: ShellerError) -> bool:
+
+    return exc.status == 404 and "module_not_found" in f"{exc.detail} {exc}"
 
 
 def _text(value) -> str:

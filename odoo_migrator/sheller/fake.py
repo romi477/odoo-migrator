@@ -141,6 +141,9 @@ class FakeShellerClient:
         self.help_topics: dict[str, str] = dict(HELP_TOPICS)
         # What a session reports about running a browser suite (1.11.0), and
         # what the module listing says of a module's JS tests, by module.
+        # Modules the container has no directory for. The daemon answers its
+        # catalogue route for one with 404 `module_not_found`, not an empty list.
+        self.absent_modules: set[str] = set()
         self.js_tests: dict = {
             "runner": "hoot", "available": True, "reason": None, "tested": "18-19",
         }
@@ -718,6 +721,15 @@ class FakeShellerClient:
         # The catalogue route does not check a session key. The argument stays
         # so every session verb has the same shape.
         del write_key
+        if module in self.absent_modules:
+            detail = {
+                "error": "module_not_found",
+                "module": module,
+                "recovery": "check the addon technical name and the container's addons path",
+            }
+            raise ShellerError(
+                f"Sheller HTTP 404: {{'detail': {detail}}}", status=404, detail={"detail": detail}
+            )
 
         return with_js_capability(
             self.catalogue_route(session["container"], module), self.get_session(session_id)
