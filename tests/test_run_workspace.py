@@ -567,6 +567,8 @@ def test_the_page_offers_every_attempt_of_the_live_run(client, live_job):
     assert 'data-attempt="1"' in page
     assert 'data-attempt="2"' in page
     assert "data-ribbon-lane" in page
+    assert "ribbon-lane-label" not in page
+    assert "runner-bar-label" not in page
 
 
 def test_a_run_parked_on_a_question_can_be_stopped(client):

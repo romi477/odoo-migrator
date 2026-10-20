@@ -138,7 +138,6 @@
           </div>
         </div>
         <div class="runner-bar-row runner-bar-modules">
-          <span class="runner-bar-label">Step <span x-text="pick"></span></span>
           <template x-for="module in modules()" :key="module.name">
             <span class="module-chip mono" :class="module.passed ? 'is-passed' : ''" x-text="module.name"
                   :title="module.passed ? module.name + ' · passed' : module.name"></span>
@@ -367,7 +366,6 @@
         {# The failure lane this attempt ran: diagnose, patch. Not the
            pipeline, so a row of its own under it. #}
         <ol class="ribbon ribbon-lane" data-ribbon-lane{% if not ribbon.lane %} hidden{% endif %}>
-          <li class="ribbon-lane-label">retry</li>
           {% for node in ribbon.lane %}
           <li class="ribbon-node" data-state="{{ node.state }}">
             <a class="ribbon-box" href="/flow#{{ node.id }}" title="Read what {{ node.id }} does, on Flow">

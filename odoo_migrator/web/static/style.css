@@ -2351,10 +2351,6 @@ h2 {
   color: var(--muted);
 }
 
-.runner-bar-label {
-  min-width: 3.5rem;
-}
-
 .module-chip {
   padding: 1px 8px;
   border: 1px solid var(--border-strong);
@@ -5125,12 +5121,6 @@ a.ribbon-box:focus-visible {
 
 .ribbon-lane .ribbon-box {
   padding: 3px 8px;
-}
-
-.ribbon-lane-label {
-  margin-right: 8px;
-  color: var(--muted-low);
-  font-size: 11px;
 }
 
 /* Which attempt the ribbon shows. Quiet numbers; the one on screen in cyan. */
