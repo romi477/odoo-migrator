@@ -270,3 +270,25 @@ def test_a_running_side_whose_dockerfile_changed_has_rebuild_and_says_why(
     assert '<span class="mono">Dockerfile</span>' in source
     assert 'containers/source/rebuild"' in actions
     assert 'class="primary"' in actions and "data-confirm-text" in actions
+
+
+def test_the_save_button_keeps_its_outline(client, tmp_path):
+    """`.primary` clears the border; a lone Save under bordered selects read as
+    a button with no outline. `settings-save` gives it the edge back."""
+    old, new = tmp_path / "old", tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _, row = _open_migration(client, old=old, new=new)
+
+    page = client.get(f"/?settings={row.id}").text
+
+    assert '<button type="submit" class="primary settings-save">Save</button>' in page
+
+
+def test_a_primary_beside_bordered_buttons_or_under_fields_keeps_its_edge(client):
+    css = client.get("/static/style.css").text
+    rule = css.split("form:has(> label textarea) > .primary {", 1)[0].rsplit("/*", 1)[1]
+
+    for group in (".confirm-actions", ".flow-dialog-actions", ".hand-edit-actions", ".import-flow"):
+        assert f"{group} .primary" in rule
+    assert "border-color: var(--border)" in css.split("form:has(> label textarea) > .primary {", 1)[1][:60]

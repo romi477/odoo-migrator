@@ -1252,6 +1252,17 @@ a.brand:hover .wordmark {
   color: var(--amber);
 }
 
+/* `.primary` clears the border, which suits a button on its own line of text.
+   Beside a bordered button, or under the fields of a form, it reads as a
+   missing outline, not as emphasis: it keeps the edge there. */
+.confirm-actions .primary,
+.flow-dialog-actions .primary,
+.hand-edit-actions .primary,
+.import-flow .primary,
+form:has(> label textarea) > .primary {
+  border-color: var(--border);
+}
+
 .danger {
   color: var(--red);
 }
