@@ -151,6 +151,11 @@ for different repairs, and the report is refused with an explanation.
 | `small_fix` | `diagnose` | `patch` |
 | `start_over` | `diagnose` | `rewrite` |
 
+A lane step that lists `needs_human` among its flags and raises none of them
+has decided nothing. The runner raises `needs_human` for it, and the person is
+asked with what the step said and the failure it looked at: a lap that ends the
+same way as the last would otherwise fail the job with only the original error.
+
 ## Which model runs a step
 
 In this order, the first that applies: the step's own `model`; the migration

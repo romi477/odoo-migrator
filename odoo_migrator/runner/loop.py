@@ -81,6 +81,25 @@ def why_skipped(cartridge: Cartridge, step, ran: list[str]) -> str:
     return f"skipped: runs only when {flag} is raised, and {reason}"
 
 
+_ASKS = "needs_human"
+
+
+def _decided_nothing(step, result) -> bool:
+    """A lane step that could have asked a person, and raised none of its flags."""
+
+    return _ASKS in step.raises and not set(step.raises) & result.flags
+
+
+def _undecided(step, result, failure: str) -> str:
+    said = (result.answer or "").strip()
+    head = f"{said}\n\n" if said else ""
+
+    return (
+        f"{head}{_label(step)} raised none of {', '.join(step.raises)}, so it decided "
+        f"nothing. The lap failed with:\n{(failure or '').strip()}"
+    )
+
+
 def _keep_answer(ctx: StepContext, step, result) -> None:
     """Under the step's name, so a later prompt can read it.
 
@@ -165,6 +184,13 @@ def run_job(
                     return _PARKED
                 if handled.ok:
                     _keep_answer(ctx, lane, handled)
+                    if _decided_nothing(lane, handled):
+                        # A diagnosis that raised none of what it could was
+                        # read as "nothing to do": the lap repeated and the
+                        # job failed with only the original error. A person
+                        # reads what it said, and the failure it looked at.
+                        flags.add(_ASKS)
+                        ctx.last_answer = _undecided(lane, handled, ctx.last_failure)
                 else:
                     first = (handled.output or "failed").strip().splitlines()
                     lane_failures.append(f"{_label(lane)} failed: {first[0] if first else 'failed'}")

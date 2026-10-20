@@ -50,7 +50,10 @@ class StepScript:
             for name, body in (("__manifest__.py", MANIFEST), ("models.py", "X = 1\n")):
                 self.wrote.append(write(side="target", path=f"project/sale_custom/{name}", content=body))
 
-        return StepResult(ok=True, answer=f"{step} done")
+        # A diagnosis that raised nothing would ask a person; this one decides.
+        flags = {"small_fix"} if step == "diagnose" else set()
+
+        return StepResult(ok=True, answer=f"{step} done", flags=flags)
 
 
 @pytest.fixture
@@ -151,7 +154,9 @@ def test_a_module_the_port_never_writes_fails_without_looping_for_ever(
             step = kwargs["system"].split("Step: ", 1)[1].splitlines()[0].strip()
             self.ran.append(step)
 
-            return StepResult(ok=True, answer="nothing to do")
+            flags = {"small_fix"} if step == "diagnose" else set()
+
+            return StepResult(ok=True, answer="nothing to do", flags=flags)
 
     script = Idle()
     job = _run(app, fake_sheller, sandbox, script)

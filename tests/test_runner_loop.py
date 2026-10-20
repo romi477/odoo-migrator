@@ -79,6 +79,14 @@ on_failure:
 """
 
 
+DECIDES = ASKS_A_HUMAN.replace("raises: [needs_human]", "raises: [small_fix, needs_human]").replace(
+    "    - step: ask_human\n      when: needs_human\n",
+    "    - step: ask_human\n      when: needs_human\n"
+    "    - step: agent\n      id: patch\n      when: small_fix\n      sessions: [target]\n"
+    "      tools: [exec]\n      context: [last_failure]\n      prompt: fix\n",
+)
+
+
 def loop_ctx(**script):
 
     # Carries the fields the loop and the deterministic steps read. A
@@ -161,12 +169,14 @@ def test_a_skipped_step_is_told_why():
 
 
 def test_a_skipped_lane_step_is_told_why_too():
-    cartridge = load_cartridge(ASKS_A_HUMAN)
+    cartridge = load_cartridge(DECIDES)
     heard: list[str] = []
 
     def resolve(kind: str):
         def runner(step, current):
-            return StepResult(ok=step.kind != "upgrade", output="no")
+            flags = {"small_fix"} if step.id == "diagnose" else set()
+
+            return StepResult(ok=step.kind != "upgrade", output="no", flags=flags)
 
         return runner
 
@@ -243,6 +253,55 @@ def test_a_parked_job_stops_the_loop_without_spending_an_attempt():
 
     assert outcome == "waiting_for_human"
     assert ran.count("diagnose") == 1
+
+
+def _diagnosing(answer: str, flags: set[str]):
+    events: list[dict] = []
+    ctx = loop_ctx()
+    ctx.emit = events.append
+    ran: list[str] = []
+
+    def resolve(kind: str):
+        def runner(step, current):
+            label = step.id or step.kind
+            ran.append(label)
+            if step.kind == "ask_human":
+
+                return ask_human.run(step, current)
+            if label == "upgrade":
+
+                return StepResult(ok=False, output="upgrade failed")
+            if label == "diagnose":
+
+                return StepResult(ok=True, answer=answer, flags=set(flags))
+
+            return StepResult(ok=True)
+
+        return runner
+
+    outcome = run_job(load_cartridge(DECIDES), ctx, retry_limit=3, resolve=resolve)
+
+    return outcome, ran, events
+
+
+def test_a_diagnosis_that_raises_nothing_asks_a_person_instead_of_ending_the_job():
+    """Diagnose looked, said the files were there, and raised no flag. The lap
+    repeated and the job failed with only the original error to read."""
+    outcome, ran, events = _diagnosing("Files exist on the target.", set())
+
+    assert outcome == "waiting_for_human"
+    assert ran.count("diagnose") == 1
+    question = events[-1]["question"]
+    assert "Files exist on the target." in question
+    assert "upgrade failed" in question
+    assert "small_fix" in question
+
+
+def test_a_diagnosis_that_raised_a_flag_is_not_asked_about():
+    outcome, ran, _events = _diagnosing("", {"small_fix"})
+
+    assert "ask_human" not in ran
+    assert outcome == "failed"
 
 
 STOCK_SHAPE = """

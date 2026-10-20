@@ -103,6 +103,9 @@ class CharacterizeScript:
         flags = set()
         if step == "understand" and self.raise_needs_tests:
             flags.add("needs_tests")
+        if step == "diagnose":
+            # One that raised nothing would ask a person; this one decides.
+            flags.add("small_fix")
         if step == "characterize":
             try:
                 for name, body in (("__init__.py", "from . import test_x\n"), ("test_x.py", TEST)):
