@@ -217,12 +217,16 @@ function fillResultCornerGlyph(glyph, kind) {
       run.hidden = !!LIVE[data.status];
     }
     if (stop) {
-      /* A module in the queue is stopped from its own card; this one is for
-         a run with no card there, started from Tree. */
+      /* While the queue runs, its own Stop is in the header and a module's
+         square on its card stops that one now. Otherwise (a play, a run from
+         Tree, the module the queue's Stop let finish) this is the only Stop
+         there is. */
+      const queueStop = document.querySelector('form[action="/run/queue/stop"]');
+      const queueRuns = !!queueStop && !queueStop.hidden;
       const carded = document.querySelector(
         '.pipeline-queue-item[data-module-id="' + data.id + '"]'
       );
-      stop.hidden = !LIVE[data.status] || !!carded;
+      stop.hidden = !LIVE[data.status] || (!!carded && queueRuns);
       stop.setAttribute("action", "/run/modules/" + data.id + "/stop");
       const button = stop.querySelector("button");
       if (button) {

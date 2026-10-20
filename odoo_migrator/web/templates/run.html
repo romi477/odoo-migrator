@@ -237,7 +237,7 @@
                 data-hint-parked="{{ hint_parked }}" data-hint-running="{{ hint_running }}"
                 data-hint-stopping="{{ hint_stopping }}"
                 action="{% if live %}/run/modules/{{ live.module_id }}/stop{% endif %}"
-                {% if not module_live or module_queued %}hidden{% endif %}>
+                {% if not module_live or (module_queued and pipeline_queue.run_state == 'running') %}hidden{% endif %}>
             <button type="submit" aria-label="Stop this run after the model turn in flight"
                     data-label="Stop"
                     title="{{ hint_stopping if stopping else (hint_parked if parked else hint_running) }}"

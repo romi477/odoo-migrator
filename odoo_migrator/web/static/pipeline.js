@@ -476,6 +476,15 @@
       queueStop.hidden = data.run_state !== "running";
     }
     if (clearBtn) {
+    /* With the queue stopped, a module still at work (a play, or the one the
+       queue's Stop let finish) is stopped from the header: there is no queue
+       Stop to press. While the queue runs, its Stop is the header's. */
+    const moduleStop = document.querySelector("[data-pipeline-stop]");
+    const working = data.modules.find((module) => module.active);
+    if (moduleStop && working) {
+      moduleStop.hidden = data.run_state === "running";
+      moduleStop.setAttribute("action", "/run/modules/" + working.id + "/stop");
+    }
       const pending = (data.steps && data.steps.length) || data.modules.length;
       clearBtn.disabled = !data.idle || !pending;
     }

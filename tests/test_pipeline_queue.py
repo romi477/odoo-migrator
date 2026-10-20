@@ -902,24 +902,43 @@ def test_the_runner_card_does_not_say_the_module_or_its_state_again(client):
     assert "pipeline-head-who" not in page
 
 
-def test_a_queued_run_is_stopped_from_its_card_and_the_header_stop_is_the_queues(client):
+def test_a_play_run_has_a_stop_in_the_header_as_well_as_on_its_card(client):
+    """The queue is stopped, so its Stop is out; the module's would be the only
+    one in the header, and it is there. The header always has a Stop while work
+    is in hand."""
     _row, first, page = _running_page(client)
     controls = page.split('class="pipeline-queue-controls"', 1)[1].split("</header>", 1)[0]
     run = controls.split('action="/run/queue/run"')[1].split(">", 1)[0]
-    now = controls.split("data-pipeline-stop")[1].split(">", 1)[0]
+    now = controls.split("data-pipeline-stop")[1].split("</form>", 1)[0].split(">", 1)[0]
+    queue = controls.split('action="/run/queue/stop"')[1].split(">", 1)[0]
     live = page.split('class="pipeline-live"', 1)[1].split("</article>", 1)[0]
 
     assert "hidden" in run
-    # The module has a card in the queue, and its square stops it now; the
-    # header does not say it a second time.
-    assert "hidden" in now
+    assert "hidden" not in now
+    assert f'action="/run/modules/{first["id"]}/stop"' in now
+    assert "hidden" in queue
     assert f'data-queue-stop data-module="{first["id"]}"' in page
     assert "data-pipeline-stop" not in live
-    # The header's Stop is the queue's: after this module. One word, and it
-    # is there only while the queue runs.
+
+
+def test_while_the_queue_runs_the_header_stop_is_the_queues(client):
+    row = _queue_both_steps(client)
+    _hold(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    page = client.get("/run").text
+    controls = page.split('class="pipeline-queue-controls"', 1)[1].split("</header>", 1)[0]
+    now = controls.split("data-pipeline-stop")[1].split("</form>", 1)[0].split(">", 1)[0]
     queue = controls.split('action="/run/queue/stop"')[1].split("</form>", 1)[0]
+
+    assert queue_snapshot(row.id)["run_state"] == "running"
+    # The module's square stops it now; the header's Stop is the queue's:
+    # after this module. One word, and not said twice.
+    assert "hidden" in now
     assert ">Stop</button>" in queue
     assert "Stop after this module" not in controls
+
+
+def test_the_stop_scripts_follow_the_queue_and_the_module(client):
     css = client.get("/static/style.css").text
 
     assert ".pipeline-stop button::before" in css
@@ -927,7 +946,11 @@ def test_a_queued_run_is_stopped_from_its_card_and_the_header_stop_is_the_queues
     script = client.get("/static/sse.js").text
     assert 'document.querySelector("[data-pipeline-stop]")' in script
     assert "run.hidden = !!LIVE[data.status]" in script
-    assert "stop.hidden = !LIVE[data.status] || !!carded" in script
+    assert "stop.hidden = !LIVE[data.status] || (!!carded && queueRuns)" in script
+    assert (
+        'moduleStop.hidden = data.run_state === "running"'
+        in client.get("/static/pipeline.js").text
+    )
 
 
 def test_a_module_that_came_out_rests_in_cyan_not_green(client):
