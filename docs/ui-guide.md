@@ -431,7 +431,14 @@ Each side — old and new — is a card: path, state badge, container name,
 and one button, only when there is something to do. A stopped side has
 **Start**; someone else's port is an error, not a silent steal. A side that
 is already running, started here or outside the app, has no button: it is
-linked as soon as the card or Build graph sees it. Its **Restart**,
+linked as soon as the card or Build graph sees it. Unless what it was built
+from changed after it was built: then it has **Rebuild**, and the card names
+the files. The Dockerfile, and the files its `COPY` lines take from the build
+context or a local additional context, are compared with the image; the
+compose file with the container, and only when compose gives the service a
+hash other than the one the container carries, so a file saved with an edited
+comment asks for nothing. A copied directory is not compared, or every edit
+of a module would ask for a rebuild. Its **Restart**,
 **Rebuild** and **Stop**, which are seldom wanted and each ask first, sit
 behind **⋯** at the end of its heading. Every action keeps the migration
 name and the side as its accessible name, read out in full and shown on

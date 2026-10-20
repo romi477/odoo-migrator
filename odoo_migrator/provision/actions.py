@@ -7,8 +7,17 @@ settings card, Build graph), which is all Attach did, and nobody pressed it.
 from dataclasses import dataclass
 from pathlib import Path
 
-from odoo_migrator.provision.compose_file import find_compose_file, published_host_ports
-from odoo_migrator.provision.engine import WORKING_DIR_LABEL, RunningContainer
+from odoo_migrator.provision.compose_file import (
+    build_inputs,
+    find_compose_file,
+    published_host_ports,
+)
+from odoo_migrator.provision.engine import (
+    CONFIG_HASH_LABEL,
+    SERVICE_LABEL,
+    WORKING_DIR_LABEL,
+    RunningContainer,
+)
 from odoo_migrator.provision.errors import ComposeMissing, NothingRunning, PortStolen
 
 
@@ -18,6 +27,9 @@ class SideStatus:
     container: str
     compose_file: str | None
     detail: str = ""
+    # What changed after the running container, or its image, was made: the
+    # files a Rebuild would take in. Empty when nothing did, or it cannot tell.
+    stale: tuple[str, ...] = ()
 
 
 def is_ours(container: RunningContainer, project_path: Path) -> bool:
@@ -101,6 +113,7 @@ def describe_side(engine, project_path: Path, *, sibling_path: Path | None = Non
             state="running",
             container=picked.name,
             compose_file=str(compose),
+            stale=_stale(engine, picked, compose, project_path),
         )
     thief = _thief(engine, project_path, compose)
     if thief is not None:
@@ -118,6 +131,58 @@ def describe_side(engine, project_path: Path, *, sibling_path: Path | None = Non
         compose_file=str(compose),
         detail="Compose file found; nothing from this project is running.",
     )
+
+
+def _stale(engine, container: RunningContainer, compose: Path, project_path: Path) -> tuple[str, ...]:
+    """The build inputs newer than what they built: the compose file than the
+    container, the Dockerfile and what it copies than the image. A container
+    recreated from an old image is not fresh because it is new. A compose
+    file that is newer and gives the service the hash the container carries
+    was touched, not changed: an edited comment is not a reason to rebuild.
+    Never raises: a file or a time that cannot be read says nothing."""
+    try:
+        inputs = build_inputs(compose)
+    except Exception:  # noqa: BLE001 - a hint never breaks the card.
+
+        return ()
+    image_created = None
+    if inputs["image"] and container.image_id and hasattr(engine, "image_created"):
+        image_created = engine.image_created(container.image_id)
+    built = {"container": container.created, "image": image_created}
+    changed = []
+    for kind, paths in inputs.items():
+        if built[kind] is None:
+            continue
+        for path in paths:
+            try:
+                newer = path.stat().st_mtime > built[kind]
+            except OSError:
+                continue
+            if newer and kind == "container" and _same_config(engine, container, compose, project_path):
+                continue
+            if newer:
+                changed.append(_shown(path, project_path))
+
+    return tuple(changed)
+
+
+def _same_config(engine, container: RunningContainer, compose: Path, project_path: Path) -> bool:
+    service = container.labels.get(SERVICE_LABEL)
+    made_with = container.labels.get(CONFIG_HASH_LABEL)
+    if not service or not made_with or not hasattr(engine, "config_hash"):
+
+        return False
+
+    return engine.config_hash(project_path, compose, service) == made_with
+
+
+def _shown(path: Path, project_path: Path) -> str:
+    try:
+
+        return path.resolve().relative_to(project_path.resolve()).as_posix()
+    except ValueError:
+
+        return str(path)
 
 
 def describe_side_without_listing(project_path: Path, *, detail: str) -> SideStatus:

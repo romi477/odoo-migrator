@@ -282,3 +282,130 @@ def test_the_other_side_of_the_same_migration_is_named_as_the_clash(tmp_path):
 
     with pytest.raises(PortStolen, match="other side of this migration"):
         up(engine, new, sibling_path=old)
+
+
+def _built(tmp_path, *, dockerfile="FROM python:3.12\nCOPY project/requirements.txt /r.txt\nCOPY project/ /opt/project\n"):
+    import os
+
+    (tmp_path / "compose.yaml").write_text(
+        "services:\n  odoo:\n    build:\n      context: .\n      additional_contexts:\n"
+        f"        src: {tmp_path / 'src'}\n"
+        '    ports:\n      - "8069:8069"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "Dockerfile").write_text(
+        dockerfile + "COPY --from=src requirements.txt /odoo.txt\nCOPY --from=builder /x /y\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "project").mkdir()
+    (tmp_path / "project" / "requirements.txt").write_text("requests\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "requirements.txt").write_text("lxml\n", encoding="utf-8")
+    for path in (
+        tmp_path / "compose.yaml",
+        tmp_path / "Dockerfile",
+        tmp_path / "project" / "requirements.txt",
+        tmp_path / "src" / "requirements.txt",
+    ):
+        os.utime(path, (1000, 1000))
+
+
+def _running_ours(engine, project, *, created, image_built):
+    from odoo_migrator.provision.engine import WORKING_DIR_LABEL
+
+    engine.images["sha256:img"] = image_built
+    engine.add_container(
+        name="proj-odoo-1",
+        image="proj-odoo",
+        status="running",
+        labels={WORKING_DIR_LABEL: str(project.resolve())},
+        host_ports=[8069],
+        created=created,
+        image_id="sha256:img",
+    )
+
+
+def test_build_inputs_are_the_dockerfile_and_the_files_it_copies(tmp_path):
+    from odoo_migrator.provision.compose_file import build_inputs
+
+    _built(tmp_path)
+
+    found = build_inputs(tmp_path / "compose.yaml")
+
+    assert found["container"] == [tmp_path / "compose.yaml"]
+    # A copied directory is not: every edit of a module would ask for a
+    # rebuild. Nor is a stage of the Dockerfile.
+    assert found["image"] == [
+        (tmp_path / "Dockerfile").resolve(),
+        (tmp_path / "project" / "requirements.txt").resolve(),
+        (tmp_path / "src" / "requirements.txt").resolve(),
+    ]
+
+
+def test_a_running_side_built_before_its_inputs_changed_names_them(tmp_path):
+    import os
+
+    _built(tmp_path)
+    engine = FakeComposeEngine()
+    _running_ours(engine, tmp_path, created=2000, image_built=2000)
+
+    assert describe_side(engine, tmp_path).stale == ()
+
+    os.utime(tmp_path / "project" / "requirements.txt", (3000, 3000))
+    assert describe_side(engine, tmp_path).stale == ("project/requirements.txt",)
+
+    os.utime(tmp_path / "compose.yaml", (3000, 3000))
+    assert describe_side(engine, tmp_path).stale == ("compose.yaml", "project/requirements.txt")
+
+
+def test_a_container_recreated_from_an_old_image_is_not_fresh(tmp_path):
+    """Compose recreates a container from the image it has: the container is
+    new, and the Dockerfile edit is still not in it."""
+    import os
+
+    _built(tmp_path)
+    os.utime(tmp_path / "Dockerfile", (3000, 3000))
+    engine = FakeComposeEngine()
+    _running_ours(engine, tmp_path, created=5000, image_built=2000)
+
+    assert describe_side(engine, tmp_path).stale == ("Dockerfile",)
+
+
+def test_a_time_it_cannot_read_says_nothing(tmp_path):
+    import os
+
+    _built(tmp_path)
+    os.utime(tmp_path / "Dockerfile", (3000, 3000))
+    engine = FakeComposeEngine()
+    _running_ours(engine, tmp_path, created=None, image_built=2000)
+    engine.images.clear()
+
+    assert describe_side(engine, tmp_path).stale == ()
+
+
+def test_docker_times_are_read_past_their_nanoseconds():
+    from odoo_migrator.provision.engine import _unix_time
+
+    assert _unix_time("2026-10-17T09:12:33.123456789Z") == _unix_time("2026-10-17T09:12:33Z") + 0.123456
+    assert _unix_time("2026-10-17T11:12:33.5+02:00") == _unix_time("2026-10-17T09:12:33Z") + 0.5
+    assert _unix_time("") is None and _unix_time("soon") is None
+
+
+def test_a_compose_file_touched_but_not_changed_asks_for_nothing(tmp_path):
+    """Sandbox 18: compose.yaml was saved after the container was made and
+    gave the service the same hash. A comment is not a reason to rebuild."""
+    import os
+
+    from odoo_migrator.provision.engine import CONFIG_HASH_LABEL, SERVICE_LABEL
+
+    _built(tmp_path)
+    os.utime(tmp_path / "compose.yaml", (3000, 3000))
+    engine = FakeComposeEngine()
+    _running_ours(engine, tmp_path, created=2000, image_built=2000)
+    engine.containers[0].labels.update({SERVICE_LABEL: "odoo", CONFIG_HASH_LABEL: "abc"})
+
+    engine.config_hashes["odoo"] = "abc"
+    assert describe_side(engine, tmp_path).stale == ()
+
+    engine.config_hashes["odoo"] = "def"
+    assert describe_side(engine, tmp_path).stale == ("compose.yaml",)

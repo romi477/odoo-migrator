@@ -2,12 +2,16 @@
 
 import subprocess
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from odoo_migrator.provision.compose_file import published_host_ports
 from odoo_migrator.provision.errors import ComposeFailed, DockerUnavailable
 
 WORKING_DIR_LABEL = "com.docker.compose.project.working_dir"
+SERVICE_LABEL = "com.docker.compose.service"
+# Compose's hash of the service's configuration when it made the container.
+CONFIG_HASH_LABEL = "com.docker.compose.config-hash"
 
 
 @dataclass
@@ -20,6 +24,10 @@ class RunningContainer:
     # Bind mounts only, as {"host", "container", "read_only"}. Volumes have
     # no directory on this machine a person can open.
     mounts: list[dict] = field(default_factory=list)
+    # When the container was created, as a Unix time, and the image it runs:
+    # what a rebuild would change is compared with these.
+    created: float | None = None
+    image_id: str = ""
 
 
 class FakeComposeEngine:
@@ -31,6 +39,10 @@ class FakeComposeEngine:
         self.restarts: list[Path] = []
         self.rebuilds: list[Path] = []
         self.stops: list[Path] = []
+        # image id -> when it was built, as a Unix time.
+        self.images: dict[str, float] = {}
+        # service -> the hash its compose file gives it now.
+        self.config_hashes: dict[str, str] = {}
 
     def add_container(
         self,
@@ -41,6 +53,8 @@ class FakeComposeEngine:
         labels: dict,
         host_ports: list[int],
         mounts: list[dict] | None = None,
+        created: float | None = None,
+        image_id: str = "",
     ) -> None:
         self.containers.append(
             RunningContainer(
@@ -50,12 +64,22 @@ class FakeComposeEngine:
                 labels=labels,
                 host_ports=list(host_ports),
                 mounts=list(mounts or []),
+                created=created,
+                image_id=image_id,
             )
         )
 
     def list_containers(self) -> list[RunningContainer]:
 
         return list(self.containers)
+
+    def image_created(self, image_id: str) -> float | None:
+
+        return self.images.get(image_id)
+
+    def config_hash(self, project_dir: Path, compose_file: Path, service: str) -> str | None:
+
+        return self.config_hashes.get(service)
 
     def compose_up(self, project_dir: Path, compose_file: Path) -> None:
         resolved = project_dir.resolve()
@@ -105,6 +129,8 @@ class DockerComposeEngine:
                         labels=dict(container.labels or {}),
                         host_ports=_host_ports(container),
                         mounts=_bind_mounts(container),
+                        created=_unix_time(container.attrs.get("Created")),
+                        image_id=container.attrs.get("Image") or "",
                     )
                 )
         except Exception as exc:
@@ -113,6 +139,39 @@ class DockerComposeEngine:
             ) from exc
 
         return found
+
+    def image_created(self, image_id: str) -> float | None:
+        """When an image was built; None when it cannot be read."""
+        try:
+            image = self._client().images.get(image_id)
+        except Exception:  # noqa: BLE001 - a hint never breaks the card.
+
+            return None
+
+        return _unix_time(image.attrs.get("Created"))
+
+    def config_hash(self, project_dir: Path, compose_file: Path, service: str) -> str | None:
+        """The hash compose gives the service's configuration now, which it
+        stores on the container it makes; None when compose cannot say."""
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "-f", str(compose_file), "config", f"--hash={service}"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=20,
+            )
+        except (OSError, subprocess.SubprocessError):
+
+            return None
+        for line in result.stdout.splitlines():
+            name, _, digest = line.strip().partition(" ")
+            if name == service and digest:
+
+                return digest.strip()
+
+        return None
 
     def compose_up(self, project_dir: Path, compose_file: Path) -> None:
         _run_compose(project_dir, compose_file, ["up", "-d"])
@@ -142,6 +201,26 @@ class DockerComposeEngine:
                 ) from exc
 
         return self._docker
+
+
+def _unix_time(stamp) -> float | None:
+    """Docker's `2026-10-17T09:12:33.123456789Z`, which has more digits of a
+    second than Python reads, as a Unix time; None for anything else."""
+    if not isinstance(stamp, str) or not stamp:
+
+        return None
+    text = stamp.strip().replace("Z", "+00:00")
+    head, dot, rest = text.partition(".")
+    if dot:
+        digits = rest[: len(rest) - len(rest.lstrip("0123456789"))]
+        zone = rest[len(digits):]
+        text = f"{head}.{digits[:6]}{zone}"
+    try:
+
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+
+        return None
 
 
 def _bind_mounts(container) -> list[dict]:

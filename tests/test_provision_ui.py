@@ -235,3 +235,38 @@ def test_build_graph_on_a_stopped_source_says_to_start_it(client, tmp_path, comp
     page = client.post("/tree/resolve", follow_redirects=True).text
 
     assert "The source container is not running" in page
+
+
+def test_a_running_side_whose_dockerfile_changed_has_rebuild_and_says_why(
+    client, tmp_path, compose
+):
+    import os
+
+    from odoo_migrator.provision.engine import WORKING_DIR_LABEL
+
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(new, 8070)
+    old.mkdir()
+    (old / "compose.yaml").write_text(
+        'services:\n  odoo:\n    build: .\n    ports:\n      - "8069:8069"\n', encoding="utf-8"
+    )
+    (old / "Dockerfile").write_text("FROM odoo:17.0\n", encoding="utf-8")
+    os.utime(old / "compose.yaml", (1000, 1000))
+    os.utime(old / "Dockerfile", (3000, 3000))
+    _, row = _open_migration(client, old=old, new=new)
+    compose.images["sha256:old"] = 2000
+    compose.add_container(
+        name="old-odoo-1", image="old-odoo", status="running",
+        labels={WORKING_DIR_LABEL: str(old.resolve())}, host_ports=[8069],
+        created=2000, image_id="sha256:old",
+    )
+
+    page = client.get(f"/?settings={row.id}").text
+    source = page.split("<h3>source</h3>", 1)[1].split("<h3>target</h3>", 1)[0]
+    actions = source.split('<div class="side-actions">', 1)[1].split("</div>", 1)[0]
+
+    assert "Changed since this container was built" in source
+    assert '<span class="mono">Dockerfile</span>' in source
+    assert 'containers/source/rebuild"' in actions
+    assert 'class="primary"' in actions and "data-confirm-text" in actions

@@ -89,10 +89,25 @@
         <p class="field-hint">{{ status.detail }}</p>
         {% endif %}
         {# One button, and only when there is something to do: a stopped
-           side starts. A running one is linked as it is seen and needs none;
-           a missing compose file, a taken port or an Engine that does not
-           answer are said above, and no button would fix them. #}
-        {% if status.state == "stopped" %}
+           side starts, and a running one whose Dockerfile, what it copies or
+           its compose file changed after it was built rebuilds. One that is
+           up to date is linked as it is seen and needs none; a missing
+           compose file, a taken port or an Engine that does not answer are
+           said above, and no button would fix them. #}
+        {% if status.state == "running" and status.stale %}
+        <p class="field-hint side-stale">Changed since this container was built:
+          <span class="mono">{{ status.stale | join(", ") }}</span>. Rebuild takes it in.</p>
+        <div class="side-actions">
+          <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/rebuild"
+                data-confirm-title="{{ asks.rebuild[0] }}"
+                data-confirm-text="{{ asks.rebuild[1] }}"
+                data-confirm-go="Rebuild">
+            <button type="submit" class="primary"
+                    title="Rebuild the {{ side }} container of {{ expanded.name }}"
+                    aria-label="Rebuild the {{ side }} container of {{ expanded.name }}">Rebuild</button>
+          </form>
+        </div>
+        {% elif status.state == "stopped" %}
         <div class="side-actions">
           <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/up">
             <button type="submit" class="primary"

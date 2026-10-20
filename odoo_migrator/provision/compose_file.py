@@ -82,3 +82,79 @@ def _expand(value: str) -> list[int]:
         return []
 
     return list(range(first, last + 1))
+
+
+def build_inputs(compose_file: Path) -> dict[str, list[Path]]:
+    """What a rebuild reads, by what it is compared with.
+
+    ``container``: the compose file, which a container is created from.
+    ``image``: each service's Dockerfile, and the files its COPY and ADD
+    lines take from the build context or from a local additional context.
+    A directory is left out: `COPY project/ …` would name every file the
+    port edits. So is a source with a wildcard, a URL, or a stage or image
+    of `--from`. Only what exists is listed.
+    """
+    found: dict[str, list[Path]] = {"container": [compose_file], "image": []}
+    data = yaml.safe_load(compose_file.read_text(encoding="utf-8")) or {}
+    base = compose_file.parent
+    for service in (data.get("services") or {}).values():
+        build = service.get("build") if isinstance(service, dict) else None
+        if not build:
+            continue
+        if isinstance(build, str):
+            build = {"context": build}
+        if not isinstance(build, dict):
+            continue
+        context = _local(base, build.get("context") or ".")
+        if context is None:
+            continue
+        extra = {}
+        contexts = build.get("additional_contexts") or {}
+        if isinstance(contexts, list):
+            contexts = dict(entry.split("=", 1) for entry in contexts if "=" in str(entry))
+        for name, where in contexts.items():
+            local = _local(base, str(where))
+            if local is not None:
+                extra[str(name)] = local
+        dockerfile = context / (build.get("dockerfile") or "Dockerfile")
+        if not dockerfile.is_file():
+            continue
+        found["image"].append(dockerfile)
+        for source in _copied(dockerfile, context, extra):
+            if source.is_file() and source not in found["image"]:
+                found["image"].append(source)
+
+    return found
+
+
+def _local(base: Path, where: str) -> Path | None:
+    """A build context on this machine, or None for a URL or a git remote."""
+    if "://" in where or where.startswith("git@"):
+
+        return None
+
+    return (base / Path(where).expanduser()).resolve()
+
+
+def _copied(dockerfile: Path, context: Path, extra: dict[str, Path]) -> list[Path]:
+    text = dockerfile.read_text(encoding="utf-8").replace("\\\n", " ")
+    sources: list[Path] = []
+    for line in text.splitlines():
+        words = line.strip().split()
+        if not words or words[0].upper() not in ("COPY", "ADD"):
+            continue
+        root = context
+        rest = []
+        for word in words[1:]:
+            if word.startswith("--from="):
+                root = extra.get(word.split("=", 1)[1])
+            elif not word.startswith("--"):
+                rest.append(word)
+        if root is None or len(rest) < 2 or rest[0].startswith("["):
+            continue
+        for source in rest[:-1]:
+            if "://" in source or any(mark in source for mark in "*?["):
+                continue
+            sources.append(root / source.lstrip("/"))
+
+    return sources
