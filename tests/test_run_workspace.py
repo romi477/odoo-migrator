@@ -854,13 +854,14 @@ def test_the_machine_can_be_drawn_with_sparks_by_the_server(client):
     assert 'data-lane=""' in page
 
 
-def test_the_gears_turn_slightly_red_while_the_failure_lane_is_at_work(client):
+def test_the_gears_turn_red_while_the_failure_lane_is_at_work(client):
+    """Tinted toward red, they read as a darker amber, and the failure lane
+    went unseen. Red, and it fades back to amber."""
     css = client.get("/static/style.css").text
     rule = css.split('.machine[data-machine="run"][data-lane="failure"] {')[1].split("}")[0]
     machine = css.split(".machine {")[1].split("}")[0]
 
-    # Between the amber of work and the red of a failure, and it fades back.
-    assert "var(--amber) 35%, var(--red)" in rule
+    assert "--machine: var(--red);" in rule
     assert "transition: color" in machine
 
 

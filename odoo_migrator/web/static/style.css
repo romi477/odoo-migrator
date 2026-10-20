@@ -3753,10 +3753,12 @@ button.queue-play:disabled {
   --machine: var(--amber);
 }
 
-/* Working through a failure the amber shifts toward red, a little, and
-   comes back when the lap is mended. */
+/* Working through a failure the gears turn red, the colour of the failure
+   they are working on, and go back to amber when the lap is mended. A tint
+   toward red read as a darker amber beside the card's own, and nobody saw
+   that the failure lane had opened. */
 .machine[data-machine="run"][data-lane="failure"] {
-  --machine: color-mix(in oklch, var(--amber) 35%, var(--red));
+  --machine: var(--red);
 }
 
 /* A module that came out is not a verdict: Result says passed. The machine
