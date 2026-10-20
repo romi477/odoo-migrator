@@ -613,7 +613,8 @@ def test_a_test_file_outside_the_bundle_fails_the_lap_before_any_run(
     assert sheller_fake.tests_run == []
     assert result.ok is False
     assert "static/tests/badge.test.js" in result.output
-    assert "web.assets_unit_tests" in result.output
+    assert "test bundle" in result.output
+    assert "web.assets_unit_tests" not in result.output
 
 
 def test_browser_tests_the_port_left_behind_fail_the_lap(tmp_path, step_context, sheller_fake):
@@ -651,11 +652,72 @@ def test_a_module_with_browser_tests_only_still_raises_no_tests(
     """`no_tests` is about Python: `write_test` writes Python, and the migrator
     writes no browser tests of its own. The suite runs all the same."""
     _browser_tests(tmp_path, sheller_fake, classes=False)
+    sheller_fake.hoot_answers[SUITE] = {"passed": 3, "failed": 0, "failed_tests": []}
 
     result = tests.run(Step(kind="tests"), step_context())
 
     assert result.flags == {"no_tests"}
     assert [row["test"] for row in sheller_fake.tests_run] == [SUITE]
+
+
+def test_a_browser_run_that_found_no_test_is_red_not_green(tmp_path, step_context, sheller_fake):
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.hoot_answers[SUITE] = {"passed": 0, "failed": 0, "failed_tests": []}
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is False
+    assert result.flags == {"tests_failed"}
+    assert "ran 0 browser tests" in result.output
+
+
+def test_the_browser_suite_waits_for_green_python_tests(tmp_path, step_context, sheller_fake):
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.hoot_answers[SUITE] = {"passed": 5, "failed": 0, "failed_tests": []}
+    sheller_fake.test_outcomes["sale_custom.TestA.test_one"] = {"success": False, "failures": 1}
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is False
+    assert SUITE not in [row["test"] for row in sheller_fake.tests_run]
+    assert "browser tests not run" in result.output
+
+
+def test_a_helper_beside_the_tests_is_not_a_browser_test_left_behind(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake, files=[], ship=False)
+    tests_dir = tmp_path / "old" / "sale_custom" / "static" / "tests"
+    (tests_dir / "test_utils.js").write_text("export const mock = {};", encoding="utf-8")
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is True
+
+
+def test_a_qunit_file_is_a_browser_test_left_behind(tmp_path, step_context, sheller_fake):
+    _browser_tests(tmp_path, sheller_fake, files=[], ship=False)
+    tests_dir = tmp_path / "old" / "sale_custom" / "static" / "tests"
+    (tests_dir / "badge_tests.js").write_text("QUnit.test('x', () => {});", encoding="utf-8")
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is False
+    assert "static/tests/badge_tests.js" in result.output
+
+
+def test_a_container_that_says_it_cannot_is_not_asked_without_a_reason(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.js_tests = {"available": False}
+
+    ctx = step_context()
+    result = tests.run(Step(kind="tests"), ctx)
+
+    assert result.ok is True
+    assert SUITE not in [row["test"] for row in sheller_fake.tests_run]
+    assert len(ctx.findings) == 1
 
 
 def test_retest_does_not_run_the_browser_suite_a_second_time(

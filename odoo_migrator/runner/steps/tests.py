@@ -3,6 +3,7 @@ not a failure."""
 
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 
@@ -56,7 +57,8 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     except ShellerError as exc:
 
         return StepResult(ok=False, flags={"tests_failed"}, output=str(exc))
-    js = None if retest else _browser_files(catalogue)
+    listing = None if retest else catalogue.get("js")
+    js = _browser_files(listing) if isinstance(listing, dict) else None
     if js is not None:
         missing = _browser_tests_left_behind(ctx, js) or _outside_the_bundle(js)
         if missing:
@@ -66,7 +68,16 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if not js:
 
         return backend
-    browser = _browser(ctx, name, catalogue["js"], js)
+    if not backend.ok:
+        # A red or timed-out Python run may have left the session busy, and
+        # the suite is slow: the next lap, with the Python green, runs it.
+
+        return StepResult(
+            ok=False,
+            flags=backend.flags,
+            output=f"{backend.output}\n{name} browser tests not run: the Python tests failed",
+        )
+    browser = _browser(ctx, name, listing, js)
 
     return StepResult(
         ok=backend.ok and browser.ok,
@@ -186,15 +197,35 @@ _JS_TESTS = "static/tests"
 _NOT_SUITES = ("tours", "helpers")
 
 
-def _browser_files(catalogue: dict) -> list[dict] | None:
-    """The JS test files the target's listing names, or None when the daemon
-    does not say (before 1.11.0): then nothing here is checked or run."""
-    js = catalogue.get("js")
-    if not isinstance(js, dict):
+def _browser_files(listing: dict) -> list[dict]:
+    """The JS test files the target's `js` listing names. A daemon that sends
+    no `js` (before 1.11.0) never gets here: nothing is checked or run."""
 
-        return None
+    return [entry for entry in listing.get("files") or [] if isinstance(entry, dict)]
 
-    return [entry for entry in js.get("files") or [] if isinstance(entry, dict)]
+
+def _hoot(report: dict) -> dict:
+    """The browser's own counts in a run report, or {}."""
+    hoot = report.get("hoot")
+
+    return hoot if isinstance(hoot, dict) else {}
+
+
+# A QUnit suite (before 18.0) names itself in its body; a Hoot one by suffix.
+_QUNIT = re.compile(r"\bQUnit\.(?:test|module|skip|only)\b")
+
+
+def _is_suite(path: Path) -> bool:
+    """A test file, not a fixture or helper that sits beside the tests."""
+    if path.name.endswith(".test.js"):
+
+        return True
+    try:
+
+        return bool(_QUNIT.search(path.read_text(encoding="utf-8", errors="ignore")))
+    except OSError:
+
+        return False
 
 
 def _shipped_browser_tests(directory) -> list[str]:
@@ -210,7 +241,7 @@ def _shipped_browser_tests(directory) -> list[str]:
     return sorted(
         path.relative_to(directory).as_posix()
         for path in root.rglob("*.js")
-        if not set(path.relative_to(root).parts[:-1]) & set(_NOT_SUITES)
+        if not set(path.relative_to(root).parts[:-1]) & set(_NOT_SUITES) and _is_suite(path)
     )
 
 
@@ -226,8 +257,11 @@ def _browser_tests_left_behind(ctx: StepContext, files: list[dict]) -> str:
     """
     from odoo_migrator.module_paths import module_root
 
+    if files:
+
+        return ""
     shipped = _shipped_browser_tests(module_root(ctx.migration, ctx.module, "source"))
-    if not shipped or files:
+    if not shipped:
 
         return ""
 
@@ -235,8 +269,7 @@ def _browser_tests_left_behind(ctx: StepContext, files: list[dict]) -> str:
         f"The browser tests did not reach the target: the source ships "
         f"{len(shipped)} JS test file(s) under {_JS_TESTS}/ ({', '.join(shipped)}), "
         "and the target has none its version runs. Port them, as the rules for "
-        "the target version say: from 18.0 a browser test is a Hoot `*.test.js` "
-        "file under static/tests/, in the manifest's `web.assets_unit_tests` bundle."
+        "the target version say."
     )
 
 
@@ -254,8 +287,8 @@ def _outside_the_bundle(files: list[dict]) -> str:
 
     return (
         f"{len(outside)} browser test file(s) are not in the module's test bundle, "
-        f"so no run loads them: {', '.join(outside)}. Add them to the manifest's "
-        "`assets`, under `web.assets_unit_tests` (`web.qunit_suite_tests` before 18.0)."
+        f"so no run loads them: {', '.join(outside)}. Put them in the manifest's "
+        "test bundle, as the rules for the target version say."
     )
 
 
@@ -267,18 +300,23 @@ def _browser(ctx: StepContext, name: str, js: dict, files: list[dict]) -> StepRe
     container is a person's to set up, and nothing in the port would fix it.
     It is never a pass either.
     """
-    call = js.get("run") if isinstance(js.get("run"), dict) else None
-    reason = js.get("reason") if js.get("available") is False else None
-    if call is None and reason is None:
+    call = js.get("run") if isinstance(js.get("run"), dict) else {}
+    spec = call.get("test")
+    reason = None
+    if js.get("available") is False:
+        reason = js.get("reason") or "the container cannot run one"
+    elif not isinstance(spec, str) or not spec:
         reason = f"no Hoot runner for {js.get('runner') or 'this version'}"
     if reason is None:
         report, problem, _outlived = _run_one(
-            ctx, str(call.get("test")), "browser", params=call.get("params") or None
+            ctx, spec, "browser", params=call.get("params") or None
         )
-        hoot = report.get("hoot") if isinstance(report.get("hoot"), dict) else {}
+        hoot = _hoot(report)
         if hoot.get("skipped"):
             reason = hoot.get("reason") or "skipped"
-        elif problem:
+        elif problem or not hoot.get("passed"):
+            # A suite that found nothing proved nothing, as with a Python run.
+            problem = problem or "ran 0 browser tests: the suite found nothing to run"
 
             return StepResult(
                 ok=False,
@@ -287,9 +325,7 @@ def _browser(ctx: StepContext, name: str, js: dict, files: list[dict]) -> StepRe
             )
         else:
 
-            return StepResult(
-                ok=True, output=f"{name} browser tests: {hoot.get('passed') or 0} passed"
-            )
+            return StepResult(ok=True, output=f"{name} browser tests: {hoot['passed']} passed")
     finding = {
         "text": (
             f"The browser tests of {name} did not run on the target ({reason}): "
@@ -476,7 +512,7 @@ def _run_one(
         _note_log_errors(ctx, report)
         problem = report_failure(report)
     said = f"{_count(report)} passed" if not problem else problem
-    hoot = report.get("hoot") if isinstance(report.get("hoot"), dict) else {}
+    hoot = _hoot(report)
     if "passed" in hoot or "failed" in hoot:
         # One Python test drove the suite; the browser's counts are Hoot's.
         said += f" · hoot {hoot.get('passed') or 0} passed, {hoot.get('failed') or 0} failed"
