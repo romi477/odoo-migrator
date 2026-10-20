@@ -350,12 +350,16 @@ pre,
   pointer-events: none;
 }
 
+/* Its tip is the stroke's own pixel, 1px tall between two 4px halves, so the
+   head sits on the line it ends: a point of no height fell between two pixel
+   rows, 1.5px above the line, and the head looked lopsided. */
 #top .step-hook-head {
   position: absolute;
   left: calc(var(--hook-left) + var(--hook-elbow));
-  top: calc(50% - 5px);
+  top: calc(50% - 4px);
   width: 0;
-  height: 0;
+  /* 4 + 1 + 4: the box includes its borders here. */
+  height: 9px;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
   border-left: var(--hook-head) solid var(--accent, var(--muted));

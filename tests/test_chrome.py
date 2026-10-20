@@ -242,3 +242,16 @@ def test_the_lamp_flashes_amber_whichever_migration_is_open(client):
     assert "--accent" not in lamp
     assert "background: var(--amber)" in flashing
     assert "--accent" not in css.split(".attention-lamp.running .lamp-dot {")[1].split("}")[0]
+
+
+def test_the_hooks_head_sits_on_the_line_it_ends(client):
+    """A head of no height has its point between two pixel rows, and it sat
+    1.5px above the hook's 1px line: the head looked lopsided. Its tip is
+    now the line's own pixel, 4 + 1 + 4, from the line's top less 4px."""
+    css = client.get("/static/style.css").text
+    head = css.split("#top .step-hook-head {", 1)[1].split("}", 1)[0]
+
+    assert "top: calc(50% - 4px)" in head
+    assert "height: 9px" in head
+    assert "border-top: 4px solid transparent" in head
+    assert "border-bottom: 4px solid transparent" in head
