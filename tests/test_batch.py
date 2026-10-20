@@ -143,7 +143,7 @@ def test_two_migrations_run_independently_and_the_lamp_shows_on_the_other_screen
     other = client.get("/tree")
 
     assert "Beta" in other.text
-    assert 'class="attention-lamp needs-attention"' in other.text
+    assert 'class="attention-lamp failed"' in other.text
     with database.connection_context():
         acme_jobs = Job.select().join(Module).where(Module.migration == acme.id).count()
         beta_jobs = Job.select().join(Module).where(Module.migration == beta.id).count()

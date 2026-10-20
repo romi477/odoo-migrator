@@ -477,10 +477,12 @@ function fillResultCornerGlyph(glyph, kind) {
     lamp.setAttribute(
       "title",
       data.state === "needs-attention"
-        ? "A module is waiting for you or has failed. Open it."
-        : data.state === "running"
-          ? "A migration is running."
-          : "Nothing needs attention."
+        ? "A module is waiting for you. Open it."
+        : data.state === "failed"
+          ? "A module has failed. Open it."
+          : data.state === "running"
+            ? "A migration is running."
+            : "Nothing needs attention."
     );
   });
 

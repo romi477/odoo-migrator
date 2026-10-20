@@ -1432,6 +1432,8 @@ def create_app(
         except ContractError as refused:
 
             return _run_page(request, error=str(refused))
+        # A read failure no longer flashes the lamp.
+        request.app.state.hub.publish("lamp", {"state": lamp_state()})
         _announce_queue(request, current)
 
         return RedirectResponse("/run", status_code=303)

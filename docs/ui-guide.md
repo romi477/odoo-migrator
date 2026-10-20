@@ -51,10 +51,11 @@ The bar is two rows, on every page.
   own screen and is not one of those four headings. Not a substitute
   for this file.
 - **Attention lamp** — `/attention`. Global: whichever migration has a
-  module on `failed` or `waiting_for_human` that has not been dismissed.
-  Clicking it opens that migration and focuses the node on Tree
-  (`?focus=`): a module waiting for an answer first, else the newest
-  failure. There is no "which one?" picker; the lamp is not a list.
+  module waiting for an answer (flashes amber) or one that failed and whose
+  run has not been dismissed (flashes red). Dismiss on the failed run puts the
+  red out; the module stays `failed`. Clicking it opens that migration and
+  focuses the node on Tree (`?focus=`): a module waiting for an answer first,
+  else the newest unread failure. There is no "which one?" picker; the lamp is not a list.
 - **Queue count** — the open migration's queue, beside the lamp. Idle it is
   the number of modules waiting, “10 queued”, and “0 queued” for an empty
   queue. While the queue runs it is the place of the module in flight out of

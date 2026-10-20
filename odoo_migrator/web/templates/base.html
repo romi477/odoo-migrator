@@ -125,7 +125,7 @@
               data-migration-id="{{ current.id if current else '' }}"
               title="{{ queue_count.title }}"><span class="count">{{ queue_count.text }}</span> <span class="unit">{{ queue_count.unit }}</span></span>
         <a href="/attention" class="attention-lamp {{ lamp }}"
-           title="{% if lamp == 'needs-attention' %}A module is waiting for you or has failed. Open it.{% elif lamp == 'running' %}A migration is running.{% else %}Nothing needs attention.{% endif %}">
+           title="{% if lamp == 'needs-attention' %}A module is waiting for you. Open it.{% elif lamp == 'failed' %}A module has failed. Open it.{% elif lamp == 'running' %}A migration is running.{% else %}Nothing needs attention.{% endif %}">
           <span class="lamp-dot"></span>
         </a>
         <span class="nav-divider" aria-hidden="true"></span>

@@ -390,7 +390,7 @@ def test_the_lamp_pulses_green_while_something_runs_and_amber_wins(client):
     with database.connection_context():
         Module.create(migration=row.id, technical_name="stock_custom", status="failed")
 
-    assert 'class="attention-lamp needs-attention"' in client.get("/").text
+    assert 'class="attention-lamp failed"' in client.get("/").text
 
 
 def test_styleguide_shows_attention_lamp(client):
@@ -577,7 +577,7 @@ def test_the_lamp_leads_to_a_question_before_an_old_failure(client):
     jumped = client.get("/attention", follow_redirects=False)
 
     assert jumped.headers["location"] == f"/tree?focus={waiting.id}"
-    assert "waiting for you or has failed" in client.get("/").text
+    assert "A module is waiting for you. Open it." in client.get("/").text
 
 
 def test_a_provider_with_no_model_picked_says_which_is_missing(client):

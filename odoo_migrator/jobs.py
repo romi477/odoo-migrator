@@ -71,16 +71,35 @@ class AlreadyRunning(ContractError):
     """That module already has an executor working on it."""
 
 
-def lamp_state() -> str:
-    """`needs-attention` beats `running`: a stall is what the lamp is for, and
-    a run somewhere else must not hide it."""
-    with database.connection_context():
-        waiting = Module.select().where(Module.status.in_(ATTENTION)).exists()
-        running = Module.select().where(Module.status == "running").exists()
+def _unread_failures() -> list[Module]:
+    """Failed modules whose newest run nobody has read, newest module first.
 
+    Dismiss reads a run and leaves the module `failed`, so the status alone
+    kept the lamp flashing over a failure a person had already looked at.
+    """
+    with database.connection_context():
+        unread = []
+        for module in Module.select().where(Module.status == "failed").order_by(Module.id.desc()):
+            newest = Job.select().where(Job.module == module).order_by(Job.id.desc()).first()
+            if newest is None or not newest.reviewed:
+                unread.append(module)
+
+        return unread
+
+
+def lamp_state() -> str:
+    """A question for a person is amber (`needs-attention`), an unread failure
+    is red (`failed`), and a stall beats `running`: a stall is what the lamp is
+    for, and a run somewhere else must not hide it."""
+    with database.connection_context():
+        waiting = Module.select().where(Module.status == "waiting_for_human").exists()
+        running = Module.select().where(Module.status == "running").exists()
     if waiting:
 
         return "needs-attention"
+    if _unread_failures():
+
+        return "failed"
 
     return "running" if running else "idle"
 
@@ -88,7 +107,8 @@ def lamp_state() -> str:
 def attention_target() -> dict | None:
     """The stalled module the lamp should land on, whichever migration it is.
 
-    A question first — a person can unblock it now — then the newest failure.
+    A question first — a person can unblock it now — then the newest failure
+    nobody has read.
     By lowest id, a module that failed last week hid the one asking now.
     """
     with database.connection_context():
@@ -97,12 +117,7 @@ def attention_target() -> dict | None:
             .where(Module.status == "waiting_for_human")
             .order_by(Module.id)
             .first()
-        ) or (
-            Module.select()
-            .where(Module.status.in_(ATTENTION))
-            .order_by(Module.id.desc())
-            .first()
-        )
+        ) or next(iter(_unread_failures()), None)
         if module is None:
 
             return None

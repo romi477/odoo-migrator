@@ -984,8 +984,15 @@ a.attention-lamp:hover {
   animation: attention-lamp 1.4s ease-in-out infinite;
 }
 
+/* A failure nobody has read: red, the same pulse. Dismiss puts it out. */
+.attention-lamp.failed .lamp-dot {
+  background: var(--red);
+  animation: attention-lamp 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .attention-lamp.needs-attention .lamp-dot,
+  .attention-lamp.failed .lamp-dot,
   .attention-lamp.running .lamp-dot {
     animation: none;
   }
