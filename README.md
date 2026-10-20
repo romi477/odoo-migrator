@@ -152,10 +152,11 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    the image tag when the app must spawn the daemon, and a provider
    secret when the native runner should call a model. A saved key shows
    as dots. The bin at the end of the field removes it.
-3. **This migration** — attach or Up the two compose projects, pin a
+3. **This migration** — Start the two compose projects (one already
+   running is linked by itself), pin a
    flow and optionally override its model, smoke-run one module before
    a batch.
-4. **Tree** — Resolve the graph from the live source Odoo. Skip, group,
+4. **Tree** — Build graph from the live source Odoo. Skip, group,
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, observe Sheller without a write key.
    At checkpoint: diffs, attempts, findings to promote, Continue or

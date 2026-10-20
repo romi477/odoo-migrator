@@ -374,7 +374,7 @@ def create_app(
     def _link_containers(request: Request, migration: dict) -> str | None:
         """Record the containers the app will talk to, from the ones running
         for the two projects: both sides, every Build graph, so a side started
-        outside the app, or brought up again, is the one a run uses. Resolve
+        outside the app, or brought up again, is the one a run uses. Build graph
         never *starts* a container — that is Start on the card — so a source
         that is not running is an error the human resolves there, not silent
         magic here. The target is linked when it runs and not asked for: what
@@ -404,7 +404,7 @@ def create_app(
 
             return (
                 "The source container is not running yet. Press Start on its card, "
-                "then Resolve."
+                "then Build graph."
             )
 
         return f"The source container can't be linked: {side.detail or side.state}"

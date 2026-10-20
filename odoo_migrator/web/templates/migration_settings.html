@@ -27,11 +27,12 @@
      A second copy of the form for its absence was never drawn, and had
      already lost the database fields. #}
   {% if provision %}
-  {# The flow, in one line: get the source container up, then read its module
-     graph on Tree. Resolve links to a running source on its own. #}
-  <p class="flow-hint">Bring the <strong>source</strong> container up, then open
-  <a href="/tree">Tree</a> and press <strong>Resolve</strong> to read its
-  modules. The other buttons are only for tending the containers.</p>
+  {# The flow, in one line: get the source container running, then read its
+     module graph on Tree. Build graph links to a running source on its own. #}
+  <p class="flow-hint">Start the <strong>source</strong> container, then open
+  <a href="/tree">Tree</a> and press <strong>Build graph</strong> to read its
+  modules. A running container needs nothing here; <strong>⋯</strong> holds
+  Restart, Rebuild and Stop.</p>
   <p class="resource-honesty">
     {% if provision.resources is none %}
     Docker Engine is not reachable; container counts are unknown.

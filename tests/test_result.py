@@ -201,7 +201,7 @@ def test_result_without_modules_explains_resolve(client):
 
     page = client.get("/result").text
 
-    assert "Resolve the graph on Tree" in page
+    assert "Build graph on Tree first" in page
     assert "result-columns" not in page
 
 

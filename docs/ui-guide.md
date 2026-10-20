@@ -377,7 +377,7 @@ or **Reopen finished modules…** in the migration's settings on Overview (behin
 `stopped` and `unknown` modules back to `queued` so Selection can queue them again.
 The old jobs stay. Nothing is deleted at the click: the next run empties the module's
 directory in the target project as it starts, and the whole flow runs again. With no
-graph yet, the page points you at Tree → Resolve.
+graph yet, the page points you at Tree → Build graph.
 
 ### Checkpoint
 
