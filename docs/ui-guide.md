@@ -428,9 +428,10 @@ running, versus how many containers are on the machine. Docker
 unreachable says so; it does not invent zeros.
 
 Each side — old and new — is a card: path, state badge, container name,
-**Up / Attach / Restart / Rebuild**. Up starts ours; someone else's port
-is an error, not a silent steal. Attach uses a compose project already
-running. The migration name and the side live in the heading, so the
+**Up / Stop / Restart / Rebuild**. Up starts ours; someone else's port
+is an error, not a silent steal. A side that is already running, started
+here or outside the app, is linked as soon as the card or Build graph sees
+it: there is nothing to attach. The migration name and the side live in the heading, so the
 eight buttons keep them as the accessible name rather than wrapping
 every label over two lines.
 

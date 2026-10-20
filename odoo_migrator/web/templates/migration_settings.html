@@ -67,13 +67,13 @@
              lines. They stay as the accessible name, read out in full and
              shown on hover. #}
           {# Stop, Restart and Rebuild take the container away from under a
-             run on it, so they ask first. Up and Attach do not. #}
+             run on it, so they ask first. Up does not. #}
           {% set asks = {
             "stop": ("Stop the " ~ role ~ " container?", "A run working on this container fails at its next command. The container and its volumes stay; Up brings it back."),
             "restart": ("Restart the " ~ role ~ " container?", "Its Odoo goes away for a moment: a run working on it fails at its next command, and open shell sessions die."),
             "rebuild": ("Rebuild the " ~ role ~ " container?", "The image is rebuilt and the container recreated. A run working on it fails, and anything changed inside the container that is not in a volume is gone."),
           } %}
-          {% for action, label in [("up", "Up"), ("stop", "Stop"), ("attach", "Attach"), ("restart", "Restart"), ("rebuild", "Rebuild")] %}
+          {% for action, label in [("up", "Up"), ("stop", "Stop"), ("restart", "Restart"), ("rebuild", "Rebuild")] %}
           <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/{{ action }}"
                 {% if action in asks %}data-confirm-title="{{ asks[action][0] }}"
                 data-confirm-text="{{ asks[action][1] }}"

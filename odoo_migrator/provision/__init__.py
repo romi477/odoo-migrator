@@ -1,9 +1,8 @@
-"""User compose files: up, attach, restart, rebuild, stop. Fake Engine for the suite."""
+"""User compose files: up, restart, rebuild, stop. Fake Engine for the suite."""
 
 from odoo_migrator.provision.actions import (
     ResourceCount,
     SideStatus,
-    attach,
     count_running,
     describe_side,
     describe_side_without_listing,
@@ -23,7 +22,7 @@ from odoo_migrator.provision.errors import (
     ComposeFailed,
     ComposeMissing,
     DockerUnavailable,
-    NothingToAttach,
+    NothingRunning,
     PortStolen,
 )
 
@@ -34,12 +33,11 @@ __all__ = [
     "DockerComposeEngine",
     "DockerUnavailable",
     "FakeComposeEngine",
-    "NothingToAttach",
+    "NothingRunning",
     "PortStolen",
     "ResourceCount",
     "RunningContainer",
     "SideStatus",
-    "attach",
     "count_running",
     "describe_side",
     "describe_side_without_listing",

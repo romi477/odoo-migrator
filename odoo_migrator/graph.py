@@ -1003,7 +1003,7 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         old_mounts = load_mounts(migration.old_mounts)
         project_points = _project_mount_points(migration)
     if not old_container:
-        raise GraphError("Attach the source container first.")
+        raise GraphError("Start the source container on the migration's card first.")
     try:
         probed = client.probe(old_container)
     except ShellerError as exc:

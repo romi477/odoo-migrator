@@ -184,8 +184,8 @@ an assumption and continues; you read the list at checkpoint.
 **Does this create Odoo containers from nothing?**
 
 No. You point a migration at two compose projects that already exist.
-**Up** starts ours; **Attach** uses something already running; someone
-else's port is an error. The Sheller daemon is attached-to or spawned;
+**Up** starts ours; one already running is used as soon as the app sees
+it; someone else's port is an error. The Sheller daemon is attached-to or spawned;
 a daemon already on 8765 may not be ours and is never stopped.
 
 **Will it commit on the old database?**

@@ -47,7 +47,7 @@ def test_project_setup_names_the_migration_on_every_container_action(client, tmp
     # The name is the accessible name, not the visible label: as text on all
     # eight buttons it wrapped every one of them over two lines, repeating
     # what the card heading and the page heading already say.
-    for action in ("Up", "Stop", "Attach", "Restart", "Rebuild"):
+    for action in ("Up", "Stop", "Restart", "Rebuild"):
 
         assert f'aria-label="{action} the source container of Acme"' in page
         assert f">{action}<" in page
@@ -147,3 +147,72 @@ def test_actions_that_take_a_container_away_ask_first(client, tmp_path):
         assert "data-confirm-text" in form[: form.index(">")]
     up = page[page.index('containers/source/up"') :]
     assert "data-confirm-text" not in up[: up.index(">")]
+
+
+def _running(compose, project, name, port):
+    from odoo_migrator.provision.engine import WORKING_DIR_LABEL
+
+    compose.add_container(
+        name=name,
+        image="odoo:17.0",
+        status="running",
+        labels={WORKING_DIR_LABEL: str(project.resolve())},
+        host_ports=[port],
+    )
+
+
+def test_there_is_no_attach_a_running_side_is_linked_when_the_card_sees_it(
+    client, tmp_path, compose
+):
+    """Attach recorded the container of a side already running, and nobody
+    ever pressed it. The card that shows the side running records it."""
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _, row = _open_migration(client, old=old, new=new)
+    _running(compose, old, "old-odoo-1", 8069)
+    _running(compose, new, "new-odoo-1", 8070)
+
+    page = client.get(f"/?settings={row.id}").text
+
+    assert "containers/source/attach" not in page and ">Attach<" not in page
+    with database.connection_context():
+        stored = Migration.get_by_id(row.id)
+        assert (stored.old_container, stored.new_container) == ("old-odoo-1", "new-odoo-1")
+    refused = client.post(f"/migrations/{row.id}/containers/source/attach", follow_redirects=True)
+    assert "That container action was rejected" in refused.text
+
+
+def test_build_graph_links_both_running_sides(client, tmp_path, compose, monkeypatch):
+    """The target was linked only by a button on another screen; a target
+    started outside the app was not the one a run used."""
+    from odoo_migrator import api
+
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _, row = _open_migration(client, old=old, new=new)
+    _running(compose, old, "old-odoo-1", 8069)
+    _running(compose, new, "new-odoo-1", 8070)
+    monkeypatch.setattr(api, "resolve_graph", lambda client, migration_id: [])
+    monkeypatch.setattr(api, "snapshot_mounts", lambda engine, migration_id: {})
+
+    client.post("/tree/resolve", follow_redirects=True)
+
+    with database.connection_context():
+        stored = Migration.get_by_id(row.id)
+        assert (stored.old_container, stored.new_container) == ("old-odoo-1", "new-odoo-1")
+
+
+def test_build_graph_on_a_stopped_source_says_to_start_it(client, tmp_path, compose):
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _open_migration(client, old=old, new=new)
+
+    page = client.post("/tree/resolve", follow_redirects=True).text
+
+    assert "The source container is not running" in page

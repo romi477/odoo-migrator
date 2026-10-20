@@ -1,11 +1,15 @@
-"""up / attach / restart / rebuild / stop. Ours to touch; someone else's is an error."""
+"""up / restart / rebuild / stop. Ours to touch; someone else's is an error.
+
+There is no attach: a side that runs is linked when it is seen (the
+settings card, Build graph), which is all Attach did, and nobody pressed it.
+"""
 
 from dataclasses import dataclass
 from pathlib import Path
 
 from odoo_migrator.provision.compose_file import find_compose_file, published_host_ports
 from odoo_migrator.provision.engine import WORKING_DIR_LABEL, RunningContainer
-from odoo_migrator.provision.errors import ComposeMissing, NothingToAttach, PortStolen
+from odoo_migrator.provision.errors import ComposeMissing, NothingRunning, PortStolen
 
 
 @dataclass(frozen=True)
@@ -146,20 +150,11 @@ def up(engine, project_path: Path, *, sibling_path: Path | None = None) -> SideS
     return describe_side(engine, project_path, sibling_path=sibling_path)
 
 
-def attach(engine, project_path: Path, *, sibling_path: Path | None = None) -> SideStatus:
-    compose = _require_compose(project_path)
-    _refuse_stolen(engine, project_path, compose, sibling_path)
-    if not _running_ours(engine, project_path):
-        raise NothingToAttach("Nothing from this project is running. Use Up.")
-
-    return describe_side(engine, project_path, sibling_path=sibling_path)
-
-
 def restart(engine, project_path: Path, *, sibling_path: Path | None = None) -> SideStatus:
     compose = _require_compose(project_path)
     _refuse_stolen(engine, project_path, compose, sibling_path)
     if not _running_ours(engine, project_path):
-        raise NothingToAttach("Nothing from this project is running. Use Up.")
+        raise NothingRunning("Nothing from this project is running. Use Up.")
     engine.compose_restart(project_path, compose)
 
     return describe_side(engine, project_path, sibling_path=sibling_path)
@@ -169,7 +164,7 @@ def rebuild(engine, project_path: Path, *, sibling_path: Path | None = None) -> 
     compose = _require_compose(project_path)
     _refuse_stolen(engine, project_path, compose, sibling_path)
     if not _running_ours(engine, project_path):
-        raise NothingToAttach("Nothing from this project is running. Use Up.")
+        raise NothingRunning("Nothing from this project is running. Use Up.")
     engine.compose_rebuild(project_path, compose)
 
     return describe_side(engine, project_path, sibling_path=sibling_path)

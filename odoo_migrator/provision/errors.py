@@ -13,8 +13,8 @@ class PortStolen(ComposeError):
     """The published port is held by a container that is not this project."""
 
 
-class NothingToAttach(ComposeError):
-    """No container from this compose project is running. Up, don't steal."""
+class NothingRunning(ComposeError):
+    """No container from this compose project is running: Up first, never steal."""
 
 
 class ComposeFailed(ComposeError):

@@ -108,7 +108,7 @@ from odoo_migrator.provision import (
     describe_side,
     describe_side_without_listing,
 )
-from odoo_migrator.provision.actions import attach, rebuild, restart, stop, up
+from odoo_migrator.provision.actions import rebuild, restart, stop, up
 from odoo_migrator.rules import RulesError, stack_versions, supported_versions
 from odoo_migrator.runner.cartridge import CartridgeError
 from odoo_migrator.settings import get_app_settings, save_app_settings
@@ -145,7 +145,6 @@ SSE_MAX_SECONDS = 300
 PAGE_EVENTS = frozenset({"module", "checkpoint", "lamp", "log", "queue"})
 PROVISION_ACTIONS = {
     "up": up,
-    "attach": attach,
     "restart": restart,
     "rebuild": rebuild,
     "stop": stop,
@@ -372,20 +371,33 @@ def create_app(
             },
         )
 
-    def _link_old_container(request: Request, migration: dict) -> str | None:
-        """Record the source container the app will talk to, from the one already
-        running for its project. Resolve never *starts* a container — that is
-        Up on the card — so a stopped side is an error the human resolves
-        there, not silent magic here. Returns an error message, or None."""
+    def _link_containers(request: Request, migration: dict) -> str | None:
+        """Record the containers the app will talk to, from the ones running
+        for the two projects: both sides, every Build graph, so a side started
+        outside the app, or brought up again, is the one a run uses. Resolve
+        never *starts* a container — that is Up on the card — so a source
+        that is not running is an error the human resolves there, not silent
+        magic here. The target is linked when it runs and not asked for: what
+        reads it says so. Returns an error message, or None."""
         old = Path(migration["old_project_path"])
         new = Path(migration["new_project_path"])
+        engine = request.app.state.compose
         try:
-            side = describe_side(request.app.state.compose, old, sibling_path=new)
+            sides = {
+                "source": describe_side(engine, old, sibling_path=new),
+                "target": describe_side(engine, new, sibling_path=old),
+            }
         except DockerUnavailable as exc:
+            if migration["old_container"]:
+
+                return None
 
             return f"The source container can't be linked; Docker is not reachable: {exc}"
-        if side.state == "running" and side.container:
-            save_side_container(migration["id"], "source", side.container)
+        _link_running(migration, sides)
+        side = sides["source"]
+        # One recorded before stays: a container started without compose is
+        # not one the card can see, and the probe says if it is gone.
+        if (side.state == "running" and side.container) or migration["old_container"]:
 
             return None
         if side.state == "stopped":
@@ -471,16 +483,13 @@ def create_app(
         if current is None:
 
             return RedirectResponse("/tree", status_code=303)
-        # Link to the already-running source container instead of making the
-        # human press Attach on another screen first. resolve_graph re-reads
-        # the recorded container from the row.
-        if not current["old_container"]:
-            unlinked = _link_old_container(request, current)
-            if unlinked is not None:
+        # Link to the containers already running instead of making the human
+        # press a button on another screen first. resolve_graph re-reads the
+        # recorded container from the row.
+        unlinked = _link_containers(request, current)
+        if unlinked is not None:
 
-                return _tree_page(
-                    request, error=unlinked, error_settings=current["id"]
-                )
+            return _tree_page(request, error=unlinked, error_settings=current["id"])
         # Where each container mounts its addons from. Read now, once; a run
         # uses this snapshot. A changed compose file needs Build graph again.
         snapshot_mounts(request.app.state.compose, current["id"])
@@ -1552,6 +1561,16 @@ def create_app(
 
         return paths
 
+    def _link_running(migration: dict, sides: dict) -> None:
+        """A side the card shows running is the one this migration talks to.
+        Attach did this by hand, and nobody pressed it: everything worked
+        without it until a container started outside the app was not the
+        one recorded."""
+        saved = {"source": migration["old_container"], "target": migration["new_container"]}
+        for side, status in sides.items():
+            if status.state == "running" and status.container and status.container != saved[side]:
+                save_side_container(migration["id"], side, status.container)
+
     def _migration_provision(request: Request, migration: dict) -> tuple[dict, str | None]:
         """Container state for one migration's two sides.
 
@@ -1563,12 +1582,13 @@ def create_app(
         old_path = Path(migration["old_project_path"])
         new_path = Path(migration["new_project_path"])
         try:
-
-            return {
+            sides = {
                 "source": describe_side(engine, old_path, sibling_path=new_path),
                 "target": describe_side(engine, new_path, sibling_path=old_path),
-                "resources": count_running(engine, _known_project_paths()),
-            }, None
+            }
+            _link_running(migration, sides)
+
+            return {**sides, "resources": count_running(engine, _known_project_paths())}, None
         except DockerUnavailable as exc:
             detail = str(exc)
 

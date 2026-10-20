@@ -1,4 +1,4 @@
-"""Compose provisioning: up / attach / restart / rebuild, without a Docker Engine."""
+"""Compose provisioning: up / restart / rebuild / stop, without a Docker Engine."""
 
 from pathlib import Path
 
@@ -7,9 +7,8 @@ import pytest
 from odoo_migrator.provision import (
     ComposeMissing,
     FakeComposeEngine,
-    NothingToAttach,
+    NothingRunning,
     PortStolen,
-    attach,
     count_running,
     describe_side,
     find_compose_file,
@@ -113,30 +112,6 @@ def test_up_does_not_steal_someone_elses_port(tmp_path):
     assert [c.name for c in engine.containers] == ["someone-elses-odoo"]
 
 
-def test_attach_joins_ours_and_refuses_a_foreign_port(tmp_path):
-    _compose(tmp_path)
-    engine = FakeComposeEngine()
-    ours = up(engine, tmp_path)
-    attached = attach(engine, tmp_path)
-
-    assert attached.container == ours.container
-
-    other = tmp_path / "other"
-    _compose(other, port=8069)
-    stolen = FakeComposeEngine()
-    _foreign(stolen, port=8069)
-    with pytest.raises(PortStolen, match="someone-elses-odoo"):
-        attach(stolen, other)
-
-
-def test_attach_with_nothing_running_tells_you_to_use_up(tmp_path):
-    _compose(tmp_path)
-    engine = FakeComposeEngine()
-
-    with pytest.raises(NothingToAttach, match="Up"):
-        attach(engine, tmp_path)
-
-
 def test_stop_stops_ours_and_the_side_reads_stopped(tmp_path):
     _compose(tmp_path)
     engine = FakeComposeEngine()
@@ -150,7 +125,7 @@ def test_stop_stops_ours_and_the_side_reads_stopped(tmp_path):
 
 
 def test_stop_with_nothing_running_is_a_no_op_not_an_error(tmp_path):
-    """Stop on an idle side should not raise the way attach does; there is
+    """Stop on an idle side should not raise the way restart does; there is
     simply nothing to stop, and the side already reads stopped."""
     _compose(tmp_path)
     engine = FakeComposeEngine()
@@ -174,9 +149,9 @@ def test_restart_and_rebuild_need_ours_and_do_not_touch_a_foreign_container(tmp_
     _compose(tmp_path)
     empty = FakeComposeEngine()
 
-    with pytest.raises(NothingToAttach):
+    with pytest.raises(NothingRunning):
         restart(empty, tmp_path)
-    with pytest.raises(NothingToAttach):
+    with pytest.raises(NothingRunning):
         rebuild(empty, tmp_path)
 
     engine = FakeComposeEngine()
