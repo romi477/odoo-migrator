@@ -160,7 +160,7 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, observe Sheller without a write key.
    At checkpoint: diffs, attempts, findings to promote, Continue or
-   Override.
+   Continue anyway.
 
 The process prints:
 

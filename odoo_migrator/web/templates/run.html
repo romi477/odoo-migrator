@@ -497,28 +497,23 @@
   {% if screen == 'pipeline' and checkpoint %}
   {# Continue and Discard are on the queue's card of the module the run is
      of. A batch whose modules all left the queue has no such card, and
-     Continue is here instead. Override stays here, by the Dismiss it skips. #}
+     Continue is here instead. Continue anyway is in the review row, by the Dismiss
+     it skips: a button above the rows read as part of no card. #}
   {% set carded = (pipeline_queue.modules if pipeline_queue else []) | selectattr('review') | map(attribute='id') | list %}
   <div class="checkpoint">
     <p class="screen-note">Review this batch before the next one. Flow
     <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
-    {% if not carded or checkpoint.unread %}
+    {% if not carded %}
     <div class="row">
-      {% if not carded %}
       <form method="post" action="/run/continue">
         <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
                 aria-label="Continue {{ current.name }}">Continue</button>
       </form>
-      {% endif %}
-      {% if checkpoint.unread %}
-      <form method="post" action="/run/continue">
-        <input type="hidden" name="override" value="1">
-        <button type="submit"
-                aria-label="Override unread stalls on {{ current.name }}">Override</button>
-      </form>
-      {% endif %}
     </div>
     {% endif %}
+    {# Continue anyway acts on the whole batch, so it is on one row only: the first
+       run still unread. #}
+    {% set first_unread = checkpoint.jobs | selectattr('stalled') | rejectattr('reviewed') | first %}
 
     {# One row a module, the shape of a queue row and a little slimmer: the
        review is what is left of a batch, not a card of its own rank. The
@@ -549,8 +544,16 @@
       {% if job.stalled %}
       <form method="post" action="/run/jobs/{{ job.id }}/dismiss">
         <button type="submit" aria-label="Dismiss {{ job.module }}"
-                title="Mark this run as read. Nothing is deleted.">Dismiss</button>
+                title="Mark this run as read. Continue unlocks once every failed or waiting run is read. Nothing is deleted: the run, its log and the module's files stay.">Dismiss</button>
       </form>
+      {% if first_unread and job.id == first_unread.id %}
+      <form method="post" action="/run/continue">
+        <input type="hidden" name="override" value="1">
+        <button type="submit"
+                aria-label="Continue {{ current.name }} anyway, without reading its failed runs"
+                title="Continue the batch without reading its failed or waiting runs. Nothing is dismissed or deleted.">Continue anyway</button>
+      </form>
+      {% endif %}
       {% endif %}
       {# Discard is on the module's queue card; a module that left the queue
          has none, and its run is discarded from here. #}
@@ -567,7 +570,7 @@
             {%- else %} Its directory in the target project has no changes.{% endif %} The target container's database is not touched."
             data-confirm-go="Discard run">
         <button type="submit" class="discard-run" aria-label="Discard the run of {{ job.module }}"
-                title="Delete this run and queue the module again.">Discard run</button>
+                title="Delete this run with its log, findings and thread, and put the module's files back to the last commit. The module is queued again. You are asked first.">Discard run</button>
       </form>
       {% endif %}
       </div>

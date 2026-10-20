@@ -258,7 +258,8 @@
     const button = cell("button", "discard-run", "Discard");
     button.type = "submit";
     button.setAttribute("aria-label", label);
-    button.title = "Delete this run and queue the module again.";
+    button.title =
+      "Delete this run with its log, findings and thread, and put the module's files back to the last commit. The module is queued again. You are asked first.";
     form.appendChild(button);
     box.appendChild(form);
 
@@ -475,7 +476,6 @@
     if (queueStop) {
       queueStop.hidden = data.run_state !== "running";
     }
-    if (clearBtn) {
     /* With the queue stopped, a module still at work (a play, or the one the
        queue's Stop let finish) is stopped from the header: there is no queue
        Stop to press. While the queue runs, its Stop is the header's. */
@@ -485,6 +485,7 @@
       moduleStop.hidden = data.run_state === "running";
       moduleStop.setAttribute("action", "/run/modules/" + working.id + "/stop");
     }
+    if (clearBtn) {
       const pending = (data.steps && data.steps.length) || data.modules.length;
       clearBtn.disabled = !data.idle || !pending;
     }

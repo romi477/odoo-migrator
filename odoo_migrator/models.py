@@ -216,7 +216,7 @@ class Job(BaseModel):
     # What the human replied. Stored here so the runner can read it later.
     answer = TextField(null=True)
     # Set by Dismiss on the checkpoint. Continue stays disabled until every
-    # failed or waiting job in the batch has been read, unless Override.
+    # failed or waiting job in the batch has been read, unless Continue anyway.
     reviewed = BooleanField(default=False)
     # Hash of the assembled rules stack as sent. Promoting a finding into a
     # version file mid-batch changes the next module's prompt; this records

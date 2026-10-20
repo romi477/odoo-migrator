@@ -6,6 +6,7 @@ its last commit, and queues the module again. It never touches a module that
 passed, because the app has committed that port.
 """
 
+import re
 import shutil
 
 import pytest
@@ -290,8 +291,11 @@ def test_continue_is_said_once_for_a_run_with_no_card_in_the_queue(client, tmp_p
 
     page = client.get("/run").text
 
-    assert page.count('action="/run/continue"') == 2  # Continue, and Override
-    assert 'action="/run/continue"' not in _actions(page)
+    assert page.count('action="/run/continue"') == 2  # Continue, and Continue anyway
+    # Continue anyway is in the run's own row, by Dismiss, not above the cards.
+    assert ">Continue anyway<" in _actions(page)
+    assert ">Continue anyway<" not in page.split('class="job-review-line"', 1)[0]
+    assert page.count(">Continue<") == 1
     assert ">Discard run<" in _actions(page)
 
 
@@ -339,3 +343,18 @@ def test_a_module_that_never_got_a_directory_is_forgotten_without_files(client):
     assert answer.status_code == 303
     with database.connection_context():
         assert Job.select().count() == 0
+
+
+def test_dismiss_discard_and_override_say_what_they_do_on_hover(client, tmp_path):
+    _row, sale = _failed_checkpoint(client)
+    _in_git(sale, tmp_path)
+
+    page = client.get("/run").text
+
+    for label, words in (
+        ("Dismiss", "Mark this run as read"),
+        ("Discard run", "put the module's files back to the last commit"),
+        ("Continue anyway", "without reading its failed or waiting runs"),
+    ):
+        button = re.search(rf"<button\b[^>]*>{label}</button>", page, re.DOTALL)
+        assert button and words in button.group(0), label

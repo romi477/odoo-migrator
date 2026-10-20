@@ -89,7 +89,7 @@ def test_the_run_page_shows_the_checkpoint(client):
     assert ASSUMPTION_A in page.text
     assert ">Continue<" in page.text
     assert "disabled" in page.text
-    assert ">Override<" in page.text
+    assert ">Continue anyway<" in page.text
     assert ">Dismiss<" in page.text
     assert ">Promote<" in page.text
     assert "Pick a version file" in page.text
@@ -258,7 +258,7 @@ def test_styleguide_shows_checkpoint_actions(client):
     html = client.get("/components").text
 
     assert ">Continue<" in html
-    assert ">Override<" in html
+    assert ">Continue anyway<" in html
     assert ">Promote<" in html
     assert ">Dismiss<" in html
     assert "Pick a version file" in html

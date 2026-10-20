@@ -46,7 +46,7 @@
         {%- else %} Its directory in the target project has no changes.{% endif %} The target container's database is not touched."
         data-confirm-go="Discard run">
     <button type="submit" class="discard-run" aria-label="Discard the run of {{ mod.technical_name }}"
-            title="Delete this run and queue the module again.">Discard</button>
+            title="Delete this run with its log, findings and thread, and put the module's files back to the last commit. The module is queued again. You are asked first.">Discard</button>
   </form>
   {% endif %}
 </div>

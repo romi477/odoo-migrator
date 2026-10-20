@@ -281,7 +281,7 @@ tools offered: exec, read_file, report, source</pre>
       </span>
       <span class="mono">diagnose &middot; attempt 3 of 5</span>
     </span>
-    <button type="button">Dismiss</button>
+    <button type="button" title="Mark this run as read. Continue unlocks once every failed or waiting run is read. Nothing is deleted: the run, its log and the module's files stay.">Dismiss</button>
     <form class="ask">
       <p class="question">which tax mapping?</p>
       <label>
@@ -334,8 +334,9 @@ tools offered: exec, read_file, report, source</pre>
     <span class="queue-count" data-queued="5"><span class="count">6/10</span> <span class="unit">run</span></span>
   </div>
   <p>The lamp is global: a stall on another migration must still be visible.
-  Idle is muted; running and needs-attention both pulse amber, and
-  needs-attention wins over running. The count is the open migration's queue:
+  Idle is muted; running and needs-attention pulse amber, a failure nobody
+  has read pulses red, and Dismiss puts that one out. Needs-attention wins
+  over failed, and both win over running. The count is the open migration's queue:
   the modules waiting, or &ldquo;6/10&rdquo; while the queue runs.</p>
 
   <h2>Destructive</h2>
@@ -534,7 +535,7 @@ tools offered: exec, read_file, report, source</pre>
   <div class="checkpoint">
     <div class="row">
       <button type="submit" disabled>Continue</button>
-      <button type="submit">Override</button>
+      <button type="submit" title="Continue the batch without reading its failed or waiting runs. Nothing is dismissed or deleted.">Continue anyway</button>
     </div>
     <article class="job-review" data-status="passed">
       <header class="job-review-line">
@@ -559,8 +560,8 @@ tools offered: exec, read_file, report, source</pre>
         <span class="job-review-attempt">attempt 2 &middot; retry</span>
         <span class="job-review-model mono">anthropic &middot; claude-sonnet-5-5</span>
         <div class="row job-review-actions">
-          <button type="submit" title="Mark this run as read. Nothing is deleted.">Dismiss</button>
-          <button type="submit" class="discard-run" title="Delete this run and queue the module again.">Discard run</button>
+          <button type="submit" title="Mark this run as read. Continue unlocks once every failed or waiting run is read. Nothing is deleted: the run, its log and the module's files stay.">Dismiss</button>
+          <button type="submit" class="discard-run" title="Delete this run with its log, findings and thread, and put the module's files back to the last commit. The module is queued again. You are asked first.">Discard run</button>
           <button type="button" class="discard-run" disabled title="Its directory in the target project is not a git checkout, so its files cannot be put back.">Discard run</button>
         </div>
       </header>
@@ -584,8 +585,8 @@ tools offered: exec, read_file, report, source</pre>
   little slimmer, in a column narrower than the cards above it: the name, how
   it ended, its last attempt and the model on one line, the buttons at its
   end. A diagnosis, a question or a finding opens under the line.
-  Continue stays off while a failed or waiting job is unread. Override
-  is the explicit skip. Promote asks which version file; the app does not
+  Continue stays off while a failed or waiting job is unread. Continue
+  anyway is the explicit skip. Promote asks which version file; the app does not
   pick one. Dismiss only marks the run as read. A run of a queued module is
   answered on its queue card, Continue and Discard; this block then holds
   neither. A run with no card, from Tree, keeps Continue above and Discard
