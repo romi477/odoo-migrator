@@ -770,7 +770,9 @@ def test_the_card_of_the_run_has_a_cyan_edge_and_an_amber_glow_that_breathes(cli
     live = ".workspace-panel:has(.pipeline-live:not([hidden]))"
     edge = css.split(live + " {")[1].split("}")[0]
     running = '.workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])'
-    breathing = css.split(running + "::after {")[1].split("}")[0]
+    # Not while the engine is starting: it breathes once it has caught.
+    caught = running.replace(".workspace-panel:", '.workspace-panel:not([data-engine="crank"]):', 1)
+    breathing = css.split(caught + "::after {")[1].split("}")[0]
     frames = css.split("@keyframes work-breathe")[1].split("}\n\n.")[0]
 
     assert "border-color: var(--cyan)" in edge

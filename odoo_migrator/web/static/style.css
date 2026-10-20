@@ -3551,7 +3551,7 @@ button.queue-play:disabled {
   }
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])::after {
+.workspace-panel:not([data-engine="crank"]):has(.pipeline-live:not([hidden])):has(.machine[data-machine="run"])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -3587,8 +3587,138 @@ button.queue-play:disabled {
   transition: color 0.6s ease;
 }
 
-.workspace-panel:has(.pipeline-live:not([hidden])) .engine-plate {
+.workspace-panel:has(.pipeline-live:not([hidden])) .engine-plate,
+.workspace-panel[data-engine="on"]:has(.machine[data-machine="run"]) .engine-plate {
   color: var(--amber);
+}
+
+/* A cold start (engine.js), the way a car starts: a spark down the cable from
+   the queue, the plate filling amber from left to right with a stutter at
+   first, like a starter turning over, a spark along the input belt into the
+   gears, and the gears picking up speed. 0.45s, 1.5s and 0.45s: engine.js
+   waits out the sum before it turns them. The card's light breathes only once
+   it has caught. */
+.runner-link-spark {
+  position: absolute;
+  left: -2.5px;
+  top: 4px;
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  color: color-mix(in oklch, var(--amber) 35%, white);
+  background: linear-gradient(transparent, currentColor);
+  box-shadow: 0 0 9px 1px var(--amber);
+  opacity: 0;
+}
+
+.workspace:has(> .workspace-panel[data-engine="crank"]) .runner-link-spark {
+  animation: link-spark 0.45s ease-in both;
+}
+
+@keyframes link-spark {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+
+  20%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+.workspace-panel[data-engine="crank"] .engine-plate-word {
+  color: transparent;
+  background: linear-gradient(
+    90deg,
+    var(--amber) 0 46%,
+    var(--muted-low) 54% 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: plate-ignite 1.5s linear 0.45s both;
+}
+
+@keyframes plate-ignite {
+  0% {
+    background-position: 100% 0;
+  }
+
+  8% {
+    background-position: 86% 0;
+  }
+
+  13% {
+    background-position: 95% 0;
+  }
+
+  22% {
+    background-position: 78% 0;
+  }
+
+  28% {
+    background-position: 87% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/* It caught: the plate flares once. */
+.workspace-panel.is-caught .engine-plate-word {
+  animation: plate-caught 0.7s ease-out;
+}
+
+@keyframes plate-caught {
+  0% {
+    text-shadow: 0 0 8px var(--amber);
+  }
+
+  100% {
+    text-shadow: 0 0 0 transparent;
+  }
+}
+
+.machine-belt-in {
+  position: relative;
+}
+
+.workspace-panel[data-engine="crank"] .machine-belt-in::after {
+  content: "";
+  position: absolute;
+  top: -1.5px;
+  left: 0;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--amber) 35%, white));
+  box-shadow: 0 0 7px var(--amber);
+  opacity: 0;
+  animation: belt-spark 0.45s ease-in 1.95s both;
+}
+
+@keyframes belt-spark {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+
+  20%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    left: calc(100% - 14px);
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3681,6 +3811,18 @@ button.queue-play:disabled {
   animation: gear-turn-back 4s linear infinite;
 }
 
+/* engine.js turns them itself, so that they pick up speed and run down from
+   where they stand. */
+.machine[data-driven] .gear-big {
+  animation: none;
+  transform: rotate(var(--gear-big, 0deg));
+}
+
+.machine[data-driven] .gear-small {
+  animation: none;
+  transform: rotate(var(--gear-small, 0deg));
+}
+
 /* The belts either side of the gears: a still line, and dashes walking toward
    the output while it works. Each takes its slot's colour: amber from the old
    module into the gears, cyan from the gears to the new one. Soft at rest,
@@ -3703,6 +3845,11 @@ button.queue-play:disabled {
     transparent 6px 12px
   );
   animation: belt-run 0.9s linear infinite;
+}
+
+/* The belts stand still until the gears turn. */
+.workspace-panel[data-engine="crank"] .machine[data-machine="run"] .machine-belt {
+  animation: none;
 }
 
 .machine-slot {
@@ -5332,4 +5479,10 @@ a.ribbon-box:focus-visible {
 .flow-view-button:hover {
   color: var(--cyan);
   background: var(--panel-raised);
+}
+
+/* /components: the cold start with a button to replay it. Room above for the
+   cable, which hangs off the card's top-left corner. */
+.engine-demo {
+  margin: 48px 0 0 32px;
 }

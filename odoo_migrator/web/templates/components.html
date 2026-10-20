@@ -2,6 +2,7 @@
 {% block title %}odoo-migrator — components{% endblock %}
 {% block extra_head %}
 <script defer src="/static/wires.js"></script>
+<script defer src="/static/engine.js"></script>
 {% endblock %}
 {% block screen %}
 <section class="screen screen-components">
@@ -674,9 +675,9 @@ tools offered: exec, read_file, report, source</pre>
   </div>
   <div class="workspace">
     {# The cable out of the left end of the queue card into the left end of the run's card. #}
-    <span class="runner-link" aria-hidden="true"><span class="runner-link-pulse"></span></span>
+    <span class="runner-link" aria-hidden="true"><span class="runner-link-pulse"></span><span class="runner-link-spark"></span></span>
     <article class="workspace-panel" data-pipeline>
-      <span class="engine-plate">Engine</span>
+      <span class="engine-plate"><span class="engine-plate-word">Engine</span></span>
       <div class="pipeline-live">
         <header class="name-line pipeline-head">
           <span class="pipeline-stage mono" data-stage>rewrite · attempt 2</span>
@@ -768,6 +769,26 @@ tools offered: exec, read_file, report, source</pre>
   input). Under them, running through a failure: the gears turn and red sparks
   leave the mesh until the lap is mended. The input slot is amber and the output slot cyan in every state; the
   gears carry the state.</p>
+
+  <h2>Cold start</h2>
+  <div class="engine-demo" data-engine-demo>
+    <div class="workspace">
+      <span class="runner-link" aria-hidden="true"><span class="runner-link-pulse"></span><span class="runner-link-spark"></span></span>
+      <article class="workspace-panel">
+        <span class="engine-plate"><span class="engine-plate-word">Engine</span></span>
+        {% with machine_state = "idle", machine_src = "17.0", machine_dst = "18.0", machine_in = "", machine_out = "" %}
+        {% include "_machine.html" %}
+        {% endwith %}
+      </article>
+    </div>
+    <button type="button" data-engine-demo-toggle>Start</button>
+  </div>
+  <p>A run that starts with nothing in hand starts the Engine the way a car
+  starts: a spark down the cable from the queue, the plate filling amber with a
+  stutter at first, a spark along the input belt into the gears, and the gears
+  picking up speed. Between two modules of a running queue the engine is warm
+  and none of it plays. Stop runs the gears down to rest. Start and Stop here
+  replay it. With reduced motion there is none of it.</p>
 
   <h2>Working card</h2>
   <div class="workspace">

@@ -1492,7 +1492,7 @@ def test_the_runs_card_is_named_engine_in_a_break_of_its_edge(client):
     css = client.get("/static/style.css").text
     card = page.split('<article class="workspace-panel"', 1)[1].split("</article>", 1)[0]
 
-    assert '<span class="engine-plate">Engine</span>' in card
+    assert '<span class="engine-plate"><span class="engine-plate-word">Engine</span></span>' in card
     plate = css.split("\n.engine-plate {", 1)[1].split("}", 1)[0]
     assert "position: absolute" in plate and "translateY(-50%)" in plate
 
@@ -1600,3 +1600,42 @@ def test_the_delayed_fold_is_held_while_an_older_attempt_is_read(client):
 
     assert 'pipe.hasAttribute("data-reading")' in timer
     assert '"card-held"' in timer
+
+
+def test_a_cold_start_starts_the_engine_the_way_a_car_starts(client):
+    """A spark down the cable, the plate filling amber, a spark along the
+    input belt, and only then the gears, which pick up speed. Warm between
+    two modules of a running queue; nothing of it with reduced motion."""
+    _row, _first, page = _running_page(client)
+    css = client.get("/static/style.css").text
+    script = client.get("/static/engine.js").text
+
+    assert '<script defer src="/static/engine.js"></script>' in page
+    assert '<span class="runner-link-spark"></span>' in page
+    for selector in (
+        '.workspace:has(> .workspace-panel[data-engine="crank"]) .runner-link-spark {',
+        '.workspace-panel[data-engine="crank"] .engine-plate-word {',
+        '.workspace-panel[data-engine="crank"] .machine-belt-in::after {',
+        ".machine[data-driven] .gear-big {",
+    ):
+        assert selector in css
+    # The light breathes only once the engine has caught.
+    assert '.workspace-panel:not([data-engine="crank"]):has(.pipeline-live:not([hidden]))' in css
+    # The sum of the CSS parts: 0.45s cable, 1.5s plate, 0.45s belt.
+    assert "const CRANK = 2400;" in script
+    assert "plate-ignite 1.5s linear 0.45s both" in css
+    assert "belt-spark 0.45s ease-in 1.95s both" in css
+    assert "prefers-reduced-motion: reduce" in script
+    # The queue going idle is what makes the next start a cold one.
+    assert 'queue.getAttribute("data-working") === "false"' in script
+    # Run and Continue reload the page: the press is remembered across it.
+    assert '"/run/queue/run"' in script and '"/run/continue"' in script
+    assert "sessionStorage" in script
+
+
+def test_the_cold_start_has_a_row_on_components(client):
+    page = client.get("/components").text
+
+    assert "<h2>Cold start</h2>" in page
+    assert "data-engine-demo-toggle" in page
+    assert '<script defer src="/static/engine.js"></script>' in page
