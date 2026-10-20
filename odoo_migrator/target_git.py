@@ -20,7 +20,7 @@ from pathlib import Path
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Migration, Module
-from odoo_migrator.module_paths import module_root
+from odoo_migrator.module_paths import MANIFEST, module_root
 
 AUTHOR = ("odoo-migrator", "odoo-migrator@localhost")
 BASELINE_MESSAGE = "odoo-migrator: baseline before porting"
@@ -71,8 +71,9 @@ def ensure_repository(migration_id: str) -> str | None:
     The baseline holds the plan's module directories only. The rest of the
     directory — a database volume, a filestore, files this user cannot read
     — is not the project's source, and stays out. A module that is its own
-    repository stays out too: it already has its history. Returns what was
-    done, for the run log, or None when there was nothing to do.
+    repository stays out too: it already has its history. A repository this
+    app made gets the `.gitignore` lines it is missing (`catch_up`). Returns
+    what was done, for the run log, or None when there was nothing to do.
     """
     with database.connection_context():
         migration = Migration.get_or_none(Migration.id == migration_id)
@@ -90,9 +91,12 @@ def ensure_repository(migration_id: str) -> str | None:
 
         return None
     root = Path(raw).expanduser()
-    if not root.is_dir() or _toplevel(root) is not None:
+    if not root.is_dir():
 
         return None
+    if _toplevel(root) is not None:
+
+        return catch_up(root, directories, modules=False) or None
     inside, failure = init_with_baseline(root, directories, BASELINE_MESSAGE)
     if failure:
 
@@ -111,7 +115,9 @@ def init_with_baseline(root: Path, directories, message: str) -> tuple[list[str]
     `root`) and, when git did not finish, what went wrong.
 
     A module that is its own repository stays out: it has its history. The
-    rest of the project directory stays out too; it is not source.
+    rest of the project directory stays out too; it is not source, and the
+    `.gitignore` says so (`environment`), so it does not sit in `git status`
+    as work nobody committed.
     """
     inside = sorted(
         directory.relative_to(root).as_posix()
@@ -126,7 +132,8 @@ def init_with_baseline(root: Path, directories, message: str) -> tuple[list[str]
             _git(root, "init", "-q")
             ignore = root / ".gitignore"
             if not ignore.exists():
-                ignore.write_text("\n".join(IGNORED) + "\n", encoding="utf-8")
+                lines = [*IGNORED, *environment(root, directories)]
+                ignore.write_text("\n".join(lines) + "\n", encoding="utf-8")
             _git(root, "add", "--", ".gitignore")
             if inside:
                 _git(root, "add", "-A", "--", *inside, *_EXCLUDED)
@@ -136,6 +143,172 @@ def init_with_baseline(root: Path, directories, message: str) -> tuple[list[str]
             return inside, f"git init in {root} did not finish: {_why(exc)}"
 
     return inside, ""
+
+
+
+def _holds_modules(directory: Path) -> bool:
+    """A module, or a directory with one up to two levels down."""
+    for pattern in (MANIFEST, f"*/{MANIFEST}", f"*/*/{MANIFEST}"):
+        if next(directory.glob(pattern), None) is not None:
+
+            return True
+
+    return False
+
+
+def environment(root: Path, directories) -> list[str]:
+    """What the project directory holds beside its modules, as anchored
+    `.gitignore` lines: a compose file, an `odoo.conf`, a filestore mounted
+    with Odoo's sessions in it.
+
+    The baseline leaves all of it out, and it then showed in `git status` for
+    good; one `git add -A` from the top would have put the sessions in
+    history. Only the directories on the way down to a plan module are looked
+    at. An entry there stays visible when it leads to a plan module or holds
+    a module of its own: a module outside the plan is still code.
+    """
+    planned = {directory for directory in directories if directory is not None}
+    keep: set[Path] = set()
+    for directory in planned:
+        if directory.is_relative_to(root):
+            keep.add(directory)
+            keep.update(parent for parent in directory.parents if parent.is_relative_to(root))
+    found = []
+    for level in sorted(keep - planned):
+        try:
+            entries = sorted(level.iterdir()) if level.is_dir() else []
+        except OSError:
+            entries = []
+        for entry in entries:
+            if entry.name in (".git", ".gitignore") or entry in keep:
+                continue
+            if entry.is_dir() and _holds_modules(entry):
+                continue
+            path = entry.relative_to(root).as_posix()
+            found.append(f"/{path}/" if entry.is_dir() else f"/{path}")
+
+    return found
+
+
+def made_here(root: Path) -> bool:
+    """The repository at `root` is one this app made: its first commit is the
+    app's baseline. Only there does the app track more than it was asked to."""
+    top = _toplevel(root)
+    if top is None or top.resolve() != root.resolve():
+
+        return False
+    answer = _git(root, "log", "--max-parents=0", "--format=%ae%x1f%s", "HEAD", check=False)
+    first = answer.stdout.strip().splitlines()
+
+    return (
+        answer.returncode == 0
+        and len(first) == 1
+        and first[0].startswith(f"{AUTHOR[1]}\x1fodoo-migrator: baseline")
+    )
+
+
+def untracked_sources(
+    root: Path, directories, keep_out=()
+) -> tuple[list[str], list[str]]:
+    """The plan modules with files git has never seen, and those files, from
+    `root`. `keep_out` holds paths (relative to `root`) that are not the
+    person's code: on the source side, tests the agent wrote that are not
+    proved green yet. Files a person changed are not touched; only new ones
+    are listed.
+    """
+    excluded = [f":(exclude){path}" for path in keep_out]
+    names, files = [], []
+    for directory in directories:
+        if (
+            directory is None
+            or not directory.is_dir()
+            or not directory.is_relative_to(root)
+            or (directory / ".git").exists()
+        ):
+            continue
+        relative = directory.relative_to(root).as_posix()
+        answer = _git(
+            root, "ls-files", "--others", "--exclude-standard", "-z", "--",
+            relative, *excluded, *_EXCLUDED,
+            check=False,
+        )
+        new = [path for path in answer.stdout.split("\0") if path]
+        if new:
+            names.append(directory.name)
+            files.extend(new)
+
+    return names, files
+
+
+def catch_up(root: Path, directories, *, modules: bool, keep_out=()) -> str:
+    """In a repository this app made, add what its baseline left untracked.
+
+    The baseline is taken once, of the module directories found at that
+    moment. One that was not found then stayed untracked for good, and the
+    source branch got tests with no code beside them. So each start adds the
+    plan modules' new files (`modules`, the source side: the target's are a
+    port, committed when it passes) and the `.gitignore` lines `environment`
+    finds missing, in one commit. `keep_out` goes to `untracked_sources`.
+    Returns that, for the run log; "" when there was nothing to add.
+    """
+    if not made_here(root):
+
+        return ""
+    with _LOCK:
+        try:
+            ignore = root / ".gitignore"
+            text = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
+            present = {line.strip() for line in text.splitlines()}
+            missing = [
+                line for line in [*IGNORED, *environment(root, directories)]
+                if line not in present
+            ]
+            paths = []
+            if missing:
+                if text and not text.endswith("\n"):
+                    text += "\n"
+                ignore.write_text(text + "\n".join(missing) + "\n", encoding="utf-8")
+                paths.append(".gitignore")
+            names, files = (
+                untracked_sources(root, directories, keep_out) if modules else ([], [])
+            )
+            paths.extend(files)
+            if not paths:
+
+                return ""
+            _git(root, "add", "--", *paths)
+            _git(
+                root, "commit", "-q", "--no-verify", "-m", _catch_up_message(names, missing),
+                "--", *paths,
+            )
+            head = _git(root, "rev-parse", "--short", "HEAD", check=False).stdout.strip()
+        except (OSError, subprocess.SubprocessError) as exc:
+
+            return f"{root}: what the baseline missed could not be committed: {_why(exc)}"
+    parts = []
+    if names:
+        parts.append(f"{len(names)} module director{'y' if len(names) == 1 else 'ies'} "
+                     f"the baseline missed ({', '.join(sorted(names))})")
+    if missing:
+        parts.append(f"{len(missing)} .gitignore line{'' if len(missing) == 1 else 's'} "
+                     "for what sits beside the modules")
+
+    return f"{root}: committed {' and '.join(parts)} as {head}"
+
+
+def _catch_up_message(names: list[str], ignored: list[str]) -> str:
+    if names:
+        title = (
+            f"odoo-migrator: baseline of {len(names)} more module "
+            f"director{'y' if len(names) == 1 else 'ies'} as they were"
+        )
+    else:
+        title = "odoo-migrator: ignore what the project holds beside its modules"
+    lines = [title, ""]
+    lines.extend(f"Module: {name}" for name in sorted(names))
+    lines.extend(f"Ignored: {line}" for line in ignored)
+
+    return "\n".join(lines)
 
 
 def commit_module(module: Module, *, job_id: str) -> str | None:

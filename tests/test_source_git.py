@@ -470,6 +470,163 @@ def test_a_start_puts_the_source_under_git_and_says_so(plain):
     assert any("source" in text and "git init" in text for text in texts)
 
 
+
+def test_what_sits_beside_the_modules_is_ignored_so_status_is_clean(plain):
+    """A compose file, a mounted filestore with Odoo's sessions: not source,
+    and not left in `git status` as work nobody committed."""
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    (source / "compose.yaml").write_text("services: {}\n")
+    (source / "filestore" / "sessions").mkdir(parents=True)
+    (source / "filestore" / "sessions" / "werkzeug_x.sess").write_text("token\n")
+
+    ensure_repository(created["id"])
+
+    ignore = (source / ".gitignore").read_text().splitlines()
+    assert {"/compose.yaml", "/filestore/", "/pgdata/"} <= set(ignore)
+    assert git(source, "status", "--short") == ""
+
+
+def test_a_module_the_baseline_missed_is_added_at_the_next_start(plain):
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    with database.connection_context():
+        Module.update(path_problem="not mounted").where(Module.technical_name == "stock_x").execute()
+    ensure_repository(created["id"])
+    assert not any(path.startswith("stock_x") for path in git(source, "ls-files").split())
+    with database.connection_context():
+        Module.update(path_problem="").where(Module.technical_name == "stock_x").execute()
+
+    said = ensure_repository(created["id"])
+
+    assert "stock_x" in said and "the baseline missed" in said
+    assert _log(source)[0] == (
+        "odoo-migrator|odoo-migrator: baseline of 1 more module directory as they were"
+    )
+    assert "stock_x/models.py" in git(source, "ls-files").split()
+    assert git(source, "status", "--short") == ""
+    # Nothing left to add: the next start says nothing.
+    assert ensure_repository(created["id"]) is None
+
+
+def test_the_catch_up_leaves_unproven_tests_and_a_persons_edits_alone(plain):
+    """Tests the agent is still writing are committed only once green, and a
+    change a person made to a tracked file is theirs to commit."""
+    from odoo_migrator.source_git import ensure_repository, mark_unproven
+
+    created, source = plain
+    ensure_repository(created["id"])
+    (source / "sale_x" / "models.py").write_text("OLD = 17  # a person's fix\n")
+    mark_unproven(source / "sale_x" / "tests")
+    (source / "sale_x" / "tests").mkdir()
+    (source / "sale_x" / "tests" / "test_x.py").write_text("# red\n")
+    (source / "sale_x" / "wizard.py").write_text("NEW = 1\n")
+
+    ensure_repository(created["id"])
+
+    assert git(source, "show", "--name-only", "--format=", "HEAD").splitlines() == [
+        "sale_x/wizard.py"
+    ]
+    assert git(source, "diff", "--name-only") == "sale_x/models.py"
+    assert git(source, "ls-files", "--others", "--exclude-standard") == "sale_x/tests/test_x.py"
+
+
+def test_tests_a_missed_module_shipped_with_go_in_with_its_code(plain):
+    """A person's tests are the module's code, not the agent's unproven ones."""
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    with database.connection_context():
+        Module.update(path_problem="not mounted").where(Module.technical_name == "stock_x").execute()
+    ensure_repository(created["id"])
+    with database.connection_context():
+        Module.update(path_problem="").where(Module.technical_name == "stock_x").execute()
+    (source / "stock_x" / "tests").mkdir()
+    (source / "stock_x" / "tests" / "test_own.py").write_text("# a person's\n")
+
+    ensure_repository(created["id"])
+
+    assert "stock_x/tests/test_own.py" in git(source, "ls-files").split()
+
+
+def test_a_settled_test_is_no_longer_unproven(plain):
+    from odoo_migrator.source_git import ensure_repository, mark_unproven, unproven
+
+    created, source = plain
+    ensure_repository(created["id"])
+    with database.connection_context():
+        migration = Migration.get_by_id(created["id"])
+        module = Module.get(Module.technical_name == "sale_x")
+    ensure_branch(migration)
+    mark_unproven(source / "sale_x" / "tests")
+    (source / "sale_x" / "tests").mkdir()
+    (source / "sale_x" / "tests" / "test_x.py").write_text("# t\n")
+    assert unproven(source) == ["sale_x/tests"]
+
+    settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+    assert unproven(source) == []
+
+
+def test_a_repository_a_person_made_gets_nothing_added(repo):
+    from odoo_migrator.source_git import ensure_repository
+
+    source, migration, _module = repo
+    (source / "sale_x" / "wizard.py").write_text("NEW = 1\n")
+    (source / "compose.yaml").write_text("services: {}\n")
+
+    assert ensure_repository(migration.id) is None
+    assert git(source, "log", "--format=%s").splitlines() == ["seed"]
+    assert not (source / ".gitignore").exists()
+
+
+def test_a_green_test_of_a_module_the_baseline_missed_lands_beside_its_code(plain):
+    """The branch held tests with no code beside them: the baseline had taken
+    one module of fifteen, and only `tests/` was committed after it."""
+    from odoo_migrator.source_git import ensure_repository
+
+    created, source = plain
+    with database.connection_context():
+        Module.update(path_problem="not mounted").where(Module.technical_name == "stock_x").execute()
+    ensure_repository(created["id"])
+    with database.connection_context():
+        Module.update(path_problem="").where(Module.technical_name == "stock_x").execute()
+        migration = Migration.get_by_id(created["id"])
+        module = Module.get(Module.technical_name == "stock_x")
+    ensure_branch(migration)
+    (source / "stock_x" / "tests").mkdir()
+    (source / "stock_x" / "tests" / "test_x.py").write_text("# t\n")
+
+    line = settle_tests(migration, module, "job1", green=True, session=SESSION)
+
+    assert "the baseline missed (stock_x)" in line
+    assert "committed the characterization tests of stock_x" in line
+    assert git(source, "show", "--name-only", "--format=", "HEAD").splitlines() == [
+        "stock_x/tests/test_x.py"
+    ]
+    assert git(source, "show", "--name-only", "--format=", "HEAD~1").splitlines() == [
+        "stock_x/__manifest__.py", "stock_x/models.py",
+    ]
+
+
+def test_the_environment_keeps_modules_outside_the_plan_in_sight(tmp_path):
+    from odoo_migrator.target_git import environment
+
+    root = tmp_path / "17"
+    for path in ("project/sale_x", "project/other_x", "oca/web/web_x"):
+        (root / path).mkdir(parents=True)
+        (root / path / "__manifest__.py").write_text("{}\n")
+    (root / "project" / "requirements.txt").write_text("x\n")
+    (root / "odoo.conf").write_text("[options]\n")
+    (root / ".env").write_text("SECRET=1\n")
+
+    found = environment(root, [root / "project" / "sale_x"])
+
+    assert found == ["/.env", "/odoo.conf", "/project/requirements.txt"]
+
+
 # -- which tests are the migrator's to see carried -------------------------------
 
 

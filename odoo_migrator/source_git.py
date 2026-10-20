@@ -34,7 +34,9 @@ from odoo_migrator.target_git import (
     _too_broad,
     _toplevel,
     _why,
+    catch_up,
     init_with_baseline,
+    made_here,
 )
 from odoo_migrator.test_names import test_method_names
 
@@ -65,7 +67,9 @@ def ensure_repository(migration_id: str) -> str | None:
     `.gitignore` for what Odoo leaves behind, and one baseline commit of the
     plan's module directories as they are. Their history is not rewritten
     because there is none, and a project that sits inside another repository
-    is left alone. Returns what was done, for the run log, or None.
+    is left alone. In a repository this app made, each start adds what the
+    baseline missed (`catch_up`). Returns what was done, for the run log, or
+    None.
     """
     with database.connection_context():
         migration = Migration.get_or_none(Migration.id == migration_id)
@@ -81,9 +85,12 @@ def ensure_repository(migration_id: str) -> str | None:
 
         return None
     root = Path(raw).expanduser()
-    if not root.is_dir() or _toplevel(root) is not None:
+    if not root.is_dir():
 
         return None
+    if _toplevel(root) is not None:
+
+        return catch_up(root, directories, modules=True, keep_out=unproven(root)) or None
     inside, failure = init_with_baseline(root, directories, BASELINE_MESSAGE)
     if failure:
 
@@ -94,6 +101,55 @@ def ensure_repository(migration_id: str) -> str | None:
         f"of {len(inside)} module director{'y' if len(inside) == 1 else 'ies'} as they "
         "were. A characterization test, if one is written, goes on a branch of its own."
     )
+
+
+# Tests the agent wrote that no green run has proved yet, one path per line,
+# relative to the top of the repository. A start adds what the baseline missed
+# and must not take these for a person's code: another module of the batch may
+# be writing them, or a run that was killed left them behind. In the git
+# directory, so it survives a restart and travels with no branch.
+UNPROVEN = "odoo-migrator-unproven"
+
+
+def _unproven_file(top: Path) -> Path:
+    answer = _git(top, "rev-parse", "--git-path", UNPROVEN, check=False)
+
+    return top / answer.stdout.strip()
+
+
+def unproven(top: Path) -> list[str]:
+    try:
+        text = _unproven_file(top).read_text(encoding="utf-8")
+    except OSError:
+
+        return []
+
+    return [line for line in text.splitlines() if line]
+
+
+def mark_unproven(tests: Path) -> None:
+    """`tests` holds what the agent is writing; a start leaves it untracked."""
+    top = _toplevel(tests.parent)
+    if top is None:
+
+        return
+    relative = tests.resolve().relative_to(top.resolve()).as_posix()
+    with _LOCK:
+        listed = unproven(top)
+        if relative not in listed:
+            _unproven_file(top).write_text("\n".join([*listed, relative]) + "\n", encoding="utf-8")
+
+
+def _clear_unproven(top: Path, relative: str) -> None:
+    listed = [line for line in unproven(top) if line != relative]
+    target = _unproven_file(top)
+    try:
+        if listed:
+            target.write_text("\n".join(listed) + "\n", encoding="utf-8")
+        else:
+            target.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def branch_name(migration) -> str:
@@ -165,6 +221,8 @@ def settle_tests(
 
     `tests/` did not exist before the step (the write is refused otherwise),
     so deleting it removes only what the step made. None when there is none.
+    Either way they are no longer unproven (`mark_unproven`); tests that could
+    not be committed stay so.
     """
     directory = module_root(migration, module, "source")
     if directory is None:
@@ -174,6 +232,17 @@ def settle_tests(
     if not tests.is_dir():
 
         return None
+    top = _toplevel(tests)
+    relative = tests.resolve().relative_to(top.resolve()).as_posix() if top else ""
+    line, settled = _settle(migration, module, job_id, green, session, command, tests, top, relative)
+    if settled and top is not None:
+        with _LOCK:
+            _clear_unproven(top, relative)
+
+    return line
+
+
+def _settle(migration, module, job_id, green, session, command, tests, top, relative):
     name = module.technical_name
     if not green:
         gone = _remove(tests)
@@ -181,11 +250,10 @@ def settle_tests(
         return (
             f"the characterization tests of {name} did not pass on the source "
             f"version, so {gone}"
-        )
-    top = _toplevel(tests)
+        ), True
     if top is None or _too_broad(top):
 
-        return f"the characterization tests of {name} could not be committed: no repository"
+        return f"the characterization tests of {name} could not be committed: no repository", False
     expected = branch_name(migration)
     current = _git(top, "branch", "--show-current", check=False).stdout.strip()
     if current != expected:
@@ -198,7 +266,13 @@ def settle_tests(
             f"the characterization tests of {name} were not committed: the source "
             f"project is not on its branch ({expected}) but on "
             f"{current or 'a detached HEAD'!r}, so {gone}"
-        )
+        ), True
+    # The tests go on the branch beside the code they test. A module the
+    # baseline missed is added first, in a commit of its own.
+    caught = ""
+    if made_here(top):
+        keep_out = [*unproven(top), relative]
+        caught = catch_up(top, [tests.parent], modules=True, keep_out=keep_out)
     # From inside `tests/` with `.`, as `commit_module` does: git adds nothing
     # when an exclude pathspec sits beside the path of a directory it has
     # never seen, which is exactly what this is.
@@ -208,7 +282,7 @@ def settle_tests(
             staged = _git(tests, "diff", "--cached", "--quiet", "--", ".", check=False)
             if staged.returncode == 0:
 
-                return None
+                return (caught or None), True
             _git(
                 tests, "commit", "-q", "--no-verify", "-m",
                 _message(name, job_id, session, command),
@@ -217,9 +291,12 @@ def settle_tests(
             head = _git(tests, "rev-parse", "--short", "HEAD", check=False).stdout.strip()
         except (OSError, subprocess.SubprocessError) as exc:
 
-            return f"the characterization tests of {name} could not be committed: {_why(exc)}"
+            return (
+                f"the characterization tests of {name} could not be committed: {_why(exc)}"
+            ), False
+    done = f"committed the characterization tests of {name} as {head}"
 
-    return f"committed the characterization tests of {name} as {head}"
+    return (f"{caught}; {done}" if caught else done), True
 
 
 def _message(name: str, job_id: str, session: str, command: str) -> str:

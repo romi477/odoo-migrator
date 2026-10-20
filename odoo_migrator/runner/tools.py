@@ -607,7 +607,7 @@ def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
     prompt is not the only thing between the model and a test someone wrote.
     """
     from odoo_migrator.module_paths import module_root
-    from odoo_migrator.source_git import SourceGitError, ensure_branch
+    from odoo_migrator.source_git import SourceGitError, ensure_branch, mark_unproven
 
     root = module_root(ctx.migration, ctx.module, "source")
     if root is None:
@@ -634,6 +634,9 @@ def _write_source_test(ctx, side: str, relative: str, content: str) -> str:
         ensure_branch(ctx.migration)
     except SourceGitError as exc:
         raise ToolRefused(str(exc)) from None
+    # Before the file exists: a start of another module in the batch adds
+    # what the baseline missed, and must not take this for a person's test.
+    mark_unproven(root / "tests")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     ctx.source_tests_written = True

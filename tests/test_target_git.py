@@ -89,6 +89,25 @@ def test_a_target_already_in_git_is_left_as_it_is(plain):
     assert not (root / ".gitignore").exists()
 
 
+
+def test_a_target_the_app_made_gets_only_ignore_lines_added_later(plain):
+    """A module's new files on the target are a port, committed when it
+    passes; only what sits beside the modules is caught up."""
+    created, root = plain
+    ensure_repository(created["id"])
+    (root / "compose.yaml").write_text("services: {}\n")
+    (root / "sale_x" / "wizard.py").write_text("NEW = 18\n")
+
+    said = ensure_repository(created["id"])
+
+    assert "1 .gitignore line" in said
+    assert _log(root)[0] == (
+        "odoo-migrator|odoo-migrator: ignore what the project holds beside its modules"
+    )
+    assert "/compose.yaml" in (root / ".gitignore").read_text().splitlines()
+    assert _git(root, "status", "--short").splitlines() == ["?? sale_x/wizard.py"]
+
+
 def test_a_module_that_is_its_own_repository_stays_out_of_the_baseline(plain):
     created, root = plain
     _git(root / "stock_x", "init", "-q")

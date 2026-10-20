@@ -136,9 +136,14 @@ directory is checked.
 
 **The target is kept under git.** A target project directory that is in no
 repository is put under one on the first start: `git init`, a `.gitignore`
-for bytecode, and a baseline commit of the plan's module directories as
-they were — not the rest of the directory, which can hold a database volume
-or a filestore. A module that is its own repository stays out of it. Each
+for bytecode and for what sits beside the modules, and a baseline commit of
+the plan's module directories as they were — not the rest of the directory,
+which can hold a compose file, a database volume or a filestore with Odoo's
+sessions in it. That rest is listed in the `.gitignore` (anchored lines such
+as `/odoo.conf`, `/remote-share/`), so `git status` shows the modules only;
+a directory that holds a module stays in sight. A module that is its own
+repository stays out of it. In a repository the app made, each start adds
+the `.gitignore` lines that are missing, in a commit of its own. Each
 module that **passes** is then committed on its own, its directory only,
 as `odoo-migrator: port <module> to <version>` with the job id in the body;
 a failed or stopped port stays uncommitted. The commits are the app's: a

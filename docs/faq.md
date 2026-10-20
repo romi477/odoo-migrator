@@ -72,8 +72,13 @@ container back): its next test write is refused, with the branch name to return 
 per module, titled `odoo-migrator: characterization tests for <module>
 [sheller:<session>]`, so it can be told from a test a person wrote; a test that
 did not pass is deleted. A source project that is no repository yet is put under git when the job
-starts (no remote, one baseline commit of the plan's modules as they are), so
-there is a branch to make; one inside another repository is left alone.
+starts (no remote, one baseline commit of the plan's modules as they are, and
+a `.gitignore` for what sits beside them), so there is a branch to make; one
+inside another repository is left alone. In a repository the app made, each
+start commits what the baseline missed: a module directory it did not find
+then, and the `.gitignore` lines that are missing. Tests the agent wrote and
+no green run has proved yet stay out; a module's own tests go in with it. A
+green test is never committed without its module's code beside it.
 
 **Does opening a second migration stop the first?**
 

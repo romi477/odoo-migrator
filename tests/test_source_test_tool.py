@@ -47,6 +47,21 @@ def test_a_test_is_written_under_tests_of_the_source_module(ctx, tmp_path):
     assert ctx.source_green is False
 
 
+
+def test_a_written_test_is_unproven_until_it_is_settled(ctx, tmp_path):
+    """A start of another module adds what the baseline missed; it must not
+    take a test the agent is still writing for a person's."""
+    import subprocess
+
+    from odoo_migrator.source_git import unproven
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path / "17", check=True)
+
+    _write_source_test(ctx, "source", "sale_x/tests/test_x.py", "# t\n")
+
+    assert unproven(tmp_path / "17") == ["sale_x/tests"]
+
+
 def test_a_path_outside_tests_is_refused_not_clamped(ctx, tmp_path):
     for bad in (
         "sale_x/models/x.py",
