@@ -5503,3 +5503,66 @@ a.ribbon-box:focus-visible {
 .engine-demo {
   margin: 48px 0 0 32px;
 }
+
+/* A running container's seldom-used actions — Restart, Rebuild, Stop — behind
+   one quiet button at the end of its heading. Five buttons in a row read as
+   five things to do; there is usually none. */
+.side-more {
+  position: relative;
+  margin-left: auto;
+}
+
+.side-more > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+}
+
+.side-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.side-more > summary:hover,
+.side-more[open] > summary {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.side-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: 0 6px 18px color-mix(in oklch, black 35%, transparent);
+}
+
+.side-more-menu form {
+  margin: 0;
+}
+
+.side-more-menu button {
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.side-more-menu button:hover {
+  border-color: var(--border);
+}

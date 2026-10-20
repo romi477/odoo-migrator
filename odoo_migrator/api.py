@@ -375,7 +375,7 @@ def create_app(
         """Record the containers the app will talk to, from the ones running
         for the two projects: both sides, every Build graph, so a side started
         outside the app, or brought up again, is the one a run uses. Resolve
-        never *starts* a container — that is Up on the card — so a source
+        never *starts* a container — that is Start on the card — so a source
         that is not running is an error the human resolves there, not silent
         magic here. The target is linked when it runs and not asked for: what
         reads it says so. Returns an error message, or None."""
@@ -403,7 +403,7 @@ def create_app(
         if side.state == "stopped":
 
             return (
-                "The source container is not running yet. Press Up on its card, "
+                "The source container is not running yet. Press Start on its card, "
                 "then Resolve."
             )
 

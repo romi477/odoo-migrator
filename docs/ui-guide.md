@@ -428,12 +428,14 @@ running, versus how many containers are on the machine. Docker
 unreachable says so; it does not invent zeros.
 
 Each side — old and new — is a card: path, state badge, container name,
-**Up / Stop / Restart / Rebuild**. Up starts ours; someone else's port
-is an error, not a silent steal. A side that is already running, started
-here or outside the app, is linked as soon as the card or Build graph sees
-it: there is nothing to attach. The migration name and the side live in the heading, so the
-eight buttons keep them as the accessible name rather than wrapping
-every label over two lines.
+and one button, only when there is something to do. A stopped side has
+**Start**; someone else's port is an error, not a silent steal. A side that
+is already running, started here or outside the app, has no button: it is
+linked as soon as the card or Build graph sees it. Its **Restart**,
+**Rebuild** and **Stop**, which are seldom wanted and each ask first, sit
+behind **⋯** at the end of its heading. Every action keeps the migration
+name and the side as its accessible name, read out in full and shown on
+hover.
 
 | Field | What it is |
 |---|---|

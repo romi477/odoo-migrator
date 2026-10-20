@@ -154,7 +154,7 @@ def restart(engine, project_path: Path, *, sibling_path: Path | None = None) -> 
     compose = _require_compose(project_path)
     _refuse_stolen(engine, project_path, compose, sibling_path)
     if not _running_ours(engine, project_path):
-        raise NothingRunning("Nothing from this project is running. Use Up.")
+        raise NothingRunning("Nothing from this project is running. Start it first.")
     engine.compose_restart(project_path, compose)
 
     return describe_side(engine, project_path, sibling_path=sibling_path)
@@ -164,7 +164,7 @@ def rebuild(engine, project_path: Path, *, sibling_path: Path | None = None) -> 
     compose = _require_compose(project_path)
     _refuse_stolen(engine, project_path, compose, sibling_path)
     if not _running_ours(engine, project_path):
-        raise NothingRunning("Nothing from this project is running. Use Up.")
+        raise NothingRunning("Nothing from this project is running. Start it first.")
     engine.compose_rebuild(project_path, compose)
 
     return describe_side(engine, project_path, sibling_path=sibling_path)

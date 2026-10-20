@@ -44,6 +44,13 @@
     {% for side, role, status in [("source", "source", provision.source), ("target", "target", provision.target)] %}
     <div class="migration-settings-col">
       <div class="card container-side">
+        {# Stop, Restart and Rebuild take the container away from under a
+           run on it, so they ask first. Start does not. #}
+        {% set asks = {
+          "stop": ("Stop the " ~ role ~ " container?", "A run working on this container fails at its next command. The container and its volumes stay; Start brings it back."),
+          "restart": ("Restart the " ~ role ~ " container?", "Its Odoo goes away for a moment: a run working on it fails at its next command, and open shell sessions die."),
+          "rebuild": ("Rebuild the " ~ role ~ " container?", "The image is rebuilt and the container recreated. A run working on it fails, and anything changed inside the container that is not in a volume is gone."),
+        } %}
         {# Role, then the state, on one line. The path sits right under it. The
            technical container name is quiet, next to the badge. #}
         <div class="side-head">
@@ -51,6 +58,26 @@
           <span class="badge {{ status.state }}">{{ status.state }}</span>
           {% if status.container %}
           <span class="mono side-container">{{ status.container }}</span>
+          {% endif %}
+          {# What a running side is seldom asked for sits behind one quiet
+             button: five of them in a row read as five things to do. #}
+          {% if status.state == "running" %}
+          <details class="side-more" data-menu>
+            <summary title="More for the {{ side }} container"
+                     aria-label="More for the {{ side }} container of {{ expanded.name }}">⋯</summary>
+            <div class="side-more-menu">
+              {% for action, label in [("restart", "Restart"), ("rebuild", "Rebuild"), ("stop", "Stop")] %}
+              <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/{{ action }}"
+                    data-confirm-title="{{ asks[action][0] }}"
+                    data-confirm-text="{{ asks[action][1] }}"
+                    data-confirm-go="{{ label }}">
+                <button type="submit"
+                        title="{{ label }} the {{ side }} container of {{ expanded.name }}"
+                        aria-label="{{ label }} the {{ side }} container of {{ expanded.name }}">{{ label }}</button>
+              </form>
+              {% endfor %}
+            </div>
+          </details>
           {% endif %}
         </div>
         <p class="mono side-path">{{ expanded.old_project_path if side == "source" else expanded.new_project_path }}</p>
@@ -61,29 +88,19 @@
         {% if status.detail %}
         <p class="field-hint">{{ status.detail }}</p>
         {% endif %}
+        {# One button, and only when there is something to do: a stopped
+           side starts. A running one is linked as it is seen and needs none;
+           a missing compose file, a taken port or an Engine that does not
+           answer are said above, and no button would fix them. #}
+        {% if status.state == "stopped" %}
         <div class="side-actions">
-          {# The migration and the side are the card's heading and the row's,
-             so spelling them out on every button wrapped each one over two
-             lines. They stay as the accessible name, read out in full and
-             shown on hover. #}
-          {# Stop, Restart and Rebuild take the container away from under a
-             run on it, so they ask first. Up does not. #}
-          {% set asks = {
-            "stop": ("Stop the " ~ role ~ " container?", "A run working on this container fails at its next command. The container and its volumes stay; Up brings it back."),
-            "restart": ("Restart the " ~ role ~ " container?", "Its Odoo goes away for a moment: a run working on it fails at its next command, and open shell sessions die."),
-            "rebuild": ("Rebuild the " ~ role ~ " container?", "The image is rebuilt and the container recreated. A run working on it fails, and anything changed inside the container that is not in a volume is gone."),
-          } %}
-          {% for action, label in [("up", "Up"), ("stop", "Stop"), ("restart", "Restart"), ("rebuild", "Rebuild")] %}
-          <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/{{ action }}"
-                {% if action in asks %}data-confirm-title="{{ asks[action][0] }}"
-                data-confirm-text="{{ asks[action][1] }}"
-                data-confirm-go="{{ label }}"{% endif %}>
-            <button type="submit"{% if action == "up" %} class="primary"{% endif %}
-                    title="{{ label }} the {{ side }} container of {{ expanded.name }}"
-                    aria-label="{{ label }} the {{ side }} container of {{ expanded.name }}">{{ label }}</button>
+          <form method="post" action="/migrations/{{ expanded.id }}/containers/{{ side }}/up">
+            <button type="submit" class="primary"
+                    title="Start the {{ side }} container of {{ expanded.name }}"
+                    aria-label="Start the {{ side }} container of {{ expanded.name }}">Start</button>
           </form>
-          {% endfor %}
         </div>
+        {% endif %}
       </div>
       {% if side == "source" %}
       {# One numbered setting per row, each with a plain-language line under it,

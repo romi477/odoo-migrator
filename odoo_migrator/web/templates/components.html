@@ -410,23 +410,41 @@ tools offered: exec, read_file, report, source</pre>
   </div>
   <h2>Container actions</h2>
   <p class="resource-honesty">2 Odoo containers running on this machine</p>
-  <div class="card container-side">
-    <div class="side-head">
-      <h3>source</h3>
-      <span class="badge running">running</span>
-      <span class="mono side-container">old-odoo-1</span>
+  <div class="container-sides">
+    <div class="card container-side">
+      <div class="side-head">
+        <h3>source</h3>
+        <span class="badge running">running</span>
+        <span class="mono side-container">old-odoo-1</span>
+        <details class="side-more" data-menu>
+          <summary title="More for the source container" aria-label="More for the source container of Acme">⋯</summary>
+          <div class="side-more-menu">
+            <form><button type="button">Restart</button></form>
+            <form><button type="button">Rebuild</button></form>
+            <form><button type="button">Stop</button></form>
+          </div>
+        </details>
+      </div>
+      <p class="mono side-path">/projects/acme/old</p>
     </div>
-    <p class="mono side-path">/projects/acme/old</p>
-    <div class="side-actions">
-      <button type="button" class="primary">Up Acme old</button>
-      <button type="button">Stop Acme old</button>
-      <button type="button">Restart Acme old</button>
-      <button type="button">Rebuild Acme old</button>
+    <div class="card container-side">
+      <div class="side-head">
+        <h3>target</h3>
+        <span class="badge stopped">stopped</span>
+      </div>
+      <p class="mono side-path">/projects/acme/new</p>
+      <p class="field-hint">Compose file found; nothing from this project is running.</p>
+      <div class="side-actions">
+        <button type="button" class="primary" aria-label="Start the target container of Acme">Start</button>
+      </div>
     </div>
   </div>
   <p>The first side is source, the second target; the state sits next to
-  the role and the path right under it. Each action names the migration it
-  will touch. A foreign container on the same port is an error, never
+  the role and the path right under it. One button, and only when there is
+  something to do: a stopped side has Start. A running one has none; it is
+  linked as it is seen, and Restart, Rebuild and Stop wait behind the quiet
+  ⋯ at the end of its heading. Each action names the migration it will
+  touch. A foreign container on the same port is an error, never
   stolen.</p>
 
   <h2>Module graph</h2>

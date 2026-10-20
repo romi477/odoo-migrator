@@ -71,7 +71,8 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
 
     assert 'name="strictness_default"' in expanded
     assert f'action="/migrations/{row.id}/settings"' in expanded
-    assert f'action="/migrations/{row.id}/containers/source/up"' in expanded
+    # The container cards are there; with no compose file there is nothing to press.
+    assert "<h3>source</h3>" in expanded and "No compose file in the project" in expanded
     assert 'name="sheller_base_url"' not in expanded
     assert ">Settings<" not in expanded
     assert "row-card expanded" in expanded

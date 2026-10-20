@@ -36,7 +36,9 @@ def _compose(project, port):
     )
 
 
-def test_project_setup_names_the_migration_on_every_container_action(client, tmp_path):
+def test_a_stopped_side_has_one_button_start_and_nothing_else(client, tmp_path):
+    """Five buttons in a row read as five things to do. A stopped side has
+    one: Start. The migration and the side are its accessible name."""
     old = tmp_path / "old"
     new = tmp_path / "new"
     _compose(old, 8069)
@@ -44,20 +46,36 @@ def test_project_setup_names_the_migration_on_every_container_action(client, tmp
     _, row = _open_migration(client, old=old, new=new)
     page = client.get(f"/?settings={row.id}").text
 
-    # The name is the accessible name, not the visible label: as text on all
-    # eight buttons it wrapped every one of them over two lines, repeating
-    # what the card heading and the page heading already say.
-    for action in ("Up", "Stop", "Restart", "Rebuild"):
-
-        assert f'aria-label="{action} the source container of Acme"' in page
-        assert f">{action}<" in page
-
-    assert 'aria-label="Up the target container of Acme"' in page
-    assert 'aria-label="Stop the target container of Acme"' in page
+    assert 'aria-label="Start the source container of Acme"' in page
+    assert 'aria-label="Start the target container of Acme"' in page
+    assert f'action="/migrations/{row.id}/containers/source/up"' in page
+    for action in ("stop", "restart", "rebuild", "attach"):
+        assert f"containers/source/{action}" not in page
+    assert "side-more" not in page.split('class="migration-settings-cols"', 1)[1].split("</form>", 1)[0]
     assert "containers on this machine" in page
     # The card headings are the roles, not "source container" / "target container".
     assert ">source<" in page
     assert ">target<" in page
+
+
+def test_a_running_side_has_no_button_and_its_actions_behind_a_menu(client, tmp_path, compose):
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _, row = _open_migration(client, old=old, new=new)
+    _running(compose, old, "old-odoo-1", 8069)
+
+    page = client.get(f"/?settings={row.id}").text
+    source = page.split('<h3>source</h3>', 1)[1].split('<h3>target</h3>', 1)[0]
+
+    assert 'containers/source/up"' not in source
+    menu = source.split('<details class="side-more" data-menu>', 1)[1].split("</details>", 1)[0]
+    for action, label in (("restart", "Restart"), ("rebuild", "Rebuild"), ("stop", "Stop")):
+        assert f'containers/source/{action}"' in menu
+        assert f'aria-label="{label} the source container of Acme"' in menu
+    assert 'aria-label="More for the source container of Acme"' in menu
+    assert '<script defer src="/static/menus.js"></script>' in page
 
 
 def test_up_persists_the_container_name_on_the_migration(client, tmp_path, compose):
@@ -127,12 +145,12 @@ def test_missing_compose_is_loud_not_silent(client, tmp_path):
 def test_styleguide_shows_container_actions(client):
     html = client.get("/components").text
 
-    assert "Up Acme old" in html
+    assert ">Start</button>" in html and "side-more-menu" in html
     assert "Odoo containers running" in html
     assert "Container" in html
 
 
-def test_actions_that_take_a_container_away_ask_first(client, tmp_path):
+def test_actions_that_take_a_container_away_ask_first(client, tmp_path, compose):
     """Stop, Restart and Rebuild under a running job fail it at its next
     command, and one stray press did that with no question asked."""
     old = tmp_path / "old"
@@ -140,13 +158,14 @@ def test_actions_that_take_a_container_away_ask_first(client, tmp_path):
     _compose(old, 8069)
     _compose(new, 8070)
     _, row = _open_migration(client, old=old, new=new)
+    _running(compose, old, "old-odoo-1", 8069)
     page = client.get(f"/?settings={row.id}").text
 
     for action in ("stop", "restart", "rebuild"):
         form = page[page.index(f'containers/source/{action}"') :]
         assert "data-confirm-text" in form[: form.index(">")]
-    up = page[page.index('containers/source/up"') :]
-    assert "data-confirm-text" not in up[: up.index(">")]
+    start = page[page.index('containers/target/up"') :]
+    assert "data-confirm-text" not in start[: start.index(">")]
 
 
 def _running(compose, project, name, port):
