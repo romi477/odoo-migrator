@@ -162,3 +162,41 @@ def test_every_step_that_touches_tests_has_a_prompt_that_fits_in_a_screen_or_two
     """A prompt that grows without bound stops being read by the model. Not a
     quality test: a tripwire for the next addition."""
     assert len(FLOW.step_by_id(step_id).prompt.split()) < 520
+
+
+# -- browser tests ---------------------------------------------------------------
+
+
+def test_the_port_carries_the_browser_tests_and_can_see_whether_they_are_in_the_bundle():
+    """The port was told about `tests/` only, and a module's JS tests stayed
+    behind or landed outside the bundle no run loads."""
+    port = FLOW.step_by_id("port")
+
+    assert "static/tests/" in _prompt("port")
+    assert "in_manifest: true" in _prompt("port")
+    assert "list_tests" in port.tools
+    assert "rules" in port.context
+
+
+def test_the_migrator_writes_python_tests_only():
+    guide = " ".join(Path("prompts/test_guide.md").read_text(encoding="utf-8").split())
+
+    assert "Write Python tests only." in guide
+    assert "not browser ones" in _prompt("write_test")
+    assert "browser tests, not test classes" in _prompt("understand")
+
+
+def test_the_18_rules_say_how_a_qunit_test_becomes_a_hoot_one():
+    rules = Path("rules/18.0.md").read_text(encoding="utf-8")
+
+    assert "## Browser tests" in rules
+    assert "web.assets_unit_tests" in rules
+    assert ".test.js" in rules
+    assert "@odoo/hoot" in rules
+
+
+def test_the_standing_prompt_says_a_port_carries_and_runs_the_browser_tests():
+    flat = " ".join(Path("prompts/system.md").read_text(encoding="utf-8").split())
+
+    assert "`static/tests/`" in flat
+    assert "runs them on the target" in flat

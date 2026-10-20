@@ -449,7 +449,9 @@ pipeline:
       Last, decide whether this module needs tests written for it. Call
       `list_tests` on the source side first. If it lists any test class, the
       module has tests: leave `needs_tests` unset and say nothing about
-      tests. If it has none, raise `needs_tests` when the module has Python
+      tests. Its `js` files are browser tests, not test classes: they come
+      across with the port and do not count here. If it has no class, raise
+      `needs_tests` when the module has Python
       logic worth pinning (methods, computed fields, constraints, onchanges,
       state transitions). Leave it unset for a module of data, views,
       security files or translations only, and say so in your answer.
@@ -493,7 +495,7 @@ pipeline:
   - step: agent
     id: port
     sessions: [source, target]
-    tools: [exec, source, read_file, write_file]
+    tools: [exec, source, read_file, write_file, list_tests]
     context: [rules, module_source, prior_answers, hand_changes]
     prompt: |
       Port the module to the target version. Write files into the target
@@ -512,6 +514,11 @@ pipeline:
       fails the lap on a change that is not marked as below. If there is no such
       answer, the tests in the source are the module's own, tests of its own
       that its authors wrote: port them like any other file.
+
+      The whole module comes across, `static/` included, and its browser
+      tests under `static/tests/` with it: the migrator writes none, so port
+      each as the target's rules say, in the manifest's test bundle. On the
+      target, `list_tests` must show every `js` file `in_manifest: true`.
 
       When the target version forces a different value in one of the
       characterization tests' assertions, and the rules say the behaviour
@@ -632,7 +639,8 @@ pipeline:
       The ported module has no tests: `characterize` wrote none. The module
       may have been judged to have nothing worth pinning, the source project
       may not be a git repository, or no test went green on the source. Write
-      them on the target now, following the test_guide above.
+      them on the target now, following the test_guide above: Python tests,
+      not browser ones.
 
       If the understand answer above said this module has nothing worth
       pinning (data, views, security files, translations), write nothing and
@@ -701,6 +709,12 @@ on_failure:
         characterization tests expect: put the source's assertion back, and
         if the test then fails, the port is what is wrong.
 
+        A browser test that failed is named by its Hoot id, with its failed
+        assertions under it. Run it again alone with `run_test`, the suite and
+        that id as `params`. Browser tests that "did not reach the target", or
+        a file outside the test bundle, are a `small_fix`: port the files the
+        source ships, or put them in the manifest's bundle.
+
     - step: ask_human
       when: needs_human
 
@@ -721,7 +735,7 @@ on_failure:
       id: patch
       when: small_fix
       sessions: [target]
-      tools: [exec, source, read_file, write_file, reopen, run_test]
+      tools: [exec, source, read_file, write_file, reopen, run_test, list_tests]
       context: [rules, previous_diff, last_failure, prior_answers]
       prompt: |
         Apply the fix the diagnosis named. You have the previous diff —
@@ -739,7 +753,9 @@ on_failure:
         the assertion and mark it on the line above with
         `# migrator: target-differs — <what changed, and the rule that says so>`.
         If the failure is that the tests did not reach the target, write them
-        there, with the same method names.
+        there, with the same method names. Browser tests that did not reach
+        it are ported from the source's `static/tests/`, and a file outside
+        the bundle goes into the manifest's test bundle.
 
     - step: agent
       id: rewrite
@@ -758,7 +774,8 @@ on_failure:
         `characterize` answer is among the prior answers, write the
         characterization tests back into the target's `tests/`, with the same
         method names, as the port step does: the tests step fails the lap when
-        one is missing.
+        one is missing. The browser tests under the source's `static/tests/`
+        come across too, as the port step says.
 
   retry:
     resume_at: lint
@@ -798,6 +815,23 @@ every value that went has its own explanation, the lap goes on and the change is
 a finding in the review. Anything less fails
 the lap, before running anything, and the failure lane puts the assertion back
 or explains it (`test_names.test_expectations`).
+
+**A module's browser tests come across and are run.** The JS tests under
+`static/tests/` are its authors'; the migrator writes Python tests only, so the
+ones the source ships are the only ones there will be. The port carries the
+whole of `static/`, rewrites a QUnit test for Hoot when it crosses 18.0 (the
+18.0 rules say how), and puts each file in the manifest's test bundle. The
+`tests` step reads the target's listing (`list_tests` answers with `js` from
+Sheller 1.11.0): it fails the lap, before running anything, when the source
+ships JS test files (tours and helpers aside) and the target lists none its
+version runs, or when a listed file is outside the bundle (`in_manifest:
+false`). After the Python tests it runs the suite with the call the listing
+gives (`web.WebSuite.test_unit_desktop`, `params='@module'`). A red browser test
+fails the lap with its Hoot id and failed assertions. A suite the container
+cannot run — no Chromium, no `websocket-client`, a version Sheller does not
+drive — is a finding, never a pass; the container is a person's to set up.
+`no_tests` stays about Python: a module with browser tests only still gets
+`probe` and `write_test`, and `retest` does not run the suite again.
 
 **After the tests, the module is used the way a person would use it.** A test
 proves what it asserts and is only Python. The `smoke` step, with no model and
@@ -911,7 +945,7 @@ steps whose outcomes the app itself interprets:
 
 | flag | raised by |
 |---|---|
-| `no_tests` | `tests` — the module declares no test classes |
+| `no_tests` | `tests` — the module declares no Python test classes; browser tests do not count |
 | `needs_tests` | none: it is raised by `understand` in the stock flow, and `characterize` reads it with `when`. The source module has no tests and has Python logic worth pinning |
 | `tests_failed` | `tests` |
 | `lint_failed` | `lint` |

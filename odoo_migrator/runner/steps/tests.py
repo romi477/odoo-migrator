@@ -1,4 +1,5 @@
-"""Run the module's own tests. No test classes is a flag, not a failure."""
+"""Run the module's own tests, Python and browser. No test classes is a flag,
+not a failure."""
 
 from __future__ import annotations
 
@@ -35,7 +36,10 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if missing:
 
         return StepResult(ok=False, flags={"tests_failed"}, output=missing)
-    if "no_tests" in ctx.lap_flags:
+    # `retest` runs after `write_test`, in the lap that raised `no_tests`. The
+    # browser suite already ran in it, and `write_test` writes Python only.
+    retest = "no_tests" in ctx.lap_flags
+    if retest:
         # A test was written after this session opened, and the process
         # imported the module's `tests` package when it did. Without a fresh
         # one the run finds the set that was there before and says nothing
@@ -52,7 +56,26 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     except ShellerError as exc:
 
         return StepResult(ok=False, flags={"tests_failed"}, output=str(exc))
-    classes = catalogue.get("classes") or []
+    js = None if retest else _browser_files(catalogue)
+    if js is not None:
+        missing = _browser_tests_left_behind(ctx, js) or _outside_the_bundle(js)
+        if missing:
+
+            return StepResult(ok=False, flags={"tests_failed"}, output=missing)
+    backend = _backend(ctx, name, catalogue.get("classes") or [])
+    if not js:
+
+        return backend
+    browser = _browser(ctx, name, catalogue["js"], js)
+
+    return StepResult(
+        ok=backend.ok and browser.ok,
+        flags=backend.flags | browser.flags,
+        output=f"{backend.output}\n{browser.output}",
+    )
+
+
+def _backend(ctx: StepContext, name: str, classes: list) -> StepResult:
     if not classes:
 
         return StepResult(ok=True, flags={"no_tests"}, output=f"{name} declares no tests")
@@ -155,6 +178,140 @@ def _expectations_changed(ctx: StepContext, target_tests: Path) -> str:
         f"assertion and put `{MARKER} — <what changed, and the rule that says "
         "so>` on the line above it."
     )
+
+
+# Where a module keeps its browser tests. Tours are run by a Python test and
+# helpers by the tests that import them; neither is a suite of its own.
+_JS_TESTS = "static/tests"
+_NOT_SUITES = ("tours", "helpers")
+
+
+def _browser_files(catalogue: dict) -> list[dict] | None:
+    """The JS test files the target's listing names, or None when the daemon
+    does not say (before 1.11.0): then nothing here is checked or run."""
+    js = catalogue.get("js")
+    if not isinstance(js, dict):
+
+        return None
+
+    return [entry for entry in js.get("files") or [] if isinstance(entry, dict)]
+
+
+def _shipped_browser_tests(directory) -> list[str]:
+    """The source module's JS test files, read on the host."""
+    if directory is None:
+
+        return []
+    root = Path(directory) / _JS_TESTS
+    if not root.is_dir():
+
+        return []
+
+    return sorted(
+        path.relative_to(directory).as_posix()
+        for path in root.rglob("*.js")
+        if not set(path.relative_to(root).parts[:-1]) & set(_NOT_SUITES)
+    )
+
+
+def _browser_tests_left_behind(ctx: StepContext, files: list[dict]) -> str:
+    """Why the lap fails before it runs anything, or "".
+
+    A module's browser tests are its authors', and the migrator writes none of
+    its own: the ones the source ships are the only ones there will be. A port
+    that leaves them behind, or writes them where the target version does not
+    look (`*.test.js` from 18.0), has nothing for the suite to run, and the
+    step used to say nothing about it. Counted by the target's listing, not by
+    name: across 18.0 a QUnit file is rewritten for Hoot and may be split.
+    """
+    from odoo_migrator.module_paths import module_root
+
+    shipped = _shipped_browser_tests(module_root(ctx.migration, ctx.module, "source"))
+    if not shipped or files:
+
+        return ""
+
+    return (
+        f"The browser tests did not reach the target: the source ships "
+        f"{len(shipped)} JS test file(s) under {_JS_TESTS}/ ({', '.join(shipped)}), "
+        "and the target has none its version runs. Port them, as the rules for "
+        "the target version say: from 18.0 a browser test is a Hoot `*.test.js` "
+        "file under static/tests/, in the manifest's `web.assets_unit_tests` bundle."
+    )
+
+
+def _outside_the_bundle(files: list[dict]) -> str:
+    """Why the lap fails on a test file no run loads, or "".
+
+    A file outside the manifest's test bundle is not in the run, and the run
+    passes over fewer tests than the module has. `in_manifest: null` is a
+    manifest the daemon could not read as data: not known, so not failed.
+    """
+    outside = [str(entry.get("path")) for entry in files if entry.get("in_manifest") is False]
+    if not outside:
+
+        return ""
+
+    return (
+        f"{len(outside)} browser test file(s) are not in the module's test bundle, "
+        f"so no run loads them: {', '.join(outside)}. Add them to the manifest's "
+        "`assets`, under `web.assets_unit_tests` (`web.qunit_suite_tests` before 18.0)."
+    )
+
+
+def _browser(ctx: StepContext, name: str, js: dict, files: list[dict]) -> StepResult:
+    """Run the module's browser suite the way the listing says to.
+
+    A container that cannot run one (no Chromium, no `websocket-client`, or a
+    version Sheller does not drive) is a finding, not a failure: the
+    container is a person's to set up, and nothing in the port would fix it.
+    It is never a pass either.
+    """
+    call = js.get("run") if isinstance(js.get("run"), dict) else None
+    reason = js.get("reason") if js.get("available") is False else None
+    if call is None and reason is None:
+        reason = f"no Hoot runner for {js.get('runner') or 'this version'}"
+    if reason is None:
+        report, problem, _outlived = _run_one(
+            ctx, str(call.get("test")), "browser", params=call.get("params") or None
+        )
+        hoot = report.get("hoot") if isinstance(report.get("hoot"), dict) else {}
+        if hoot.get("skipped"):
+            reason = hoot.get("reason") or "skipped"
+        elif problem:
+
+            return StepResult(
+                ok=False,
+                flags={"tests_failed"},
+                output=f"{name} browser tests: {problem}{_hoot_failures(hoot)}{_tail(report)}",
+            )
+        else:
+
+            return StepResult(
+                ok=True, output=f"{name} browser tests: {hoot.get('passed') or 0} passed"
+            )
+    finding = {
+        "text": (
+            f"The browser tests of {name} did not run on the target ({reason}): "
+            f"{len(files)} JS test file(s) are unproven."
+        ),
+        "source": "tests: browser",
+    }
+    if finding not in ctx.findings:
+        ctx.findings.append(finding)
+
+    return StepResult(ok=True, output=f"{name} browser tests did not run: {reason}")
+
+
+def _hoot_failures(hoot: dict) -> str:
+    """Each failed browser test with its failed assertions. They are logged
+    deep in the run, and the log tail never reaches them."""
+    reasons = hoot.get("reasons") if isinstance(hoot.get("reasons"), dict) else {}
+    lines = [
+        f"{test}: {reasons.get(test) or 'failed'}" for test in hoot.get("failed_tests") or []
+    ]
+
+    return "\n" + "\n".join(lines) if lines else ""
 
 
 def _counterpart(key: str, before: dict, after: dict) -> str | None:
@@ -286,7 +443,12 @@ def _by_class(ctx: StepContext, name: str, classes: list) -> StepResult:
 
 
 def _run_one(
-    ctx: StepContext, spec: str, where: str, *, timeout: float = TEST_TIMEOUT
+    ctx: StepContext,
+    spec: str,
+    where: str,
+    *,
+    timeout: float = TEST_TIMEOUT,
+    params: str | None = None,
 ) -> tuple[dict, str, bool]:
     """Run one spec, and put it in the run log as it ends: a step that said
     nothing between "started" and its end read as a hang.
@@ -302,7 +464,9 @@ def _run_one(
     started = time.perf_counter()
     outlived = False
     try:
-        report = ctx.sheller.run_test(session_id, spec, write_key=write_key, timeout=timeout)
+        report = ctx.sheller.run_test(
+            session_id, spec, write_key=write_key, timeout=timeout, params=params
+        )
     except ShellerTimeout:
         report, outlived = {}, True
         problem = f"ran past {timeout:.0f}s" + _free(ctx)
@@ -312,9 +476,14 @@ def _run_one(
         _note_log_errors(ctx, report)
         problem = report_failure(report)
     said = f"{_count(report)} passed" if not problem else problem
+    hoot = report.get("hoot") if isinstance(report.get("hoot"), dict) else {}
+    if "passed" in hoot or "failed" in hoot:
+        # One Python test drove the suite; the browser's counts are Hoot's.
+        said += f" · hoot {hoot.get('passed') or 0} passed, {hoot.get('failed') or 0} failed"
+    named = f"{spec} [{params}]" if params else spec
     _record(
         ctx, "run_test", "target", session_id, str(report.get("id") or ""),
-        _elapsed(started), not problem, f"{where} {spec} · {said}".lstrip(),
+        _elapsed(started), not problem, f"{where} {named} · {said}".lstrip(),
     )
 
     return report, problem, outlived

@@ -342,7 +342,11 @@ again on its own, for the log that says why — ten at most, the rest
 named; a run that outlives its timeout is interrupted and not run again;
 a Sheller before 1.8.3, or a module whose classes are all non-standard,
 runs class by class instead, a red class again by method; each run is a
-line in the run log; no classes raises `no_tests` and is not a failure),
+line in the run log; no classes raises `no_tests` and is not a failure;
+then the module's browser suite, when the target lists JS tests for it — a
+container without Chromium is a finding, not a pass, and browser tests the
+source shipped and the target lacks, or a file outside the manifest's test
+bundle, fail the lap),
 `probe` and `write_test` only when `no_tests`, then `verdict`.
 **On failure** is entered when any pipeline step fails. `diagnose` raises
 `needs_human`, `reexamine_source`, `small_fix`, or `start_over`, and only the

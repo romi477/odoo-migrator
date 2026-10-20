@@ -504,3 +504,167 @@ def test_a_stop_ends_the_reruns(step_context, sheller_fake):
         tests.run(Step(kind="tests"), ctx)
 
     assert [row["test"] for row in sheller_fake.tests_run] == ["sale_custom"]
+
+
+# The browser suite: the call the target's listing hands back, run after the
+# module's Python tests.
+SUITE = "web.WebSuite.test_unit_desktop"
+
+
+def _browser_tests(tmp_path, sheller_fake, *, files=None, classes=True, ship=True):
+    """A module whose source ships one Hoot file, and a target listing that
+    names `files` (the one file, in the bundle, by default)."""
+    source = tmp_path / "old" / "sale_custom"
+    (source / "static" / "tests").mkdir(parents=True, exist_ok=True)
+    (source / "__manifest__.py").write_text("{'name': 'Sale custom'}", encoding="utf-8")
+    if ship:
+        (source / "static" / "tests" / "badge.test.js").write_text("", encoding="utf-8")
+    sheller_fake.tests_for(
+        "sale_custom",
+        sheller_fake.catalogue("sale_custom", {"TestA": ["test_one"]}) if classes else [],
+    )
+    if files is None:
+        files = [{"path": "static/tests/badge.test.js", "in_manifest": True, "tests": []}]
+    sheller_fake.js_listing["sale_custom"] = {
+        "runner": "hoot",
+        "files": files,
+        "run": {"test": SUITE, "params": "@sale_custom"} if files else None,
+    }
+
+
+def test_the_browser_suite_runs_after_the_python_tests(tmp_path, step_context, sheller_fake):
+    """It used to be the agent's to remember. The step ran Python only, and a
+    module's JS tests were never run by anything the run recorded."""
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.hoot_answers[SUITE] = {"passed": 5, "failed": 0, "failed_tests": []}
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert [(row["test"], row["params"]) for row in sheller_fake.tests_run] == [
+        ("sale_custom", None),
+        (SUITE, "@sale_custom"),
+    ]
+    assert result.ok is True
+    assert "sale_custom browser tests: 5 passed" in result.output
+
+
+def test_a_red_browser_test_fails_the_lap_with_its_assertions(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.test_outcomes[SUITE] = {"success": False, "failures": 1}
+    sheller_fake.hoot_answers[SUITE] = {
+        "passed": 4,
+        "failed": 1,
+        "failed_tests": ["@sale_custom/badge/renders the badge"],
+        "reasons": {"@sale_custom/badge/renders the badge": "expected 'blue', got 'green'"},
+    }
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is False
+    assert result.flags == {"tests_failed"}
+    assert "@sale_custom/badge/renders the badge: expected 'blue', got 'green'" in result.output
+
+
+def test_a_skipped_browser_suite_is_a_finding_and_never_a_pass(
+    tmp_path, step_context, sheller_fake
+):
+    """No Chromium in the target container is a person's to fix, and nothing
+    the port does would. It does not fail the lap; it is not a pass either."""
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.hoot_answers[SUITE] = {"skipped": True, "reason": "chrome_not_found"}
+    ctx = step_context()
+
+    result = tests.run(Step(kind="tests"), ctx)
+
+    assert result.ok is True
+    assert "browser tests did not run: chrome_not_found" in result.output
+    assert "passed" not in result.output.splitlines()[-1]
+    assert [finding["source"] for finding in ctx.findings] == ["tests: browser"]
+
+
+def test_a_container_that_cannot_run_a_browser_is_not_asked_to(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.js_tests = {"available": False, "reason": "websocket_client_missing"}
+    ctx = step_context()
+
+    result = tests.run(Step(kind="tests"), ctx)
+
+    assert [row["test"] for row in sheller_fake.tests_run] == ["sale_custom"]
+    assert result.ok is True
+    assert "websocket_client_missing" in ctx.findings[0]["text"]
+
+
+def test_a_test_file_outside_the_bundle_fails_the_lap_before_any_run(
+    tmp_path, step_context, sheller_fake
+):
+    """A file no bundle loads is a test the run passes over in silence."""
+    _browser_tests(
+        tmp_path,
+        sheller_fake,
+        files=[{"path": "static/tests/badge.test.js", "in_manifest": False, "tests": []}],
+    )
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert sheller_fake.tests_run == []
+    assert result.ok is False
+    assert "static/tests/badge.test.js" in result.output
+    assert "web.assets_unit_tests" in result.output
+
+
+def test_browser_tests_the_port_left_behind_fail_the_lap(tmp_path, step_context, sheller_fake):
+    """The source ships them and the target has none its version runs: left
+    out, or kept as QUnit files that 18.0 does not look for."""
+    _browser_tests(tmp_path, sheller_fake, files=[])
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert sheller_fake.tests_run == []
+    assert result.ok is False
+    assert result.flags == {"tests_failed"}
+    assert "did not reach the target" in result.output
+    assert "static/tests/badge.test.js" in result.output
+
+
+def test_tours_and_helpers_are_not_browser_tests_left_behind(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake, files=[], ship=False)
+    for kept in ("tours/sale_tour.js", "helpers/mock.js"):
+        path = tmp_path / "old" / "sale_custom" / "static" / "tests" / kept
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is True
+    assert [row["test"] for row in sheller_fake.tests_run] == ["sale_custom"]
+
+
+def test_a_module_with_browser_tests_only_still_raises_no_tests(
+    tmp_path, step_context, sheller_fake
+):
+    """`no_tests` is about Python: `write_test` writes Python, and the migrator
+    writes no browser tests of its own. The suite runs all the same."""
+    _browser_tests(tmp_path, sheller_fake, classes=False)
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.flags == {"no_tests"}
+    assert [row["test"] for row in sheller_fake.tests_run] == [SUITE]
+
+
+def test_retest_does_not_run_the_browser_suite_a_second_time(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake, classes=False)
+    ctx = _with_target(step_context())
+    ctx.lap_flags = {"no_tests"}
+
+    tests.run(Step(kind="tests", id="retest", when="no_tests"), ctx)
+
+    assert SUITE not in [row["test"] for row in sheller_fake.tests_run]

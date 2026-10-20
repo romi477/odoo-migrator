@@ -59,7 +59,7 @@ A step is one entry of `pipeline` or `on_failure.pipeline`.
 | `agent` | one model turn-loop: the prompt, the tools and the context the step declares. Ends when the model calls `report` | raises what its `raises` lists |
 | `lint` | no container. The module's Python parses, its XML parses, its manifest is a dict with `name` and `depends` | raises `lint_failed` |
 | `upgrade` | installs or upgrades the module on the target container, then commits | none |
-| `tests` | first checks, where the source's tests were written by the migrator, that each of those test methods is defined on the target; then runs the module's tests with Odoo's own runner | raises `no_tests` when the module declares none, `tests_failed` when a test failed or a characterization test is missing |
+| `tests` | first checks, where the source's tests were written by the migrator, that each of those test methods is defined on the target; then, where the source ships browser tests (`static/tests/`, tours and helpers aside), that the target has some its version runs and that each is in the manifest's test bundle; then runs the module's Python tests with Odoo's own runner, and its browser suite as the target's listing says. A suite the target container cannot run is a finding, never a pass. `retest` does not run the suite again | raises `no_tests` when the module declares no Python test classes, `tests_failed` when a test failed, a characterization test is missing, or browser tests did not reach the target or its bundle |
 | `smoke` | no model, nothing written. On the target container: each model the module declares fields on gets a new record (defaults, and the module's fields computed) and its latest records read; each window action's domain is evaluated and searched; each report renders as HTML; each asset bundle the manifest adds to is compiled past the cache. Every button the module puts in a view is listed, and checked without pressing: its method exists, is public and takes no argument; its action exists. So is every action it defines that a person runs without one: a server or window action bound to a model's Action menu, and a scheduled action. A break in the module's own fails the step; one in another module's, and checks that could not run, are findings | raises `has_buttons` when the module puts a button in a view |
 | `verdict` | judges the lap against the migration's strictness | reads `behaviour_differs` and `button_broken` |
 | `ask_human` | parks the job and opens a checkpoint. The diagnosis in the last answer is the question | none |
@@ -129,7 +129,7 @@ The built-in flags are raised, or read, by the deterministic steps:
 
 | flag | who |
 |---|---|
-| `no_tests` | raised by `tests`: the module declares no test classes |
+| `no_tests` | raised by `tests`: the module declares no Python test classes. Browser tests do not count: the migrator writes Python tests only |
 | `tests_failed` | raised by `tests` |
 | `lint_failed` | raised by `lint` |
 | `has_buttons` | raised by `smoke`: the module puts at least one button in a view, or defines an action a person runs from an Action menu or as a scheduled action, and the catalogue of them is ready for the next step |

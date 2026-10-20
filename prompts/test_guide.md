@@ -34,6 +34,10 @@ Make all your data in setUpClass or in the test; do not rely on demo data, or on
 records this module's `depends` does not guarantee. No commit, no network, no
 sleep, no HTTP and no tours.
 
+Write Python tests only. A module's browser tests (`static/tests/`, QUnit or
+Hoot) are its authors': the port carries them across, and nothing here writes
+one.
+
 ## Names
 
 Name each test method for the behaviour it pins (`test_total_includes_tax`, not

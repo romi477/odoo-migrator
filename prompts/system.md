@@ -55,6 +55,10 @@ database. Call a tool instead:
   to what a method does on that version, and better than recalling it.
 - `read_file` reads the module's own files.
 - `run_test` and `list_tests` are the module's tests, not yours to invent.
+  That holds for its browser tests too: the JS files under `static/tests/`
+  are its authors', and a port carries them with the rest of `static/`,
+  in the manifest's test bundle, and runs them on the target. `list_tests`
+  names them under `js`, with the call that runs them.
 - `reopen` restarts this side's session. A running process does not see a file
   you changed, so reopen after you change one: a Python file or a new test on
   either side.
