@@ -1575,3 +1575,55 @@ def test_the_failure_lane_can_run_the_test_that_failed():
     assert {"run_test", "list_tests"} <= set(diagnose.tools)
     assert {"run_test", "reopen"} <= set(patch.tools)
     assert "run the spec that failed" in " ".join(patch.prompt.split())
+
+
+def test_an_upgrade_whose_commit_is_refused_is_not_a_green_line(ctx_for, sheller, monkeypatch):
+    """It was recorded as done before the commit, and a refused commit read
+    as an upgrade that went through."""
+    from odoo_migrator.sheller.errors import ShellerError
+
+    sheller.exec_answers["button_immediate"] = {"result": "('upgraded', 'installed')"}
+
+    def refuse(session_id, *, write_key):
+        raise ShellerError("commit_not_allowed", status=423)
+
+    monkeypatch.setattr(sheller, "commit", refuse)
+    calls = []
+    ctx = ctx_for()
+    ctx.record_tool = lambda *args: calls.append(args)
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert result.ok is False
+    ((tool, _side, _session, _command, _ms, ok, preview),) = calls
+    assert (tool, ok) == ("upgrade", False)
+    assert "the commit failed" in preview
+
+
+def test_smoke_reads_an_action_reference_without_eating_its_letters():
+    """`strip('%()d')` took the `d` off `action_view_record` and the button
+    was reported as pointing at an action that does not exist."""
+    import re
+
+    from odoo_migrator.runner.steps.smoke import _SCRIPT
+
+    code = _SCRIPT.format(name="sale_custom")
+    compile(code, "smoke", "exec")
+    assert ".strip('%()d')" not in code
+    pattern = re.search(r"_re\.match\(r'(.+?)', _ref\)", code).group(1)
+
+    assert re.match(pattern, "%(sale_custom.action_view_record)d").group(1) == (
+        "sale_custom.action_view_record"
+    )
+
+
+def test_smoke_does_not_blame_the_module_for_what_other_modules_default():
+    """A new record runs every module's defaults on a model the module only
+    extends: whose break it is comes from the traceback, not from the check."""
+    from odoo_migrator.runner.steps.smoke import _SCRIPT
+
+    code = _SCRIPT.format(name="sale_custom")
+
+    assert "_new, own=True" not in code and "_read, own=True" not in code
+    assert "own=_mine, names=_names" in code
+    assert "_mine = True if _model in _defined else None" in code

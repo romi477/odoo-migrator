@@ -199,12 +199,18 @@ def _refuse_invalid(loaded: Cartridge) -> None:
     raised = {flag for step in steps for flag in step.raises}
     vocabulary = set(BUILTIN_FLAGS) | raised
     read = {step.when for step in steps if step.when}
+    kinds = {step.kind for step in steps}
     for flag in sorted(read):
         if flag not in vocabulary:
             raise CartridgeError(f"unknown flag '{flag}' is not raised")
+        # A built-in flag is raised by a step of its kind. Without one in the
+        # flow, the step that waits for it never runs, and says nothing why.
+        if flag not in raised and BUILTIN_FLAGS[flag] not in kinds:
+            raise CartridgeError(
+                f"flag '{flag}' is raised by a {BUILTIN_FLAGS[flag]} step, and this flow has none"
+            )
     # A deterministic step that gives a flag its meaning reads it too. It is
     # not a `when`, so it does not need the flag raised to be valid.
-    kinds = {step.kind for step in steps}
     read |= {flag for flag, kind in BUILTIN_READS.items() if kind in kinds}
     for flag in sorted(raised - read):
         raise CartridgeError(f"flag '{flag}' is raised and never read")

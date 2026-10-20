@@ -140,15 +140,24 @@ def _upgrade(step: Step, ctx: StepContext) -> StepResult:
 
         return _failed(ctx, _describe(executed))
     done = _done(executed.get("result"))
-    _record(ctx, "upgrade", "target", session_id, command_id, _elapsed(started), True, f"{name} · {done}")
+    # Recorded after the commit: an upgrade that was not kept is not green.
     try:
         committed = ctx.sheller.commit(session_id, write_key=write_key)
     except ShellerError as exc:
+        _record(
+            ctx, "upgrade", "target", session_id, command_id, _elapsed(started), False,
+            f"{name} · {done}, and the commit failed: {exc}",
+        )
 
         return _failed(ctx, f"commit: {exc}")
     if isinstance(committed, dict) and committed.get("error"):
+        _record(
+            ctx, "upgrade", "target", session_id, command_id, _elapsed(started), False,
+            f"{name} · {done}, and the commit was refused: {committed['error']}",
+        )
 
         return _failed(ctx, f"commit: {committed['error']}")
+    _record(ctx, "upgrade", "target", session_id, command_id, _elapsed(started), True, f"{name} · {done}")
     ctx.emit({"kind": "upgrade", "module": name, "job_id": ctx.job_id})
 
     return StepResult(ok=True, output=f"{name}: {done}")

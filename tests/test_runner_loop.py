@@ -369,3 +369,30 @@ def test_an_agent_step_does_not_own_last_failure(monkeypatch):
 
     assert not result.ok
     assert ctx.last_failure == "upgrade failed"
+
+
+def test_a_built_in_flag_whose_step_is_not_in_the_flow_is_refused():
+    """`when: has_buttons` with no smoke step: the step never ran, and every
+    lap said "and , which raises it, did not run"."""
+    import pytest
+
+    from odoo_migrator.runner.cartridge import CartridgeError
+
+    text = ALWAYS_FAILS.replace(
+        "  - step: lint\n",
+        "  - step: agent\n    id: click\n    when: has_buttons\n    sessions: [target]\n"
+        "    tools: [exec]\n    prompt: click\n  - step: lint\n",
+        1,
+    )
+
+    with pytest.raises(CartridgeError, match="raised by a smoke step, and this flow has none"):
+        load_cartridge(text)
+
+
+def test_a_flag_nothing_in_the_flow_raises_says_so():
+    cartridge = load_cartridge(ALWAYS_FAILS)
+    step = SimpleNamespace(id="x", kind="agent", when="never_raised")
+
+    assert why_skipped(cartridge, step, ["port"]) == (
+        "skipped: runs only when never_raised is raised, and no step in this flow raises it"
+    )

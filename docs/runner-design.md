@@ -788,9 +788,14 @@ body: a port could turn an expected `'blue'` into the `'green'` its code returns
 and a red test went green proving nothing. The `tests` step reduces each
 assertion of those methods to which assertion it is and the literal values in it
 (`assertEqual(10)`, `assertRaises(UserError)`; the expressions around them are
-left out, so a field renamed for the target is not a change) and compares source
-with target. A change under a `# migrator: target-differs` line is explained:
-the lap goes on and the change is a finding in the review. One without it fails
+left out, and so are strings that name rather than expect: a field in a domain
+or a subscript, a key of an `assertRecordValues` row, the argument of `mapped`
+or `ref`; a field renamed for the target is not a change) and compares source
+with target, method by method, keyed by class and method. A
+`# migrator: target-differs` line explains the assertion right under it and no
+other; one that stands over no assertion explains one that was taken out. When
+every value that went has its own explanation, the lap goes on and the change is
+a finding in the review. Anything less fails
 the lap, before running anything, and the failure lane puts the assertion back
 or explains it (`test_names.test_expectations`).
 
@@ -808,7 +813,10 @@ check runs under a savepoint and the session is rolled back after. A
 `UserError` is the module refusing as it would refuse a person, not a break. A
 break in what the module declared, or with a traceback through its files, fails
 the lap and the failure lane gets where and why; a bundle broken by another
-module is a finding, and so are checks that could not run. It also lists every button the
+module is a finding, and so are checks that could not run. On a model the
+module extends, a new record runs every other module's defaults too: a break
+there fails the lap only when its traceback runs through the module's files or
+its error names one of the module's fields. It also lists every button the
 module puts in a view, placed in the view as Odoo assembles it, and checks each
 without pressing it: the method is there, public, and takes no argument a
 button cannot pass; an action exists. The same catalogue holds every action the

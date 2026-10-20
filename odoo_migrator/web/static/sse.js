@@ -161,6 +161,12 @@ function fillResultCornerGlyph(glyph, kind) {
       if (same && panel && !panel.hidden && data.steps && data.steps.length) {
         pipe.dispatchEvent(new CustomEvent("ribbon-live", { detail: data }));
         folding = setTimeout(function () {
+          /* Someone picked an older attempt meanwhile: held, as any fold is. */
+          if (pipe.hasAttribute("data-reading")) {
+            pipe.dispatchEvent(new CustomEvent("card-held", { detail: data }));
+
+            return;
+          }
           idleCard(pipe, data);
         }, (data.drawFor || 0) + FOLD_HOLD);
 

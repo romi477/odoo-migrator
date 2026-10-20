@@ -517,7 +517,7 @@ def test_an_expectation_is_the_assertion_and_its_literals_not_the_expression(tmp
         (before / "test_a.py").read_text().replace("amount_untaxed", "amount_untaxed_new")
     )
 
-    old, new = test_expectations(before)["test_a"], test_expectations(after)["test_a"]
+    old, new = test_expectations(before)["T.test_a"], test_expectations(after)["T.test_a"]
 
     assert sorted(old["expects"]) == ["assert('sale')", "assertEqual(10)", "assertRaises(UserError)"]
     assert old["expects"] == new["expects"]
@@ -570,3 +570,119 @@ def test_a_module_without_buttons_skips_click(app, fake_sheller, sandbox):
         )
     ]
     assert "Flags raised in attempt 1:" in str(rows[0].detail)
+
+
+def _expectation_dirs(tmp_path, source, target):
+    before, after = tmp_path / "before", tmp_path / "after"
+    before.mkdir()
+    after.mkdir()
+    (before / "test_a.py").write_text(source)
+    (after / "test_a.py").write_text(target)
+
+    return before, after
+
+
+def _changed(monkeypatch, before, after):
+    from types import SimpleNamespace
+
+    from odoo_migrator import source_git
+    from odoo_migrator.runner.steps.tests import _expectations_changed
+
+    monkeypatch.setattr(source_git, "characterization_dir", lambda migration, module: before)
+    ctx = SimpleNamespace(migration=None, module=None, findings=[])
+
+    return _expectations_changed(ctx, after), ctx.findings
+
+
+def test_two_classes_with_a_method_of_the_same_name_are_two_entries(tmp_path):
+    from odoo_migrator.test_names import test_expectations
+
+    before, _ = _expectation_dirs(
+        tmp_path,
+        "class A:\n    def test_x(self):\n        self.assertEqual(a, 1)\n\n"
+        "class B:\n    def test_x(self):\n        self.assertEqual(b, 2)\n",
+        "",
+    )
+
+    found = test_expectations(before)
+
+    assert set(found) == {"A.test_x", "B.test_x"}
+    assert found["B.test_x"]["name"] == "test_x"
+    assert list(found["A.test_x"]["expects"]) == ["assertEqual(1)"]
+
+
+def test_strings_that_name_a_field_or_a_record_are_not_expectations(tmp_path):
+    from odoo_migrator.test_names import test_expectations
+
+    before, _ = _expectation_dirs(
+        tmp_path,
+        "class T:\n    def test_a(self):\n"
+        "        self.assertEqual(self.env['res.partner'].search_count([('mobile', '=', '+1')]), 1)\n"
+        "        self.assertEqual(order.mapped('line_ids.price'), [5])\n"
+        "        self.assertEqual(order['state'], 'sale')\n"
+        "        self.assertRecordValues(order, [{'amount_total': 10}])\n"
+        "        self.assertEqual(self.env.ref('base.main_company').name, 'Acme')\n",
+        "",
+    )
+
+    expects = sorted(test_expectations(before)["T.test_a"]["expects"])
+
+    assert expects == [
+        "assertEqual('+1', 1)",
+        "assertEqual('Acme')",
+        "assertEqual('sale')",
+        "assertEqual(5)",
+        "assertRecordValues(10)",
+    ]
+
+
+def test_one_marker_explains_the_assertion_under_it_and_no_other(tmp_path, monkeypatch):
+    """One marked change let an unmarked one in the same method through."""
+    before, after = _expectation_dirs(
+        tmp_path,
+        "class T:\n    def test_a(self):\n"
+        "        self.assertEqual(x, 'blue')\n"
+        "        self.assertEqual(y, 10)\n",
+        "class T:\n    def test_a(self):\n"
+        "        self.assertEqual(x, 'green')\n"
+        "        # migrator: target-differs — 18.0 rounds (rules 18.0: Rounding)\n"
+        "        self.assertEqual(y, 11)\n",
+    )
+
+    said, findings = _changed(monkeypatch, before, after)
+
+    assert "changed what 1 of the characterization tests expect" in said
+    assert "T.test_a:" in said and "'blue'" in said
+    assert findings == []
+
+
+def test_each_change_with_its_own_marker_is_a_finding(tmp_path, monkeypatch):
+    before, after = _expectation_dirs(
+        tmp_path,
+        "class T:\n    def test_a(self):\n"
+        "        self.assertEqual(x, 'blue')\n"
+        "        self.assertEqual(y, 10)\n"
+        "        self.assertTrue(z)\n",
+        "class T:\n    def test_a(self):\n"
+        "        # migrator: target-differs — 18.0 names it green (rules 18.0: Colour)\n"
+        "        self.assertEqual(x, 'green')\n"
+        "        self.assertEqual(y, 11)  # migrator: target-differs — 18.0 rounds\n"
+        "        # migrator: target-differs — 18.0 has no z (rules 18.0: Z)\n",
+    )
+
+    said, findings = _changed(monkeypatch, before, after)
+
+    assert said == ""
+    assert len(findings) == 1 and "Colour" in findings[0]["text"]
+
+
+def test_a_class_the_port_renamed_is_still_compared(tmp_path, monkeypatch):
+    before, after = _expectation_dirs(
+        tmp_path,
+        "class TestOld:\n    def test_a(self):\n        self.assertEqual(x, 'blue')\n",
+        "class TestNew:\n    def test_a(self):\n        self.assertEqual(x, 'green')\n",
+    )
+
+    said, _ = _changed(monkeypatch, before, after)
+
+    assert "TestOld.test_a: assertEqual('blue') is gone" in said

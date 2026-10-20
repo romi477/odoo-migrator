@@ -42,7 +42,7 @@ A step is one entry of `pipeline` or `on_failure.pipeline`.
 |---|---|
 | `step` | required. The kind: see "Step kinds". An unknown kind is refused |
 | `id` | required on an `agent` step, optional on the others. The step's name on the Flow page, and the key its answer is stored under. Unique across the whole file; a repeat is refused. A step without one is named by its kind |
-| `when` | optional. A flag name. The step runs only if that flag was raised earlier in the same lap; otherwise it is skipped. A flag nothing raises is refused |
+| `when` | optional. A flag name. The step runs only if that flag was raised earlier in the same lap; otherwise it is skipped. A flag nothing raises is refused, and so is a built-in one whose step is not in the flow |
 | `sessions` | `agent` only. `source`, `target` or both: which containers the step may reach. Anything else is refused |
 | `tools` | `agent` only. Names from the catalog, below. An unknown tool is refused, and so is one that none of the step's `sessions` allows |
 | `context` | `agent` only. Names from "Context items". Rendered above the prompt in a fixed order, whatever order you list them in. An unknown item is refused |

@@ -16,7 +16,9 @@ from odoo_migrator.graph import (
 )
 from odoo_migrator.jobs import ATTENTION, _discard_offer, continue_batch, live_run, start_batch
 from odoo_migrator.models import (
+    Assumption,
     Batch,
+    Finding,
     Job,
     PipelineQueueItem,
     PipelineQueueSkip,
@@ -779,6 +781,13 @@ def after_batch_checkpoint(
         passed = bool(batch) and all(
             job.status == "passed" for job in Job.select().where(Job.batch == batch_id)
         )
+        # What a run says besides its verdict is read in the review: a smoke
+        # check that could not run, a change a port explained, a question it
+        # did not stop for. A batch that carries any keeps its review.
+        said = (
+            Finding.select().join(Job).where(Job.batch == batch_id).exists()
+            or Assumption.select().join(Job).where(Job.batch == batch_id).exists()
+        )
     running = run_state(migration_id) == "running"
     auto = batch is not None and batch.auto_continue
     if not running:
@@ -786,9 +795,9 @@ def after_batch_checkpoint(
         # that was stopped while its module finished. If every module passed
         # there is nothing to review, and a review stop barred the next Run
         # and every play until someone pressed a Continue that started
-        # nothing. A failure or a stop keeps its review. Its own batch is the
-        # one closed, not whichever review is newest.
-        if passed:
+        # nothing. A failure or a stop keeps its review, and so do findings.
+        # Its own batch is the one closed, not whichever review is newest.
+        if passed and not said:
             remove_finished_steps(migration_id)
             try:
                 continue_batch(migration_id, override=True, batch_id=batch_id)

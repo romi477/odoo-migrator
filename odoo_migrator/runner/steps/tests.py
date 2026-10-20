@@ -104,9 +104,11 @@ def _expectations_changed(ctx: StepContext, target_tests: Path) -> str:
     The tests arrived by name, and a name says nothing about the body: a port
     could turn an expected 'blue' into the 'green' its code returns, and the
     test the source proved went green on the target without proving anything.
-    A change under a `# migrator: target-differs` line is explained, and goes
-    to the review as a finding; one without it fails the lap, and the failure
-    lane puts the assertion back or explains it.
+    A `# migrator: target-differs` line explains the assertion under it and
+    no other, so every value that went needs one of its own: a marked
+    assertion the source did not have, or a marker where one was taken out.
+    Explained, the change goes to the review as a finding; otherwise it fails
+    the lap, and the failure lane puts the assertion back or explains it.
     """
     from odoo_migrator.source_git import characterization_dir
     from odoo_migrator.test_names import MARKER, test_expectations
@@ -118,20 +120,22 @@ def _expectations_changed(ctx: StepContext, target_tests: Path) -> str:
     before = test_expectations(source_tests)
     after = test_expectations(target_tests)
     unexplained = []
-    for name in sorted(before):
-        if name not in after:
+    for key in sorted(before):
+        other = _counterpart(key, before, after)
+        if other is None:
             continue
-        gone = before[name]["expects"] - after[name]["expects"]
+        old, new = before[key], after[other]
+        gone = old["expects"] - new["expects"]
         if not gone:
             continue
-        came = after[name]["expects"] - before[name]["expects"]
-        said = f"{name}: {', '.join(sorted(gone.elements()))} is gone"
+        came = new["expects"] - old["expects"]
+        said = f"{key}: {', '.join(sorted(gone.elements()))} is gone"
         if came:
             said += f"; the target has {', '.join(sorted(came.elements()))}"
-        marked = after[name]["marked"]
-        if marked:
+        explanations = sum((came & new["explained"]).values()) + new["free"]
+        if explanations >= sum(gone.values()):
             finding = {
-                "text": f"The port changed what {said}. It says why: {' '.join(marked)}",
+                "text": f"The port changed what {said}. It says why: {' '.join(new['marked'])}",
                 "source": "tests: target-differs",
             }
             if finding not in ctx.findings:
@@ -151,6 +155,23 @@ def _expectations_changed(ctx: StepContext, target_tests: Path) -> str:
         f"assertion and put `{MARKER} — <what changed, and the rule that says "
         "so>` on the line above it."
     )
+
+
+def _counterpart(key: str, before: dict, after: dict) -> str | None:
+    """The target's entry for the source's `Class.method`: the same key, or,
+    when the port renamed the class, the one method of that name on both
+    sides. None when there is no telling which."""
+    if key in after:
+
+        return key
+    name = before[key]["name"]
+    there = [other for other, entry in after.items() if entry["name"] == name]
+    here = [other for other, entry in before.items() if entry["name"] == name]
+    if len(there) == 1 and len(here) == 1:
+
+        return there[0]
+
+    return None
 
 
 def _runs_modules(ctx: StepContext) -> bool:

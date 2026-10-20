@@ -73,8 +73,10 @@ def why_skipped(cartridge: Cartridge, step, ran: list[str]) -> str:
         reason = f"{' and '.join(seen)} ran and did not raise it"
         if flag in _NOT_RAISED:
             reason += f" ({_NOT_RAISED[flag]})"
-    else:
+    elif raisers:
         reason = f"{' or '.join(raisers)}, which raises it, did not run in this attempt"
+    else:
+        reason = "no step in this flow raises it"
 
     return f"skipped: runs only when {flag} is raised, and {reason}"
 

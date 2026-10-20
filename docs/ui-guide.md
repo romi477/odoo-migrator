@@ -382,7 +382,7 @@ graph yet, the page points you at Tree → Resolve.
 ### Checkpoint
 
 A finished batch (not a smoke-run) stops here, except one in which every module
-passed: there is nothing to review, and it closes by itself, whether the module
+passed and no run left a finding or an assumption: there is nothing to review, and it closes by itself, whether the module
 ran on its own from its play button or the queue was stopped while it ran. The
 banner under the card says which modules were migrated, once; a reload does not
 draw it again, and the next run takes it down. One that failed, or was stopped, waits here, and its module's

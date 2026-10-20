@@ -1560,3 +1560,43 @@ def test_a_long_flow_is_scaled_to_one_line_and_snakes_past_that(client):
     # arrow along the row, and no wire is drawn for the turn.
     assert "[data-snake-turn]::before" in css
     assert "runner-wire-turn" not in script and "runner-wire-turn" not in css
+
+
+def test_a_passed_run_that_left_a_finding_keeps_its_review(client):
+    """The review is where a finding is read and promoted: a smoke check that
+    did not run, a change a port explained. Closed on its own, it was not."""
+    from test_batch import DeferredExecutor
+
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    executor = DeferredExecutor(client.app)
+    client.app.state.executor = executor
+    client.post("/run/queue/run", follow_redirects=True)
+    client.post("/run/queue/stop", follow_redirects=True)
+
+    client.app.state.on_result(
+        {
+            "job_id": executor.pending.pop(0),
+            "status": "passed",
+            "findings": [{"text": "The smoke checks did not run: busy", "source": "smoke"}],
+        }
+    )
+
+    with database.connection_context():
+        assert Batch.select().where(Batch.migration == row.id).order_by(Batch.id.desc()).get().status == (
+            "checkpoint"
+        )
+    said = [event[1] for event in client.app.state.hub.published if event[0] == "checkpoint"]
+    assert "passed" not in said[-1]
+
+
+def test_the_delayed_fold_is_held_while_an_older_attempt_is_read(client):
+    """The fold waited out the finished ribbon and then folded the card under
+    someone who had picked an older attempt meanwhile."""
+    script = client.get("/static/sse.js").text
+    timer = script[script.index("folding = setTimeout(") :]
+    timer = timer[: timer.index("FOLD_HOLD);")]
+
+    assert 'pipe.hasAttribute("data-reading")' in timer
+    assert '"card-held"' in timer

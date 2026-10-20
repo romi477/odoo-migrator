@@ -42,6 +42,7 @@ _SHOWN = 20
 _SCRIPT = r"""import fnmatch as _fnmatch
 import inspect as _inspect
 import json as _json
+import re as _re
 import traceback as _traceback
 
 from lxml import etree as _etree
@@ -58,9 +59,11 @@ def _own(text):
     return ('/%s/' % _name) in text
 
 
-def _check(where, call, own=None):
+def _check(where, call, own=None, names=()):
     # A UserError is the module saying no, the way it says it to a person:
     # a wizard opened without its record, a state that refuses. Not a break.
+    # `own` None: the module's when the traceback runs through its files, or
+    # the error names one of `names`, its fields.
     try:
         with env.cr.savepoint():
             call()
@@ -71,15 +74,19 @@ def _check(where, call, own=None):
         _found.append({{
             'where': where,
             'error': '%s: %s' % (type(exc).__name__, str(exc).strip().splitlines()[0][:300] if str(exc).strip() else ''),
-            'own': _own(trace) if own is None else own,
+            'own': (_own(trace) or any(_n in str(exc) for _n in names)) if own is None else own,
             'trace': '\n'.join(trace.strip().splitlines()[-12:]),
         }})
 
 
 _rows = env['ir.model.data'].sudo().search([('module', '=', _name)])
 _ids = {{}}
+_xmlids = {{}}
 for _row in _rows:
     _ids.setdefault(_row.model, []).append(_row.res_id)
+    _xmlids.setdefault((_row.model, _row.res_id), '%s.%s' % (_row.module, _row.name))
+# The models this module defines: everything on them is its own.
+_defined = set(env['ir.model'].sudo().browse(_ids.get('ir.model', [])).exists().mapped('model'))
 
 # The fields this module declares, by model: for a model it extends, its own
 # fields; for one it defines, all of them.
@@ -96,12 +103,15 @@ for _model in sorted(_fields):
     _seen['fields'] += len(_names)
 
     # "New": the defaults a form opens with, and every field of the module's
-    # computed on that new record, as the form shows them.
+    # computed on that new record, as the form shows them. On a model it
+    # extends, the other modules' defaults run too, and a break in one of
+    # theirs is not this port's: whose it is comes from the traceback.
+    _mine = True if _model in _defined else None
     def _new(_Model=_Model, _names=_names):
         _record = _Model.new(_Model.default_get(list(_Model._fields)))
         for _n in _names:
             _record[_n]
-    _check('%s: a new record (defaults and computed fields)' % _model, _new, own=True)
+    _check('%s: a new record (defaults and computed fields)' % _model, _new, own=_mine, names=_names)
     _seen['new'] += 1
 
     # "Open the list": the module's fields read on the latest records.
@@ -109,7 +119,7 @@ for _model in sorted(_fields):
         _records = _Model.search([], limit=20, order='id desc')
         _records.read(_names)
         _records.mapped('display_name')
-    _check('%s: reading its fields on existing records' % _model, _read, own=True)
+    _check('%s: reading its fields on existing records' % _model, _read, own=_mine, names=_names)
     _seen['read'] += 1
 
 # Window actions: the domain the client sends, evaluated and searched. A
@@ -250,7 +260,9 @@ def _button_problem(_button):
         _ref = _button['name']
         if _ref.isdigit():
             return '' if env['ir.actions.actions'].sudo().browse(int(_ref)).exists() else 'action %s does not exist' % _ref
-        return '' if env.ref(_ref.strip('%()d'), raise_if_not_found=False) else 'action %s does not exist' % _ref
+        _xml = _re.match(r'^%\((.+)\)d$', _ref)
+        _xml = _xml.group(1) if _xml else _ref
+        return '' if env.ref(_xml, raise_if_not_found=False) else 'action %s does not exist' % _ref
     _method = getattr(type(env[_button['model']]), _button['name'], None)
     if _method is None or not callable(_method):
         return '%s has no method %s' % (_button['model'], _button['name'])
@@ -279,9 +291,7 @@ for _button in _buttons.values():
 # named by XML id; an unbound server action is reached from a button, which
 # is listed above.
 def _xmlid(_record):
-    _data = env['ir.model.data'].sudo().search(
-        [('module', '=', _name), ('model', '=', _record._name), ('res_id', '=', _record.id)], limit=1)
-    return '%s.%s' % (_data.module, _data.name) if _data else str(_record.id)
+    return _xmlids.get((_record._name, _record.id)) or str(_record.id)
 
 
 def _entry(_record, _model, _kind, _where, _context=''):
