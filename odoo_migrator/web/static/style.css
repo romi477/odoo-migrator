@@ -4508,10 +4508,47 @@ a.ribbon-box:focus-visible {
   }
 }
 
+/* The failure lane is a detour from the pipeline, and it reads as one: every
+   step that ran in it, done or at work, is amber, the colour of the way in
+   and of a run that needs a look. Cyan and green belong to the pipeline.
+   A step that failed stays red and one passed over stays grey. */
+.ribbon-lane .ribbon-node[data-state="done"] .ribbon-box,
+.ribbon-lane .ribbon-node[data-state="earlier"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--amber) 55%, var(--border));
+  color: var(--text);
+}
+
+.ribbon-lane .ribbon-node[data-state="running"] .ribbon-box {
+  border-color: color-mix(in oklch, var(--amber) 75%, transparent);
+}
+
+.ribbon-lane .ribbon-node[data-state="done"] .ribbon-led,
+.ribbon-lane .ribbon-node[data-state="earlier"] .ribbon-led,
+.ribbon-lane .ribbon-node[data-state="running"] .ribbon-led {
+  background: var(--amber);
+}
+
+.ribbon-lane .ribbon-node[data-state="running"] .ribbon-led {
+  animation-name: ribbon-pulse-lane;
+}
+
+@keyframes ribbon-pulse-lane {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--amber) 60%, transparent);
+  }
+  50% {
+    opacity: 0.35;
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--amber) 0%, transparent);
+  }
+}
+
 /* A blinking lamp is the one thing on this page that must not blink for
    someone who asked the system to stop animating. */
 @media (prefers-reduced-motion: reduce) {
-  .ribbon-node[data-state="running"] .ribbon-led {
+  .ribbon-node[data-state="running"] .ribbon-led,
+  .ribbon-lane .ribbon-node[data-state="running"] .ribbon-led {
     animation: none;
   }
 }
