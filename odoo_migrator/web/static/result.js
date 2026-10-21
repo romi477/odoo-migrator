@@ -61,9 +61,9 @@
       steps.className = "result-summary-steps";
       data.steps.forEach(function (step) {
         const item = document.createElement("li");
-        item.className = step.ok === false ? "is-failed" : "";
+        item.className = step.ok === false ? "is-failed" : step.skipped ? "is-skipped" : "";
         item.textContent =
-          step.attempt +
+          (step.attempt || "?") +
           " · " +
           step.id +
           (step.tokens

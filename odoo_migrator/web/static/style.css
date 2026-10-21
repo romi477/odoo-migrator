@@ -4682,6 +4682,12 @@ a.ribbon-box:focus-visible {
   color: var(--red);
 }
 
+/* A step its `when` kept out: listed so it is not mistaken for forgotten, and
+   quiet, since it did nothing on that lap. */
+.result-summary-steps li.is-skipped {
+  color: var(--muted-low);
+}
+
 /* What happened to the tests: what was listed, what was written, what ran.
    The step list says `write_test` and stops there. */
 .result-summary-tests,

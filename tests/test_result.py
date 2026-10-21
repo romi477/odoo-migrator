@@ -275,6 +275,33 @@ def test_a_card_opens_what_that_run_said(client):
     assert summary["messages"][0]["at"]
 
 
+def test_a_summary_lists_the_steps_a_when_kept_out_and_says_why(client):
+    """The summary listed what ran. A step that did not run left no trace
+    there, so `probe` missing read as a bug and the reason was in the run log
+    only."""
+    from odoo_migrator.models import Job, RunLog
+
+    migration_id = _open(client)
+    module = _ran(migration_id, "sale_custom")
+    with database.connection_context():
+        job = Job.get(Job.module == module.id)
+        RunLog.create(
+            job=job,
+            source="probe",
+            text="skipped: runs only when no_tests is raised, and tests ran and did not raise it",
+            detail="Flags raised in attempt 2: none",
+        )
+        RunLog.create(job=job, source="tests", text="not a skip")
+
+    steps = client.get(f"/api/result/modules/{module.id}/summary").json()["steps"]
+
+    skipped = [step for step in steps if step.get("skipped")]
+    assert [(step["id"], step["attempt"]) for step in skipped] == [("probe", 2)]
+    assert "no_tests is raised" in skipped[0]["output"]
+    assert skipped[0]["ok"] is None
+    assert [step["id"] for step in steps if not step.get("skipped")] == ["port", "tests"]
+
+
 def test_a_summary_says_what_the_model_spent(client):
     """The run log prints tokens per step as it goes and nothing added them
     up, so what a module cost was a sum done by hand over a log."""

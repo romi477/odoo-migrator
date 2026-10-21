@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import uuid
 from datetime import UTC
@@ -37,6 +38,7 @@ from odoo_migrator.models import (
     Migration,
     Module,
     PipelineQueueSkip,
+    RunLog,
     StepRun,
 )
 from odoo_migrator.module_paths import module_root
@@ -1350,22 +1352,49 @@ def module_outcome(module_id: int) -> dict | None:
             .where(CheckpointMessage.job == job)
             .order_by(CheckpointMessage.id)
         ]
+        # A step a `when` kept out leaves no StepRun, only the run log's line
+        # saying why. Without it the summary of a lap read as if the step had
+        # been forgotten.
+        passed_over = list(
+            RunLog.select()
+            .where((RunLog.job == job) & (RunLog.text.startswith("skipped:")))
+            .order_by(RunLog.id)
+        )
     ended = [run.finished_at for run in runs if run.finished_at]
     finished = max(ended) if ended else None
     steps = [
-        {
-            "id": run.step_id or run.kind,
-            "attempt": run.attempt,
-            "ok": run.ok,
-            "output": run.output or "",
-            "tokens": (
-                {"in": run.tokens_in, "out": run.tokens_out}
-                if run.tokens_in or run.tokens_out
-                else None
-            ),
-        }
+        (
+            run.started_at,
+            {
+                "id": run.step_id or run.kind,
+                "attempt": run.attempt,
+                "ok": run.ok,
+                "output": run.output or "",
+                "tokens": (
+                    {"in": run.tokens_in, "out": run.tokens_out}
+                    if run.tokens_in or run.tokens_out
+                    else None
+                ),
+            },
+        )
         for run in runs
     ]
+    for line in passed_over:
+        lap = re.search(r"attempt (\d+)", line.detail or "")
+        steps.append(
+            (
+                line.at,
+                {
+                    "id": line.source,
+                    "attempt": int(lap.group(1)) if lap else None,
+                    "ok": None,
+                    "skipped": True,
+                    "output": line.text,
+                    "tokens": None,
+                },
+            )
+        )
+    steps = [step for _, step in sorted(steps, key=lambda pair: pair[0])]
 
     return {
         "job_id": job.job_id,
