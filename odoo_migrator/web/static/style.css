@@ -4678,6 +4678,13 @@ a.ribbon-box:focus-visible {
   color: var(--muted);
 }
 
+/* A step's output is a report with lines of its own: a test run's failures,
+   its log. Collapsed to one paragraph it read as a single wall of text. */
+.result-summary-steps li {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .result-summary-steps li.is-failed {
   color: var(--red);
 }
