@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from contextlib import contextmanager
 
@@ -31,18 +32,25 @@ FINISHED_OK = set(DONE)
 # built on every page and every publish, and the count is two git calls.
 _OFFER_TTL = 3.0
 _OFFERS: dict[int, tuple[float, dict | None]] = {}
+# Request threads, the stream's workers and job threads all build snapshots.
+# The dict is walked to drop stale entries while another thread adds one.
+_OFFERS_LOCK = threading.Lock()
 
 
 def _offer(job: Job) -> dict | None:
     now = time.monotonic()
-    hit = _OFFERS.get(job.id)
-    if hit is not None and now - hit[0] < _OFFER_TTL:
+    with _OFFERS_LOCK:
+        hit = _OFFERS.get(job.id)
+        if hit is not None and now - hit[0] < _OFFER_TTL:
 
-        return hit[1]
-    for stale in [key for key, (at, _) in _OFFERS.items() if now - at >= _OFFER_TTL]:
-        del _OFFERS[stale]
+            return hit[1]
+        for stale in [key for key, (at, _) in _OFFERS.items() if now - at >= _OFFER_TTL]:
+            del _OFFERS[stale]
+    # Two git calls: outside the lock, so one slow repository does not hold
+    # every other snapshot.
     offer = _discard_offer(job)
-    _OFFERS[job.id] = (now, offer)
+    with _OFFERS_LOCK:
+        _OFFERS[job.id] = (now, offer)
 
     return offer
 
@@ -701,6 +709,7 @@ def kick(migration_id: str, executor, hub: EventHub) -> None:
         step=step,
         executor=executor,
         hub=hub,
+        from_queue=True,
     )
     publish_queue(hub, migration_id)
 

@@ -627,6 +627,7 @@ def start_batch(
     hub: EventHub,
     batch_group: int | None = None,
     step: int | None = None,
+    from_queue: bool = False,
 ) -> Batch:
     if step is not None:
         listed = modules_in_step_order(migration_id, step)
@@ -688,6 +689,7 @@ def start_batch(
             # group with the same number.
             batch_group=batch_group,
             step=step,
+            from_queue=from_queue,
             cartridge_id=migration.cartridge_id or "stock",
             cartridge_version=migration.cartridge_version or "1.0.0",
             model_webhook_url=(
@@ -808,6 +810,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         batch_id = batch.id
         group = batch.batch_group
         wave = batch.step
+        from_queue = bool(batch.from_queue)
         migration_id = str(batch.migration_id)
         stopped = job.status in ("failed", "stopped")
         waiting = job.status == "waiting_for_human"
@@ -843,7 +846,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
         return
     from odoo_migrator.pipeline_queue import should_advance_modules
 
-    if not should_advance_modules(migration_id):
+    if from_queue and not should_advance_modules(migration_id):
         _end_batch(batch_id, migration_id, executor, hub)
 
         return

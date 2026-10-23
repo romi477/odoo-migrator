@@ -183,6 +183,10 @@ class Batch(BaseModel):
     # review stop when its module passed: the person asked for one module, not
     # for a wave to look over. A failure still waits for review.
     auto_continue = BooleanField(default=False)
+    # Started by the Pipeline queue, which is the only thing whose Stop means
+    # "finish this module and go no further". A batch a person started from
+    # Tree runs to its end whatever state the queue is in.
+    from_queue = BooleanField(default=False)
     model_webhook_url = TextField(default="")
     cartridge_id = CharField(null=True)
     cartridge_version = CharField(null=True)

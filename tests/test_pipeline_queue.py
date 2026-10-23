@@ -1681,3 +1681,48 @@ def test_the_failure_lane_forks_from_the_step_that_failed(client):
     assert "padding-left: var(--lane-start, 0px)" in forked
     assert "--wire: var(--red)" in css.split(".runner-wire-fork {", 1)[1].split("}", 1)[0]
     assert "An attempt whose port failed" in page
+
+
+def test_a_batch_started_from_tree_runs_on_while_the_queue_is_idle(client):
+    """The queue's own stop says 'finish this module and no more'. A batch
+    the person started from Tree is not the queue's, and it ended after its
+    first module whenever the queue held steps and had been stopped once."""
+    from test_batch import OutcomeExecutor
+
+    from odoo_migrator.pipeline_queue import set_run_state
+
+    row = _queue_both_steps(client)
+    set_run_state(row.id, "stopped")
+    executor = OutcomeExecutor({}, client.app)
+    client.app.state.executor = executor
+
+    client.post("/tree/batch/run", data={"step": "1"}, follow_redirects=True)
+
+    assert len(executor.started) == 2
+
+
+def test_the_discard_offer_cache_survives_snapshots_built_on_many_threads(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    from odoo_migrator import pipeline_queue
+
+    monkeypatch.setattr(pipeline_queue, "_OFFER_TTL", 0.0)
+    monkeypatch.setattr(pipeline_queue, "_discard_offer", lambda job: {"files": job.id})
+    pipeline_queue._OFFERS.clear()
+    errors = []
+
+    def hammer(base):
+        try:
+            for index in range(400):
+                pipeline_queue._offer(SimpleNamespace(id=base + index))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=hammer, args=(n * 1000,)) for n in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
