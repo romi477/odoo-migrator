@@ -1010,3 +1010,28 @@ def test_a_step_is_not_held_by_an_unrelated_module_of_an_earlier_step(tmp_path):
     # y (step 2) is still to do, but z does not depend on it.
     assert step_blocked_by(created["id"], 3, set()) is None
     assert step_blocked_by(created["id"], 2, set()) is None
+
+
+def test_a_reopened_module_odoo_no_longer_reports_is_flagged_not_deleted(client):
+    """Reopen leaves a module `queued` with the jobs that ran it. Deleting it
+    on the next Build graph broke the jobs' foreign key and answered 500."""
+    from test_batch import _prepared
+
+    from odoo_migrator.db import database
+    from odoo_migrator.graph import persist_graph
+    from odoo_migrator.models import Batch, Job, Migration, Module
+
+    row, sale = _prepared(client)
+    with database.connection_context():
+        module = Module.get_by_id(sale["id"])
+        batch = Batch.create(migration=Migration.get_by_id(str(row.id)), status="idle")
+        Job.create(batch=batch, module=module, status="failed")
+        module.status = "queued"
+        module.save()
+
+    persist_graph(str(row.id), [{"name": "other_mod", "depends": []}])
+
+    with database.connection_context():
+        kept = Module.get_by_id(sale["id"])
+
+        assert kept.absent_from_odoo is True

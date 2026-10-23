@@ -329,11 +329,14 @@ def carries_human_work(module: Module) -> bool:
     longer reports.
     """
 
+    # A reopened module is `queued` again with the jobs that ran it still on
+    # file, and a row they point at cannot be deleted.
     return bool(
         module.struck_out
         or module.notes
         or module.has_assumptions
         or module.status != "queued"
+        or Job.select().where(Job.module == module).exists()
     )
 
 
