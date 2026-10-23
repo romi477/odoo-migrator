@@ -143,7 +143,11 @@ TOOL_DESCRIPTIONS = {
         "with `params='@module'`, Hoot's filter; `list_tests` has the exact "
         "call. A suite Odoo skipped answers `js_tests_skipped`: it did not pass."
     ),
-    "list_tests": "The test classes a module declares, each with a ready spec.",
+    "list_tests": (
+        "The test classes a module declares, each with a ready spec. Under `js`, "
+        "its browser test files, each `in_manifest` when the test bundle loads it, "
+        "and `run`, the call that runs them."
+    ),
     "test_result": "The report of the last run_test.",
     "interrupt": "Stop the command this side's session is running.",
     "rollback": "Discard everything this side's session holds uncommitted.",
@@ -430,7 +434,10 @@ def _run_test(ctx, session_id: str, write_key: str, test: str, params: str = "")
     gives. They stay in the journal, as Sheller's own tool leaves them.
     """
     whole = "." not in test
-    extra = {"timeout": MODULE_TEST_TIMEOUT} if whole else {}
+    # A browser suite is a whole module's tests too, behind one Python test
+    # and a filter: at the daemon's default it was cut off at 300s, while the
+    # tests step gives the same run half an hour.
+    extra = {"timeout": MODULE_TEST_TIMEOUT} if whole or params else {}
     if params:
         extra["params"] = params
     try:
@@ -812,10 +819,15 @@ def _preview(name: str, value, text: str) -> str:
                 for item in classes
                 if isinstance(item, dict)
             ]
+            js = value.get("js") if isinstance(value.get("js"), dict) else {}
+            files = [entry for entry in js.get("files") or [] if isinstance(entry, dict)]
+            # A module with browser tests only said "no tests on disk".
+            browser = f" · {len(files)} JS test file(s)" if files else ""
+            if not classes:
 
-            return f"{len(classes)} class(es): {', '.join(filter(None, named))}" if classes else (
-                "no tests on disk"
-            )
+                return f"no Python test classes{browser}" if files else "no tests on disk"
+
+            return f"{len(classes)} class(es): {', '.join(filter(None, named))}{browser}"
 
     return text
 

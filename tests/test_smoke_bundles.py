@@ -33,6 +33,10 @@ def _matches():
         ("mod/static/src/js/a.js", "mod/static/src/js/a.js", True),
         ("mod/static/src/js/a.js", "mod/static/src/js/b.js", False),
         ("mod/static/src/js/a.js", "mod/static/src/**/a.js", True),
+        # A trailing `**` is every depth below, as glob(recursive=True) has it.
+        ("mod/static/src/js/deep/a.js", "mod/static/src/**", True),
+        ("mod/static/src/a.js", "mod/static/src/**", True),
+        ("mod/static/lib/a.js", "mod/static/src/**", False),
     ],
 )
 def test_a_manifest_entry_matches_the_way_odoo_expands_it(path, pattern, expected):

@@ -281,9 +281,8 @@ class NativeRunner:
                 )
                 self._progress({"job_id": job_id, "stage": label, "attempt": current.attempt})
                 self._log(job_id, label, f"{step.kind} step started")
-                self._mend_sessions(current, label)
                 writes = "write_file" in (step.tools or ())
-                before = snapshot(_module_root(current)) if writes else {}
+                before = None
                 settles = "write_source_test" in (step.tools or ())
                 if settles:
                     current.source_tests_had = None
@@ -294,6 +293,11 @@ class NativeRunner:
                     current.source_green_session = ""
                     current.source_green_command = ""
                 try:
+                    # Inside, so a Stop heard while a busy session is given
+                    # its grace closes the row like any other end of a step.
+                    self._mend_sessions(current, label)
+                    if writes:
+                        before = snapshot(_module_root(current))
                     if step.fresh:
                         self._clear_module(current, label)
                     result = runner(step, current)
@@ -311,8 +315,11 @@ class NativeRunner:
                     # it wrote is removed, not committed.
                     if settles:
                         self._settle_source_tests(current, label)
-                if writes:
-                    self._note_diff(current, before)
+                    # What it wrote is on disk all the same. Noted only on a
+                    # clean return, a Stop in the middle of `port` left the
+                    # attempt with no diff and the files changed.
+                    if before is not None:
+                        self._note_diff(current, before)
                 self._close_step(step_run, result)
                 self._log(
                     job_id,

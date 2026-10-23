@@ -1338,6 +1338,13 @@ def create_app(
         if current is None:
 
             return RedirectResponse("/run", status_code=303)
+        # Scoped like an answer: a stale page of another migration stopped that
+        # one's job, and this one's queue with it.
+        try:
+            module_for_migration(current["id"], module_id)
+        except GraphError as refused:
+
+            return _run_page(request, error=str(refused))
         queue_stop(current["id"], request.app.state.hub)
         try:
             stopped = stop_job(

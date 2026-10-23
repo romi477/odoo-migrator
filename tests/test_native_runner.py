@@ -394,6 +394,65 @@ def test_a_stopped_run_closes_its_batch_and_keeps_its_diff(app, tmp_path):
     assert _batch_block_reason(migration_id) == "Review the last batch before starting another."
 
 
+_WRITES = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-sonnet-5-5}
+pipeline:
+  - step: agent
+    id: port
+    sessions: [target]
+    tools: [write_file]
+    prompt: port
+on_failure:
+  pipeline: []
+  retry:
+    resume_at: port
+"""
+
+
+class _StoppedMidTurn:
+    """Writes a file, then hears a Stop before it reports, as `port` does when
+    a person presses Stop half-way through its turn."""
+
+    name = "scripted"
+
+    def __init__(self, job_id):
+        self.job_id = job_id
+
+    def ensure_ready(self):
+
+        return None
+
+    def run_step(self, *, tools, stop_check=None, **_):
+        from odoo_migrator.runner.native import ask_to_stop
+
+        write = next(tool for tool in tools if tool.name == "write_file")
+        write(side="target", path="sale_custom/models.py", content="x = 1\n")
+        ask_to_stop(self.job_id)
+        stop_check()
+
+
+def test_a_step_stopped_mid_turn_keeps_what_it_wrote_in_the_diff(app, fake_sheller, tmp_path):
+    """The hunk was noted only on a clean return, so the attempt of a run
+    stopped during `port` had no diff while the files on disk had changed."""
+    from odoo_migrator.models import Attempt
+
+    job = _module(tmp_path)
+    runner = NativeRunner(
+        sheller=fake_sheller, hub=app.state.hub, provider=_StoppedMidTurn(job.job_id)
+    )
+    runner.start({"job_id": job.job_id, "cartridge_text": _WRITES})
+    runner.wait(job.job_id, timeout=5)
+
+    assert reloaded(job).status == "stopped"
+    with database.connection_context():
+        diffs = [attempt.diff for attempt in Attempt.select().where(Attempt.job == job.id)]
+    assert len(diffs) == 1
+    assert "+x = 1" in diffs[0]
+
+
 def test_a_late_progress_does_not_bring_a_stopped_job_back(app, tmp_path):
     from odoo_migrator.jobs import apply_progress
 

@@ -60,9 +60,11 @@ def _own(text):
 
 def _matches(path, pattern):
     # Odoo expands a manifest entry with glob(recursive=True): `**/` is any
-    # number of directories, none included, and `*` stops at a slash.
-    # fnmatch's `*` does not stop, and its `**/*` wants a directory in between.
+    # number of directories, none included, a trailing `**` is everything
+    # below, and `*` stops at a slash. fnmatch's `*` does not stop, and its
+    # `**/*` wants a directory in between.
     regex = (_re.escape(pattern).replace('\\*\\*/', '(?:.*/)?')
+             .replace('\\*\\*', '.*')
              .replace('\\*', '[^/]*').replace('\\?', '[^/]'))
     return _re.fullmatch(regex, path) is not None
 

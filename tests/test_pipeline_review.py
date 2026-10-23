@@ -470,6 +470,34 @@ def test_an_upgrade_that_outlives_the_call_is_waited_for(ctx_for, sheller):
     assert "outlived" in result.output
 
 
+def test_a_stop_reaches_an_upgrade_that_outlived_the_call(ctx_for, sheller):
+    """The wait for it lasts up to an hour, and a Stop pressed during it was
+    heard only at its end. Now it is heard, the upgrade is interrupted and the
+    module states it marked are put back."""
+    from odoo_migrator.runner.context import Stopped
+
+    sheller.hangs_on = "button_immediate"
+    sheller.hangs_for = 1000
+    ctx = ctx_for()
+    ctx.stop_asked = lambda: True
+    hung = None
+
+    def remember(*args, **kwargs):
+        nonlocal hung
+        hung = ctx.sessions["target"]
+
+        return interrupt(*args, **kwargs)
+
+    interrupt, sheller.interrupt = sheller.interrupt, remember
+
+    with pytest.raises(Stopped, match="waiting for the target session"):
+        upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert hung is not None
+    assert ctx.sessions["target"] != hung
+    assert ctx.sessions["target"] in sheller.commits
+
+
 def test_an_upgrade_that_outlives_the_call_and_did_not_finish_fails(ctx_for, sheller):
     sheller.hangs_on = "button_immediate"
     sheller.hangs_for = 1

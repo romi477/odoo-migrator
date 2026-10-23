@@ -617,6 +617,61 @@ def test_a_test_file_outside_the_bundle_fails_the_lap_before_any_run(
     assert "web.assets_unit_tests" not in result.output
 
 
+def test_a_helper_outside_the_test_bundle_is_not_a_suite_left_out(
+    tmp_path, step_context, sheller_fake
+):
+    """Before 18.0 the listing names every JS file under `static/tests/`, and
+    a tour's helper belongs in `web.assets_tests`. Failing on it sent the lane
+    to move a file into a bundle it does not belong in."""
+    _browser_tests(
+        tmp_path,
+        sheller_fake,
+        files=[
+            {"path": "static/tests/badge.test.js", "in_manifest": True, "tests": ["badge"]},
+            {"path": "static/tests/tour_utils.js", "in_manifest": False, "tests": []},
+        ],
+    )
+    sheller_fake.hoot_answers[SUITE] = {"passed": 1, "failed": 0, "failed_tests": []}
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is True
+    assert "tour_utils.js" not in result.output
+
+
+def test_a_target_listing_only_helpers_has_left_the_tests_behind(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(
+        tmp_path,
+        sheller_fake,
+        files=[{"path": "static/tests/mock_server.js", "in_manifest": True, "tests": []}],
+    )
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is False
+    assert "did not reach the target" in result.output
+
+
+def test_hoot_failures_are_red_when_the_python_test_driving_them_is_green(
+    tmp_path, step_context, sheller_fake
+):
+    _browser_tests(tmp_path, sheller_fake)
+    sheller_fake.hoot_answers[SUITE] = {
+        "passed": 40,
+        "failed": 2,
+        "failed_tests": ["@sale_custom/a", "@sale_custom/b"],
+    }
+
+    result = tests.run(Step(kind="tests"), step_context())
+
+    assert result.ok is False
+    assert result.flags == {"tests_failed"}
+    assert "2 browser test(s) failed" in result.output
+    assert "@sale_custom/b: failed" in result.output
+
+
 def test_browser_tests_the_port_left_behind_fail_the_lap(tmp_path, step_context, sheller_fake):
     """The source ships them and the target has none its version runs: left
     out, or kept as QUnit files that 18.0 does not look for."""

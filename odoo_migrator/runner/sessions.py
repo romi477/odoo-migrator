@@ -100,6 +100,8 @@ def wait_ready(ctx, side: str, deadline: float) -> str:
     """Poll until ``side`` is not busy, or ``deadline`` (monotonic) passes.
 
     Returns the last state seen: ``ready``, ``busy``, ``dead``, or ``gone``.
+    A Stop pressed meanwhile ends the wait (`Stopped`): the upgrade that
+    outlived its call waits here for up to an hour.
     """
     state = "busy"
     while True:
@@ -107,6 +109,7 @@ def wait_ready(ctx, side: str, deadline: float) -> str:
         if state != "busy" or time.monotonic() >= deadline:
 
             return state
+        check_stop(ctx, f"while waiting for the {side} session")
         time.sleep(POLL_SECONDS)
 
 

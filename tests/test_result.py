@@ -468,6 +468,9 @@ def test_a_test_run_is_recorded_by_its_verdict_not_its_json():
     none = {"error": None, "test": {"success": True, "tests_run": 0}}
     assert _preview("run_test", none, "{}").startswith("failed: 0 test(s)")
     assert _preview("list_tests", {"classes": []}, "{}") == "no tests on disk"
+    # Browser tests only: there are tests on disk, just no Python ones.
+    js = {"classes": [], "js": {"files": [{"path": "static/tests/a.test.js"}]}}
+    assert _preview("list_tests", js, "{}") == "no Python test classes · 1 JS test file(s)"
 
 
 def _chain(migration_id):

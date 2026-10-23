@@ -359,7 +359,7 @@ on_failure:
       when: start_over
       fresh: true
       sessions: [source, target]
-      tools: [exec, source, read_file, write_file, reopen]
+      tools: [exec, source, read_file, write_file, reopen, list_tests]
       context: [rules, module_source, prior_answers, hand_changes]
       prompt: |
         The previous port was judged unsound, for the reason in the

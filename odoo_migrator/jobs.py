@@ -8,7 +8,7 @@ import threading
 import uuid
 from datetime import UTC
 
-from peewee import fn
+from peewee import JOIN, fn
 
 from odoo_migrator import runlog
 from odoo_migrator.contract import (
@@ -73,20 +73,23 @@ class AlreadyRunning(ContractError):
     """That module already has an executor working on it."""
 
 
-def _unread_failures() -> list[Module]:
+def _unread_failures():
     """Failed modules whose newest run nobody has read, newest module first.
 
     Dismiss reads a run and leaves the module `failed`, so the status alone
     kept the lamp flashing over a failure a person had already looked at.
+    One query, run inside the caller's connection: the lamp is asked on
+    every progress of every job, and a query per failed module added up.
     """
-    with database.connection_context():
-        unread = []
-        for module in Module.select().where(Module.status == "failed").order_by(Module.id.desc()):
-            newest = Job.select().where(Job.module == module).order_by(Job.id.desc()).first()
-            if newest is None or not newest.reviewed:
-                unread.append(module)
+    newest = Job.alias()
+    latest = newest.select(fn.MAX(newest.id)).where(newest.module == Module.id)
 
-        return unread
+    return (
+        Module.select()
+        .join(Job, JOIN.LEFT_OUTER, on=(Job.id == latest))
+        .where((Module.status == "failed") & (Job.id.is_null() | (Job.reviewed == False)))
+        .order_by(Module.id.desc())
+    )
 
 
 def lamp_state() -> str:
@@ -95,11 +98,12 @@ def lamp_state() -> str:
     for, and a run somewhere else must not hide it."""
     with database.connection_context():
         waiting = Module.select().where(Module.status == "waiting_for_human").exists()
+        unread = _unread_failures().exists()
         running = Module.select().where(Module.status == "running").exists()
     if waiting:
 
         return "needs-attention"
-    if _unread_failures():
+    if unread:
 
         return "failed"
 
@@ -119,7 +123,7 @@ def attention_target() -> dict | None:
             .where(Module.status == "waiting_for_human")
             .order_by(Module.id)
             .first()
-        ) or next(iter(_unread_failures()), None)
+        ) or _unread_failures().first()
         if module is None:
 
             return None

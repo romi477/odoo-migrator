@@ -7,7 +7,7 @@ import contextlib
 import time
 
 from odoo_migrator.runner.cartridge import Step
-from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.context import StepContext, StepResult, Stopped
 from odoo_migrator.runner.prune import prune_old_migrations
 from odoo_migrator.runner.sessions import reopen_side, wait_ready
 from odoo_migrator.runner.steps.verdict import note_log_errors
@@ -181,7 +181,15 @@ def _outlived(ctx: StepContext, name: str) -> StepResult:
     Its own answer is lost — the daemon abandons the result frame — so the
     module's state is the only account left of how it went.
     """
-    state = wait_ready(ctx, "target", time.monotonic() + UPGRADE_WAIT)
+    try:
+        state = wait_ready(ctx, "target", time.monotonic() + UPGRADE_WAIT)
+    except Stopped:
+        # The upgrade is still running in the session. Interrupted, and the
+        # states it marked put back, so the next run does not install them.
+        with contextlib.suppress(ShellerError):
+            ctx.sheller.interrupt(ctx.sessions["target"], write_key=ctx.write_keys["target"])
+        _failed(ctx, "stopped")
+        raise
     if state != "ready":
         with contextlib.suppress(ShellerError):
             ctx.sheller.interrupt(ctx.sessions["target"], write_key=ctx.write_keys["target"])

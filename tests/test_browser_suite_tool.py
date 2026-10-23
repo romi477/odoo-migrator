@@ -37,6 +37,17 @@ def test_the_filter_is_handed_to_the_daemon(ctx):
     assert ctx.sheller.tests_run[-1]["params"] == "@sale_custom"
 
 
+def test_a_browser_suite_gets_a_whole_module_s_time(ctx):
+    """At the daemon's default of 300s the agent's own run of the suite was
+    cut off, where the tests step gives the same run half an hour."""
+    from odoo_migrator.runner.tools import MODULE_TEST_TIMEOUT
+
+    _dispatch("run_test", ctx, "target", {"test": SUITE, "params": "@sale_custom"})
+    _dispatch("run_test", ctx, "target", {"test": "sale_custom.TestA"})
+
+    assert [run["timeout"] for run in ctx.sheller.tests_run] == [MODULE_TEST_TIMEOUT, None]
+
+
 def test_a_run_with_no_filter_sends_none_not_an_empty_one(ctx):
     _dispatch("run_test", ctx, "target", {"test": "sale_custom"})
     _dispatch("run_test", ctx, "target", {"test": SUITE, "params": ""})

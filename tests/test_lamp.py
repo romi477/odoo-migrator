@@ -71,3 +71,48 @@ def test_the_failed_lamp_is_red_and_flashes(client):
     assert "  .attention-lamp.needs-attention .lamp-dot,\n  .attention-lamp.failed .lamp-dot," in css
     script = client.get("/static/sse.js").text
     assert re.search(r'"failed"|\'failed\'|=== "failed"', script)
+
+
+def test_only_the_newest_run_of_a_failed_module_counts(client):
+    """A read old run under an unread new one is still a failure to read, and
+    an unread old one under a read new one is not."""
+    _failed_checkpoint(client)
+    with database.connection_context():
+        old = Job.get()
+        old.reviewed = True
+        old.save()
+        Job.create(batch=old.batch, module=old.module, status="failed")
+
+    assert lamp_state() == "failed"
+    assert attention_target()["module_id"] == old.module_id
+
+    with database.connection_context():
+        Job.update(reviewed=True).where(Job.id != old.id).execute()
+        Job.update(reviewed=False).where(Job.id == old.id).execute()
+
+    assert lamp_state() == "idle"
+    assert attention_target() is None
+
+
+def test_the_lamp_asks_one_query_whatever_the_number_of_failures(client):
+    """One query per failed module ran on every progress of every job."""
+    _failed_checkpoint(client)
+    with database.connection_context():
+        migration = Module.get().migration_id
+        for index in range(20):
+            Module.create(migration=migration, technical_name=f"m{index}", status="failed")
+    statements = []
+    original = database.execute_sql
+
+    def counted(sql, *args, **kwargs):
+        statements.append(sql)
+
+        return original(sql, *args, **kwargs)
+
+    database.execute_sql = counted
+    try:
+        lamp_state()
+    finally:
+        database.execute_sql = original
+
+    assert len(statements) == 3

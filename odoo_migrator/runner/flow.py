@@ -42,8 +42,10 @@ _HINTS = {
         "The source container is never committed."
     ),
     "tests": (
-        "Runs the module's own test classes on the target container. No classes "
-        "is a success that raises no_tests. A failing test leaves the pipeline."
+        "Runs the module's own test classes on the target container, then its "
+        "browser suite when it ships one. No classes is a success that raises "
+        "no_tests. A failing test, or a browser test left out of the target's "
+        "test bundle, leaves the pipeline."
     ),
     "smoke": (
         "No model. Uses the module the way a person would, on the target "

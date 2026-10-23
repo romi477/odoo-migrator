@@ -228,6 +228,15 @@ def _is_suite(path: Path) -> bool:
         return False
 
 
+def _listed_suite(entry: dict) -> bool:
+    """A file of the target's listing that holds tests: a Hoot `.test.js`, or
+    one the daemon found test names in. A listing that does not say is
+    taken at its word."""
+    named = entry.get("tests")
+
+    return str(entry.get("path") or "").endswith(".test.js") or not isinstance(named, list) or bool(named)
+
+
 def _shipped_browser_tests(directory) -> list[str]:
     """The source module's JS test files, read on the host."""
     if directory is None:
@@ -257,7 +266,7 @@ def _browser_tests_left_behind(ctx: StepContext, files: list[dict]) -> str:
     """
     from odoo_migrator.module_paths import module_root
 
-    if files:
+    if any(_listed_suite(entry) for entry in files):
 
         return ""
     shipped = _shipped_browser_tests(module_root(ctx.migration, ctx.module, "source"))
@@ -279,8 +288,15 @@ def _outside_the_bundle(files: list[dict]) -> str:
     A file outside the manifest's test bundle is not in the run, and the run
     passes over fewer tests than the module has. `in_manifest: null` is a
     manifest the daemon could not read as data: not known, so not failed.
+    Only a suite counts: before 18.0 the listing names every JS file under
+    `static/tests/`, and a tour's helper belongs in `web.assets_tests`, not
+    in the test bundle.
     """
-    outside = [str(entry.get("path")) for entry in files if entry.get("in_manifest") is False]
+    outside = [
+        str(entry.get("path"))
+        for entry in files
+        if entry.get("in_manifest") is False and _listed_suite(entry)
+    ]
     if not outside:
 
         return ""
@@ -312,11 +328,18 @@ def _browser(ctx: StepContext, name: str, js: dict, files: list[dict]) -> StepRe
             ctx, spec, "browser", params=call.get("params") or None
         )
         hoot = _hoot(report)
+        failed = _hoot_failed(hoot)
         if hoot.get("skipped"):
             reason = hoot.get("reason") or "skipped"
-        elif problem or not hoot.get("passed"):
-            # A suite that found nothing proved nothing, as with a Python run.
-            problem = problem or "ran 0 browser tests: the suite found nothing to run"
+        elif problem or failed or not hoot.get("passed"):
+            # Hoot's own count of failures is red whatever the Python test
+            # said. A suite that found nothing proved nothing, as with a
+            # Python run.
+            problem = problem or (
+                f"{failed} browser test(s) failed"
+                if failed
+                else "ran 0 browser tests: the suite found nothing to run"
+            )
 
             return StepResult(
                 ok=False,
@@ -337,6 +360,12 @@ def _browser(ctx: StepContext, name: str, js: dict, files: list[dict]) -> StepRe
         ctx.findings.append(finding)
 
     return StepResult(ok=True, output=f"{name} browser tests did not run: {reason}")
+
+
+def _hoot_failed(hoot: dict) -> int:
+    """How many browser tests Hoot counted as failed."""
+
+    return int(hoot.get("failed") or 0) or len(hoot.get("failed_tests") or [])
 
 
 def _hoot_failures(hoot: dict) -> str:

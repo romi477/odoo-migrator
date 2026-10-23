@@ -664,6 +664,35 @@ def test_stop_on_a_module_no_longer_running_says_so_instead_of_crashing(client):
     assert "That module is not running." in page.text
 
 
+def test_stop_on_a_module_of_another_migration_is_refused(client):
+    """It stopped the other migration's job, and this one's queue with it."""
+    from odoo_migrator.db import database
+    from odoo_migrator.migrations import create_migration
+    from odoo_migrator.models import Module
+    from odoo_migrator.pipeline_queue import run_state, set_run_state
+
+    row, _sale = _prepared(client)
+    set_run_state(row.id, "running")
+    other = create_migration(
+        name="Other",
+        accent="violet",
+        source_version="17.0",
+        target_version="18.0",
+        old_project_path="/tmp/other-old",
+        new_project_path="/tmp/other-new",
+    )
+    with database.connection_context():
+        foreign = Module.create(migration=other["id"], technical_name="stock_custom")
+    client.app.state.executor = StoppableExecutor(client.app)
+
+    page = client.post(f"/run/modules/{foreign.id}/stop", follow_redirects=False)
+
+    assert page.status_code == 200
+    assert "unknown module" in page.text
+    assert client.app.state.executor.asked == set()
+    assert run_state(row.id) == "running"
+
+
 def test_a_heard_stop_lands_on_run_and_says_it_is_stopping(client):
     """After the press the card looked exactly as before until the model's
     turn ended, which can take minutes, and a reload posted the Stop again."""
