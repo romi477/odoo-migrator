@@ -292,3 +292,22 @@ def test_a_primary_beside_bordered_buttons_or_under_fields_keeps_its_edge(client
     for group in (".confirm-actions", ".flow-dialog-actions", ".hand-edit-actions", ".import-flow"):
         assert f"{group} .primary" in rule
     assert "border-color: var(--border)" in css.split("form:has(> label textarea) > .primary {", 1)[1][:60]
+
+
+def test_a_container_action_on_a_side_with_no_project_directory_touches_nothing(
+    client, tmp_path, compose
+):
+    """`Path('')` is the server's working directory: Up on a card with no
+    project path would have run compose wherever the app was started."""
+    old = tmp_path / "old"
+    _compose(old, 8069)
+    _, row = _open_migration(client, old=old, new=tmp_path / "new")
+    with database.connection_context():
+        Migration.update(new_project_path="").where(Migration.id == row.id).execute()
+
+    page = client.post(
+        f"/migrations/{row.id}/containers/target/up", follow_redirects=True
+    )
+
+    assert "names no target project directory" in page.text
+    assert compose.ups == []

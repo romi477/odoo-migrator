@@ -1830,16 +1830,26 @@ def create_app(
                 expanded=migration_id,
                 error="That container action was rejected. Nothing changed.",
             )
-        path = Path(
+        named = (
             migration["old_project_path"]
             if side == "source"
             else migration["new_project_path"]
         )
-        sibling = Path(
+        if not (named or "").strip():
+            # `Path("")` is the server's working directory, not a project.
+
+            return _overview(
+                request,
+                expanded=migration_id,
+                error=f"This migration names no {side} project directory. Nothing changed.",
+            )
+        path = Path(named)
+        other = (
             migration["new_project_path"]
             if side == "source"
             else migration["old_project_path"]
         )
+        sibling = Path(other) if (other or "").strip() else None
         try:
             result = handler(request.app.state.compose, path, sibling_path=sibling)
         except ComposeError as exc:
