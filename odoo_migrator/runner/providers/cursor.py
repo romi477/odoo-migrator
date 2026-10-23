@@ -15,7 +15,7 @@ from urllib.parse import parse_qsl
 from odoo_migrator.runner.cartridge import Budget
 from odoo_migrator.runner.context import StepResult
 from odoo_migrator.runner.providers.base import SettingField
-from odoo_migrator.runner.tools import BoundTool, ReportTool, ToolRefused
+from odoo_migrator.runner.tools import BoundTool, ReportTool
 
 # What the settings page lists. ``accepts_model`` is wider: ``auto-smart``
 # and the same name with parameters are models, not members of this set.
@@ -123,12 +123,8 @@ class CursorProvider:
 
                     return "stopped at the tool-call budget"
                 spent["calls"] += 1
-                try:
 
-                    return bound(**dict(arguments or {}))
-                except ToolRefused as refused:
-
-                    return f"refused: {refused}"
+                return _run_tool(bound, arguments)
 
             return run
 
@@ -271,6 +267,20 @@ class CursorProvider:
             tokens_out=tokens_out,
             tokens_cached=tokens_cached,
         )
+
+
+def _run_tool(bound: BoundTool, arguments) -> str:
+    """Run one tool; whatever it raises is the agent's to read.
+
+    The other providers do the same: a wrong argument name is a TypeError, and
+    the agent can call again. Let out, it went up through the SDK's callback.
+    """
+    try:
+
+        return bound(**dict(arguments or {}))
+    except Exception as exc:  # noqa: BLE001 - the agent reads it and calls again.
+
+        return f"refused: {exc}"
 
 
 def _selection(model: str, selection_type, parameter_type):

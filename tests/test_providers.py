@@ -477,3 +477,22 @@ def test_anthropic_offers_sonnet_and_haiku_and_no_opus():
     assert not anthropic.accepts_model("claude-sonnet-5")
     assert not anthropic.accepts_model("claude-opus-5-5")
     assert not anthropic.accepts_model("claude-opus-5")
+
+
+def test_cursor_gives_any_error_a_tool_raises_back_to_the_agent():
+    """The other providers hand the model whatever a tool raised; a wrong
+    argument name is a TypeError, and on Cursor it left through the SDK."""
+    from odoo_migrator.runner.providers.cursor import _run_tool
+
+    def tool(*, code):
+        return code
+
+    bound = BoundTool("exec", tool)
+
+    assert _run_tool(bound, {"code": "1"}) == "1"
+    assert _run_tool(bound, {"cod": "1"}).startswith("refused: ")
+
+    def refuses(**_kw):
+        raise ToolRefused("side source is not declared")
+
+    assert _run_tool(BoundTool("exec", refuses), {}) == "refused: side source is not declared"
