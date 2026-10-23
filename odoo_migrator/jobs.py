@@ -949,6 +949,7 @@ def _record_result(job: Job, module: Module, payload: ResultPayload) -> None:
     # and hidden a later fail. The runner stamps checkpoint when it stops.
     logged = json.loads(job.file_diffs or "{}")
     for attempt in payload.attempts:
+        _forget_attempt(job, attempt.iteration)
         Attempt.create(
             job=job,
             iteration=attempt.iteration,
@@ -963,6 +964,7 @@ def _record_result(job: Job, module: Module, payload: ResultPayload) -> None:
     # is recorded and then shown to nobody.
     reported = {str(attempt.iteration) for attempt in payload.attempts}
     for iteration in sorted(set(logged) - reported, key=lambda one: int(one)):
+        _forget_attempt(job, int(iteration))
         Attempt.create(
             job=job,
             iteration=int(iteration),
@@ -979,6 +981,12 @@ def _record_result(job: Job, module: Module, payload: ResultPayload) -> None:
             question=assumption.question,
             assumption=assumption.assumption,
         )
+
+
+def _forget_attempt(job: Job, iteration: int) -> None:
+    """A job that parked recorded its attempts then, and records them again
+    when it ends. The later row is the one that says how the lap went."""
+    Attempt.delete().where((Attempt.job == job) & (Attempt.iteration == iteration)).execute()
 
 
 def abandon_job(job_id: str, hub: EventHub | None = None) -> None:
@@ -1226,6 +1234,12 @@ def stop_job(*, module_id: int, hub: EventHub, stop=None) -> bool:
             module = job.module
             module.status = "unknown"
             module.save()
+            # Nothing is left to finish this batch either, and a parked job's
+            # batch is the one `reconcile_jobs` left running on purpose. See
+            # `answer_job`.
+            Batch.update(status="unknown").where(
+                (Batch.id == job.batch_id) & (Batch.status == "running")
+            ).execute()
             _emit(hub, job, module)
 
     return asked

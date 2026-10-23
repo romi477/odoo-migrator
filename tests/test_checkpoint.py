@@ -332,3 +332,71 @@ def test_a_finding_from_another_migration_cannot_be_promoted(
     assert FINDING not in (rules / "18.0.md").read_text(encoding="utf-8")
     with database.connection_context():
         assert Finding.get_by_id(stranger.id).promoted_to_version is None
+
+
+class ParksThenPasses:
+    """Writes a diff, parks on a question, and is answered later."""
+
+    def __init__(self, app):
+        self.app = app
+        self.job_id = ""
+
+    def start(self, payload):
+        import json
+
+        from odoo_migrator.models import Job
+
+        self.job_id = payload["job_id"]
+        with database.connection_context():
+            Job.update(file_diffs=json.dumps({"1": "+port"})).where(
+                Job.job_id == self.job_id
+            ).execute()
+        self.app.state.on_result(
+            {"job_id": self.job_id, "status": "waiting_for_human", "question": "which?"}
+        )
+
+
+def test_an_attempt_recorded_when_the_job_parked_is_replaced_by_its_final_one(client):
+    from odoo_migrator.models import Attempt
+
+    _row, sale = _prepared(client)
+    parked = ParksThenPasses(client.app)
+    client.app.state.executor = parked
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+    client.app.state.on_result(
+        {
+            "job_id": parked.job_id,
+            "status": "passed",
+            "attempts": [{"iteration": 1, "diff": "+port", "verdict": "passed"}],
+        }
+    )
+
+    with database.connection_context():
+        kept = [
+            (one.iteration, one.verdict)
+            for one in Attempt.select().join(Job).where(Job.job_id == parked.job_id)
+        ]
+
+    assert kept == [(1, "passed")]
+
+
+def test_stopping_a_parked_job_nothing_here_runs_frees_its_batch(client):
+    """After a restart a parked job has no thread. Stop marks it unknown, and
+    the batch it was in must not stay running for every later Run to meet."""
+    from odoo_migrator.jobs import stop_job
+    from odoo_migrator.models import Module
+
+    _row, sale = _prepared(client)
+    parked = ParksThenPasses(client.app)
+    client.app.state.executor = parked
+    client.post("/tree/migrate", data={"module_id": str(sale["id"])}, follow_redirects=True)
+
+    asked = stop_job(module_id=sale["id"], hub=client.app.state.hub, stop=lambda _id: False)
+
+    assert asked is False
+    with database.connection_context():
+        job = Job.get(Job.job_id == parked.job_id)
+
+        assert job.status == "unknown"
+        assert Batch.get_by_id(job.batch_id).status == "unknown"
+        assert Module.get_by_id(sale["id"]).status == "unknown"
