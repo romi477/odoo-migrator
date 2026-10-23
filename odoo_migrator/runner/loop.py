@@ -137,6 +137,11 @@ def run_job(
     # What the last lap looked like when it failed. A lap that ends in the
     # same state as the one before it will end that way again.
     last_state: tuple[str, str, str, str] | None = None
+    # What each pipeline step raised the last time it ran, by position. A retry
+    # goes back to `resume_at` and the steps before it do not run again, so
+    # what they raised has to go with it: `characterize` is gated on a flag
+    # `understand` raised, and a retry of it started with no flags at all.
+    raised_by: dict[int, set[str]] = {}
     while True:
         attempt += 1
         if attempt > retry_limit:
@@ -145,6 +150,9 @@ def run_job(
         ctx.attempt = attempt
         ctx.log_errors = []
         flags: set[str] = set()
+        for position, kept in raised_by.items():
+            if position < index:
+                flags |= kept
         ctx.lap_flags = flags
         ran: list[str] = []
         finished = True
@@ -152,11 +160,13 @@ def run_job(
             step = pipeline[index]
             index += 1
             if step.when and step.when not in flags:
+                raised_by[index - 1] = set()
                 if skipped:
                     skipped(step, ctx, why_skipped(cartridge, step, ran))
                 continue
             ran.append(_label(step))
             result = resolve(step.kind)(step, ctx)
+            raised_by[index - 1] = set(result.flags)
             flags.update(result.flags)
             if _PARKED in result.flags:
 

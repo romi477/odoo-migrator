@@ -455,3 +455,86 @@ def test_a_flag_nothing_in_the_flow_raises_says_so():
     assert why_skipped(cartridge, step, ["port"]) == (
         "skipped: runs only when never_raised is raised, and no step in this flow raises it"
     )
+
+
+GATED_ON_AN_EARLY_FLAG = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-sonnet-5-5}
+pipeline:
+  - step: agent
+    id: understand
+    sessions: [source]
+    tools: [exec]
+    raises: [needs_tests]
+    prompt: u
+  - step: agent
+    id: characterize
+    when: needs_tests
+    sessions: [source]
+    tools: [exec]
+    prompt: c
+  - step: agent
+    id: port
+    sessions: [target]
+    tools: [exec]
+    prompt: p
+  - step: lint
+  - step: upgrade
+on_failure:
+  pipeline:
+    - step: agent
+      id: diagnose
+      sessions: [target]
+      tools: [exec]
+      prompt: why
+  retry:
+    resume_at: lint
+"""
+
+
+def _run_gated(fails):
+    ran: list[str] = []
+    seen: set[str] = set()
+
+    def resolve(kind):
+        def runner(step, current):
+            del current
+            label = step.id or step.kind
+            ran.append(label)
+            if label == "understand":
+
+                return StepResult(ok=True, flags={"needs_tests"})
+            if label in fails and label not in seen:
+                seen.add(label)
+
+                return StepResult(ok=False, output=f"{label} failed")
+
+            return StepResult(ok=True)
+
+        return runner
+
+    outcome = run_job(
+        load_cartridge(GATED_ON_AN_EARLY_FLAG), loop_ctx(), retry_limit=3, resolve=resolve
+    )
+
+    return outcome, ran
+
+
+def test_a_flag_raised_before_the_rewind_point_still_gates_the_step_that_reruns():
+    """`characterize` failed, the loop went back to it, and `needs_tests`
+    from `understand` was gone: it was skipped and the module passed with
+    no test pinned."""
+    outcome, ran = _run_gated({"characterize"})
+
+    assert ran.count("characterize") == 2
+    assert outcome == "passed"
+
+
+def test_a_flag_raised_by_a_step_that_reruns_is_raised_again_not_inherited():
+    outcome, ran = _run_gated({"upgrade"})
+
+    assert ran.count("characterize") == 1
+    assert ran.count("understand") == 1
+    assert outcome == "passed"
