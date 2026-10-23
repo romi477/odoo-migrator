@@ -315,11 +315,21 @@ class NativeRunner:
                     # it wrote is removed, not committed.
                     if settles:
                         self._settle_source_tests(current, label)
-                    # What it wrote is on disk all the same. Noted only on a
-                    # clean return, a Stop in the middle of `port` left the
-                    # attempt with no diff and the files changed.
+                    # What it wrote is on disk however the step ended: noted
+                    # on a clean return only, a Stop in the middle of `port`
+                    # left the attempt with no diff and the files changed. A
+                    # failure here is said and not raised, because it would
+                    # replace the Stop or the error already on its way out.
                     if before is not None:
-                        self._note_diff(current, before)
+                        try:
+                            self._note_diff(current, before)
+                        except Exception as exc:  # noqa: BLE001 - see above.
+                            self._log(
+                                job_id,
+                                label,
+                                f"the step's diff could not be noted: {exc}",
+                                level="warn",
+                            )
                 self._close_step(step_run, result)
                 self._log(
                     job_id,

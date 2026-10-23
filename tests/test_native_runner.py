@@ -762,3 +762,25 @@ def test_batch_defer_records_the_question_and_carries_on(app, fake_sheller, tmp_
         recorded = list(Assumption.select().where(Assumption.job == job.id))
     assert [row.question for row in recorded] == ["which override?"]
     assert "batch_defer" in recorded[0].assumption
+
+
+def test_a_diff_that_cannot_be_noted_does_not_hide_a_stop(app, fake_sheller, tmp_path):
+    """The diff is noted on every exit now. A read or a write failing there
+    must not replace the Stop that was on its way out."""
+    job = _module(tmp_path)
+    runner = NativeRunner(
+        sheller=fake_sheller, hub=app.state.hub, provider=_StoppedMidTurn(job.job_id)
+    )
+
+    def unreadable(*_args):
+        raise OSError("disk went away")
+
+    runner._note_diff = unreadable
+    runner.start({"job_id": job.job_id, "cartridge_text": _WRITES})
+    runner.wait(job.job_id, timeout=5)
+
+    assert reloaded(job).status == "stopped"
+    from odoo_migrator import runlog
+
+    texts = [line["text"] for line in runlog.lines(job.job_id)]
+    assert any("diff" in text and "disk went away" in text for text in texts)
