@@ -321,10 +321,20 @@ def reconcile_jobs() -> None:
     stay queued. Only a module that belonged to a non-terminal job is
     marked unknown, so a restart does not paint the whole tree as a crash.
     """
+    from odoo_migrator.cartridges import abandon_smoke
+
     with database.connection_context():
         module_ids = [
             job.module_id for job in Job.select().where(Job.status.in_(NON_TERMINAL))
         ]
+        smoking = {
+            str(batch.migration_id)
+            for batch in Batch.select()
+            .join(Job)
+            .where((Batch.status == "smoke") & Job.status.in_(NON_TERMINAL))
+        }
+        for migration_id in smoking:
+            abandon_smoke(migration_id)
         Job.update(status="unknown").where(Job.status.in_(NON_TERMINAL)).execute()
         if module_ids:
             Module.update(status="unknown").where(Module.id.in_(module_ids)).execute()

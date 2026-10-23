@@ -298,6 +298,25 @@ def record_smoke(migration_id: str, status: str) -> None:
             row.save()
 
 
+def _recorded_smoke(migration_id: str) -> str:
+    """The verdict held against this migration's pin, or "untested"."""
+    with database.connection_context():
+        migration = Migration.get_by_id(migration_id)
+        row = CartridgeInstall.get_or_none(
+            (CartridgeInstall.cartridge_id == (migration.cartridge_id or "stock"))
+            & (CartridgeInstall.version == (migration.cartridge_version or "1.0.0"))
+        )
+
+        return row.smoke_status if row is not None else "untested"
+
+
+def abandon_smoke(migration_id: str) -> None:
+    """A smoke-run whose job will never answer is not running. Called when a
+    restart finds that job unfinished."""
+    if _recorded_smoke(migration_id) == "running":
+        record_smoke(migration_id, "untested")
+
+
 def smoke_run(migration_id: str, executor, hub, *, module_id: int | None = None) -> str:
     """Start the smoke-run. The verdict is whatever the job ends as."""
     from odoo_migrator.graph import list_modules
@@ -308,14 +327,22 @@ def smoke_run(migration_id: str, executor, hub, *, module_id: int | None = None)
         if not modules:
             raise ContractError("No module to smoke-run.")
         module_id = min(modules, key=lambda row: row["technical_name"])["id"]
+    before = _recorded_smoke(migration_id)
     record_smoke(migration_id, "running")
-    job = start_job(
-        migration_id=migration_id,
-        module_id=module_id,
-        executor=executor,
-        hub=hub,
-        smoke=True,
-    )
+    try:
+        job = start_job(
+            migration_id=migration_id,
+            module_id=module_id,
+            executor=executor,
+            hub=hub,
+            smoke=True,
+        )
+    except Exception:
+        # Refused before anything ran (a hand edit, an unplaced module, an
+        # executor that would not take it): there is no job to give a verdict,
+        # and "running" would stay for good.
+        record_smoke(migration_id, before)
+        raise
     with database.connection_context():
 
         return Job.get(Job.job_id == job.job_id).status

@@ -226,3 +226,55 @@ def test_a_changed_text_needs_a_new_smoke_run(client, migration):
     again = install_from_text(_variant("acme_flow", note="edited"))
 
     assert again.smoke_status == "untested"
+
+
+def _smoke_status(migration_id):
+    with database.connection_context():
+        row = Migration.get_by_id(migration_id)
+
+        return CartridgeInstall.get(
+            (CartridgeInstall.cartridge_id == (row.cartridge_id or "stock"))
+            & (CartridgeInstall.version == (row.cartridge_version or "1.0.0"))
+        ).smoke_status
+
+
+def test_a_smoke_run_that_could_not_start_leaves_the_verdict_as_it_was(
+    client, migration, monkeypatch
+):
+    """'running' was written first. A start refused over a hand edit left it
+    there, the card said batches may start, and the batch refused."""
+    from odoo_migrator import jobs
+    from odoo_migrator.cartridges import record_smoke, smoke_run
+    from odoo_migrator.contract import ContractError
+
+    with database.connection_context():
+        Module.create(migration=migration["id"], technical_name="sale_custom")
+    record_smoke(migration["id"], "untested")
+
+    def refuse(**_kw):
+        raise ContractError("edited by hand")
+
+    monkeypatch.setattr(jobs, "start_job", refuse)
+
+    with pytest.raises(ContractError):
+        smoke_run(migration["id"], client.app.state.executor, client.app.state.hub)
+
+    assert _smoke_status(migration["id"]) == "untested"
+
+
+def test_a_restart_does_not_leave_a_smoke_run_running(client, migration):
+    """The job that was to give the verdict is `unknown` after a restart, and
+    nothing else ever writes one."""
+    from odoo_migrator.cartridges import record_smoke
+    from odoo_migrator.jobs import reconcile_jobs
+    from odoo_migrator.models import Batch, Job
+
+    with database.connection_context():
+        module = Module.create(migration=migration["id"], technical_name="sale_custom")
+        batch = Batch.create(migration=migration["id"], status="smoke")
+        Job.create(batch=batch, module=module, status="running")
+    record_smoke(migration["id"], "running")
+
+    reconcile_jobs()
+
+    assert _smoke_status(migration["id"]) == "untested"
