@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from odoo_migrator.runner.tools import TOOL_SIDES
 
-DETERMINISTIC = ("lint", "upgrade", "tests", "smoke", "verdict", "ask_human")
+DETERMINISTIC = ("lint", "upgrade", "tests", "clickbot", "smoke", "verdict", "ask_human")
 KINDS = DETERMINISTIC + ("agent",)
 BUILTIN_FLAGS = {
     "no_tests": "tests",

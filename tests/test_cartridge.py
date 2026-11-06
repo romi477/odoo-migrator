@@ -102,3 +102,21 @@ def test_understand_is_given_the_rules_it_is_asked_to_predict_with():
     loaded = load_cartridge_file(repo_dir() / "cartridges" / "stock.yaml")
 
     assert "rules" in loaded.step_by_id("understand").context
+
+
+def test_a_cartridge_may_carry_the_clickbot_step_and_refuses_a_prompt_on_it():
+    text = """
+cartridge: t
+version: 1.0.0
+schema: 1
+model: {provider: anthropic, name: claude-sonnet-5-5}
+pipeline:
+  - step: clickbot
+on_failure:
+  pipeline: []
+  retry: {resume_at: clickbot}
+"""
+    assert load_cartridge(text).pipeline[0].kind == "clickbot"
+
+    with pytest.raises(CartridgeError, match="must not carry a prompt"):
+        load_cartridge(text.replace("- step: clickbot", "- step: clickbot\n    prompt: hi"))
