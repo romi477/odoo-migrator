@@ -200,3 +200,14 @@ def test_the_standing_prompt_says_a_port_carries_and_runs_the_browser_tests():
 
     assert "`static/tests/`" in flat
     assert "runs them on the target" in flat
+
+
+# -- the clickbot ------------------------------------------------------------------
+
+
+def test_the_clickbot_paragraphs_say_what_each_step_does_with_a_failed_menu():
+    diagnose, patch = _prompt("diagnose"), _prompt("patch")
+
+    assert "A clickbot failure names the menu by its xmlid" in diagnose
+    assert "`small_fix`" in diagnose and "click_module" in diagnose
+    assert "do not try to see the menu pass" in patch

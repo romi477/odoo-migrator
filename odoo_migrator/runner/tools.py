@@ -35,6 +35,7 @@ TOOL_SIDES = {
     "journal": ("source", "target"),
     "history": ("source", "target"),
     "run_test": ("source", "target"),
+    "click_module": ("source", "target"),
     "list_tests": ("source", "target"),
     "test_result": ("target",),
     "interrupt": ("source", "target"),
@@ -121,6 +122,11 @@ TOOL_SCHEMAS = {
         "properties": {"side": {"type": "string"}, "module": {"type": "string"}},
         "required": ["side"],
     },
+    "click_module": {
+        "type": "object",
+        "properties": {"side": {"type": "string"}, "module": {"type": "string"}},
+        "required": ["side"],
+    },
 }
 TOOL_SCHEMAS["write_source_test"] = TOOL_SCHEMAS["write_file"]
 # What the model is told each tool does. One generic line for all of them
@@ -142,6 +148,15 @@ TOOL_DESCRIPTIONS = {
         "module's browser (Hoot) tests run as 'web.WebSuite.test_unit_desktop' "
         "with `params='@module'`, Hoot's filter; `list_tests` has the exact "
         "call. A suite Odoo skipped answers `js_tests_skipped`: it did not pass."
+    ),
+    "click_module": (
+        "Run Odoo's own clickbot over the menus of one installed module, as admin "
+        "with debug on, in a test transaction (default: this step's module). It "
+        "opens each app, each menu under it, each view and each filter, and fails "
+        "on an error dialog. It always runs the whole module, up to 15 minutes: it "
+        "cannot click one menu. The answer lists each failed menu by xmlid with the "
+        "client's reason, then what was not reached. A run that did not happen "
+        "(no browser, skipped, no menus) says so: it is never a pass."
     ),
     "list_tests": (
         "The test classes a module declares, each with a ready spec. Under `js`, "
@@ -382,6 +397,9 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
         ctx.last_test = result if isinstance(result, dict) else {"raw": result}
 
         return ctx.last_test
+    if name == "click_module":
+
+        return _click_module(ctx, session_id, write_key, kwargs.get("module") or "")
     if name == "test_result":
         return ctx.last_test or {}
     if name == "interrupt":
@@ -454,6 +472,34 @@ def _run_test(ctx, session_id: str, write_key: str, test: str, params: str = "")
         report["stderr_lines"] = len(report.pop("stderr") or [])
 
     return report
+
+
+def _click_module(ctx, session_id: str, write_key: str, module: str) -> str:
+    """The step's own run, read the step's own way, as words.
+
+    No `login` and no `debug`: the agent clicks as the step does, so what it
+    sees is what the lap will see. A run past the call is interrupted, as a
+    test is: left running it kept the session busy.
+    """
+    # Inside the function: the step imports this module, so a top-level import
+    # here would be circular.
+    from odoo_migrator.runner.clickbot_answer import render
+    from odoo_migrator.runner.steps.clickbot import CLICK_TIMEOUT
+
+    name = module or ctx.module.technical_name
+    try:
+        answer = ctx.sheller.click_module(
+            session_id, name, write_key=write_key, timeout=CLICK_TIMEOUT
+        )
+    except ShellerTimeout:
+        with contextlib.suppress(ShellerError):
+            ctx.sheller.interrupt(session_id, write_key=write_key)
+
+        raise ShellerTimeout(
+            f"the clickbot over {name} outlived the call and was interrupted"
+        ) from None
+
+    return render(answer)
 
 
 def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:

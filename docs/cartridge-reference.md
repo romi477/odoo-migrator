@@ -106,6 +106,7 @@ listed here.
 | `history` | source, target | `side*` | the commands the session has run. Sheller |
 | `run_test` | source, target | `side*`, `test*`, `params` | run `module`, `module.Class` or `module.Class.test_method`; answers with counts and `failed`. `params` is Hoot's filter for a browser suite (`web.WebSuite.test_unit_desktop` with `@module`); a suite Odoo skipped answers `js_tests_skipped`. Sheller |
 | `list_tests` | source, target | `side*`, `module` | the test classes a module declares on disk, each with a ready spec, and `js`: its browser test files, whether the manifest puts them in the run, the call that runs them, and whether this container can. Sheller |
+| `click_module` | source, target | `side*`, `module` | Odoo's own clickbot over the menus of one installed module (default: the step's module), as admin with debug on, in a test transaction. Always the whole module, up to 15 minutes. Answers with each failed menu by xmlid and reason, then what was not reached; a run that did not happen (no browser, skipped, no menus) says so and is never a pass. Sheller |
 | `test_result` | target | `side*` | the report of the last `run_test`. Held by the app |
 | `interrupt` | source, target | `side*` | stop the command the session is running. Sheller |
 | `rollback` | source, target | `side*` | discard what the session holds uncommitted. Sheller |

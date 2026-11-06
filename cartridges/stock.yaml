@@ -150,6 +150,7 @@ pipeline:
   - step: lint
   - step: upgrade
   - step: tests
+  - step: clickbot
   - step: smoke
 
   - step: agent
@@ -274,7 +275,7 @@ on_failure:
     - step: agent
       id: diagnose
       sessions: [target]
-      tools: [exec, source, journal, history, read_file, run_test, list_tests]
+      tools: [exec, source, journal, history, read_file, run_test, list_tests, click_module]
       context: [rules, previous_diff, last_failure, prior_answers]
       raises: [needs_human, reexamine_source, small_fix, start_over]
       prompt: |
@@ -311,6 +312,14 @@ on_failure:
         that id as `params`. Browser tests that "did not reach the target", or
         a file outside the test bundle, are a `small_fix`: port the files the
         source ships, or put them in the manifest's bundle.
+
+        A clickbot failure names the menu by its xmlid and the reason the
+        client gave; the step has already checked the source, and says which
+        menus fail there too. Read the menu's action and views on the target
+        (`source`, `read_file`) and name what the target rejects. It is a
+        `small_fix` unless the views are wrong throughout. `click_module` on the
+        target runs the whole module again, up to 15 minutes: use it when the
+        reason is cut short, not to confirm.
 
     - step: ask_human
       when: needs_human
@@ -353,6 +362,10 @@ on_failure:
         there, with the same method names. Browser tests that did not reach
         it are ported from the source's `static/tests/`, and a file outside
         the bundle goes into the manifest's test bundle.
+
+        For a clickbot failure, fix the XML or the code and do not try to see
+        the menu pass: the `upgrade` step loads the change, `clickbot` runs
+        again after it, and its outcome is the one recorded.
 
     - step: agent
       id: rewrite

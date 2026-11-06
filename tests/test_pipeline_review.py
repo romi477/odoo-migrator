@@ -398,13 +398,14 @@ def test_the_actions_a_person_runs_without_a_button_are_in_the_catalogue():
     assert "_behind_crons" in code
 
 
-def test_the_stock_flow_smokes_after_the_tests():
+def test_the_stock_flow_clicks_after_the_tests_and_smokes_after_the_clicks():
     from odoo_migrator.runner.cartridge import load_cartridge_file
 
     flow = load_cartridge_file(Path("cartridges/stock.yaml"))
     kinds = [step.id or step.kind for step in flow.pipeline]
 
-    assert kinds.index("smoke") == kinds.index("tests") + 1
+    assert kinds.index("clickbot") == kinds.index("tests") + 1
+    assert kinds.index("smoke") == kinds.index("clickbot") + 1
 
 
 def test_upgrade_drops_the_old_versions_migration_scripts_first(ctx_for, tmp_path):

@@ -301,3 +301,21 @@ def test_the_modules_overlay_says_to_roll_back_before_odoo_commits():
 
     assert "Call `rollback`" in section
     assert "whole\ntransaction" in section
+
+
+def test_click_module_is_a_tool_this_app_has():
+    from odoo_migrator.shell_guidance import MAPPED
+
+    assert "click_module" in MAPPED
+
+
+def test_the_notes_tell_the_agent_what_the_clickbot_is_and_that_a_skip_is_not_a_pass():
+    from odoo_migrator import shell_guidance
+    from odoo_migrator.sheller import FakeShellerClient
+
+    shell_guidance.forget()
+    notes = shell_guidance.shell_notes(FakeShellerClient())
+
+    assert "click_module" in notes.text
+    assert "is not a pass" in notes.text
+    assert "one menu" in notes.text

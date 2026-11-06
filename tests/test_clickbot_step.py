@@ -414,3 +414,13 @@ def test_the_findings_of_a_baseline_are_not_added_twice_when_the_lap_runs_again(
     _run(ctx)
 
     assert len(_findings(ctx)) == 1
+
+
+def test_every_step_kind_the_loader_accepts_has_code_to_run_it():
+    from odoo_migrator.runner.cartridge import KINDS
+    from odoo_migrator.runner.registry import resolve
+    from odoo_migrator.runner.steps import _RUNNERS
+
+    for kind in KINDS:
+        assert callable(resolve(kind)), kind
+    assert set(_RUNNERS) == set(KINDS) - {"agent"}

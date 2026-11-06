@@ -23,8 +23,8 @@ _SHELLER_GUIDANCE = Path("/opt/projects/odoo-sheller/odoo_sheller/guidance.py")
 UNMAPPED = {
     "open_session", "close_session", "commit", "session", "attach_session",
     "help", "list_sessions", "list_containers",
-    # 1.12.0 and 1.13.0. A list item that names one is dropped from a topic.
-    "click_module", "psql",
+    # 1.13.0. A list item that names one is dropped from a topic.
+    "psql",
 }
 
 
