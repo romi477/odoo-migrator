@@ -107,16 +107,18 @@ def test_the_job_records_what_it_was_told(app, fake_sheller, job):
         row = Job.get_by_id(job.id)
     assert row.shell_notes_hash == notes.hash
     assert row.shell_notes_hash == hashlib.sha256(notes.text.encode("utf-8")).hexdigest()
-    assert row.shell_notes_source == "daemon 1.11.0"
+    assert row.shell_notes_source == "daemon 1.13.2"
 
 
 def test_the_log_says_where_the_notes_came_from(app, fake_sheller, job):
     _run(app, fake_sheller, job, Capture())
 
     line = next(text for text in _texts(job) if text.startswith("shell notes:"))
-    assert "daemon 1.11.0" in line
+    assert "daemon 1.13.2" in line
     assert "overlaid: modules, tests" in line
     assert "left out:" in line
+    # `limits` is in, without its line about a tool the agent lacks.
+    assert "items dropped from: limits" in line
 
 
 def test_a_sheller_upgraded_halfway_does_not_change_a_running_job(app, fake_sheller, job):

@@ -16,6 +16,13 @@ loader has never seen that module: call `Module.update_list()` first — it
 scans the addons paths for manifests — then search again. Either call
 commits on its own, because it has to rebuild the registry.
 
+That commit is not only the module's. Odoo commits the session's whole
+transaction before it rebuilds the registry, so anything you wrote with
+`exec` and left uncommitted goes into the database with it. Call `rollback`
+on that side first, every time, or `reopen` it. A step that gives you neither
+does not install or upgrade: the `upgrade` step does, in a fresh session.
+Nothing you write through `exec` is meant to stay: the port is the files.
+
 A module's migration scripts run on upgrade, which is usually the point. A
 script runs only if its version is above what `ir.module.module.latest_version`
 records and no higher than the manifest's, so a database already at the

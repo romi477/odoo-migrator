@@ -23,6 +23,8 @@ _SHELLER_GUIDANCE = Path("/opt/projects/odoo-sheller/odoo_sheller/guidance.py")
 UNMAPPED = {
     "open_session", "close_session", "commit", "session", "attach_session",
     "help", "list_sessions", "list_containers",
+    # 1.12.0 and 1.13.0. A list item that names one is dropped from a topic.
+    "click_module", "psql",
 }
 
 
@@ -121,3 +123,24 @@ def test_the_test_section_offers_a_module_and_what_failed():
     assert "`failed`" in text
     assert "stderr_lines" in text
     assert "Run one class per call, in turn." not in text
+
+
+def test_the_daemon_sheller_has_now_keeps_its_limits_in_the_notes(tmp_path):
+    """Against the sibling checkout's own texts: `limits` names `psql` in one
+    item, and the rest of it reaches the agent."""
+    if not _SHELLER_GUIDANCE.is_file():
+        pytest.skip("no odoo-sheller checkout next to this one")
+    from odoo_migrator.paths import prompts_dir
+    from odoo_migrator.shell_guidance import _assemble
+
+    topics = {
+        name: {"text": text, "hash": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+        for name, text in _their("HELP").items()
+    }
+    notes = _assemble({"topics": topics}, "checkout", prompts_dir())
+
+    assert "limits" in notes.taken
+    assert "admin endpoints" in notes.text
+    assert "{{" not in notes.text
+    assert "psql" not in notes.text
+    assert notes.warnings == []

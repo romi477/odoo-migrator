@@ -45,7 +45,7 @@ def test_a_taken_topic_carries_this_apps_tool_names():
     assert 'source(path="integration_shopify")' in notes.text
     assert "{{" not in notes.text
     assert "os_" not in notes.text
-    assert notes.source == "daemon 1.11.0"
+    assert notes.source == "daemon 1.13.2"
 
 
 def test_a_topic_about_a_flow_this_app_does_not_have_is_left_out():
@@ -196,7 +196,7 @@ def test_a_fallback_is_not_remembered():
     assert shell_guidance.shell_notes(fake).source == "vendored"
     fake.health = real
 
-    assert shell_guidance.shell_notes(fake).source == "daemon 1.11.0"
+    assert shell_guidance.shell_notes(fake).source == "daemon 1.13.2"
 
 
 def test_the_overlays_are_the_sections_of_the_copy_they_stand_for():
@@ -230,7 +230,7 @@ def test_an_unusable_answer_is_not_remembered_either():
     assert shell_guidance.shell_notes(fake).source == "vendored"
     fake.help_topics = good
 
-    assert shell_guidance.shell_notes(fake).source == "daemon 1.11.0"
+    assert shell_guidance.shell_notes(fake).source == "daemon 1.13.2"
 
 
 def test_the_notes_teach_the_browser_suite_and_that_a_skip_is_not_a_pass():
@@ -250,3 +250,54 @@ def test_the_browser_part_belongs_to_the_daemon_notes_and_not_to_the_old_copy():
     telling it to send an argument that does nothing."""
     assert "js_tests_skipped" not in load_shell_notes()
     assert "web.WebSuite" not in load_shell_notes()
+
+
+def test_a_list_item_naming_a_tool_the_agent_lacks_is_dropped_and_not_its_topic():
+    """Sheller 1.13.0 put a line about `psql` in `limits`. Leaving the topic out
+    for it took every rule of that list away from the agent: no admin
+    endpoints, no ~/.odoo-sheller."""
+    notes = shell_guidance.shell_notes(FakeShellerClient())
+
+    assert "## What you cannot do" in notes.text
+    assert "~/.odoo-sheller/" in notes.text
+    assert "run_test does\n  not on 13" in notes.text
+    assert "Reach for" not in notes.text
+    assert "psql" not in notes.text
+    assert "limits" in notes.taken
+    assert "psql" in notes.trimmed["limits"]
+    assert "psql" in notes.left_out
+
+
+def test_a_tool_named_in_prose_still_leaves_the_topic_out():
+    fake = FakeShellerClient()
+    fake.help_topics["records"] = (
+        "## Records\n\n- Read one whole.\n\nWhen it is stuck, use {{psql}} instead.\n"
+    )
+    notes = shell_guidance.shell_notes(fake)
+
+    assert "## Records" not in notes.text
+    assert "psql" in notes.left_out["records"]
+    assert "records" not in notes.trimmed
+
+
+def test_an_item_pointing_at_a_topic_left_out_goes_with_it():
+    fake = FakeShellerClient()
+    fake.help_topics["records"] = (
+        "## Records\n\n- Read one whole with {{exec}}.\n"
+        "- Commit what you read: {{help}}('commit').\n"
+    )
+    notes = shell_guidance.shell_notes(fake)
+
+    assert "- Read one whole with exec." in notes.text
+    assert "Commit what you read" not in notes.text
+    assert "commit" in notes.trimmed["records"]
+
+
+def test_the_modules_overlay_says_to_roll_back_before_odoo_commits():
+    """Sheller 1.13.2: `button_immediate_*` commits the session's whole
+    transaction, so what the agent wrote and left uncommitted went in too."""
+    text = shell_guidance.shell_notes(FakeShellerClient()).text
+    section = text.split("## Installing and updating a module")[1].split("\n## ")[0]
+
+    assert "Call `rollback`" in section
+    assert "whole\ntransaction" in section

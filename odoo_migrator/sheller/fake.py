@@ -69,19 +69,22 @@ HELP_SINCE = (1, 11, 0)
 
 # What `GET /api/help` names as replaceable: the MCP tools without `os_`.
 HELP_MARKERS = [
-    "exec", "source", "journal", "history", "run_test", "test_result", "list_tests",
-    "open_session", "close_session", "commit", "rollback", "interrupt", "session",
-    "attach_session", "help", "list_sessions", "list_containers",
+    "exec", "source", "journal", "history", "run_test", "click_module", "psql",
+    "test_result", "list_tests", "open_session", "close_session", "commit", "rollback",
+    "interrupt", "session", "attach_session", "help", "list_sessions", "list_containers",
 ]
 
 # Topics as the daemon serves them, cut short but not invented: the wording is
-# Sheller 1.11.0's, markers and all. One of each kind a client has to tell
+# Sheller 1.13.2's, markers and all. One of each kind a client has to tell
 # apart — a topic it takes as served, one it owns, one that is about a flow it
-# does not have, and one whose text names a tool it has no equivalent of.
+# does not have, one whose text names a tool it has no equivalent of, and one
+# with a single list item that does (`limits`, since 1.13.0).
 HELP_TOPICS = {
     "limits": (
         "## What you cannot do, and must not attempt\n\n"
         "- Read or write ~/.odoo-sheller/ directly. Everything you need is in these tools.\n"
+        "- Reach for {{psql}} where {{exec}} would do. It is for a session that will not\n"
+        "  open or is stuck: {{help}}('psql').\n"
         "- Count on Odoo 13 or 14. They open, with a warning, but are not fully tested:\n"
         "  sessions, exec, commit, rollback and interrupt should work; {{run_test}} does\n"
         "  not on 13 and says so.\n"
@@ -115,6 +118,11 @@ HELP_TOPICS = {
         "## Sessions\n\n{{open_session}} opens one and {{close_session}} closes it.\n"
     ),
     "commit": "## Commit\n\nCommit is a right the human grants: {{commit}}.\n",
+    "psql": (
+        "## SQL when no session can run it\n\n"
+        "{{exec}} with `env.cr.execute` is the normal way, and has more time. {{psql}} is for\n"
+        "a registry that does not load.\n"
+    ),
     "odoo_17": "## Odoo 17\n\nUse {{source}} before you rely on a name.\n",
 }
 
@@ -127,7 +135,7 @@ class FakeShellerClient:
     def __init__(
         self,
         *,
-        version: str = "1.11.0",
+        version: str = "1.13.2",
         container: bool = False,
         mcp: dict | None = None,
         agent_commit: set[str] | None = None,

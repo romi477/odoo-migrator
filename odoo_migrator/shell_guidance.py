@@ -16,9 +16,10 @@ Three kinds of topic (docs_/superpowers/specs/2026-10-17-shell-guidance-from-the
   a test in the session a step holds, waits for it, and has `reopen`. The
   overlay in `prompts/shell_overlay/` replaces the daemon's text, and records
   the hash of the text it was written against so a changed one is seen.
-- taken: the rest, a topic Sheller adds tomorrow included. A topic whose text
-  names a tool this app has no equivalent of is left out and the log says so,
-  so no agent is told to call something that is not there.
+- taken: the rest, a topic Sheller adds tomorrow included. A list item that
+  names a tool this app has no equivalent of is dropped, and a topic whose
+  prose does is left out; the log says which, so no agent is told to call
+  something that is not there.
 
 `prompts/sheller.md`, the copy taken by hand at 1.10.0, is the fallback for a
 daemon without the route or one that does not answer.
@@ -50,11 +51,14 @@ RULES_OF_A_MAJOR = re.compile(r"^odoo_\d+$")
 # The order they read in. A topic not named here follows, by name.
 ORDER = ("limits", "orm", "code", "log", "records", "modules", "jobs", "tests")
 # The daemon's text of each topic this app words itself, by sha256 as
-# `GET /api/help` reported it at Sheller 1.11.0. A different hash means
-# Sheller changed the topic after the overlay was written.
+# `GET /api/help` reported it at Sheller 1.13.2. A different hash means
+# Sheller changed the topic after the overlay was written. 1.12.0 added
+# `click_module` to `tests`, which this app has no tool for; 1.13.2 added the
+# rollback before Odoo's own install and upgrade to `modules`, which the
+# overlay now says.
 OVERLAID = {
-    "modules": "e0768f44c94db80dca7dcd531356c899876c2790dd8e98913a052d486c36902b",
-    "tests": "d5ad676c8a35192de458b0268ec99375bee4066ede3787fad46cd84c720c1080",
+    "modules": "48007152491b74fd069267d2924f05a73ac27a36e45e2a6405e0113095577070",
+    "tests": "79ad51fddff721cc20555f829f0949fe9e65962bcd3eff33aa434299f8fc755d",
 }
 _MARKER = re.compile(r"\{\{(\w+)\}\}")
 _HELP_CALL = re.compile(r"\{\{help\}\}\('(\w+)'\)")
@@ -70,6 +74,8 @@ class ShellNotes:
     overlaid: list[str] = field(default_factory=list)
     # topic -> why it is not in the text
     left_out: dict[str, str] = field(default_factory=dict)
+    # topic -> why some of its list items are not
+    trimmed: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -182,9 +188,12 @@ def _assemble(answer: dict, version: str, directory: Path) -> ShellNotes | None:
     # agent lacks, is left out; leaving one out can strand a pointer to it, so
     # go round until nothing changes.
     rendered: dict[str, str] = {}
+    trimmed: dict[str, str] = {}
     changed = True
     while changed:
         changed = False
+        rendered.clear()
+        trimmed.clear()
         for name in sorted(candidates - set(OVERLAID)):
             text, problem = _render(served[name], candidates)
             if problem:
@@ -193,6 +202,9 @@ def _assemble(answer: dict, version: str, directory: Path) -> ShellNotes | None:
                 changed = True
             else:
                 rendered[name] = text
+                dropped = _trim(served[name], candidates)[1]
+                if dropped:
+                    trimmed[name] = "; ".join(dropped)
     taken = [name for name in rendered]
     if not taken:
 
@@ -214,6 +226,7 @@ def _assemble(answer: dict, version: str, directory: Path) -> ShellNotes | None:
         taken=sorted(taken, key=ordered.index),
         overlaid=sorted(OVERLAID),
         left_out=left_out,
+        trimmed=trimmed,
         warnings=warnings,
     )
 
@@ -227,13 +240,53 @@ def _overlay(overlay_dir: Path, name: str) -> str:
     return "\n\n".join(parts)
 
 
-def _render(text: str, present: set[str]) -> tuple[str, str]:
+def _blocks(text: str) -> list[tuple[bool, str]]:
+    """The text as list items and the rest, in order.
+
+    An item is a line that starts with `- ` and the lines indented under it.
+    """
+    blocks: list[tuple[bool, str]] = []
+    for line in text.split("\n"):
+        if line.startswith("- "):
+            blocks.append((True, line))
+        elif blocks and blocks[-1][0] and line.startswith("  ") and line.strip():
+            blocks[-1] = (True, f"{blocks[-1][1]}\n{line}")
+        else:
+            blocks.append((False, line))
+
+    return blocks
+
+
+def _trim(text: str, present: set[str]) -> tuple[str, list[str]]:
+    """Drop the list items that cannot be told to this agent.
+
+    Sheller 1.13.0 added a line about `psql` to `limits`, and leaving the whole
+    topic out for it took every other rule of that list away from the agent.
+    An item stands on its own; a paragraph does not, and stays for `_render`
+    to judge with the topic.
+    """
+    kept: list[str] = []
+    dropped: list[str] = []
+    for item, block in _blocks(text):
+        problem = _render(block, present, trim=False)[1] if item else ""
+        if problem:
+            dropped.append(problem)
+        else:
+            kept.append(block)
+
+    return "\n".join(kept), list(dict.fromkeys(dropped))
+
+
+def _render(text: str, present: set[str], *, trim: bool = True) -> tuple[str, str]:
     """Put this app's tool names where the daemon left markers.
 
     Returns the text and, when the topic cannot be told to this agent, what is
     wrong with it: a marker for something it has no equivalent of, or a
-    pointer to a topic that is not part of the notes.
+    pointer to a topic that is not part of the notes. A list item with such a
+    marker is dropped first (`_trim`); only the rest can leave a topic out.
     """
+    if trim:
+        text = _trim(text, present)[0]
     missing: list[str] = []
 
     def pointer(found: re.Match) -> str:

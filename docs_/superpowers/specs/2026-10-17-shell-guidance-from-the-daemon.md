@@ -36,9 +36,11 @@ Sheller is upgraded halfway.
 **Markers.** `exec source journal history run_test test_result list_tests
 interrupt rollback` map to the tool of the same name. A call `{{help}}('x')`
 becomes "the notes on x". Any other marker (`open_session`, `commit`,
-`session`, ...) names something the agent does not have: a taken topic that
-carries one is left out and the log says which, so a new topic never ships a
-dangling tool name.
+`session`, ...) names something the agent does not have. A list item that
+carries one is dropped, and a taken topic that carries one in its prose is
+left out; the log says which, so a new topic never ships a dangling tool
+name. (Items, since Sheller 1.13.0: `limits` gained a line about `psql`, and
+leaving the whole topic out for it took every other rule of that list away.)
 
 **Fallback.** No `/api/help` (a Sheller older than 1.11.0), no answer, an
 empty answer: `prompts/sheller.md` as it is now, and a `warn` line says so.

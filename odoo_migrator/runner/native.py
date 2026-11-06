@@ -937,7 +937,12 @@ class NativeRunner:
             parts.append(f"overlaid: {', '.join(notes.overlaid)}")
         if notes.left_out:
             parts.append(f"left out: {', '.join(sorted(notes.left_out))}")
-        detail = "\n".join(f"{topic}: {why}" for topic, why in sorted(notes.left_out.items()))
+        if notes.trimmed:
+            parts.append(f"items dropped from: {', '.join(sorted(notes.trimmed))}")
+        detail = "\n".join(
+            [f"{topic}: {why}" for topic, why in sorted(notes.left_out.items())]
+            + [f"{topic}, an item: {why}" for topic, why in sorted(notes.trimmed.items())]
+        )
         self._log(job_id, "runner", "; ".join(parts), detail=detail)
         for warning in notes.warnings:
             self._log(job_id, "runner", f"shell notes: {warning}", level="warn")
