@@ -355,7 +355,13 @@ line in the run log; no classes raises `no_tests` and is not a failure;
 then the module's browser suite, when the target lists JS tests for it — a
 container without Chromium is a finding, not a pass, and browser tests the
 source shipped and the target lacks, or a file outside the manifest's test
-bundle, fail the lap),
+bundle, fail the lap), `clickbot` (Odoo's own clickbot over the module's menus on the
+target container; its run log line reads `<module> clickbot: N menu(s) clicked, …`, or
+`did not run: <reason>` when the daemon is older than Sheller 1.12.0, the container has no
+browser, Odoo skipped the run or the module has no menu of its own; a menu the port broke
+fails the lap with its xmlid and reason, one that fails on the source too is a finding, and a run that
+did not happen is a finding with `clickbot` as its source, never a pass; its run is a
+`click_module` line in the tool calls), `smoke`,
 `probe` and `write_test` only when `no_tests`, then `verdict`.
 **On failure** is entered when any pipeline step fails. `diagnose` raises
 `needs_human`, `reexamine_source`, `small_fix`, or `start_over`, and only the

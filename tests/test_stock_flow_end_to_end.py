@@ -28,8 +28,11 @@ class StepScript:
 
     name = "scripted"
 
-    def __init__(self, fails_once=()):
+    def __init__(self, fails_once=(), on_step=None):
         self.fails_once = set(fails_once)
+        # step id -> a callable run when that step starts: how a test changes
+        # the world between two laps, as a repaired view does.
+        self.on_step = dict(on_step or {})
         self.ran: list[str] = []
         self.wrote: list[str] = []
 
@@ -41,6 +44,8 @@ class StepScript:
         del prompt, model, budget, stop_check
         step = system.split("Step: ", 1)[1].splitlines()[0].strip()
         self.ran.append(step)
+        if step in self.on_step:
+            self.on_step[step]()
         if step in self.fails_once:
             self.fails_once.discard(step)
 
@@ -164,3 +169,44 @@ def test_a_module_the_port_never_writes_fails_without_looping_for_ever(
     assert script.ran.count("lint") <= 2
     with database.connection_context():
         assert Job.get_by_id(job.id).status == "failed"
+
+
+def _steps(job):
+    with database.connection_context():
+        return [
+            row.step_id
+            for row in StepRun.select().where(StepRun.job == job.id).order_by(StepRun.id)
+        ]
+
+
+def test_a_job_clicks_the_menus_after_the_tests_and_reaches_smoke(app, fake_sheller, sandbox):
+    job = _run(app, fake_sheller, sandbox, StepScript())
+
+    steps = _steps(job)
+    assert steps.index("clickbot") == steps.index("tests") + 1
+    assert steps.index("smoke") == steps.index("clickbot") + 1
+    assert [run["container"] for run in fake_sheller.clicks] == ["odoo-new"]
+    with database.connection_context():
+        assert Job.get_by_id(job.id).status == "passed"
+
+
+def test_a_menu_the_port_broke_sends_the_module_to_repair_and_the_next_lap_clicks_it_again(
+    app, fake_sheller, sandbox
+):
+    fake_sheller.clickbot_answers["odoo-new"] = {
+        "failed": [{"xmlid": "sale_custom.menu_a", "root": "sale_custom.menu_root", "reason": "boom"}],
+        "roots": [{"xmlid": "sale_custom.menu_root", "success": False, "error": None}],
+    }
+    # A repaired view: the double answers green once `patch` has run.
+    script = StepScript(on_step={"patch": lambda: fake_sheller.clickbot_answers.pop("odoo-new")})
+
+    job = _run(app, fake_sheller, sandbox, script)
+
+    steps = _steps(job)
+    assert steps.count("clickbot") == 2
+    assert steps.index("diagnose") > steps.index("clickbot")
+    assert "patch" in steps and steps.index("patch") < len(steps) - steps[::-1].index("clickbot")
+    # The first lap also clicked the source, to see whether the menu was already broken.
+    assert [run["container"] for run in fake_sheller.clicks] == ["odoo-new", "odoo-old", "odoo-new"]
+    with database.connection_context():
+        assert Job.get_by_id(job.id).status == "passed"

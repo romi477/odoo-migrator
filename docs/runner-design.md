@@ -326,7 +326,7 @@ written back into `cartridges/` — git is the source, the UI is an import.
 
 ### Two kinds of step
 
-The registry holds **deterministic steps** — five of them, each a piece of
+The registry holds **deterministic steps** — seven of them, each a piece of
 code — and **one generic agent step**. Every agent step in the stock
 cartridge is an instance of that one kind, configured in YAML.
 
@@ -342,6 +342,8 @@ near-identical step implementations in Python would buy nothing and would put
 | `lint` | deterministic — manifest, XML and syntax checks on the written files |
 | `upgrade` | deterministic — installs/upgrades the module on the target container, commits |
 | `tests` | deterministic — runs the module's declared test classes with Odoo's own runner |
+| `clickbot` | deterministic — Odoo's own clickbot over the module's menus on the target container; a menu the port broke fails the lap |
+| `smoke` | deterministic — uses the module the way a person would, server side, and lists its buttons; nothing is written |
 | `verdict` | deterministic — judges the outcome against the migration's strictness |
 | `ask_human` | deterministic — parks the job, opens a checkpoint thread, waits |
 | `agent` | one model turn-loop, configured by the cartridge |
@@ -845,6 +847,33 @@ cannot run — no Chromium, no `websocket-client`, a version Sheller does not
 drive — is a finding, never a pass; the container is a person's to set up.
 `no_tests` stays about Python: a module with browser tests only still gets
 `probe` and `write_test`, and `retest` does not run the suite again.
+
+**After the tests, its menus are opened in a browser.** Odoo validates views
+when it installs a module; it does not render them. A filter on a field that is
+gone, an OWL component that crashes, a menu whose action the user cannot read:
+each installs cleanly and breaks the first time a person clicks the menu. The
+`clickbot` step asks Sheller (1.12.0 or later, `click_module`) to run Odoo's own
+clickbot over the menus of the module on the target container, as admin with
+debug on, in a test transaction; nothing is written. It runs only when the
+container can, and a run that did not happen is never a pass: an old daemon, a
+container with no Chromium or `websocket-client`, a run Odoo skipped and a run
+that clicked nothing each leave a finding saying the menus are unproven and the
+lap goes on, because nothing in the port would fix the container. A module with
+no menu of its own is not a finding. Menus the run never reached, a root the
+daemon ran out of time on and a browser that fell over are findings too. A menu
+the port broke fails the lap (`ok=False`, with `tests_failed`, as a red test
+does) and the failure lane gets its xmlid and the client's reason. To tell what
+the port broke from what was already broken, the step then runs the same
+clickbot on the source container, only on failure, and matches menus by xmlid:
+broken on the target and clicked on the source, or absent or unreached there, is
+the port's; broken on both is a finding. A source that cannot run the clickbot
+gives no baseline, and then every broken menu fails the lap, and the output says
+so. `diagnose` can run `click_module` itself on the target to read a failure
+whole; `patch` cannot, because a repaired view or action is not in the database
+until the runner's `upgrade` loads it, and the next lap's `clickbot` is the
+outcome that is recorded. The history of the decision is
+`docs_/superpowers/specs/2026-11-06-clickbot-step-design.md`; this document is
+the record.
 
 **After the tests, the module is used the way a person would use it.** A test
 proves what it asserts and is only Python. The `smoke` step, with no model and
