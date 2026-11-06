@@ -208,3 +208,10 @@ def test_the_page_behind_the_flow_dialog_is_blurred():
     block = sheet[sheet.index(".flow-dialog::backdrop") :].split("}", 1)[0]
 
     assert "backdrop-filter: blur(" in block
+
+
+def test_every_step_kind_has_a_hint_of_its_own_on_the_flow_page():
+    from odoo_migrator.runner.cartridge import KINDS
+    from odoo_migrator.runner.flow import _KIND_HINTS
+
+    assert set(_KIND_HINTS) == set(KINDS)

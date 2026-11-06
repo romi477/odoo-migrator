@@ -47,6 +47,12 @@ _HINTS = {
         "no_tests. A failing test, or a browser test left out of the target's "
         "test bundle, leaves the pipeline."
     ),
+    "clickbot": (
+        "No model. Odoo's own clickbot opens each menu of the module on the "
+        "target container, in a browser, as admin. A menu the port broke fails "
+        "the lap; one that fails on the source too is a finding. A container "
+        "that cannot run a browser is a finding, never a pass."
+    ),
     "smoke": (
         "No model. Uses the module the way a person would, on the target "
         "container: a new record's defaults and computed fields, its fields "
@@ -104,6 +110,7 @@ _KIND_HINTS = {
     "lint": _HINTS["lint"],
     "upgrade": _HINTS["upgrade"],
     "tests": _HINTS["tests"],
+    "clickbot": _HINTS["clickbot"],
     "smoke": _HINTS["smoke"],
     "verdict": _HINTS["verdict"],
     "ask_human": _HINTS["ask_human"],
