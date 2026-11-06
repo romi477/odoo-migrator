@@ -253,3 +253,164 @@ def test_a_step_with_no_target_session_fails_the_way_tests_does(fake, ctx_for):
     result = _run(ctx)
 
     assert result.ok is False and result.output == "no target session"
+
+
+SOURCE_BROKEN_A = {
+    "failed": [{"xmlid": "sale_custom.menu_a", "root": "sale_custom.menu_root", "reason": "old boom"}],
+    "roots": [{"xmlid": "sale_custom.menu_root", "success": False, "error": None}],
+}
+
+
+def test_the_source_is_not_clicked_when_the_target_is_green(fake, ctx_for):
+    _run(ctx_for())
+
+    assert [run["container"] for run in fake.clicks] == ["odoo-new"]
+
+
+def test_a_menu_that_works_on_the_source_and_not_on_the_target_is_the_ports(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+
+    result = _run(ctx_for())
+
+    assert result.ok is False and result.flags == {"tests_failed"}
+    assert [run["container"] for run in fake.clicks] == ["odoo-new", "odoo-old"]
+    assert result.output.splitlines()[0].startswith("sale_custom clickbot: 1 menu(s) the port broke")
+    assert "no baseline" not in result.output
+
+
+def test_a_menu_that_fails_on_the_source_too_is_a_finding_and_the_lap_goes_on(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = dict(SOURCE_BROKEN_A)
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is True and result.flags == set()
+    assert any(
+        "sale_custom.menu_a" in text and "fails on the source too" in text and "old boom" in text
+        for text in _findings(ctx)
+    )
+    assert "fail on the source too" in result.output
+
+
+def test_only_what_the_port_broke_fails_the_lap_when_some_fail_on_both(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = {
+        "failed": [
+            {"xmlid": "sale_custom.menu_a", "root": "sale_custom.menu_root", "reason": "boom"},
+            {"xmlid": "sale_custom.menu_b", "root": "sale_custom.menu_root", "reason": "bang"},
+        ],
+        "roots": [{"xmlid": "sale_custom.menu_root", "success": False, "error": None}],
+    }
+    fake.clickbot_answers["odoo-old"] = dict(SOURCE_BROKEN_A)
+
+    result = _run(ctx_for())
+
+    lines = result.output.splitlines()
+    assert result.ok is False
+    assert lines[0] == "sale_custom clickbot: 1 menu(s) the port broke (as admin, debug on)"
+    assert "sale_custom.menu_b (under sale_custom.menu_root): bang" in lines
+    assert "not broken by the port, failing on the source too: sale_custom.menu_a" in lines
+
+
+def test_a_menu_the_source_never_reached_is_the_ports(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = {
+        "clicked": [], "unreached": ["sale_custom.menu_a"],
+        "roots": [{"xmlid": "sale_custom.menu_root", "success": False, "error": "timeout"}],
+    }
+
+    result = _run(ctx_for())
+
+    assert result.ok is False
+
+
+def test_a_root_failing_with_no_menu_named_on_both_sides_is_broken_on_both(fake, ctx_for):
+    root = {"roots": [{"xmlid": "sale.sale_menu_root", "success": False, "error": "the view crashed"}]}
+    fake.clickbot_answers["odoo-new"] = dict(root)
+    fake.clickbot_answers["odoo-old"] = dict(root)
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is True
+    assert any("sale.sale_menu_root" in text and "source too" in text for text in _findings(ctx))
+
+
+def test_a_source_that_cannot_run_the_clickbot_gives_no_baseline_and_says_so(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_capability["odoo-old"] = {"available": False, "reason": "chrome_not_found"}
+
+    result = _run(ctx_for())
+
+    assert result.ok is False and result.flags == {"tests_failed"}
+    assert "no baseline was taken on the source" in result.output
+    assert "chrome_not_found" in result.output
+    assert [run["container"] for run in fake.clicks] == ["odoo-new"]
+
+
+@pytest.mark.parametrize(
+    "script",
+    [{"refused": "no_menus", "clicked": [], "roots": []}, {"skipped": {"reason": "x"}, "clicked": []}],
+)
+def test_a_source_run_that_ran_nothing_gives_no_baseline(fake, ctx_for, script):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = script
+
+    result = _run(ctx_for())
+
+    assert result.ok is False and "no baseline was taken on the source" in result.output
+
+
+def test_a_dead_source_session_gives_no_baseline(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    ctx = ctx_for()
+    fake.kill(ctx.sessions["source"])
+
+    result = _run(ctx)
+
+    assert result.ok is False and "no baseline was taken on the source" in result.output
+
+
+def test_a_job_with_no_source_session_gives_no_baseline(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    ctx = ctx_for()
+    ctx.sessions["source"] = ""
+
+    result = _run(ctx)
+
+    assert result.ok is False and "no baseline was taken on the source" in result.output
+
+
+def test_a_menu_tree_the_source_could_not_put_back_reopens_the_source(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = {"restored": False}
+    ctx = ctx_for()
+    before = ctx.sessions["source"]
+
+    result = _run(ctx)
+
+    assert result.ok is False and "no baseline was taken on the source" in result.output
+    assert before in fake.closes and ctx.sessions["source"] != before
+    assert ctx.sessions["target"] not in fake.closes
+
+
+def test_a_stop_is_heard_before_the_baseline_too(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    ctx = ctx_for()
+    ctx.stop_asked = lambda: len(fake.clicks) >= 1
+
+    with pytest.raises(Stopped):
+        _run(ctx)
+
+    assert [run["container"] for run in fake.clicks] == ["odoo-new"]
+
+
+def test_the_findings_of_a_baseline_are_not_added_twice_when_the_lap_runs_again(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = dict(SOURCE_BROKEN_A)
+    ctx = ctx_for()
+
+    _run(ctx)
+    _run(ctx)
+
+    assert len(_findings(ctx)) == 1

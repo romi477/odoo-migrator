@@ -72,14 +72,69 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
 
 def _failed(ctx: StepContext, name: str, target: Reading) -> StepResult:
+    baseline, why = _baseline(ctx, name)
+    broke_on_source: dict = {}
+    if baseline is None:
+        ours, both = list(target.broken), []
+    else:
+        broke_on_source = {entry.xmlid: entry for entry in baseline.broken}
+        ours = [entry for entry in target.broken if entry.xmlid not in broke_on_source]
+        both = [entry for entry in target.broken if entry.xmlid in broke_on_source]
+    for entry in both:
+        _finding(
+            ctx,
+            f"Menu {entry.xmlid} of {name} fails on the source too: "
+            f"{broke_on_source[entry.xmlid].reason}",
+        )
+    if not ours:
+
+        return StepResult(
+            ok=True,
+            output=f"{name} clickbot: {summary(target)}; {len(both)} menu(s) fail on the source too",
+        )
     lines = [
-        f"{name} clickbot: {len(target.broken)} menu(s) the port broke (as admin, debug on)",
-        *menu_lines(target.broken),
+        f"{name} clickbot: {len(ours)} menu(s) the port broke (as admin, debug on)",
+        *menu_lines(ours),
     ]
+    if both:
+        lines.append(
+            "not broken by the port, failing on the source too: "
+            + ", ".join(entry.xmlid for entry in both)
+        )
     if target.unreached:
         lines.append(f"unreached: {', '.join(target.unreached)}")
+    if baseline is None:
+        lines.append(
+            f"no baseline was taken on the source ({why}): every broken menu is counted as the port's"
+        )
 
     return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(lines))
+
+
+def _baseline(ctx: StepContext, name: str) -> tuple[Reading | None, str]:
+    """The same run on the source, to tell what the port broke from what was
+    already broken. A clickbot cannot click one menu alone, so it is the whole
+    module again, and only a lap with broken menus pays for it.
+
+    None, and why, when the source cannot give one: erring toward repair, the
+    lap is retried and a person reads the review either way.
+    """
+    if not ctx.sessions.get("source"):
+
+        return None, "no source session"
+    blocked = _cannot_run(ctx, "source")
+    if blocked:
+
+        return None, blocked
+    reading, why = _click(ctx, "source", name)
+    if reading is None:
+
+        return None, why
+    if reading.outcome != "ran":
+
+        return None, reading.reason
+
+    return reading, ""
 
 
 def _cannot_run(ctx: StepContext, side: str) -> str:
