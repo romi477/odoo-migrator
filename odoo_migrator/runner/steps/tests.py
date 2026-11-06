@@ -12,6 +12,7 @@ from odoo_migrator.runner.context import StepContext, StepResult, check_stop
 from odoo_migrator.runner.sessions import ensure_usable, reopen_side
 from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
+from odoo_migrator.sheller.version import daemon_version
 
 # Seconds one spec may run. Past the daemon's default of 300: a module's own
 # test class on a real database is not a unit test.
@@ -399,13 +400,8 @@ def _counterpart(key: str, before: dict, after: dict) -> str | None:
 def _runs_modules(ctx: StepContext) -> bool:
     """Whether this daemon takes a bare module. One before 1.8.3 answers
     `invalid_test_spec`, and lists nothing as `failed`."""
-    try:
-        version = str(ctx.sheller.health().get("version") or "")
-    except ShellerError:
 
-        return False
-
-    return tuple(int(piece) for piece in version.split(".") if piece.isdigit()) >= MODULE_RUNS_SINCE
+    return daemon_version(ctx.sheller) >= MODULE_RUNS_SINCE
 
 
 def _by_module(ctx: StepContext, name: str) -> StepResult | None:

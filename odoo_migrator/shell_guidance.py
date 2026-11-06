@@ -53,9 +53,10 @@ ORDER = ("limits", "orm", "code", "log", "records", "modules", "jobs", "tests")
 # The daemon's text of each topic this app words itself, by sha256 as
 # `GET /api/help` reported it at Sheller 1.13.2. A different hash means
 # Sheller changed the topic after the overlay was written. 1.12.0 added
-# `click_module` to `tests`, which `tests_clickbot.md` words for this app's
-# tool; 1.13.2 added the rollback before Odoo's own install and upgrade to
-# `modules`, which the overlay now says.
+# `click_module` to `tests`. The notes go to every agent step of a job and only
+# `diagnose` has that tool, so what to know about it is in the tool's own
+# description and not here; 1.13.2 added the rollback before Odoo's own install
+# and upgrade to `modules`, which the overlay now says.
 OVERLAID = {
     "modules": "48007152491b74fd069267d2924f05a73ac27a36e45e2a6405e0113095577070",
     "tests": "79ad51fddff721cc20555f829f0949fe9e65962bcd3eff33aa434299f8fc755d",
@@ -233,8 +234,8 @@ def _assemble(answer: dict, version: str, directory: Path) -> ShellNotes | None:
 
 def _overlay(overlay_dir: Path, name: str) -> str:
     parts = [(overlay_dir / f"{name}.md").read_text(encoding="utf-8").strip()]
-    # Every `<topic>_<part>.md` beside it, by name: browser tests, the clickbot.
-    for extra in sorted(overlay_dir.glob(f"{name}_*.md")):
+    extra = overlay_dir / f"{name}_js.md"
+    if extra.is_file():
         parts.append(extra.read_text(encoding="utf-8").strip())
 
     return "\n\n".join(parts)

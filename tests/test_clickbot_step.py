@@ -424,3 +424,42 @@ def test_every_step_kind_the_loader_accepts_has_code_to_run_it():
     for kind in KINDS:
         assert callable(resolve(kind)), kind
     assert set(_RUNNERS) == set(KINDS) - {"agent"}
+
+
+def test_a_run_past_the_call_frees_the_session_and_the_output_says_so(fake, ctx_for):
+    fake.click_hangs.add("odoo-new")
+    ctx = ctx_for()
+    sid = ctx.sessions["target"]
+    assert fake.get_session(sid)["state"] == "ready"
+
+    result = _run(ctx)
+
+    assert result.ok is True
+    assert fake.get_session(ctx.sessions["target"])["state"] == "ready"
+    assert sid in fake.interrupts
+    assert "interrupted" in result.output
+    assert any("interrupted" in text for text in _findings(ctx))
+
+
+def test_a_baseline_run_past_the_call_frees_the_source_session(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.click_hangs.add("odoo-old")
+    ctx = ctx_for()
+    source = ctx.sessions["source"]
+
+    result = _run(ctx)
+
+    assert result.ok is False and "no baseline was taken on the source" in result.output
+    assert source in fake.interrupts
+    assert fake.get_session(ctx.sessions["source"])["state"] == "ready"
+
+
+def test_the_daemon_is_asked_its_version_once_however_many_sides_run(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    asked = []
+    real = fake.health
+    fake.health = lambda: asked.append(1) or real()
+
+    _run(ctx_for())
+
+    assert len(fake.clicks) == 2 and len(asked) == 1

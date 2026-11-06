@@ -32,6 +32,12 @@ def _ctx(fake):
         sheller=fake, sessions={"target": opened["id"]},
         write_keys={"target": opened["write_key"]},
         module=SimpleNamespace(technical_name="sale_custom"),
+        session_targets={
+            "target": {
+                "container": "odoo-new", "database": "acme",
+                "odoo_bin": "/opt/odoo/odoo-bin", "owner": {"kind": "agent"},
+            }
+        },
         last_test=None, record_tool=lambda *args: calls.append(args), calls=calls,
     )
 
@@ -131,3 +137,23 @@ on_failure:
 """
     with pytest.raises(CartridgeError, match="not allowed on session"):
         load_cartridge(text)
+
+
+def test_a_menu_tree_that_could_not_be_put_back_reopens_the_session_and_says_so(fake):
+    fake.clickbot_answers["odoo-new"] = {"restored": False}
+    ctx = _ctx(fake)
+    before = ctx.sessions["target"]
+
+    text = _tool(ctx)(side="target")
+
+    assert "put back" in text and "opened again" in text
+    assert before in fake.closes and ctx.sessions["target"] != before
+
+
+def test_the_description_carries_what_only_a_step_with_the_tool_needs_to_know():
+    """The shell notes go to every agent step of a job. Only `diagnose` has this
+    tool, so what to know about it is said here, where only it is read."""
+    text = TOOL_DESCRIPTIONS["click_module"]
+
+    assert "cannot click one menu" in text
+    assert "not in the database until" in text and "upgrade" in text

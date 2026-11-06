@@ -15,6 +15,7 @@ from odoo_migrator.sheller.errors import (
     ShellerSessionDead,
     ShellerTimeout,
 )
+from odoo_migrator.sheller.version import CLICKBOT_SINCE, parse_version
 
 # databases[0] is a different Odoo major's database — the trap that 410s a
 # real session. db_name is the one this container is configured for.
@@ -66,7 +67,6 @@ MODULE_RUNS_SINCE = (1, 8, 3)
 NEEDS_A_HUMAN_SINCE = (1, 8, 3)
 AGENT_COMMIT_SINCE = (1, 11, 0)
 HELP_SINCE = (1, 11, 0)
-CLICKBOT_SINCE = (1, 12, 0)
 
 # What `GET /api/help` names as replaceable: the MCP tools without `os_`.
 HELP_MARKERS = [
@@ -130,7 +130,7 @@ HELP_TOPICS = {
 
 def _version(text: str) -> tuple[int, ...]:
 
-    return tuple(int(piece) for piece in text.split(".") if piece.isdigit())
+    return parse_version(text)
 
 class FakeShellerClient:
     def __init__(
@@ -227,6 +227,10 @@ class FakeShellerClient:
         self.clickbot_answers: dict[str, dict] = {}
         self.clickbot_capability: dict[str, dict] = {}
         self.click_error: dict[str, Exception] = {}
+        # Containers whose clickbot run outlives the call: `click_module` raises
+        # ShellerTimeout and the run stays busy in the session until interrupted,
+        # as a hung test does.
+        self.click_hangs: set[str] = set()
         self.clicks: list[dict] = []
 
     def health(self) -> dict:
@@ -616,6 +620,19 @@ class FakeShellerClient:
         container = session["container"]
         if container in self.click_error:
             raise self.click_error[container]
+        if container in self.click_hangs:
+            self._next_command += 1
+            session["commands"].append(
+                {
+                    "kind": "run_test",
+                    "id": self._next_command,
+                    "test": f"clickbot:{module}",
+                    "status": "running",
+                }
+            )
+            session["hung_polls"] = 0
+
+            raise ShellerTimeout(f"no answer within the timeout for {session_id}")
         self.clicks.append(
             {
                 "module": module,

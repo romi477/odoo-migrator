@@ -15,9 +15,16 @@ from dataclasses import dataclass, field
 NO_MENUS = ("no_menus", "no_visible_menus")
 # After a green `upgrade` the module is installed and Odoo knows it.
 SETUP = ("module_not_installed", "unknown_module")
-# How Sheller words a browser or devtools failure on one root:
-# `f"{type(exc).__name__}: {exc}"`. An assertion's own text carries no prefix.
-_DRIVER = re.compile(r"^[\w.]*(?:Error|Exception)\b: ")
+# A root whose browser could not be driven at all: the devtools socket refused or
+# dropped. Sheller words every non-assertion failure `Name: text`, but so does a
+# root's own `error` when no menu can be blamed (`ValueError: Invalid field …`
+# from the server, `TypeError: …` from the page), and those are the module's. So
+# only an explicit list of transport failures is the environment's; anything else
+# errs toward broken, which costs a retried lap and never lets a broken menu by.
+_DRIVER = re.compile(
+    r"^(?:ConnectionRefusedError|ConnectionResetError|BrokenPipeError"
+    r"|WebSocket\w*(?:Exception|Error)|websocket\.\w+): "
+)
 
 
 @dataclass(frozen=True)

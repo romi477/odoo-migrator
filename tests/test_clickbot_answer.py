@@ -61,6 +61,22 @@ def test_a_root_the_daemon_ran_out_of_time_on_is_a_note_and_never_broken():
     assert any("m.root" in note and "time" in note for note in reading.notes)
 
 
+def test_a_server_or_page_error_with_no_menu_named_is_broken_not_a_crashed_browser():
+    """Sheller sets a root's `error` to the first server error, worded
+    `ValueError: ...`, and then the page's console line when it cannot blame one
+    menu. Both read like an exception, and both are the module's."""
+    for text in (
+        "ValueError: Invalid field 'x_old' on model 'sale.order'",
+        "TypeError: Cannot read properties of undefined",
+        "odoo.exceptions.MissingError: record does not exist",
+    ):
+        reading = read(_answer(roots=[{"xmlid": "m.root", "success": False, "error": text}]))
+
+        assert [b.xmlid for b in reading.broken] == ["m.root"], text
+        assert reading.broken[0].reason == text
+        assert reading.notes == ()
+
+
 def test_a_browser_that_fell_over_is_a_note_and_never_broken():
     reading = read(
         _answer(

@@ -23,14 +23,13 @@ import time
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.clickbot_answer import Reading, menu_lines, read, summary
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
-from odoo_migrator.runner.sessions import reopen_side
+from odoo_migrator.runner.sessions import ensure_usable, reopen_side
 from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
+from odoo_migrator.sheller.version import CLICKBOT_SINCE, daemon_version
 
 # Seconds the daemon lets one run take. Past it, the daemon stops the run.
 CLICK_TIMEOUT = 900.0
-# The first Sheller that has the route.
-CLICKBOT_SINCE = (1, 12, 0)
 
 
 def run(step: Step, ctx: StepContext) -> StepResult:
@@ -39,7 +38,9 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if not ctx.sessions.get("target"):
 
         return StepResult(ok=False, output="no target session")
-    blocked = _cannot_run(ctx, "target")
+    # The daemon's version cannot differ between the sides: asked once.
+    version = daemon_version(ctx.sheller)
+    blocked = _cannot_run(ctx, "target", version)
     if blocked:
 
         return _did_not_run(ctx, name, blocked)
@@ -68,11 +69,13 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
         return StepResult(ok=True, output=said)
 
-    return _failed(ctx, name, target)
+    return _failed(ctx, name, target, version)
 
 
-def _failed(ctx: StepContext, name: str, target: Reading) -> StepResult:
-    baseline, why = _baseline(ctx, name)
+def _failed(
+    ctx: StepContext, name: str, target: Reading, version: tuple[int, ...]
+) -> StepResult:
+    baseline, why = _baseline(ctx, name, version)
     broke_on_source: dict = {}
     if baseline is None:
         ours, both = list(target.broken), []
@@ -111,7 +114,9 @@ def _failed(ctx: StepContext, name: str, target: Reading) -> StepResult:
     return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(lines))
 
 
-def _baseline(ctx: StepContext, name: str) -> tuple[Reading | None, str]:
+def _baseline(
+    ctx: StepContext, name: str, version: tuple[int, ...]
+) -> tuple[Reading | None, str]:
     """The same run on the source, to tell what the port broke from what was
     already broken. A clickbot cannot click one menu alone, so it is the whole
     module again, and only a lap with broken menus pays for it.
@@ -122,7 +127,7 @@ def _baseline(ctx: StepContext, name: str) -> tuple[Reading | None, str]:
     if not ctx.sessions.get("source"):
 
         return None, "no source session"
-    blocked = _cannot_run(ctx, "source")
+    blocked = _cannot_run(ctx, "source", version)
     if blocked:
 
         return None, blocked
@@ -137,9 +142,8 @@ def _baseline(ctx: StepContext, name: str) -> tuple[Reading | None, str]:
     return reading, ""
 
 
-def _cannot_run(ctx: StepContext, side: str) -> str:
+def _cannot_run(ctx: StepContext, side: str, version: tuple[int, ...]) -> str:
     """Why the run cannot happen here, or "". Read before the run is spent."""
-    version = _daemon_version(ctx)
     if version and version < CLICKBOT_SINCE:
 
         return (
@@ -160,16 +164,6 @@ def _cannot_run(ctx: StepContext, side: str) -> str:
     return ""
 
 
-def _daemon_version(ctx: StepContext) -> tuple[int, ...]:
-    try:
-        text = str(ctx.sheller.health().get("version") or "")
-    except ShellerError:
-
-        return ()
-
-    return tuple(int(piece) for piece in text.split(".") if piece.isdigit())
-
-
 def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]:
     """One run on ``side``. A reading, or None and why there is none.
 
@@ -184,7 +178,9 @@ def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]
             session_id, name, write_key=ctx.write_keys.get(side, ""), timeout=CLICK_TIMEOUT
         )
     except ShellerTimeout:
-        why = f"the run ran past {CLICK_TIMEOUT:.0f}s"
+        # Still running in the session, with `load_menus` patched: interrupt it,
+        # or open a fresh one, as `tests` and `smoke` do after their own timeout.
+        why = f"the run ran past {CLICK_TIMEOUT:.0f}s{_free(ctx, side)}"
         _record(ctx, "click_module", side, session_id, "", _elapsed(started), False, f"{name} · {why}")
 
         return None, why
@@ -207,6 +203,17 @@ def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]
         _reopen_after_restore_failed(ctx, side, name, reading)
 
     return reading, ""
+
+
+def _free(ctx: StepContext, side: str) -> str:
+    """What it took to make ``side`` usable again, as words after a reason."""
+    try:
+        done = ensure_usable(ctx, side)
+    except ShellerError as exc:
+
+        return f"; the {side} session could not be freed: {exc}"
+
+    return f"; {done}" if done else ""
 
 
 def _reopen_after_restore_failed(ctx: StepContext, side: str, name: str, reading: Reading) -> None:

@@ -156,7 +156,10 @@ TOOL_DESCRIPTIONS = {
         "on an error dialog. It always runs the whole module, up to 15 minutes: it "
         "cannot click one menu. The answer lists each failed menu by xmlid with the "
         "client's reason, then what was not reached. A run that did not happen "
-        "(no browser, skipped, no menus) says so: it is never a pass."
+        "(no browser, skipped, no menus) says so: it is never a pass. A change to a "
+        "view or an action is not in the database until the runner's `upgrade` "
+        "loads it, so a run right after your edit shows the old failure: use it to "
+        "read a failure whole, not to confirm a fix."
     ),
     "list_tests": (
         "The test classes a module declares, each with a ready spec. Under `js`, "
@@ -399,7 +402,7 @@ def _dispatch(name: str, ctx, side: str, kwargs: dict):
         return ctx.last_test
     if name == "click_module":
 
-        return _click_module(ctx, session_id, write_key, kwargs.get("module") or "")
+        return _click_module(ctx, side, session_id, write_key, kwargs.get("module") or "")
     if name == "test_result":
         return ctx.last_test or {}
     if name == "interrupt":
@@ -474,7 +477,7 @@ def _run_test(ctx, session_id: str, write_key: str, test: str, params: str = "")
     return report
 
 
-def _click_module(ctx, session_id: str, write_key: str, module: str) -> str:
+def _click_module(ctx, side: str, session_id: str, write_key: str, module: str) -> str:
     """The step's own run, read the step's own way, as words.
 
     No `login` and no `debug`: the agent clicks as the step does, so what it
@@ -483,7 +486,8 @@ def _click_module(ctx, session_id: str, write_key: str, module: str) -> str:
     """
     # Inside the function: the step imports this module, so a top-level import
     # here would be circular.
-    from odoo_migrator.runner.clickbot_answer import render
+    from odoo_migrator.runner.clickbot_answer import read, render
+    from odoo_migrator.runner.sessions import reopen_side
     from odoo_migrator.runner.steps.clickbot import CLICK_TIMEOUT
 
     name = module or ctx.module.technical_name
@@ -499,7 +503,17 @@ def _click_module(ctx, session_id: str, write_key: str, module: str) -> str:
             f"the clickbot over {name} outlived the call and was interrupted"
         ) from None
 
-    return render(answer)
+    text = render(answer)
+    if read(answer).restore_failed:
+        # The shell goes on answering menus through Sheller's wrapper: the next
+        # `exec` or run in it would see a trimmed menu tree. As the step does.
+        try:
+            reopen_side(ctx, side)
+            text += "\nthe session was opened again"
+        except ShellerError as exc:
+            text += f"\nthe session could not be opened again: {exc}"
+
+    return text
 
 
 def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:

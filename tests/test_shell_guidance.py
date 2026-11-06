@@ -309,13 +309,14 @@ def test_click_module_is_a_tool_this_app_has():
     assert "click_module" in MAPPED
 
 
-def test_the_notes_tell_the_agent_what_the_clickbot_is_and_that_a_skip_is_not_a_pass():
+def test_the_job_wide_notes_say_nothing_of_the_clickbot_tool():
+    """Only `diagnose` has `click_module`. The notes go to every agent step, and
+    told `patch` about a tool it was deliberately not given."""
     from odoo_migrator import shell_guidance
     from odoo_migrator.sheller import FakeShellerClient
 
     shell_guidance.forget()
     notes = shell_guidance.shell_notes(FakeShellerClient())
 
-    assert "click_module" in notes.text
-    assert "is not a pass" in notes.text
-    assert "one menu" in notes.text
+    assert "clickbot" not in notes.text.lower()
+    assert "click_module" not in notes.text
