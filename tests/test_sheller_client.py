@@ -51,6 +51,12 @@ def _stub_app(fake: FakeShellerClient):
         timeout: float | None = None
         params: str | None = None
 
+    class ClickBody(BaseModel):
+        module: str
+        login: str | None = None
+        debug: bool = True
+        timeout: float | None = None
+
     class OpenBody(BaseModel):
         container: str | None = None
         database: str | None = None
@@ -163,6 +169,27 @@ def _stub_app(fake: FakeShellerClient):
                 write_key=x_os_session_key or "",
                 timeout=body.timeout,
                 params=body.params,
+            )
+        except ShellerError as exc:
+            raise translate(exc) from None
+
+    @app.post("/api/sessions/{session_id}/click_module")
+    def click_module(
+        session_id: str,
+        body: ClickBody,
+        x_os_session_key: str | None = Header(None),
+        x_os_admin_key: str | None = Header(None),
+    ):
+        refuse_admin(x_os_admin_key)
+        try:
+
+            return fake.click_module(
+                session_id,
+                body.module,
+                write_key=x_os_session_key or "",
+                login=body.login,
+                debug=body.debug,
+                timeout=body.timeout,
             )
         except ShellerError as exc:
             raise translate(exc) from None
@@ -390,6 +417,17 @@ def test_exec_run_test_commit_rollback_close(sheller):
     assert sheller.commit(sid, write_key=key)["ok"] is True
     assert sheller.rollback(sid, write_key=key)["ok"] is True
     assert sheller.close(sid, write_key=key)["ok"] is True
+
+
+def test_a_clickbot_run_answers_as_the_daemon_does(sheller):
+    opened = _open(sheller, allow_commit=False)
+
+    answer = sheller.click_module(opened["id"], "sale_custom", write_key=opened["write_key"])
+
+    assert answer["error"] is None
+    assert answer["test"]["success"] is True
+    box = answer["clickbot"]
+    assert box["module"] == "sale_custom" and box["failed"] == [] and box["restored"] is True
 
 
 def test_the_feed_of_a_closed_session_still_answers(sheller):

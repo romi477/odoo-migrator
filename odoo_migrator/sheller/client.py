@@ -27,6 +27,8 @@ SESSION_OPEN_TIMEOUT = 120.0
 # and a test class that ran longer came back as a timeout while it kept the
 # session busy, so every spec after it answered `session_busy`.
 DAEMON_TEST_TIMEOUT = 300.0
+# The daemon's own ceiling for a clickbot run when the body names none.
+DAEMON_CLICK_TIMEOUT = 900.0
 # Room for the daemon to notice its own timeout and say so, before ours fires.
 HTTP_MARGIN = 30.0
 
@@ -102,6 +104,17 @@ class ShellerClient(Protocol):
         write_key: str,
         timeout: float | None = None,
         params: str | None = None,
+    ) -> dict: ...
+
+    def click_module(
+        self,
+        session_id: str,
+        module: str,
+        *,
+        write_key: str,
+        login: str | None = None,
+        debug: bool = True,
+        timeout: float | None = None,
     ) -> dict: ...
 
     def commit(self, session_id: str, *, write_key: str) -> dict: ...
@@ -258,6 +271,36 @@ class HttpShellerClient:
             json=body,
             write_key=write_key,
             timeout=(timeout or DAEMON_TEST_TIMEOUT) + HTTP_MARGIN,
+        )
+
+    def click_module(
+        self,
+        session_id: str,
+        module: str,
+        *,
+        write_key: str,
+        login: str | None = None,
+        debug: bool = True,
+        timeout: float | None = None,
+    ) -> dict:
+        """``POST /api/sessions/{id}/click_module`` (Sheller 1.12.0).
+
+        Odoo's own clickbot over one installed module's menus, in a test
+        transaction. The answer is a run's, plus `clickbot`. The HTTP call has
+        to outlast the run's ceiling, as for `run_test`.
+        """
+        body: dict = {"module": module, "debug": debug}
+        if login is not None:
+            body["login"] = login
+        if timeout is not None:
+            body["timeout"] = timeout
+
+        return self._request(
+            "POST",
+            f"/api/sessions/{session_id}/click_module",
+            json=body,
+            write_key=write_key,
+            timeout=(timeout or DAEMON_CLICK_TIMEOUT) + HTTP_MARGIN,
         )
 
     def commit(self, session_id: str, *, write_key: str) -> dict:

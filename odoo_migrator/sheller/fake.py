@@ -66,6 +66,7 @@ MODULE_RUNS_SINCE = (1, 8, 3)
 NEEDS_A_HUMAN_SINCE = (1, 8, 3)
 AGENT_COMMIT_SINCE = (1, 11, 0)
 HELP_SINCE = (1, 11, 0)
+CLICKBOT_SINCE = (1, 12, 0)
 
 # What `GET /api/help` names as replaceable: the MCP tools without `os_`.
 HELP_MARKERS = [
@@ -218,6 +219,15 @@ class FakeShellerClient:
         # command in `hangs_on` does.
         self.test_hangs: set[str] = set()
         self.rollbacks: list[str] = []
+        # Odoo's clickbot (1.12.0), by container name. `clickbot_answers[name]`
+        # is laid over a green run's `clickbot` block, so a test names only what
+        # differs; `error` there is the run's own top-level error.
+        # `clickbot_capability[name]` is what that container's sessions report,
+        # `click_error[name]` is raised by the call, and `clicks` is every run.
+        self.clickbot_answers: dict[str, dict] = {}
+        self.clickbot_capability: dict[str, dict] = {}
+        self.click_error: dict[str, Exception] = {}
+        self.clicks: list[dict] = []
 
     def health(self) -> dict:
 
@@ -421,6 +431,12 @@ class FakeShellerClient:
         described = {key: value for key, value in session.items() if key in self._DESCRIBED}
         if _version(self._version) >= HELP_SINCE:
             described["js_tests"] = dict(self.js_tests)
+        if _version(self._version) >= CLICKBOT_SINCE:
+            described["clickbot"] = dict(
+                self.clickbot_capability.get(
+                    session["container"], {"available": True, "reason": None}
+                )
+            )
 
         return described
 
@@ -575,6 +591,110 @@ class FakeShellerClient:
                 answer["error"] = "js_tests_skipped"
 
         return answer
+
+    def click_module(
+        self,
+        session_id: str,
+        module: str,
+        *,
+        write_key: str,
+        login: str | None = None,
+        debug: bool = True,
+        timeout: float | None = None,
+    ) -> dict:
+        """A clickbot run as Sheller 1.12.0 to 1.13.2 answer it.
+
+        A run's answer plus `clickbot`: `roots`, `clicked`, `failed`,
+        `unreached`, `hidden`, `refused`, `restored`, and `skipped` when the
+        run was skipped. Nothing that clicked nothing is a pass: a refusal is
+        the `error`, a skip is `js_tests_skipped`, and a menu tree that could
+        not be put back is `clickbot_restore_failed`, whatever else ended it.
+        """
+        if _version(self._version) < CLICKBOT_SINCE:
+            raise ShellerError("Sheller HTTP 404: Not Found", status=404)
+        session = self._require(session_id, write_key)
+        container = session["container"]
+        if container in self.click_error:
+            raise self.click_error[container]
+        self.clicks.append(
+            {
+                "module": module,
+                "session_id": session_id,
+                "container": container,
+                "login": login,
+                "debug": debug,
+                "timeout": timeout,
+            }
+        )
+        discarded = session["pending_commands"] > 0
+        session["pending_commands"] = 0
+        self._next_command += 1
+        session["commands"].append(
+            {
+                "kind": "run_test",
+                "id": self._next_command,
+                "test": f"clickbot:{module}",
+                "status": "done",
+            }
+        )
+        scripted = dict(self.clickbot_answers.get(container, {}))
+        error = scripted.pop("error", None)
+        box = {
+            "module": module,
+            "login": login or "admin",
+            "debug": debug,
+            "roots": [{"xmlid": f"{module}.menu_root", "success": True, "error": None}],
+            "clicked": [f"{module}.menu_main"],
+            "failed": [],
+            "unreached": [],
+            "hidden": [],
+            "refused": None,
+            "restored": True,
+            "filters": 2,
+            "views": 3,
+            "modals": 0,
+        }
+        box.update(scripted)
+        broken = bool(box["failed"]) or any(not root["success"] for root in box["roots"])
+        skipped = bool(box.get("skipped"))
+        tests_run = 0 if box["refused"] or skipped else max(1, len(box["roots"]))
+        test = {
+            "module": module,
+            "test_class": None,
+            "test_method": None,
+            "tests_run": tests_run,
+            "failures": 1 if broken else 0,
+            "errors": 0,
+            "skipped": 1 if skipped else 0,
+            "success": not broken and tests_run > 0 and not skipped,
+        }
+        if box["restored"] is False:
+            if error is not None:
+                box["cause"] = error
+            error = "clickbot_restore_failed"
+        elif error is None and box["refused"]:
+            error = box["refused"]
+        elif error is None and (tests_run == 0 or skipped):
+            box.setdefault("skipped", {"reason": None})
+            error = "js_tests_skipped"
+        if error is not None:
+            test["success"] = False
+
+        return {
+            "id": self._next_command,
+            "stdout": "",
+            "stdout_truncated": False,
+            "result": None,
+            "result_truncated": False,
+            "error": error,
+            "duration": 0.0,
+            "test": test,
+            "failed": [],
+            "stderr": [],
+            "stderr_truncated": False,
+            "discarded_pending": discarded,
+            "clickbot": box,
+        }
 
     def _outcome(self, module: str, spec: str) -> dict:
         """A spec's counts and what in it failed, as the daemon's runner sees
