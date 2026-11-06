@@ -236,20 +236,9 @@ def list_pipeline_steps(
 
     def needs(rows: list[dict]) -> list[int]:
         """Earlier steps this wave's modules hang on, through modules not yet migrated."""
-        found: set[int] = set()
-        seen: set[str] = set()
-        stack = [dep for row in rows for dep in row.get("depends") or []]
-        while stack:
-            name = stack.pop()
-            parent = kept.get(name)
-            if parent is None or name in seen:
-                continue
-            seen.add(name)
-            if parent["status"] not in DONE:
-                found.add(parent.get("step") or 1)
-            stack.extend(parent.get("depends") or [])
+        names = _unfinished_ancestors(kept, [row["technical_name"] for row in rows])
 
-        return sorted(found)
+        return sorted({kept[name].get("step") or 1 for name in names})
 
     steps = []
     for wave in sorted(by_step):
@@ -490,6 +479,33 @@ def _already_done(names: list[str]) -> GraphError:
     )
 
 
+def _refuse_in_flight(rows: list[Module]) -> None:
+    """A module being migrated is not left out from under its run.
+
+    Struck while it ran, it left the queue with its Stop, the job kept writing
+    its files, and its result landed on a module the plan no longer had. The
+    caller holds the connection.
+    """
+    from odoo_migrator.jobs import IN_FLIGHT
+
+    ids = [row.id for row in rows]
+    if not ids:
+
+        return
+    busy = sorted(
+        {
+            job.module.technical_name
+            for job in Job.select().where(Job.module.in_(ids) & Job.status.in_(IN_FLIGHT))
+        }
+    )
+    if busy:
+        one = len(busy) == 1
+        raise GraphError(
+            f"{', '.join(busy)} {'is' if one else 'are'} being migrated: "
+            f"stop {'it' if one else 'them'} first."
+        )
+
+
 def set_struck(module_id: int, struck: bool | None = None) -> dict:
     with database.connection_context():
         module = Module.get_or_none(Module.id == module_id)
@@ -498,6 +514,8 @@ def set_struck(module_id: int, struck: bool | None = None) -> dict:
         wanted = (not module.struck_out) if struck is None else bool(struck)
         if wanted and not module.struck_out and _finished(module):
             raise _already_done([module.technical_name])
+        if wanted and not module.struck_out:
+            _refuse_in_flight([module])
         module.struck_out = wanted
         module.save()
 
@@ -591,6 +609,14 @@ def skip_subtree(module_id: int, struck: bool | None = None) -> list[dict]:
                 {name: json.loads(row.depends or "[]") for name, row in by_name.items()}
             )
             order = sorted(order, key=lambda name: (steps.get(name, 1), name))
+        if wanted:
+            _refuse_in_flight(
+                [
+                    by_name[name]
+                    for name in order
+                    if not by_name[name].struck_out and not _finished(by_name[name])
+                ]
+            )
         back: set[str] = set()
         updated: list[Module] = []
         for name in order:
@@ -733,6 +759,13 @@ def leave_out_selection(module_ids: list[int]) -> list[dict]:
             key=lambda n: (steps.get(n, 1), n),
             reverse=True,
         )
+        _refuse_in_flight(
+            [
+                by_name[name]
+                for name in ordered_names
+                if not by_name[name].struck_out and not _finished(by_name[name])
+            ]
+        )
         updated: list[Module] = []
         for name in ordered_names:
             row = by_name[name]
@@ -755,6 +788,7 @@ def leave_out_all(migration_id: str) -> list[dict]:
                 & (Module.status.not_in(DONE))
             )
         )
+        _refuse_in_flight(rows)
         updated: list[Module] = []
         for row in rows:
             row.struck_out = True
@@ -882,15 +916,45 @@ def modules_in_batch_order(migration_id: str, batch_group: int) -> list[dict]:
     return [_module_row(row) for row in ordered]
 
 
-def earlier_steps_blocking(
-    migration_id: str, step: int | None, *, listed: list[dict] | None = None
-) -> str | None:
-    """A later wave does not start while an earlier one is still unfinished.
+def _unfinished_ancestors(kept: dict[str, dict], names: list[str]) -> set[str]:
+    """Every module `names` depend on, however far up, that has not passed.
 
-    Struck modules are out of the plan. Failed, queued, running and
-    waiting_for_human on a previous step all block; passed and migrated do
-    not. `listed` is the module list a caller that asks for many steps
-    already holds: the same ranks, read once.
+    `kept` is the plan by name: a struck module is not in it, and the walk
+    stops there. A passed module does not hold anything, but what it depends
+    on still can.
+    """
+    found: set[str] = set()
+    seen: set[str] = set()
+    stack = [dep for name in names for dep in (kept.get(name) or {}).get("depends") or []]
+    while stack:
+        name = stack.pop()
+        parent = kept.get(name)
+        if parent is None or name in seen:
+            continue
+        seen.add(name)
+        if parent["status"] not in DONE:
+            found.add(name)
+        stack.extend(parent.get("depends") or [])
+
+    return found
+
+
+def earlier_steps_blocking(
+    migration_id: str,
+    step: int | None,
+    *,
+    names: list[str],
+    listed: list[dict] | None = None,
+) -> str | None:
+    """What `names` wait for on an earlier step, as the sentence that says so.
+
+    A module waits for the modules it depends on, through modules not yet
+    migrated, as the queue's Selection reads a step: an unrelated module on
+    an earlier step holds nothing. The guard used to block on any unfinished
+    module of an earlier step, so the queue took a step that Run then
+    refused. Failed, queued, running and waiting_for_human block; passed and
+    migrated do not; a struck module is out of the plan. `listed` is the
+    module list a caller that asks more than once already holds.
     """
     if step is None or step <= 1:
 
@@ -902,17 +966,21 @@ def earlier_steps_blocking(
     # struck one step up here, and the guard then blocked a step on the
     # very module it was starting.
     ranks = {row["technical_name"]: row.get("step") or 1 for row in listed}
-    blockers = [
-        row
-        for row in listed
-        if not row["struck_out"]
-        and row["status"] not in DONE
-        and ranks.get(row["technical_name"], 1) < step
-    ]
+    kept = {row["technical_name"]: row for row in listed if not row["struck_out"]}
+    blockers: set[str] = set()
+    for name in names:
+        # Only from an earlier step: modules in a cycle share one, and each
+        # would otherwise wait for the other for ever.
+        own = ranks.get(name, step)
+        blockers |= {
+            found
+            for found in _unfinished_ancestors(kept, [name])
+            if ranks.get(found, 1) < own and found not in names
+        }
     if not blockers:
 
         return None
-    earliest = min(ranks[row["technical_name"]] for row in blockers)
+    earliest = min(ranks[name] for name in blockers)
 
     return f"Step {step} cannot start until step {earliest} is migrated."
 

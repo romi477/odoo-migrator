@@ -190,7 +190,7 @@ def test_the_wave_guard_ranks_the_way_the_screens_do(tmp_path):
         Module.update(struck_out=True).where(Module.id == rows["root_mod"]["id"]).execute()
 
     assert rows["child_mod"]["step"] == 2
-    assert earlier_steps_blocking(created["id"], 2) is None
+    assert earlier_steps_blocking(created["id"], 2, names=["child_mod"]) is None
 
 
 def test_topological_steps_match_four_waves_on_a_real_tree():
@@ -300,7 +300,7 @@ def test_earlier_steps_block_on_computed_rank_not_batch_group(tmp_path):
     )
     set_batch_group(partner["id"], 1)
 
-    assert earlier_steps_blocking(created["id"], 2)
+    assert earlier_steps_blocking(created["id"], 2, names=["mig_test_partner"])
 
 
 def test_skipping_a_module_takes_its_descendants_out_with_it(tmp_path):

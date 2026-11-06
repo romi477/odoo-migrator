@@ -1726,3 +1726,231 @@ def test_the_discard_offer_cache_survives_snapshots_built_on_many_threads(monkey
         thread.join()
 
     assert errors == []
+
+
+def _deferred(client):
+    from test_batch import DeferredExecutor
+
+    executor = DeferredExecutor(client.app)
+    client.app.state.executor = executor
+
+    return executor
+
+
+def _answer(client, executor, module_name, status="passed", **extra):
+    """Answer the pending job of one module, whichever order they started in."""
+    from odoo_migrator.models import Job
+
+    with database.connection_context():
+        job_id = next(
+            pending
+            for pending in executor.pending
+            if Job.get(Job.job_id == pending).module.technical_name == module_name
+        )
+    executor.pending.remove(job_id)
+    client.app.state.on_result({"job_id": job_id, "status": status, **extra})
+
+
+def test_a_restart_does_not_leave_the_queue_running_with_nothing_in_flight(client):
+    """Its batch was the thing that drove it, and a restart ends that batch:
+    every play said to stop the queue first, and the counter kept the run
+    before. The --reload server restarts on every save."""
+    from odoo_migrator.jobs import reconcile_jobs
+
+    row = _queue_both_steps(client)
+    _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    assert run_state(row.id) == "running"
+
+    reconcile_jobs()
+
+    assert run_state(row.id) == "stopped"
+    assert queue_snapshot(row.id)["modules"][0]["play"] == ""
+
+
+def test_a_queue_whose_module_waits_for_a_person_survives_a_restart(client):
+    from odoo_migrator.jobs import reconcile_jobs
+    from odoo_migrator.models import Job
+
+    row = _queue_both_steps(client)
+    _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    with database.connection_context():
+        Job.update(status="waiting_for_human", question="Which one?").execute()
+
+    reconcile_jobs()
+
+    assert run_state(row.id) == "running"
+
+
+def test_an_answer_nothing_can_take_stops_the_queue_it_held(client):
+    from odoo_migrator.jobs import reconcile_jobs
+    from odoo_migrator.models import Job
+
+    row = _queue_both_steps(client)
+    _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    with database.connection_context():
+        Job.update(status="waiting_for_human", question="Which one?").execute()
+        job = Job.get()
+        job.module.status = "waiting_for_human"
+        job.module.save()
+    reconcile_jobs()
+
+    client.post(f"/run/modules/{job.module_id}/answer", data={"answer": "the first"})
+
+    assert run_state(row.id) == "stopped"
+
+
+def test_a_step_that_cannot_start_stops_the_queue_and_says_why(client):
+    """A refused start after a clean step was swallowed: the queue stayed
+    `running` with nothing in flight, and nothing said what had happened."""
+    from test_batch import _named
+
+    from odoo_migrator.models import Module, RunLog
+
+    row = _queue_both_steps(client)
+    stock = _named(row.id, "stock_custom")
+    executor = _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    with database.connection_context():
+        Module.update(path_problem="not found on disk").where(Module.id == stock["id"]).execute()
+
+    while executor.pending:
+        executor.answer("passed")
+
+    assert run_state(row.id) == "stopped"
+    with database.connection_context():
+        said = [line.text for line in RunLog.select().where(RunLog.level == "warn")]
+    assert any(
+        text.startswith("The queue stopped: The app does not know where") for text in said
+    )
+
+
+def test_a_step_the_queue_takes_is_one_run_starts(client):
+    """Selection queues a step past an unrelated module left on an earlier
+    one; Run used to refuse it for that same module."""
+    from test_batch import _named
+
+    row, _sale = _prepared(client)
+    helper = _named(row.id, "web_enterprise_helper")
+    executor = _deferred(client)
+    client.post("/run/queue/add", data={"step": "1"})
+    client.post("/run/queue/remove", data={"module": str(helper["id"])})
+    client.post("/run/queue/run", follow_redirects=True)
+    while executor.pending:
+        executor.answer("passed")
+    added = client.post(
+        "/run/queue/add", data={"step": "2"}, headers={"Accept": "application/json"}
+    )
+    assert added.status_code == 200
+
+    page = client.post("/run/queue/run", follow_redirects=True)
+
+    assert "cannot start until" not in page.text
+    assert executor.started[-1] == "stock_custom"
+
+
+def test_a_tree_run_that_fails_does_not_stop_the_queue(client):
+    """Only a batch the queue started is the queue's to stop for."""
+    from test_batch import _named
+
+    row = _queue_both_steps(client)
+    helper = _named(row.id, "web_enterprise_helper")
+    executor = _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    client.post("/tree/migrate", data={"module_id": str(helper["id"])})
+    assert len(executor.pending) == 2
+
+    _answer(client, executor, "web_enterprise_helper", "failed")
+
+    assert run_state(row.id) == "running"
+
+
+def test_a_tree_run_with_a_finding_keeps_its_review_while_the_queue_runs(client):
+    from test_batch import _named
+
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    helper = _named(row.id, "web_enterprise_helper")
+    executor = _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    client.post("/tree/migrate", data={"module_id": str(helper["id"])})
+
+    _answer(
+        client, executor, "web_enterprise_helper", "passed",
+        findings=[{"text": "A bundle another module breaks", "source": "smoke"}],
+    )
+
+    with database.connection_context():
+        tree = Batch.select().where(
+            (Batch.migration == row.id) & (Batch.from_queue == False)
+        ).get()
+    assert tree.status == "checkpoint"
+
+
+def test_a_queue_step_that_left_a_finding_stops_for_its_review(client):
+    """The review is where a finding is read and promoted. A running queue
+    closed it unread and went on to the next step."""
+    from odoo_migrator.models import Batch
+
+    row = _queue_both_steps(client)
+    executor = _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+
+    _answer(
+        client, executor, "sale_custom", "passed",
+        findings=[{"text": "The smoke checks did not run: busy", "source": "smoke"}],
+    )
+    _answer(client, executor, "web_enterprise_helper", "passed")
+
+    assert run_state(row.id) == "stopped"
+    assert "stock_custom" not in executor.started
+    with database.connection_context():
+        assert Batch.select().where(Batch.from_queue == True).get().status == (
+            "checkpoint"
+        )
+
+
+def test_a_stop_on_a_module_that_is_not_running_leaves_the_queue_alone(client):
+    """A page drawn while it ran, pressed after the queue moved on."""
+    from test_batch import _named
+
+    row = _queue_both_steps(client)
+    stock = _named(row.id, "stock_custom")
+    _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+
+    page = client.post(f"/run/modules/{stock['id']}/stop", follow_redirects=True)
+
+    assert "That module is not running." in page.text
+    assert run_state(row.id) == "running"
+
+
+@pytest.mark.parametrize("how", ["strike", "leave-out", "leave-out-all"])
+def test_a_module_being_migrated_is_not_left_out_from_under_its_run(client, how):
+    """Struck while it ran, its card and its Stop left the queue while the
+    job went on writing its files."""
+    from test_batch import _named
+
+    from odoo_migrator.models import Module
+
+    row = _queue_both_steps(client)
+    sale = _named(row.id, "sale_custom")
+    _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+    json = {"Accept": "application/json"}
+
+    if how == "strike":
+        answer = client.post(f"/tree/modules/{sale['id']}/strike", data={"struck": "1"}, headers=json)
+    elif how == "leave-out":
+        answer = client.post("/tree/modules/leave-out", data={"module_ids": [sale["id"]]}, headers=json)
+    else:
+        answer = client.post("/tree/modules/leave-out-all", headers=json)
+
+    assert answer.status_code == 400
+    assert "sale_custom is being migrated: stop it first." in answer.json()["error"]
+    with database.connection_context():
+        assert Module.get_by_id(sale["id"]).struck_out is False
+    assert "sale_custom" in _cards(row.id)

@@ -63,6 +63,7 @@ from odoo_migrator.jobs import (
     lamp_state,
     latest_checkpoint,
     live_run,
+    module_in_flight,
     promote_finding,
     recent_job,
     reconcile_jobs,
@@ -1345,6 +1346,11 @@ def create_app(
         except GraphError as refused:
 
             return _run_page(request, error=str(refused))
+        # Ended between the page drawing Stop and the press, or a reload of
+        # the page a Stop answered: the queue it moved on with stays as it is.
+        if not module_in_flight(module_id):
+
+            return _run_page(request, error="That module is not running.")
         queue_stop(current["id"], request.app.state.hub)
         try:
             stopped = stop_job(

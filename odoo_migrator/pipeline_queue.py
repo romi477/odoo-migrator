@@ -6,6 +6,7 @@ import threading
 import time
 from contextlib import contextmanager
 
+from odoo_migrator import runlog
 from odoo_migrator.contract import ContractError
 from odoo_migrator.db import database
 from odoo_migrator.events import EventHub
@@ -27,6 +28,8 @@ from odoo_migrator.models import (
 )
 
 FINISHED_OK = set(DONE)
+# The end of a run, not a reason to say the queue stopped.
+NOTHING_QUEUED = "Nothing is queued."
 
 # What a Discard would put back, per run, for a few seconds. The snapshot is
 # built on every page and every publish, and the count is two git calls.
@@ -427,14 +430,15 @@ def _play_blocked(
     if reason is not None:
 
         return {module["id"]: reason for module in modules}
-    steps: dict[int, str | None] = {}
+    if listed is None:
+        listed = list_modules(migration_id)
     blocked: dict[int, str] = {}
     for module in modules:
-        step = module["step"]
-        if step not in steps:
-            steps[step] = earlier_steps_blocking(migration_id, step, listed=listed)
-        if steps[step]:
-            blocked[module["id"]] = steps[step]
+        reason = earlier_steps_blocking(
+            migration_id, module["step"], names=[module["technical_name"]], listed=listed
+        )
+        if reason:
+            blocked[module["id"]] = reason
 
     return blocked
 
@@ -649,14 +653,10 @@ def publish_queue(hub: EventHub, migration_id: str) -> None:
 
 def _batch_block_reason(migration_id: str) -> str | None:
     """Why the next step cannot start, or None when the pipe is free."""
-    with database.connection_context():
-        if (
-            Batch.select()
-            .where((Batch.migration == migration_id) & (Batch.status == "running"))
-            .exists()
-        ):
+    if _batch_running(migration_id):
 
-            return "A batch is already running on this migration."
+        return "A batch is already running on this migration."
+    with database.connection_context():
         if (
             Batch.select()
             .where((Batch.migration == migration_id) & (Batch.status == "checkpoint"))
@@ -703,7 +703,7 @@ def kick(migration_id: str, executor, hub: EventHub) -> None:
     if step is None:
         set_run_state(migration_id, "stopped")
         publish_queue(hub, migration_id)
-        raise ContractError("Nothing is queued.")
+        raise ContractError(NOTHING_QUEUED)
     start_batch(
         migration_id=migration_id,
         step=step,
@@ -787,9 +787,8 @@ def after_batch_checkpoint(
     """Auto-continue through the queue when a step batch finishes cleanly."""
     with database.connection_context():
         batch = Batch.get_or_none(Batch.id == batch_id)
-        passed = bool(batch) and all(
-            job.status == "passed" for job in Job.select().where(Job.batch == batch_id)
-        )
+        jobs = list(Job.select().where(Job.batch == batch_id).order_by(Job.id))
+        passed = bool(batch) and all(job.status == "passed" for job in jobs)
         # What a run says besides its verdict is read in the review: a smoke
         # check that could not run, a change a port explained, a question it
         # did not stop for. A batch that carries any keeps its review.
@@ -798,14 +797,18 @@ def after_batch_checkpoint(
             or Assumption.select().join(Job).where(Job.batch == batch_id).exists()
         )
     running = run_state(migration_id) == "running"
-    auto = batch is not None and batch.auto_continue
-    if not running:
-        # Nothing carries on from here: a module run on its own, or a queue
-        # that was stopped while its module finished. If every module passed
-        # there is nothing to review, and a review stop barred the next Run
-        # and every play until someone pressed a Continue that started
-        # nothing. A failure or a stop keeps its review, and so do findings.
-        # Its own batch is the one closed, not whichever review is newest.
+    # The queue's own: a step it started, or a module run on its own, which a
+    # Run pressed meanwhile takes over from. A batch started on Tree is not:
+    # its failure stopped the queue, and its review was closed unread.
+    ours = batch is not None and (batch.from_queue or batch.auto_continue)
+    if not (running and ours):
+        # Nothing carries on from this batch: a module run on its own, a
+        # queue that was stopped while its module finished, a Tree batch. If
+        # every module passed there is nothing to review, and a review stop
+        # barred the next Run and every play until someone pressed a Continue
+        # that started nothing. A failure or a stop keeps its review, and so
+        # do findings. Its own batch is the one closed, not whichever review
+        # is newest.
         if passed and not said:
             remove_finished_steps(migration_id)
             try:
@@ -815,15 +818,14 @@ def after_batch_checkpoint(
                 return
             publish_queue(hub, migration_id)
             _announce_passed(hub, migration_id, batch_id)
+        if running:
+            # The queue may have been waiting for the pipe this batch held.
+            _carry_on(migration_id, executor, hub, jobs)
 
         return
-    with database.connection_context():
-        jobs = list(Job.select().where(Job.batch == batch_id))
-    # Run was pressed while this module ran on its own: the queue takes over
-    # from here, as it would after any batch of its own.
-    if any(job.status in ("failed", "waiting_for_human") for job in jobs) or (
-        auto and not passed
-    ):
+    if not passed or said:
+        # A failure, a question, or something to read: the review is where
+        # the person sees it, and the queue waits for them there.
         set_run_state(migration_id, "stopped")
         publish_queue(hub, migration_id)
 
@@ -834,11 +836,79 @@ def after_batch_checkpoint(
     except ContractError:
 
         return
+    _carry_on(migration_id, executor, hub, jobs)
+
+
+def _carry_on(migration_id: str, executor, hub: EventHub, jobs: list[Job]) -> None:
+    """Start the next step, or stop the queue and say why it could not.
+
+    A refused start was swallowed here, and the queue stayed `running` with
+    nothing in flight: every play said to stop it first, and nothing said
+    what had happened. A batch still running is the one exception: its own
+    end comes back here.
+    """
     try:
         kick(migration_id, executor, hub)
-    except ContractError:
+    except ContractError as refused:
+        if _batch_running(migration_id):
 
-        return
+            return
+        if run_state(migration_id) == "running":
+            set_run_state(migration_id, "stopped")
+            publish_queue(hub, migration_id)
+        if str(refused) != NOTHING_QUEUED and jobs:
+            runlog.write(
+                jobs[-1].job_id,
+                source="runner",
+                text=f"The queue stopped: {refused}",
+                level="warn",
+                hub=hub,
+            )
+
+
+def _batch_running(migration_id: str) -> bool:
+    with database.connection_context():
+
+        return (
+            Batch.select()
+            .where((Batch.migration == migration_id) & (Batch.status == "running"))
+            .exists()
+        )
+
+
+def release_if_idle(migration_id: str, hub: EventHub | None = None) -> bool:
+    """Stop a queue that says it is running when nothing is.
+
+    What drives a running queue is the end of its batch. A restart, a job
+    whose result could not be recorded, or a parked job whose thread is gone
+    leaves no batch to end: the queue stayed `running` for good, with every
+    play saying to stop it first and a counter from the run before. True
+    when it was stopped here.
+    """
+    if run_state(migration_id) != "running":
+
+        return False
+    if live_run(migration_id) is not None or _batch_running(migration_id):
+
+        return False
+    set_run_state(migration_id, "stopped")
+    if hub is not None:
+        publish_queue(hub, migration_id)
+
+    return True
+
+
+def release_idle_queues(hub: EventHub | None = None) -> None:
+    """`release_if_idle` for every migration whose queue says it runs."""
+    with database.connection_context():
+        running = [
+            str(row.migration_id)
+            for row in PipelineQueueState.select().where(
+                PipelineQueueState.run_state == "running"
+            )
+        ]
+    for migration_id in running:
+        release_if_idle(migration_id, hub)
 
 
 def _announce_passed(hub: EventHub, migration_id: str, batch_id: int) -> None:

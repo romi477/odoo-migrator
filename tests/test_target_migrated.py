@@ -159,7 +159,7 @@ def test_a_migrated_module_does_not_hold_back_the_next_step(tmp_path):
     resolve_graph(fake, created["id"])
     mark_migrated_from_target(fake, created["id"])
 
-    assert earlier_steps_blocking(created["id"], 2) is None
+    assert earlier_steps_blocking(created["id"], 2, names=["stock_custom"]) is None
     steps = list_pipeline_steps(created["id"], pending_only=True)
     assert all("sale_custom" not in step["modules"] for step in steps)
 

@@ -350,6 +350,11 @@ def reconcile_jobs() -> None:
         if parked:
             running = running & Batch.id.not_in(parked)
         Batch.update(status="unknown").where(running).execute()
+    # A queue is driven by the end of its batch, and no batch is left to end.
+    # One with a parked job stays: the person still owes it an answer.
+    from odoo_migrator.pipeline_queue import release_idle_queues
+
+    release_idle_queues()
 
 
 def start_job(
@@ -389,7 +394,7 @@ def start_job(
     # module on the tree, including ones the operator left out of the batch.
     blocked = None
     if not smoke and batch_id is None:
-        blocked = earlier_steps_blocking(migration_id, step)
+        blocked = earlier_steps_blocking(migration_id, step, names=[name])
     if blocked:
         raise ContractError(blocked)
     job_id = str(uuid.uuid4())
@@ -663,12 +668,16 @@ def start_batch(
     if unplaced:
         raise ContractError(unplaced)
     raise_hand_edits(migration_id, [row["id"] for row in ordered])
-    # The guard reads the wave off everything selected, not off what is left
-    # to do. Dropping a passed parent from the list would raise the wave and
-    # block on an earlier step the batch was never waiting for.
+    # The wave is read off everything selected, not off what is left to do:
+    # dropping a passed parent from the list raised it. What waits is what
+    # will run; a parent in the same batch runs before it.
     ranks = steps_for_migration(migration_id)
     wave = min(ranks.get(row["technical_name"], 1) for row in listed)
-    blocked = earlier_steps_blocking(migration_id, wave)
+    blocked = earlier_steps_blocking(
+        migration_id,
+        wave,
+        names=[row["technical_name"] for row in ordered],
+    )
     if blocked:
         raise ContractError(blocked)
     with database.connection_context():
@@ -1031,6 +1040,15 @@ def abandon_job(job_id: str, hub: EventHub | None = None) -> None:
             ).execute()
         if hub is not None:
             _emit(hub, job, module)
+        migration_id = str(job.batch.migration_id)
+    _release_queue(migration_id, hub)
+
+
+def _release_queue(migration_id: str, hub: EventHub | None) -> None:
+    """A batch nothing is left to finish does not hold its queue `running`."""
+    from odoo_migrator.pipeline_queue import release_if_idle
+
+    release_if_idle(migration_id, hub)
 
 
 def _publish_module(hub: EventHub | None, module: Module) -> None:
@@ -1214,8 +1232,22 @@ def answer_job(*, module_id: int, answer: str, hub: EventHub, resume=None) -> Jo
                 (Batch.id == job.batch_id) & (Batch.status == "running")
             ).execute()
         _emit(hub, job, module)
+        migration_id = str(job.batch.migration_id)
+    if not resumed:
+        _release_queue(migration_id, hub)
 
     return job
+
+
+def module_in_flight(module_id: int) -> bool:
+    """A job of this module is queued, running or parked on a person."""
+    with database.connection_context():
+
+        return (
+            Job.select()
+            .where((Job.module == module_id) & (Job.status.in_(IN_FLIGHT)))
+            .exists()
+        )
 
 
 def stop_job(*, module_id: int, hub: EventHub, stop=None) -> bool:
@@ -1254,6 +1286,8 @@ def stop_job(*, module_id: int, hub: EventHub, stop=None) -> bool:
                 (Batch.id == job.batch_id) & (Batch.status == "running")
             ).execute()
             _emit(hub, job, module)
+            migration_id = str(job.batch.migration_id)
+        _release_queue(migration_id, hub)
 
     return asked
 

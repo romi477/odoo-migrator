@@ -100,9 +100,9 @@ The dependency graph for the open migration. The canvas is the list.
 
 **Build graph** reads installed custom modules and `depends`
 from the source Odoo (through Sheller) and assigns **steps**: in-graph edges
-from a root, plus one — the same wave the canvas draws. A later step
-cannot start until every module on an earlier step is passed, migrated or
-struck.
+from a root, plus one — the same wave the canvas draws. A module cannot
+start until every module it depends on, however far up, is passed, migrated
+or struck; an unrelated module on an earlier step holds nothing back.
 
 It then reads the target container, when one is attached. A module already
 installed in the target database, that this app has not run and that is
@@ -207,6 +207,9 @@ Struck nodes show `(out)`, dashed borders, and faded colour.
 | One module that still has dependents | That module and everything **downstream** | Depends chain **upward** only |
 | One **leaf** (nothing depends on it) | **That module only** — parents stay in the plan | Depends chain **upward** only |
 
+Exclude is refused, and says which, while any module it would take out is
+being migrated, running or waiting for an answer: stop it first.
+
 When the status is `waiting_for_human` and the module is not excluded,
 the card also has an **Answer** form. There is no row per module under
 the tree.
@@ -272,12 +275,17 @@ still in the plan.
 A wave whose modules have already passed shows as passed and cannot be queued.
 Excluded modules stay out. **Add all** skips finished waves. Duplicates are ignored. **Queue** lists pending modules in order; **Run** / **Stop**
 drive the sequential pipe (you can add steps while it runs; Stop finishes
-the current module first, and is there only while the queue runs). Every card ends in a **play** button, the usual triangle: it runs that one
+the current module first, and is there only while the queue runs). The queue
+stops by itself when its next step cannot start — a module not found on disk,
+a hand edit, a smoke-run still owed — and the run log says why in a line that
+begins `The queue stopped:`; it is stopped, too, when nothing is left to run
+it, after a restart or a run whose result could not be recorded. A batch
+started on Tree is not the queue's: it does not stop the queue when it fails. Every card ends in a **play** button, the usual triangle: it runs that one
 module and nothing after it, where **Run** in the header carries on through the
 whole queue. The triangle is the outlined one of a media player, white, amber on the module in work, where it
 cannot be pressed. It is off, with the reason as its tooltip, while the queue
 runs, while another module does, while a batch waits for review, and while a
-step before the module's own is not done. The module runs in a batch of its own and the queue stays
+module it depends on is not done. The module runs in a batch of its own and the queue stays
 stopped, so when it ends nothing else starts; press the next triangle, or Run.
 The last card has a cross before its triangle: grey, red under the pointer, and a click takes that one module back out of the queue; its step stays queued with the cards it has left.
 Only the end can be taken back, so a card a later one may wait on stays, and
@@ -388,7 +396,8 @@ graph yet, the page points you at Tree → Build graph.
 
 A finished batch (not a smoke-run) stops here, except one in which every module
 passed and no run left a finding or an assumption: there is nothing to review, and it closes by itself, whether the module
-ran on its own from its play button or the queue was stopped while it ran. The
+ran on its own from its play button or the queue was stopped while it ran. A running
+queue stops for a step that left one, as it does for a failure. The
 banner under the card says which modules were migrated, once; a reload does not
 draw it again, and the next run takes it down. One that failed, or was stopped, waits here, and its module's
 card in the queue carries **Continue** and **Discard** in the place of the play
