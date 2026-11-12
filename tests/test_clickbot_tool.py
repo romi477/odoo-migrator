@@ -159,3 +159,26 @@ def test_the_description_carries_what_only_a_step_with_the_tool_needs_to_know():
 
     assert "cannot click one menu" in text
     assert "not in the database until" in text and "upgrade" in text
+
+
+def test_what_the_run_rolled_back_is_said(fake):
+    """The run rolls back whatever the session held: a record `exec` made to
+    open a view with data is gone, and `run_test` shows the field."""
+    ctx = _ctx(fake)
+    fake.exec(ctx.sessions["target"], "env['res.partner'].create({'name': 'x'})",
+              write_key=ctx.write_keys["target"])
+
+    text = _tool(ctx)(side="target")
+
+    assert "rolled back" in text
+
+
+def test_the_log_line_carries_the_runs_command_id_and_its_outcome(fake):
+    ctx = _ctx(fake)
+    _tool(ctx)(side="target")
+    fake.clickbot_answers["odoo-new"] = {"skipped": {"reason": "chrome_not_found"}, "clicked": []}
+    _tool(ctx)(side="target")
+
+    (green, skipped) = ctx.calls
+    assert green[3] and green[5] is True
+    assert skipped[3] and skipped[5] is False

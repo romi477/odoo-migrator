@@ -14,6 +14,7 @@ import contextlib
 import json
 import re
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
@@ -55,6 +56,17 @@ TOOL_SIDES = {
 # starts from an empty module directory — deleted the fix `patch` had just
 # written, in the same lap and at the cost of two agent steps.
 EXCLUSIVE_FLAGS = (("small_fix", "start_over"),)
+
+
+@dataclass(frozen=True)
+class ToolAnswer:
+    """A tool's words for the model, with what its log line needs: the daemon's
+    command id and whether the call did what it was for. A dict answer carries
+    those itself; words do not."""
+
+    text: str
+    command_id: str = ""
+    ok: bool = True
 
 
 class ToolRefused(Exception):
@@ -298,6 +310,13 @@ def _bind(name: str, step, ctx):
 
             return f"error: {exc}"
         _note_source_run(ctx, name, side, value, kwargs.get("test", ""))
+        if isinstance(value, ToolAnswer):
+            _record(
+                ctx, name, side, ran_in, value.command_id, _elapsed(started), value.ok,
+                value.text.splitlines()[0] if value.text else "",
+            )
+
+            return value.text
         command_id = ""
         if isinstance(value, dict) and value.get("id") is not None:
             command_id = str(value["id"])
@@ -477,7 +496,7 @@ def _run_test(ctx, session_id: str, write_key: str, test: str, params: str = "")
     return report
 
 
-def _click_module(ctx, side: str, session_id: str, write_key: str, module: str) -> str:
+def _click_module(ctx, side: str, session_id: str, write_key: str, module: str) -> ToolAnswer:
     """The step's own run, read the step's own way, as words.
 
     No `login` and no `debug`: the agent clicks as the step does, so what it
@@ -506,8 +525,13 @@ def _click_module(ctx, side: str, session_id: str, write_key: str, module: str) 
 
         raise ShellerTimeout(f"the clickbot over {name} outlived the call; {said}") from None
 
+    reading = read(answer)
     text = render(answer)
-    if read(answer).restore_failed:
+    if answer.get("discarded_pending"):
+        # As `run_test`: the run rolls back what the session held, a record made
+        # with `exec` to open a view with data included.
+        text += "\nwhat this session held uncommitted was rolled back before the run"
+    if reading.restore_failed:
         # The shell goes on answering menus through Sheller's wrapper: the next
         # `exec` or run in it would see a trimmed menu tree. As the step does.
         try:
@@ -516,7 +540,11 @@ def _click_module(ctx, side: str, session_id: str, write_key: str, module: str) 
         except ShellerError as exc:
             text += f"\nthe session could not be opened again: {exc}"
 
-    return text
+    return ToolAnswer(
+        text,
+        command_id=str(answer.get("id") or ""),
+        ok=reading.outcome == "ran" and not reading.broken,
+    )
 
 
 def _reopen(ctx, side: str, session_id: str, write_key: str) -> str:
