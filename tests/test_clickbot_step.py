@@ -95,14 +95,41 @@ def test_a_daemon_without_the_clickbot_is_a_finding_and_the_lap_goes_on():
     assert "did not run" in result.output
 
 
-def test_a_route_that_answers_404_is_the_same_finding(fake, ctx_for):
+def test_a_404_from_a_daemon_of_unknown_version_is_read_as_no_route(fake, ctx_for):
     fake.click_error["odoo-new"] = ShellerError("Sheller HTTP 404: Not Found", status=404)
+    fake.health = lambda: (_ for _ in ()).throw(ShellerError("down"))
     ctx = ctx_for()
 
     result = _run(ctx)
 
     assert result.ok is True
     assert any("no clickbot route" in text for text in _findings(ctx))
+
+
+def test_a_404_from_a_daemon_that_has_the_route_is_never_called_an_old_sheller(fake, ctx_for):
+    """On 1.12.0 and later a 404 is `session_or_404`: the session is gone."""
+    fake.click_error["odoo-new"] = ShellerError("unknown session", status=404)
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is True
+    assert not any("no clickbot route" in text or "1.12.0" in text for text in _findings(ctx))
+    assert any("unknown session" in text for text in _findings(ctx))
+
+
+def test_a_session_gone_before_the_run_gets_a_fresh_one_and_the_run_is_tried_again(
+    fake, ctx_for
+):
+    ctx = ctx_for()
+    gone = ctx.sessions["target"]
+    del fake._sessions[gone]
+
+    result = _run(ctx)
+
+    assert result.ok is True and "menu(s) clicked" in result.output
+    assert ctx.sessions["target"] != gone
+    assert len(fake.clicks) == 1
 
 
 def test_a_container_that_cannot_run_a_browser_is_a_finding_with_its_reason(fake, ctx_for):

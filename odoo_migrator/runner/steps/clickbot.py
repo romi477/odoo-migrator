@@ -23,7 +23,7 @@ import time
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.clickbot_answer import Reading, menu_lines, read, summary
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
-from odoo_migrator.runner.sessions import reopen_side
+from odoo_migrator.runner.sessions import ensure_usable, reopen_side
 from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
 from odoo_migrator.sheller.version import CLICKBOT_SINCE, daemon_version
@@ -44,7 +44,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if blocked:
 
         return _did_not_run(ctx, name, blocked)
-    target, why = _click(ctx, "target", name)
+    target, why = _click(ctx, "target", name, version)
     if target is None:
 
         return _did_not_run(ctx, name, why)
@@ -131,7 +131,7 @@ def _baseline(
     if blocked:
 
         return None, blocked
-    reading, why = _click(ctx, "source", name)
+    reading, why = _click(ctx, "source", name, version)
     if reading is None:
 
         return None, why
@@ -164,7 +164,9 @@ def _cannot_run(ctx: StepContext, side: str, version: tuple[int, ...]) -> str:
     return ""
 
 
-def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]:
+def _click(
+    ctx: StepContext, side: str, name: str, version: tuple[int, ...], *, again: bool = False
+) -> tuple[Reading | None, str]:
     """One run on ``side``. A reading, or None and why there is none.
 
     A Stop is heard here, before each run. A run past the call is still going
@@ -187,9 +189,20 @@ def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]
 
         return None, why
     except ShellerError as exc:
+        has_route = bool(version) and version >= CLICKBOT_SINCE
+        if exc.status == 404 and has_route and not again:
+            # The route is there, so the 404 is `session_or_404`: the session
+            # went away (a daemon restarted). Once, on a fresh one.
+            try:
+                mended = ensure_usable(ctx, side)
+            except ShellerError:
+                mended = ""
+            if mended:
+
+                return _click(ctx, side, name, version, again=True)
         why = (
             "this daemon has no clickbot route (Sheller below 1.12.0)"
-            if exc.status == 404
+            if exc.status == 404 and not has_route
             else str(exc)
         )
         _record(ctx, "click_module", side, session_id, "", _elapsed(started), False, f"{name} · {why}")
