@@ -98,10 +98,12 @@ def test_a_run_past_the_call_is_interrupted_and_said(fake):
     ctx = _ctx(fake)
 
     # A Sheller error is the agent's to read, as for every other tool.
+    before = ctx.sessions["target"]
+
     text = _tool(ctx)(side="target")
 
-    assert text.startswith("error: ") and "interrupted" in text
-    assert ctx.sessions["target"] in fake.interrupts
+    assert text.startswith("error: ") and "opened again" in text
+    assert before in fake.closes and ctx.sessions["target"] != before
 
 
 def test_the_tool_is_refused_on_a_side_the_step_did_not_declare(fake):

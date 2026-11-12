@@ -23,7 +23,7 @@ import time
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.clickbot_answer import Reading, menu_lines, read, summary
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
-from odoo_migrator.runner.sessions import ensure_usable, reopen_side
+from odoo_migrator.runner.sessions import reopen_side
 from odoo_migrator.runner.tools import _elapsed, _record
 from odoo_migrator.sheller.errors import ShellerError, ShellerTimeout
 from odoo_migrator.sheller.version import CLICKBOT_SINCE, daemon_version
@@ -168,7 +168,7 @@ def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]
     """One run on ``side``. A reading, or None and why there is none.
 
     A Stop is heard here, before each run. A run past the call is still going
-    in its session; the runner mends both sessions before the next step.
+    in its session, and this side gets a fresh one.
     """
     check_stop(ctx, "during the clickbot")
     session_id = ctx.sessions.get(side, "")
@@ -178,9 +178,11 @@ def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]
             session_id, name, write_key=ctx.write_keys.get(side, ""), timeout=CLICK_TIMEOUT
         )
     except ShellerTimeout:
-        # Still running in the session, with `load_menus` patched: interrupt it,
-        # or open a fresh one, as `tests` and `smoke` do after their own timeout.
-        why = f"the run ran past {CLICK_TIMEOUT:.0f}s{_free(ctx, side)}"
+        # Still running in the session, with `load_menus` patched. An interrupt
+        # is what Sheller names as the likely cause of a menu tree it could not
+        # put back, and it says so only in its journal: the shell is not
+        # trusted again, a fresh one is opened.
+        why = f"the run ran past {CLICK_TIMEOUT:.0f}s{_fresh(ctx, side)}"
         _record(ctx, "click_module", side, session_id, "", _elapsed(started), False, f"{name} · {why}")
 
         return None, why
@@ -205,15 +207,15 @@ def _click(ctx: StepContext, side: str, name: str) -> tuple[Reading | None, str]
     return reading, ""
 
 
-def _free(ctx: StepContext, side: str) -> str:
-    """What it took to make ``side`` usable again, as words after a reason."""
+def _fresh(ctx: StepContext, side: str) -> str:
+    """A fresh session on ``side``, as words after a reason."""
     try:
-        done = ensure_usable(ctx, side)
+        reopen_side(ctx, side)
     except ShellerError as exc:
 
-        return f"; the {side} session could not be freed: {exc}"
+        return f"; the {side} session could not be opened again: {exc}"
 
-    return f"; {done}" if done else ""
+    return f"; the {side} session was opened again"
 
 
 def _reopen_after_restore_failed(ctx: StepContext, side: str, name: str, reading: Reading) -> None:

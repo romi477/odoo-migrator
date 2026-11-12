@@ -434,11 +434,13 @@ def test_a_run_past_the_call_frees_the_session_and_the_output_says_so(fake, ctx_
 
     result = _run(ctx)
 
+    # Interrupted, the run may leave `load_menus` wrapped: the shell is not
+    # trusted again, a fresh one is opened.
     assert result.ok is True
+    assert sid in fake.closes and ctx.sessions["target"] != sid
     assert fake.get_session(ctx.sessions["target"])["state"] == "ready"
-    assert sid in fake.interrupts
-    assert "interrupted" in result.output
-    assert any("interrupted" in text for text in _findings(ctx))
+    assert "opened again" in result.output
+    assert any("opened again" in text for text in _findings(ctx))
 
 
 def test_a_baseline_run_past_the_call_frees_the_source_session(fake, ctx_for):
@@ -450,7 +452,7 @@ def test_a_baseline_run_past_the_call_frees_the_source_session(fake, ctx_for):
     result = _run(ctx)
 
     assert result.ok is False and "no baseline was taken on the source" in result.output
-    assert source in fake.interrupts
+    assert source in fake.closes and ctx.sessions["source"] != source
     assert fake.get_session(ctx.sessions["source"])["state"] == "ready"
 
 

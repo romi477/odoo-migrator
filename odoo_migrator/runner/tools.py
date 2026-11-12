@@ -496,12 +496,15 @@ def _click_module(ctx, side: str, session_id: str, write_key: str, module: str) 
             session_id, name, write_key=write_key, timeout=CLICK_TIMEOUT
         )
     except ShellerTimeout:
-        with contextlib.suppress(ShellerError):
-            ctx.sheller.interrupt(session_id, write_key=write_key)
+        # Interrupted, the run may leave `load_menus` wrapped, and Sheller says
+        # so only in its journal: a fresh session, as the step opens one.
+        try:
+            reopen_side(ctx, side)
+            said = "the session was opened again"
+        except ShellerError as exc:
+            said = f"the session could not be opened again: {exc}"
 
-        raise ShellerTimeout(
-            f"the clickbot over {name} outlived the call and was interrupted"
-        ) from None
+        raise ShellerTimeout(f"the clickbot over {name} outlived the call; {said}") from None
 
     text = render(answer)
     if read(answer).restore_failed:
