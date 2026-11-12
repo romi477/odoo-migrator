@@ -194,3 +194,33 @@ def test_the_words_for_the_agent_name_each_broken_menu_then_what_was_not_reached
     assert "1 failed" in lines[0]
     assert "m.a (under m.root): boom" in lines
     assert "unreached: m.z" in lines
+
+
+def test_a_devtools_timeout_or_a_chrome_failure_is_a_note():
+    """`_os_click_root` words what `browser_js` raised other than an assertion
+    as `Name: text`, and its own comment names Chrome gone and a devtools call
+    timed out."""
+    for text in (
+        "TimeoutError: devtools call Runtime.evaluate timed out",
+        "ChromeBrowserException: Chrome crashed",
+    ):
+        reading = read(_answer(roots=[{"xmlid": "m.root", "success": False, "error": text}]))
+
+        assert reading.broken == (), text
+        assert reading.notes, text
+
+
+def test_a_driver_failure_with_no_message_is_a_note():
+    """`_os_click_plain` joins words, so `TimeoutError: ` arrives with no space."""
+    for text in ("TimeoutError:", "BrokenPipeError:"):
+        reading = read(_answer(roots=[{"xmlid": "m.root", "success": False, "error": text}]))
+
+        assert reading.broken == (), text
+
+
+def test_a_name_that_only_begins_like_a_driver_failure_is_broken():
+    reading = read(
+        _answer(roots=[{"xmlid": "m.root", "success": False, "error": "TimeoutErrorish: no"}])
+    )
+
+    assert [b.xmlid for b in reading.broken] == ["m.root"]

@@ -21,9 +21,12 @@ SETUP = ("module_not_installed", "unknown_module")
 # from the server, `TypeError: …` from the page), and those are the module's. So
 # only an explicit list of transport failures is the environment's; anything else
 # errs toward broken, which costs a retried lap and never lets a broken menu by.
+# `_os_click_root` names Chrome gone and a devtools call timed out; Odoo raises
+# `ChromeBrowserException` for the first. `_os_click_plain` joins words, so an
+# exception with no message arrives as `Name:` with nothing after it.
 _DRIVER = re.compile(
-    r"^(?:ConnectionRefusedError|ConnectionResetError|BrokenPipeError"
-    r"|WebSocket\w*(?:Exception|Error)|websocket\.\w+): "
+    r"^(?:ConnectionRefusedError|ConnectionResetError|BrokenPipeError|TimeoutError"
+    r"|ChromeBrowserException|WebSocket\w*(?:Exception|Error)|websocket\.\w+):(?: |$)"
 )
 
 
