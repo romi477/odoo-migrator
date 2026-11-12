@@ -88,7 +88,21 @@ def test_a_browser_that_fell_over_is_a_note_and_never_broken():
     assert any("ConnectionRefusedError" in note for note in reading.notes)
 
 
-def test_a_root_that_failed_under_a_named_menu_is_not_counted_twice():
+def test_a_root_that_failed_under_a_named_menu_with_no_error_of_its_own_adds_nothing():
+    reading = read(
+        _answer(
+            failed=[{"xmlid": "m.a", "root": "m.root", "reason": "boom"}],
+            roots=[{"xmlid": "m.root", "success": False, "error": None}],
+        )
+    )
+
+    assert [b.xmlid for b in reading.broken] == ["m.a"]
+
+
+def test_a_roots_own_error_beside_a_named_menu_is_a_second_failure_and_kept():
+    """Sheller sets a root's `error` only when a run failed and no menu could
+    be blamed (15 to 19), or no menu was named at all (20): next to a `failed`
+    entry it is another failure, never the same one said again."""
     reading = read(
         _answer(
             failed=[{"xmlid": "m.a", "root": "m.root", "reason": "boom"}],
@@ -96,7 +110,21 @@ def test_a_root_that_failed_under_a_named_menu_is_not_counted_twice():
         )
     )
 
+    assert [(b.xmlid, b.reason) for b in reading.broken] == [
+        ("m.a", "boom"), ("m.root", "later: the next start failed"),
+    ]
+
+
+def test_a_roots_own_timeout_beside_a_named_menu_is_still_a_note():
+    reading = read(
+        _answer(
+            failed=[{"xmlid": "m.a", "root": "m.root", "reason": "boom"}],
+            roots=[{"xmlid": "m.root", "success": False, "error": "timeout"}],
+        )
+    )
+
     assert [b.xmlid for b in reading.broken] == ["m.a"]
+    assert any("time" in note for note in reading.notes)
 
 
 def test_a_module_with_no_menus_of_its_own_is_not_a_failure_and_not_a_run():

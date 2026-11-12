@@ -105,7 +105,10 @@ def read(answer: dict) -> Reading:
         why = str(root.get("error") or "")
         if why == "timeout":
             notes.append(f"the run ran out of time under {xmlid}")
-        elif any(entry.root == xmlid for entry in broken):
+        elif not why and any(entry.root == xmlid for entry in broken):
+            # Its menus failed and are named: the root has nothing to add. An
+            # `error` of its own is another failure, which no menu was blamed
+            # for (`_os_click_root` sets it only then), and is kept.
             continue
         elif _DRIVER.match(why):
             notes.append(f"the browser failed under {xmlid}: {why}")
