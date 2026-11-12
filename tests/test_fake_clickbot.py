@@ -108,3 +108,32 @@ def test_a_scripted_error_is_raised_as_the_client_would():
 
     with pytest.raises(ShellerTimeout):
         _run(fake, _open(fake))
+
+
+def test_a_run_is_one_test_with_a_subtest_per_root_as_the_daemon_runs_it():
+    """`_os_click_run` runs one `test_click_module`, one `subTest` per root:
+    `testsRun` is 1, and each failing root is a failure."""
+    fake = FakeShellerClient()
+    opened = _open(fake)
+    fake.clickbot_answers["odoo-new"] = {
+        "roots": [
+            {"xmlid": "m.a_root", "success": False, "error": "x"},
+            {"xmlid": "m.b_root", "success": False, "error": "y"},
+            {"xmlid": "m.c_root", "success": True, "error": None},
+        ],
+    }
+
+    answer = _run(fake, opened, "m")
+
+    assert answer["test"]["tests_run"] == 1 and answer["test"]["failures"] == 2
+
+
+def test_a_module_name_the_daemon_would_refuse_is_a_400():
+    fake = FakeShellerClient()
+    opened = _open(fake)
+
+    with pytest.raises(ShellerError) as raised:
+        _run(fake, opened, "sale-custom; rm")
+
+    assert raised.value.status == 400 and raised.value.detail["error"] == "invalid_module"
+    assert fake.clicks == []

@@ -17,6 +17,9 @@ from odoo_migrator.sheller.errors import (
 )
 from odoo_migrator.sheller.version import CLICKBOT_SINCE, parse_version
 
+# What the clickbot route takes as a module name (`discovery.MODULE_NAME_RE`).
+CLICK_MODULE_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
 # databases[0] is a different Odoo major's database — the trap that 410s a
 # real session. db_name is the one this container is configured for.
 CORE = "/opt/odoo/addons"
@@ -617,6 +620,17 @@ class FakeShellerClient:
         if _version(self._version) < CLICKBOT_SINCE:
             raise ShellerError("Sheller HTTP 404: Not Found", status=404)
         session = self._require(session_id, write_key)
+        if CLICK_MODULE_RE.fullmatch(module or "") is None:
+            # `api.py`, the route: `discovery.MODULE_NAME_RE`, after the owner.
+            raise ShellerError(
+                "invalid_module",
+                status=400,
+                detail={
+                    "error": "invalid_module",
+                    "module": module,
+                    "recovery": "give the module's technical name, such as 'sale_stock'",
+                },
+            )
         container = session["container"]
         if container in self.click_error:
             raise self.click_error[container]
@@ -672,15 +686,18 @@ class FakeShellerClient:
             "modals": 0,
         }
         box.update(scripted)
-        broken = bool(box["failed"]) or any(not root["success"] for root in box["roots"])
+        # One `test_click_module`, one `subTest` per root (`_os_click_run`):
+        # `testsRun` is 1, and each failing root is a failure.
+        failing_roots = sum(1 for root in box["roots"] if not root["success"])
+        broken = bool(box["failed"]) or failing_roots > 0
         skipped = bool(box.get("skipped"))
-        tests_run = 0 if box["refused"] or skipped else max(1, len(box["roots"]))
+        tests_run = 0 if box["refused"] or skipped else 1
         test = {
             "module": module,
             "test_class": None,
             "test_method": None,
             "tests_run": tests_run,
-            "failures": 1 if broken else 0,
+            "failures": max(failing_roots, 1) if broken else 0,
             "errors": 0,
             "skipped": 1 if skipped else 0,
             "success": not broken and tests_run > 0 and not skipped,
