@@ -375,17 +375,25 @@ def test_a_source_that_cannot_run_the_clickbot_gives_no_baseline_and_says_so(fak
     assert [run["container"] for run in fake.clicks] == ["odoo-new"]
 
 
-@pytest.mark.parametrize(
-    "script",
-    [{"refused": "no_menus", "clicked": [], "roots": []}, {"skipped": {"reason": "x"}, "clicked": []}],
-)
-def test_a_source_run_that_ran_nothing_gives_no_baseline(fake, ctx_for, script):
+def test_a_source_run_odoo_skipped_gives_no_baseline(fake, ctx_for):
     fake.clickbot_answers["odoo-new"] = dict(BROKEN)
-    fake.clickbot_answers["odoo-old"] = script
+    fake.clickbot_answers["odoo-old"] = {"skipped": {"reason": "x"}, "clicked": []}
 
     result = _run(ctx_for())
 
     assert result.ok is False and "no baseline was taken on the source" in result.output
+
+
+def test_a_source_with_no_menus_is_a_baseline_every_broken_menu_is_the_ports(fake, ctx_for):
+    """The source answered: it has nothing to click. Nothing broke there, so
+    what broke on the target is the port's, and that is not a missing baseline."""
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = {"refused": "no_menus", "clicked": [], "roots": []}
+
+    result = _run(ctx_for())
+
+    assert result.ok is False and "sale_custom.menu_a" in result.output
+    assert "no baseline" not in result.output
 
 
 def test_a_dead_source_session_gives_no_baseline(fake, ctx_for):
@@ -529,3 +537,68 @@ def test_a_menu_that_fails_on_the_source_too_is_a_finding_that_stops_for_reading
 
     (text,) = [text for text in _findings(ctx) if "source too" in text]
     assert _quiet(ctx)[text] is False
+
+
+NONE_VISIBLE = {
+    "refused": "no_visible_menus", "clicked": [], "roots": [],
+    "hidden": ["sale_custom.menu_main"],
+}
+
+
+def test_menus_admin_no_longer_sees_on_the_target_that_the_source_clicked_fail_the_lap(
+    fake, ctx_for
+):
+    fake.clickbot_answers["odoo-new"] = dict(NONE_VISIBLE)
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is False and result.flags == {"tests_failed"}
+    assert "sale_custom.menu_main" in result.output
+    assert [run["container"] for run in fake.clicks] == ["odoo-new", "odoo-old"]
+
+
+def test_menus_admin_sees_on_neither_side_pass_with_no_finding(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(NONE_VISIBLE)
+    fake.clickbot_answers["odoo-old"] = dict(NONE_VISIBLE)
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is True and ctx.findings == []
+    assert "none visible" in result.output
+
+
+def test_menus_admin_does_not_see_with_no_source_to_ask_are_a_quiet_finding(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(NONE_VISIBLE)
+    fake.clickbot_capability["odoo-old"] = {"available": False, "reason": "chrome_not_found"}
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is True
+    (row,) = ctx.findings
+    assert row["quiet"] is True and "chrome_not_found" in row["text"]
+
+
+def test_the_source_is_clicked_once_for_the_whole_job(fake, ctx_for):
+    """The source does not change between laps, and a run is up to fifteen
+    minutes: a module with a broken menu paid one per lap."""
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    ctx = ctx_for()
+
+    _run(ctx)
+    _run(ctx)
+
+    assert [run["container"] for run in fake.clicks] == ["odoo-new", "odoo-old", "odoo-new"]
+
+
+def test_a_source_run_that_could_not_be_taken_is_tried_again_next_lap(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = {"skipped": {"reason": "x"}, "clicked": []}
+    ctx = ctx_for()
+
+    _run(ctx)
+    _run(ctx)
+
+    assert [run["container"] for run in fake.clicks].count("odoo-old") == 2

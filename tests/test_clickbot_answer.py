@@ -128,10 +128,37 @@ def test_a_roots_own_timeout_beside_a_named_menu_is_still_a_note():
 
 
 def test_a_module_with_no_menus_of_its_own_is_not_a_failure_and_not_a_run():
-    for refusal in ("no_menus", "no_visible_menus"):
-        reading = read(_answer(error=refusal, refused=refusal, clicked=[], roots=[]))
+    reading = read(_answer(error="no_menus", refused="no_menus", clicked=[], roots=[]))
 
-        assert reading.outcome == "no_menus"
+    assert reading.outcome == "no_menus"
+
+
+def test_menus_admin_cannot_see_are_told_apart_from_no_menus_with_how_many_are_hidden():
+    """`no_visible_menus`: the module has menus, and none of them is one admin
+    sees with an action. A port that lost an action ends here."""
+    reading = read(
+        _answer(
+            error="no_visible_menus", refused="no_visible_menus", clicked=[], roots=[],
+            hidden=["m.a", "m.b"],
+        )
+    )
+
+    assert reading.outcome == "none_visible" and reading.hidden == 2
+    assert "2" in render(_answer(
+        error="no_visible_menus", refused="no_visible_menus", clicked=[], roots=[],
+        hidden=["m.a", "m.b"],
+    ))
+
+
+def test_the_hidden_count_is_said_in_the_summary_and_the_words():
+    answer = _answer(hidden=["m.secret"])
+
+    assert "1 hidden from this user" in summary(read(answer))
+    assert "1 hidden from this user" in render(answer)
+
+
+def test_a_reading_keeps_the_names_of_the_menus_it_clicked():
+    assert read(_answer(clicked=["m.a", "m.b"])).clicked_names == ("m.a", "m.b")
 
 
 def test_a_module_that_is_not_there_after_a_green_upgrade_is_a_setup_problem():

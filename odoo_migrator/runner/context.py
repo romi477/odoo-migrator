@@ -98,6 +98,10 @@ class StepContext:
     # The buttons the module puts in its views, as `smoke` found them: model,
     # type, name, label, invisible, context, confirm, view. What `click` presses.
     buttons: list[dict] = field(default_factory=list)
+    # The clickbot's run on the source (`clickbot_answer.Reading`), taken the
+    # first time a lap needs it. The source does not change between laps, and a
+    # run is up to fifteen minutes. A run that could not be taken is not kept.
+    clickbot_source: object = None
     # Questions a `batch_defer` migration did not stop for:
     # `{"question", "assumption"}`, as the result payload's assumptions.
     assumptions: list[dict] = field(default_factory=list)

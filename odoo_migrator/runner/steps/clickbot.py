@@ -12,8 +12,11 @@ with nothing to click each end the step with `ok=True`, and all of them but
 the last leave a finding saying the menus are unproven. The container is a
 person's to set up; nothing in the port would fix it, and the failure lane
 would only spend laps on it. A menu the port broke fails the lap and goes to
-the failure lane, as a red test does. Nothing is written: the clickbot trims
-`load_menus` in memory and runs in a test transaction.
+the failure lane, as a red test does. So do menus admin no longer sees on the
+target (`no_visible_menus`) when the source clicked them. The source is clicked
+only when the target needs comparing, once for the whole job. Nothing is
+written: the clickbot trims `load_menus` in memory and runs in a test
+transaction.
 """
 
 from __future__ import annotations
@@ -51,6 +54,9 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if target.outcome == "no_menus":
 
         return StepResult(ok=True, output=f"{name} clickbot: no menu of its own to click")
+    if target.outcome == "none_visible":
+
+        return _none_visible(ctx, name, target, version)
     if target.outcome == "setup":
 
         return StepResult(
@@ -72,12 +78,46 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     return _failed(ctx, name, target, version)
 
 
+def _none_visible(
+    ctx: StepContext, name: str, target: Reading, version: tuple[int, ...]
+) -> StepResult:
+    """The module has menus and admin sees none with an action. What the source
+    clicked, the port lost; nothing on either side is nothing to prove."""
+    source, why = _baseline(ctx, name, version)
+    hidden = f"{target.hidden} hidden from admin"
+    if source is None:
+        _finding(
+            ctx,
+            f"The clickbot of {name} found menus on the target and none visible to admin "
+            f"({hidden}); the source could not be asked ({why}): they are unproven.",
+            quiet=True,
+        )
+
+        return StepResult(ok=True, output=f"{name} clickbot: none visible to admin ({hidden})")
+    if source.outcome != "ran" or not source.clicked_names:
+
+        return StepResult(
+            ok=True,
+            output=f"{name} clickbot: none visible to admin on either side ({hidden})",
+        )
+    head = (
+        f"{name} clickbot: admin sees no menu of the module on the target ({hidden}), "
+        f"and the source clicked {len(source.clicked_names)}: the port lost them "
+        "(an action gone, a group admin is not in)"
+    )
+    lines = [head, *source.clicked_names]
+
+    return StepResult(ok=False, flags={"tests_failed"}, output="\n".join(lines))
+
+
 def _failed(
     ctx: StepContext, name: str, target: Reading, version: tuple[int, ...]
 ) -> StepResult:
     baseline, why = _baseline(ctx, name, version)
     broke_on_source: dict = {}
-    if baseline is None:
+    if baseline is None or baseline.outcome != "ran":
+        # No baseline, or no menu of the module on the source to break: every
+        # broken one is the port's.
         ours, both = list(target.broken), []
     else:
         broke_on_source = {entry.xmlid: entry for entry in baseline.broken}
@@ -122,8 +162,13 @@ def _baseline(
     module again, and only a lap with broken menus pays for it.
 
     None, and why, when the source cannot give one: erring toward repair, the
-    lap is retried and a person reads the review either way.
+    lap is retried and a person reads the review either way. A reading is
+    `ran`, `no_menus` or `none_visible`, and is kept for the rest of the job:
+    the source does not change between laps.
     """
+    if isinstance(ctx.clickbot_source, Reading):
+
+        return ctx.clickbot_source, ""
     if not ctx.sessions.get("source"):
 
         return None, "no source session"
@@ -135,9 +180,10 @@ def _baseline(
     if reading is None:
 
         return None, why
-    if reading.outcome != "ran":
+    if reading.outcome not in ("ran", "no_menus", "none_visible"):
 
         return None, reading.reason
+    ctx.clickbot_source = reading
 
     return reading, ""
 

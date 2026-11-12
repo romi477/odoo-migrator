@@ -11,8 +11,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# The module has no menu of its own that a person sees: nothing to prove.
-NO_MENUS = ("no_menus", "no_visible_menus")
+# The module has no menu of its own: nothing to prove.
+NO_MENUS = "no_menus"
+# It has menus, and admin sees none of them with an action. A port that lost an
+# action, or moved a menu to a group admin is not in, ends here: the step asks
+# the source what it clicked.
+NONE_VISIBLE = "no_visible_menus"
 # After a green `upgrade` the module is installed and Odoo knows it.
 SETUP = ("module_not_installed", "unknown_module")
 # A root whose browser could not be driven at all: the devtools socket refused or
@@ -39,7 +43,7 @@ class Broken:
 
 @dataclass(frozen=True)
 class Reading:
-    # ran | no_menus | skipped | setup | environment
+    # ran | no_menus | none_visible | skipped | setup | environment
     outcome: str
     reason: str = ""
     broken: tuple[Broken, ...] = ()
@@ -49,6 +53,7 @@ class Reading:
     notes: tuple[str, ...] = ()
     hidden: int = 0
     clicked: int = 0
+    clicked_names: tuple[str, ...] = ()
     counts: dict = field(default_factory=dict)
     restore_failed: bool = False
 
@@ -63,6 +68,7 @@ def read(answer: dict) -> Reading:
         "unreached": _names(box.get("unreached")),
         "hidden": _count(box.get("hidden")),
         "clicked": _count(box.get("clicked")),
+        "clicked_names": _names(box.get("clicked")),
         "counts": {
             key: box[key] for key in ("views", "filters", "modals") if isinstance(box.get(key), int)
         },
@@ -74,9 +80,12 @@ def read(answer: dict) -> Reading:
             why += f" (the run itself ended: {cause})"
 
         return Reading("environment", why, restore_failed=True, **shared)
-    if error in NO_MENUS:
+    if error == NO_MENUS:
 
         return Reading("no_menus", error, **shared)
+    if error == NONE_VISIBLE:
+
+        return Reading("none_visible", error, **shared)
     if error in SETUP:
 
         return Reading("setup", error, **shared)
@@ -130,6 +139,8 @@ def summary(reading: Reading) -> str:
     for key in ("views", "filters", "modals"):
         if key in reading.counts:
             parts.append(f"{reading.counts[key]} {key[:-1]}(s)")
+    if reading.hidden:
+        parts.append(f"{reading.hidden} hidden from this user")
 
     return ", ".join(parts)
 
@@ -147,9 +158,13 @@ def render(answer: dict) -> str:
     reading = read(answer)
     if reading.outcome == "no_menus":
 
+        return f"clickbot: the module has no menu of its own ({reading.reason}); nothing was clicked"
+    if reading.outcome == "none_visible":
+
         return (
-            "clickbot: the module has no menu of its own that this user sees "
-            f"({reading.reason}); nothing was clicked"
+            f"clickbot: the module has menus, none visible to this user with an action "
+            f"({reading.hidden} hidden; {reading.reason}); nothing was clicked, so this is "
+            "not a pass"
         )
     if reading.outcome != "ran":
         said = reading.reason
