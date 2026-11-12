@@ -356,12 +356,15 @@ then the module's browser suite, when the target lists JS tests for it — a
 container without Chromium is a finding, not a pass, and browser tests the
 source shipped and the target lacks, or a file outside the manifest's test
 bundle, fail the lap), `clickbot` (Odoo's own clickbot over the module's menus on the
-target container; its run log line reads `<module> clickbot: N menu(s) clicked, …`, or
-`did not run: <reason>` when the daemon is older than Sheller 1.12.0, the container has no
-browser or Odoo skipped the run, and each of those is a finding with `clickbot` as its source,
-never a pass; a module with no menu of its own reads `no menu of its own to click` and leaves no
-finding; a menu the port broke fails the lap with its xmlid and reason, and one that fails on the
-source too is a finding; its run is a `click_module` line in the tool calls), `smoke`,
+target container; its run log line reads `<module> clickbot: N menu(s) clicked, …`, with how
+many admin cannot see, or `did not run: <reason>` when the daemon is older than Sheller
+1.12.0, the container has no browser or Odoo skipped the run, and each of those is a quiet
+finding with `clickbot` as its source, never a pass; a module with no menu of its own reads
+`no menu of its own to click` and leaves no finding; one whose menus admin sees none of is
+checked against the source, and fails the lap with the menus the source clicked, or reads
+`none visible to admin on either side`; a menu the port broke fails the lap with its xmlid
+and reason, and one that fails on the source too is a finding; the source is clicked once
+for the whole run; its run is a `click_module` line in the tool calls), `smoke`,
 `probe` and `write_test` only when `no_tests`, then `verdict`.
 **On failure** is entered when any pipeline step fails. `diagnose` raises
 `needs_human`, `reexamine_source`, `small_fix`, or `start_over`, and only the
@@ -403,7 +406,10 @@ graph yet, the page points you at Tree → Build graph.
 A finished batch (not a smoke-run) stops here, except one in which every module
 passed and no run left a finding or an assumption: there is nothing to review, and it closes by itself, whether the module
 ran on its own from its play button or the queue was stopped while it ran. A running
-queue stops for a step that left one, as it does for a failure. The
+queue stops for a step that left one, as it does for a failure. A quiet finding does
+not count for either: what the environment kept from being proved, said of every module
+alike (the clickbot with no browser in the container, menus a run could not reach). It
+stays on the job and is read on its result. The
 banner under the card says which modules were migrated, once; a reload does not
 draw it again, and the next run takes it down. One that failed, or was stopped, waits here, and its module's
 card in the queue carries **Continue** and **Discard** in the place of the play

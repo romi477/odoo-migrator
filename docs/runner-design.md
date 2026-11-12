@@ -858,13 +858,22 @@ debug on, in a test transaction; nothing is written. It runs only when the
 container can, and a run that did not happen is never a pass: an old daemon, a
 container with no Chromium or `websocket-client`, a run Odoo skipped and a run
 that clicked nothing each leave a finding saying the menus are unproven and the
-lap goes on, because nothing in the port would fix the container. A module with
-no menu of its own is not a finding. Menus the run never reached, a root the
-daemon ran out of time on and a browser that fell over are findings too. A menu
+lap goes on, because nothing in the port would fix the container. These are
+quiet findings (`Finding.quiet`): kept on the job and shown, but no reason for a
+running queue to stop, since a container with no browser says the same of every
+module. A module with no menu of its own is not a finding. Menus the run never
+reached, a root the daemon ran out of time on and a browser that fell over are
+quiet findings too. A run past the call, and a menu tree Sheller could not put
+back, leave that side with a fresh session; after the second the run is made
+once more and that run is judged. A module whose menus admin sees none of
+(`no_visible_menus`) is asked of the source: what the source clicked, the port
+lost (an action gone, a group admin is not in), and the lap fails with the list;
+nothing on either side passes. A menu
 the port broke fails the lap (`ok=False`, with `tests_failed`, as a red test
 does) and the failure lane gets its xmlid and the client's reason. To tell what
 the port broke from what was already broken, the step then runs the same
-clickbot on the source container, only on failure, and matches menus by xmlid:
+clickbot on the source container, only on failure and once for the whole job,
+and matches menus by xmlid:
 broken on the target and clicked on the source, or absent or unreached there, is
 the port's; broken on both is a finding. A source that cannot run the clickbot
 gives no baseline, and then every broken menu fails the lap, and the output says
