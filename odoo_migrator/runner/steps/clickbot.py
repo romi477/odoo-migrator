@@ -261,7 +261,15 @@ def _click(
         f"{name} · {summary(reading) if reading.outcome == 'ran' else reading.reason}",
     )
     if reading.restore_failed:
-        _reopen_after_restore_failed(ctx, side, name, reading)
+        # Sheller puts `clickbot_restore_failed` over the run's own outcome and
+        # keeps what it found. A fresh shell, then the run once more, judged on
+        # its own: a broken menu found by the first is not lost as unproven.
+        said = _fresh(ctx, side)
+        if not again and "could not" not in said:
+
+            return _click(ctx, side, name, version, again=True)
+
+        return None, f"{reading.reason}{said}"
 
     return reading, ""
 
@@ -275,17 +283,6 @@ def _fresh(ctx: StepContext, side: str) -> str:
         return f"; the {side} session could not be opened again: {exc}"
 
     return f"; the {side} session was opened again"
-
-
-def _reopen_after_restore_failed(ctx: StepContext, side: str, name: str, reading: Reading) -> None:
-    """The shell is left answering menus through Sheller's wrapper. Open a
-    fresh one before anything else uses this side."""
-    try:
-        reopen_side(ctx, side)
-        said = f"the {side} session was opened again"
-    except ShellerError as exc:
-        said = f"the {side} session could not be opened again: {exc}"
-    _finding(ctx, f"The clickbot of {name} on the {side}: {reading.reason}; {said}.", quiet=True)
 
 
 def _did_not_run(ctx: StepContext, name: str, reason: str) -> StepResult:

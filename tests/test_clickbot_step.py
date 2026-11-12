@@ -602,3 +602,47 @@ def test_a_source_run_that_could_not_be_taken_is_tried_again_next_lap(fake, ctx_
     _run(ctx)
 
     assert [run["container"] for run in fake.clicks].count("odoo-old") == 2
+
+
+def _answers_in_turn(fake, container, *scripts):
+    """The double's answer for ``container`` changes after each run."""
+    queue = list(scripts)
+    real = fake.click_module
+
+    def click(session_id, module, **kwargs):
+        session = fake.get_session(session_id)
+        if session["container"] == container and queue:
+            fake.clickbot_answers[container] = queue.pop(0)
+
+        return real(session_id, module, **kwargs)
+
+    fake.click_module = click
+
+
+def test_a_menu_tree_not_put_back_is_clicked_again_on_a_fresh_session_and_that_run_judged(
+    fake, ctx_for
+):
+    """Sheller overrides `error` and keeps `failed`: a broken menu the run
+    found was lost as 'unproven'."""
+    _answers_in_turn(fake, "odoo-new", {**BROKEN, "restored": False}, dict(BROKEN))
+    ctx = ctx_for()
+    before = ctx.sessions["target"]
+
+    result = _run(ctx)
+
+    assert result.ok is False and "sale_custom.menu_a" in result.output
+    assert before in fake.closes
+    assert [run["container"] for run in fake.clicks] == ["odoo-new", "odoo-new", "odoo-old"]
+    assert not any("unproven" in text for text in _findings(ctx))
+
+
+def test_a_menu_tree_not_put_back_twice_is_one_finding(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = {"restored": False}
+    ctx = ctx_for()
+
+    result = _run(ctx)
+
+    assert result.ok is True
+    assert len([run for run in fake.clicks if run["container"] == "odoo-new"]) == 2
+    (text,) = _findings(ctx)
+    assert "put back" in text and "opened again" in text
