@@ -224,13 +224,14 @@ def _reopen_after_restore_failed(ctx: StepContext, side: str, name: str, reading
         said = f"the {side} session was opened again"
     except ShellerError as exc:
         said = f"the {side} session could not be opened again: {exc}"
-    _finding(ctx, f"The clickbot of {name} on the {side}: {reading.reason}; {said}.")
+    _finding(ctx, f"The clickbot of {name} on the {side}: {reading.reason}; {said}.", quiet=True)
 
 
 def _did_not_run(ctx: StepContext, name: str, reason: str) -> StepResult:
     _finding(
         ctx,
         f"The clickbot of {name} did not run on the target ({reason}): its menus are unproven.",
+        quiet=True,
     )
 
     return StepResult(ok=True, output=f"{name} clickbot did not run: {reason}")
@@ -238,12 +239,17 @@ def _did_not_run(ctx: StepContext, name: str, reason: str) -> StepResult:
 
 def _note_what_was_not_proved(ctx: StepContext, name: str, target: Reading) -> None:
     if target.unreached:
-        _finding(ctx, f"The clickbot of {name} did not reach: {', '.join(target.unreached)}.")
+        _finding(
+            ctx, f"The clickbot of {name} did not reach: {', '.join(target.unreached)}.", quiet=True
+        )
     for note in target.notes:
-        _finding(ctx, f"The clickbot of {name}: {note}.")
+        _finding(ctx, f"The clickbot of {name}: {note}.", quiet=True)
 
 
-def _finding(ctx: StepContext, text: str) -> None:
-    finding = {"text": text, "source": "clickbot"}
+def _finding(ctx: StepContext, text: str, *, quiet: bool = False) -> None:
+    """A finding with `clickbot` as its source. A quiet one is what the
+    environment kept from being proved: it is said of every module alike, so
+    it does not stop a running queue for its review (`Finding.quiet`)."""
+    finding = {"text": text, "source": "clickbot", "quiet": quiet}
     if finding not in ctx.findings:
         ctx.findings.append(finding)

@@ -62,6 +62,8 @@ class FindingPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     text: str
     source: str
+    # Does not stop a running queue for its review (models.Finding.quiet).
+    quiet: bool = False
 
 
 class AssumptionPayload(BaseModel):

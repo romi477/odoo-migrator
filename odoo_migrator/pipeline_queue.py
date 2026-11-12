@@ -791,9 +791,14 @@ def after_batch_checkpoint(
         passed = bool(batch) and all(job.status == "passed" for job in jobs)
         # What a run says besides its verdict is read in the review: a smoke
         # check that could not run, a change a port explained, a question it
-        # did not stop for. A batch that carries any keeps its review.
+        # did not stop for. A batch that carries any keeps its review. A quiet
+        # finding does not: it says the same of every module (no browser in
+        # the container) and stays on the job to be read there.
         said = (
-            Finding.select().join(Job).where(Job.batch == batch_id).exists()
+            Finding.select()
+            .join(Job)
+            .where((Job.batch == batch_id) & (Finding.quiet == False))
+            .exists()
             or Assumption.select().join(Job).where(Job.batch == batch_id).exists()
         )
     running = run_state(migration_id) == "running"

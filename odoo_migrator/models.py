@@ -260,6 +260,10 @@ class Finding(BaseModel):
     text = TextField()
     source = CharField()
     promoted_to_version = CharField(null=True)
+    # Kept on the job and shown with the others, but no reason for a running
+    # queue to stop: what the environment kept from running (a container with
+    # no browser says so on every module) and what a run could not reach.
+    quiet = BooleanField(default=False)
 
 
 class Assumption(BaseModel):

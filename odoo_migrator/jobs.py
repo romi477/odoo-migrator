@@ -996,7 +996,9 @@ def _record_result(job: Job, module: Module, payload: ResultPayload) -> None:
             verdict=payload.status if int(iteration) >= job.attempt else "failed",
         )
     for finding in payload.findings:
-        Finding.create(job=job, text=finding.text, source=finding.source)
+        Finding.create(
+            job=job, text=finding.text, source=finding.source, quiet=finding.quiet
+        )
     for assumption in payload.assumptions:
         Assumption.create(
             job=job,

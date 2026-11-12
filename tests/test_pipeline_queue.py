@@ -1954,3 +1954,46 @@ def test_a_module_being_migrated_is_not_left_out_from_under_its_run(client, how)
     with database.connection_context():
         assert Module.get_by_id(sale["id"]).struck_out is False
     assert "sale_custom" in _cards(row.id)
+
+
+def test_a_queue_step_whose_only_findings_are_quiet_goes_on(client):
+    """A container with no browser leaves a clickbot finding on every module.
+    Stopping for each one stopped a queue of two hundred modules after every
+    step; such a finding is kept on the job and does not stop the queue."""
+    from odoo_migrator.models import Finding
+
+    row = _queue_both_steps(client)
+    executor = _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+
+    _answer(
+        client, executor, "sale_custom", "passed",
+        findings=[{
+            "text": "The clickbot of sale_custom did not run on the target (no browser)",
+            "source": "clickbot", "quiet": True,
+        }],
+    )
+    _answer(client, executor, "web_enterprise_helper", "passed")
+
+    assert run_state(row.id) == "running"
+    assert "stock_custom" in executor.started
+    with database.connection_context():
+        (kept,) = list(Finding.select())
+    assert kept.quiet is True and kept.source == "clickbot"
+
+
+def test_a_quiet_finding_beside_a_loud_one_still_stops_the_queue(client):
+    row = _queue_both_steps(client)
+    executor = _deferred(client)
+    client.post("/run/queue/run", follow_redirects=True)
+
+    _answer(
+        client, executor, "sale_custom", "passed",
+        findings=[
+            {"text": "unreached: sale_custom.menu_url", "source": "clickbot", "quiet": True},
+            {"text": "The smoke checks did not run: busy", "source": "smoke"},
+        ],
+    )
+    _answer(client, executor, "web_enterprise_helper", "passed")
+
+    assert run_state(row.id) == "stopped"

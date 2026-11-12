@@ -463,3 +463,40 @@ def test_the_daemon_is_asked_its_version_once_however_many_sides_run(fake, ctx_f
     _run(ctx_for())
 
     assert len(fake.clicks) == 2 and len(asked) == 1
+
+
+def _quiet(ctx):
+
+    return {row["text"]: row.get("quiet", False) for row in ctx.findings}
+
+
+def test_what_the_environment_kept_from_running_is_a_quiet_finding(fake, ctx_for):
+    fake.clickbot_capability["odoo-new"] = {"available": False, "reason": "chrome_not_found"}
+    ctx = ctx_for()
+
+    _run(ctx)
+
+    assert ctx.findings and all(_quiet(ctx).values())
+
+
+def test_menus_never_reached_and_notes_are_quiet_findings(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = {
+        "roots": [{"xmlid": "sale_custom.menu_root", "success": False, "error": "timeout"}],
+        "unreached": ["sale_custom.menu_url"],
+    }
+    ctx = ctx_for()
+
+    _run(ctx)
+
+    assert len(ctx.findings) == 2 and all(_quiet(ctx).values())
+
+
+def test_a_menu_that_fails_on_the_source_too_is_a_finding_that_stops_for_reading(fake, ctx_for):
+    fake.clickbot_answers["odoo-new"] = dict(BROKEN)
+    fake.clickbot_answers["odoo-old"] = dict(BROKEN)
+    ctx = ctx_for()
+
+    _run(ctx)
+
+    (text,) = [text for text in _findings(ctx) if "source too" in text]
+    assert _quiet(ctx)[text] is False
