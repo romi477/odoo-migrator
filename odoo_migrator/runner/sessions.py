@@ -34,8 +34,23 @@ def open_side(ctx, side: str) -> str:
     )
     ctx.sessions[side] = opened["id"]
     ctx.write_keys[side] = opened["write_key"]
+    _remember(ctx, opened["id"], opened["write_key"])
 
     return opened["id"]
+
+
+def _remember(ctx, session_id: str, write_key: str) -> None:
+    """Keep the key where a restart can find it (`sheller/registry.py`).
+
+    Best effort: a job is not failed because its cleanup record could not be
+    written, and a step run outside the app (a test's bare context) has no
+    database to write it to.
+    """
+    from odoo_migrator.sheller import registry
+
+    migration = getattr(ctx, "migration", None)
+    with contextlib.suppress(Exception):
+        registry.remember(session_id, write_key, str(getattr(migration, "id", "") or ""))
 
 
 # After a person's answer the containers are often still coming back — "I
@@ -81,6 +96,10 @@ def close_side(ctx, side: str) -> None:
     with contextlib.suppress(Exception):
         ctx.sheller.close(session_id, write_key=ctx.write_keys.get(side, ""))
     ctx.sessions[side] = ""
+    from odoo_migrator.sheller import registry
+
+    with contextlib.suppress(Exception):
+        registry.forget(session_id)
 
 
 def reopen_side(ctx, side: str) -> str:

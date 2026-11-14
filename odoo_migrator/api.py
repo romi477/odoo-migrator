@@ -1,9 +1,11 @@
 """HTTP for the migrator UI. Factory, same shape as odoo-sheller."""
 
 import asyncio
+import contextlib
 import json
 import os
 import queue
+import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -232,6 +234,32 @@ def _choose_executor(*, sheller, hub, progress, result):
     return StubExecutor(progress=progress, result=result)
 
 
+def _close_left_sessions(sheller) -> threading.Thread | None:
+    """Close the shells a job that died with the last process left open.
+
+    In a thread: a daemon that does not answer must not hold the app's start.
+    None when there is nothing to close, so a start with no leftovers asks the
+    daemon nothing.
+    """
+    from odoo_migrator.models import ShellerSession
+    from odoo_migrator.sheller.registry import close_left_sessions
+
+    with database.connection_context():
+        if not ShellerSession.select().exists():
+
+            return None
+    client = sheller or HttpShellerClient(get_app_settings()["sheller_base_url"])
+
+    def close() -> None:
+        with contextlib.suppress(Exception):
+            close_left_sessions(client)
+
+    thread = threading.Thread(target=close, name="close-left-sessions", daemon=True)
+    thread.start()
+
+    return thread
+
+
 def create_app(
     db_path: Path | str | None = None,
     *,
@@ -297,6 +325,7 @@ def create_app(
     app.state.executor = executor
     app.state.rules_dir = Path(rules_dir) if rules_dir is not None else default_rules_dir()
     reconcile_jobs()
+    app.state.closing_sessions = _close_left_sessions(app.state.sheller)
 
     def _chrome(request: Request) -> dict:
         current = get_active(request.cookies.get(OPEN_COOKIE))
