@@ -300,6 +300,12 @@ def record_smoke(migration_id: str, status: str) -> None:
 
 def _recorded_smoke(migration_id: str) -> str:
     """The verdict held against this migration's pin, or "untested"."""
+
+    return _pin_row_status(migration_id) or "untested"
+
+
+def _pin_row_status(migration_id: str) -> str | None:
+    """The status on this migration's pin row, or None when it has none."""
     with database.connection_context():
         migration = Migration.get_by_id(migration_id)
         row = CartridgeInstall.get_or_none(
@@ -307,7 +313,17 @@ def _recorded_smoke(migration_id: str) -> str:
             & (CartridgeInstall.version == (migration.cartridge_version or "1.0.0"))
         )
 
-        return row.smoke_status if row is not None else "untested"
+        return row.smoke_status if row is not None else None
+
+
+def _forget_pin_row(migration_id: str) -> None:
+    """Delete the pin row `running` created where there was none."""
+    with database.connection_context():
+        migration = Migration.get_by_id(migration_id)
+        CartridgeInstall.delete().where(
+            (CartridgeInstall.cartridge_id == (migration.cartridge_id or "stock"))
+            & (CartridgeInstall.version == (migration.cartridge_version or "1.0.0"))
+        ).execute()
 
 
 def abandon_smoke(migration_id: str) -> None:
@@ -327,7 +343,7 @@ def smoke_run(migration_id: str, executor, hub, *, module_id: int | None = None)
         if not modules:
             raise ContractError("No module to smoke-run.")
         module_id = min(modules, key=lambda row: row["technical_name"])["id"]
-    before = _recorded_smoke(migration_id)
+    before = _pin_row_status(migration_id)
     record_smoke(migration_id, "running")
     try:
         job = start_job(
@@ -340,8 +356,13 @@ def smoke_run(migration_id: str, executor, hub, *, module_id: int | None = None)
     except Exception:
         # Refused before anything ran (a hand edit, an unplaced module, an
         # executor that would not take it): there is no job to give a verdict,
-        # and "running" would stay for good.
-        record_smoke(migration_id, before)
+        # and "running" would stay for good. A pin with no row before (the
+        # stock flow ships with none) gets none back: an `untested` row turned
+        # the gate on for every migration on stock.
+        if before is None:
+            _forget_pin_row(migration_id)
+        else:
+            record_smoke(migration_id, before)
         raise
     with database.connection_context():
 

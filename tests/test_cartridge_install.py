@@ -278,3 +278,30 @@ def test_a_restart_does_not_leave_a_smoke_run_running(client, migration):
     reconcile_jobs()
 
     assert _smoke_status(migration["id"]) == "untested"
+
+
+def test_a_refused_smoke_run_on_the_stock_flow_leaves_no_row_behind(
+    client, migration, monkeypatch
+):
+    """`running` created a row for stock, and the refusal wrote `untested`
+    into it: from then on every migration on stock was told a smoke-run must
+    pass before a batch."""
+    from odoo_migrator import jobs
+    from odoo_migrator.cartridges import smoke_allows_batch, smoke_run
+    from odoo_migrator.contract import ContractError
+
+    install_from_text(_variant("acme_flow"))
+    with database.connection_context():
+        Module.create(migration=migration["id"], technical_name="sale_custom")
+
+    def refuse(**_kw):
+        raise ContractError("edited by hand")
+
+    monkeypatch.setattr(jobs, "start_job", refuse)
+
+    with pytest.raises(ContractError):
+        smoke_run(migration["id"], client.app.state.executor, client.app.state.hub)
+
+    with database.connection_context():
+        assert not CartridgeInstall.select().where(CartridgeInstall.cartridge_id == "stock").exists()
+        assert smoke_allows_batch(Migration.get_by_id(migration["id"]))
