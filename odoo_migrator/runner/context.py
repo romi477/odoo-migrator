@@ -102,6 +102,9 @@ class StepContext:
     # first time a lap needs it. The source does not change between laps, and a
     # run is up to fifteen minutes. A run that could not be taken is not kept.
     clickbot_source: object = None
+    # What smoke found on the source, as `(where, exception class)` keys, taken
+    # the first time a lap breaks. None until then, or when it could not be.
+    smoke_source: set | None = None
     # Questions a `batch_defer` migration did not stop for:
     # `{"question", "assumption"}`, as the result payload's assumptions.
     assumptions: list[dict] = field(default_factory=list)

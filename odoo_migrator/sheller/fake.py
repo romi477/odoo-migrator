@@ -213,6 +213,9 @@ class FakeShellerClient:
         # nothing broke; `smoke_checked` is what the script says it tried.
         self.smoke_problems: list[dict] = []
         self.smoke_checked: dict[str, int] = {"models": 1, "fields": 2, "bundles": 1}
+        # container name -> what the script finds there instead, when the
+        # source and the target differ. None is a run that ends in an error.
+        self.smoke_problems_by_container: dict[str, list[dict] | None] = {}
         # The buttons the script found in the module's views; none by default.
         self.smoke_buttons: list[dict] = []
         # spec -> fields merged into that run's `test` block.
@@ -475,6 +478,7 @@ class FakeShellerClient:
         )
         session["pending_commands"] += 1
         result = "None"
+        failed = None
         if "_os_read()" in code:
             result = repr(json.dumps({"text": "def action_confirm(self):\n    ...", "line": 1}))
         elif "ir.module.module" in code and "json.dumps(rows)" in code:
@@ -489,22 +493,29 @@ class FakeShellerClient:
                 json.dumps({"installed": sorted(names), "addons_path": addons_path})
             )
         elif "_get_asset_bundle" in code and "'problems'" in code:
-            result = repr(
-                json.dumps(
-                    {
-                        "checked": self.smoke_checked,
-                        "problems": self.smoke_problems,
-                        "buttons": self.smoke_buttons,
-                    }
-                )
+            problems = self.smoke_problems_by_container.get(
+                session["container"], self.smoke_problems
             )
+            if problems is None:
+                failed = {"type": "KeyError", "message": "'ir.asset'", "traceback": ""}
+                result = None
+            else:
+                result = repr(
+                    json.dumps(
+                        {
+                            "checked": self.smoke_checked,
+                            "problems": problems,
+                            "buttons": self.smoke_buttons,
+                        }
+                    )
+                )
         answer = {
             "id": command_id,
             "stdout": "",
             "stdout_truncated": False,
             "result": result,
             "result_truncated": False,
-            "error": None,
+            "error": failed,
             "duration": 0.0,
             "stderr": [],
             "stderr_truncated": False,

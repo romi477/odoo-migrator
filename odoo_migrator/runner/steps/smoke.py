@@ -16,7 +16,10 @@ session is rolled back after.
 A problem is the module's when it is about something the module declared, or
 when the traceback runs through its files: that fails the lap, and the failure
 lane gets the list. A bundle broken by another module in a shared database is
-not this port's to fix: that is a finding for the review.
+not this port's to fix: that is a finding for the review. Neither is what the
+source breaks on too: when the target breaks, the same script runs once on the
+source, and a problem it has there, at the same place with the same exception,
+is a finding as well.
 """
 
 from __future__ import annotations
@@ -394,6 +397,24 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     if not own:
 
         return StepResult(ok=True, flags=flags, output=f"{name}: {said}")
+    baseline, why = _baseline(ctx, name)
+    if baseline is not None:
+        already = [problem for problem in own if _key(problem) in baseline]
+        for problem in already:
+            finding = {
+                "text": f"{problem.get('where')}: {problem.get('error')}",
+                "source": "smoke: the source too",
+            }
+            if finding not in ctx.findings:
+                ctx.findings.append(finding)
+        own = [problem for problem in own if _key(problem) not in baseline]
+        if not own:
+
+            return StepResult(
+                ok=True,
+                flags=flags,
+                output=f"{name}: {checked}; {len(already)} problem(s), all of them on the source too",
+            )
     lines = [f"Using {name} the way a person would broke {len(own)} time(s) ({checked}):"]
     for problem in own[:_SHOWN]:
         lines.append(f"- {problem.get('where')}: {problem.get('error')}")
@@ -402,8 +423,67 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             lines.append("  " + trace.replace("\n", "\n  "))
     if len(own) > _SHOWN:
         lines.append(f"(and {len(own) - _SHOWN} more)")
+    if baseline is None:
+        lines.append(f"no baseline was taken on the source ({why}): every break is counted as the port's")
 
     return StepResult(ok=False, flags=flags, output="\n".join(lines))
+
+
+def _key(problem: dict) -> tuple[str, str]:
+    """A problem the source has too: the same place, the same exception class.
+    The message is not compared: a recordset or a path in it differs between
+    the two databases."""
+    error = str(problem.get("error") or "")
+
+    return str(problem.get("where") or ""), error.split(":", 1)[0].strip()
+
+
+def _baseline(ctx: StepContext, name: str) -> tuple[set | None, str]:
+    """The same checks on the source, the first time a lap breaks: a wizard
+    whose defaults want an active record fails there as well, and that is not
+    the port's to repair. Kept for the job; the source does not change between
+    laps. None, and why, when the source gives no answer: erring toward
+    repair, every break stays the port's."""
+    if isinstance(ctx.smoke_source, set):
+
+        return ctx.smoke_source, ""
+    session_id = ctx.sessions.get("source", "")
+    if not session_id:
+
+        return None, "no source session"
+    write_key = ctx.write_keys.get("source", "")
+    started = time.perf_counter()
+    try:
+        executed = ctx.sheller.exec(
+            session_id, _SCRIPT.format(name=name), write_key=write_key, timeout=SMOKE_TIMEOUT
+        )
+    except ShellerTimeout:
+        _record(ctx, "smoke", "source", session_id, "", _elapsed(started), False, f"{name} · ran past {SMOKE_TIMEOUT:.0f}s")
+        _free(ctx, "source")
+
+        return None, f"the checks ran past {SMOKE_TIMEOUT:.0f}s there"
+    except ShellerError as exc:
+        _record(ctx, "smoke", "source", session_id, "", _elapsed(started), False, f"{name} · {exc}")
+
+        return None, str(exc)
+    finally:
+        _roll_back(ctx, "source")
+    command_id = str(executed.get("id") or "")
+    report = _report(executed)
+    if report is None:
+        error = executed.get("error")
+        said = f"{error.get('type')}: {error.get('message')}" if isinstance(error, dict) else str(error or "no answer")
+        _record(ctx, "smoke", "source", session_id, command_id, _elapsed(started), False, f"{name} · {said}")
+
+        return None, said
+    keys = {_key(problem) for problem in report.get("problems") or [] if isinstance(problem, dict)}
+    _record(
+        ctx, "smoke", "source", session_id, command_id, _elapsed(started), True,
+        f"{name} · the baseline: {len(keys)} problem(s) on the source",
+    )
+    ctx.smoke_source = keys
+
+    return keys, ""
 
 
 def _report(executed: dict) -> dict | None:
@@ -449,16 +529,16 @@ def _unrun(ctx: StepContext, reason: str) -> StepResult:
     return StepResult(ok=True, output=f"not run: {reason}")
 
 
-def _roll_back(ctx: StepContext) -> None:
+def _roll_back(ctx: StepContext, side: str = "target") -> None:
     try:
-        ctx.sheller.rollback(ctx.sessions.get("target", ""), write_key=ctx.write_keys.get("target", ""))
+        ctx.sheller.rollback(ctx.sessions.get(side, ""), write_key=ctx.write_keys.get(side, ""))
     except ShellerError:
         pass
 
 
-def _free(ctx: StepContext) -> str:
+def _free(ctx: StepContext, side: str = "target") -> str:
     try:
-        done = ensure_usable(ctx, "target")
+        done = ensure_usable(ctx, side)
     except ShellerError as exc:
 
         return f"; the session could not be freed: {exc}"

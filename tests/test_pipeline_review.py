@@ -301,6 +301,8 @@ def test_a_break_in_the_module_fails_smoke_with_where_and_why(ctx_for, sheller):
             "trace": "",
         },
     ]
+    # The source, asked before the port is blamed, has none of it.
+    sheller.smoke_problems_by_container["odoo-old"] = []
     ctx = ctx_for()
 
     result = smoke.run(Step(kind="smoke"), ctx)
@@ -312,6 +314,76 @@ def test_a_break_in_the_module_fails_smoke_with_where_and_why(ctx_for, sheller):
     # Another module's break is not this port's to fix: the review is told.
     assert "$o-brand" not in result.output
     assert any("$o-brand" in finding["text"] for finding in ctx.findings)
+
+
+def test_a_break_the_source_has_too_is_a_finding_and_not_the_ports(ctx_for, sheller):
+    """A wizard whose defaults want an active record fails the same way on the
+    source. Before blaming the port, smoke runs the same checks there, once;
+    what fails on both sides is told to the review and fails nothing."""
+    from odoo_migrator.runner.steps import smoke
+
+    wizard = {
+        "where": "sale.custom.wizard: a new record (defaults and computed fields)",
+        "error": "ValueError: Expected singleton: sale.order()",
+        "own": True,
+        "trace": 'File "/opt/project/sale_custom/wizard/w.py", line 9',
+    }
+    broken = {
+        "where": "sale.order: a new record (defaults and computed fields)",
+        "error": "AttributeError: 'sale.order' object has no attribute 'mig_colour'",
+        "own": True,
+        "trace": "",
+    }
+    sheller.smoke_problems = [wizard, broken]
+    sheller.smoke_problems_by_container["odoo-old"] = [
+        {**wizard, "error": "ValueError: Expected singleton: sale.order(1, 2)"}
+    ]
+    calls = []
+    ctx = ctx_for()
+    ctx.record_tool = lambda *args: calls.append(args)
+
+    result = smoke.run(Step(kind="smoke"), ctx)
+
+    assert result.ok is False
+    assert "broke 1 time(s)" in result.output and "mig_colour" in result.output
+    assert "sale.custom.wizard" not in result.output
+    assert any(
+        "sale.custom.wizard" in finding["text"] and "source too" in finding["source"]
+        for finding in ctx.findings
+    )
+    assert [(call[0], call[1]) for call in calls] == [("smoke", "target"), ("smoke", "source")]
+    assert ctx.sessions["source"] in sheller.rollbacks
+
+    # The source does not change between laps: it is asked once per job.
+    smoke.run(Step(kind="smoke"), ctx)
+    assert [call[1] for call in calls].count("source") == 1
+
+
+def test_a_clean_target_does_not_ask_the_source(ctx_for, sheller):
+    from odoo_migrator.runner.steps import smoke
+
+    calls = []
+    ctx = ctx_for()
+    ctx.record_tool = lambda *args: calls.append(args)
+
+    smoke.run(Step(kind="smoke"), ctx)
+
+    assert [call[1] for call in calls] == ["target"]
+
+
+def test_a_source_that_cannot_answer_leaves_every_break_the_ports(ctx_for, sheller):
+    from odoo_migrator.runner.steps import smoke
+
+    sheller.smoke_problems = [
+        {"where": "w: a new record (defaults and computed fields)", "error": "ValueError: x", "own": True, "trace": ""}
+    ]
+    sheller.smoke_problems_by_container["odoo-old"] = None
+    ctx = ctx_for()
+
+    result = smoke.run(Step(kind="smoke"), ctx)
+
+    assert result.ok is False and "broke 1 time(s)" in result.output
+    assert "no baseline was taken on the source" in result.output
 
 
 def test_checks_that_could_not_run_do_not_fail_the_lap(ctx_for, sheller):
