@@ -43,7 +43,11 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     )
     mode = getattr(getattr(ctx, "migration", None), "ask_human_mode", "sync")
     if mode == "batch_defer":
-        ctx.assumptions.append({"question": question, "assumption": DEFERRED})
+        # A failure lane that asks on every lap asks the same thing: one
+        # assumption for the checkpoint to read, not one per lap.
+        assumption = {"question": question, "assumption": DEFERRED}
+        if assumption not in ctx.assumptions:
+            ctx.assumptions.append(assumption)
 
         return StepResult(ok=True, answer=DEFERRED_ANSWER, output=question)
     waiter = getattr(ctx, "wait_for_human", None)
