@@ -1035,3 +1035,43 @@ def test_a_reopened_module_odoo_no_longer_reports_is_flagged_not_deleted(client)
         kept = Module.get_by_id(sale["id"])
 
         assert kept.absent_from_odoo is True
+
+
+def _choose_on_card(migration_id, side_field, name):
+    from odoo_migrator.db import database
+    from odoo_migrator.models import Migration
+
+    with database.connection_context():
+        Migration.update({side_field: name}).where(Migration.id == migration_id).execute()
+
+
+def test_build_graph_reads_the_database_the_card_names_as_a_run_does(tmp_path):
+    """A run takes the card first; Build graph took odoo.conf, so the graph
+    and the module paths came from one database and every job ran on another."""
+    created = _migration(tmp_path)
+    _choose_on_card(created["id"], "old_database", "other_major_db")
+    fake = FakeShellerClient()
+
+    resolve_graph(fake, created["id"])
+
+    assert fake.opens[0]["database"] == "other_major_db"
+
+
+def test_build_graph_with_no_db_name_in_the_config_uses_the_cards(tmp_path):
+    created = _migration(tmp_path)
+    _choose_on_card(created["id"], "old_database", "acme_17")
+    fake = FakeShellerClient()
+    real = fake.probe
+    fake.probe = lambda container: {**real(container), "db_name": None}
+
+    resolve_graph(fake, created["id"])
+
+    assert fake.opens[0]["database"] == "acme_17"
+
+
+def test_build_graph_refuses_a_database_the_container_does_not_have(tmp_path):
+    created = _migration(tmp_path)
+    _choose_on_card(created["id"], "old_database", "gone_db")
+
+    with pytest.raises(GraphError, match="gone_db"):
+        resolve_graph(FakeShellerClient(), created["id"])

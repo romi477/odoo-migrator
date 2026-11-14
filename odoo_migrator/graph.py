@@ -1070,6 +1070,7 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         if migration is None:
             raise GraphError("no open migration")
         old_container = migration.old_container
+        old_database = (migration.old_database or "").strip()
         old_project_path = migration.old_project_path or ""
         old_mounts = load_mounts(migration.old_mounts)
         project_points = _project_mount_points(migration)
@@ -1079,13 +1080,25 @@ def resolve_graph(client, migration_id: str) -> list[dict]:
         probed = client.probe(old_container)
     except ShellerError as exc:
         raise GraphError(str(exc)) from exc
-    if not probed.get("ok") or not probed.get("db_name") or not probed.get("odoo_bin"):
+    if not probed.get("ok") or not probed.get("odoo_bin"):
         raise GraphError("the source container could not be probed")
+    # The card first, then the container's own odoo.conf, as a run chooses
+    # (`native._targets`) and the target read does: the graph and the module
+    # paths must come from the database every job then runs on.
+    known = probed.get("databases") or []
+    database_name = old_database or (probed.get("db_name") or "")
+    if not database_name:
+        raise GraphError(
+            "the source container names no database in its config, and the "
+            "migration card names none either"
+        )
+    if known and database_name not in known:
+        raise GraphError(f"database {database_name!r} is not on the source container")
     try:
         executed = _read_only_exec(
             client,
             container=old_container,
-            database=probed["db_name"],
+            database=database_name,
             odoo_bin=probed["odoo_bin"],
             migration_id=migration_id,
             code=build_graph_snippet(
