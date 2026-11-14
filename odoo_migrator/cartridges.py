@@ -28,6 +28,7 @@ def install_from_text(text: str) -> CartridgeInstall:
         if kind:
             raise CartridgeError(f"unknown step '{kind}'") from exc
         raise
+    _check_names(loaded)
     with database.connection_context():
         row = CartridgeInstall.get_or_none(
             (CartridgeInstall.cartridge_id == loaded.cartridge)
@@ -59,6 +60,17 @@ def install_from_text(text: str) -> CartridgeInstall:
 # `id@version`, split at the first `@`, and the viewer's address is
 # `/api/flows/<id>/<version>`: an `@` or a `/` would break either.
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,39}")
+
+
+def _check_names(loaded: Cartridge) -> None:
+    """Refuse an id or a version the card's select or the viewer cannot carry."""
+    for label, value in (("id", loaded.cartridge), ("version", loaded.version)):
+        if not _NAME.fullmatch(value):
+            raise CartridgeError(
+                f"The flow {label} {value!r} is not allowed: it may hold only letters, "
+                "digits and . _ + -, start with a letter or digit, and be at most "
+                "40 characters."
+            )
 
 
 class FlowTaken(CartridgeError):
@@ -133,13 +145,7 @@ def fork_from_text(text: str) -> CartridgeInstall:
         raise
     from odoo_migrator.flowfile import flow_text
 
-    for label, value in (("id", loaded.cartridge), ("version", loaded.version)):
-        if not _NAME.fullmatch(value):
-            raise CartridgeError(
-                f"The flow {label} {value!r} is not allowed: it may hold only letters, "
-                "digits and . _ + -, start with a letter or digit, and be at most "
-                "40 characters."
-            )
+    _check_names(loaded)
     taken = FlowTaken(loaded.cartridge, loaded.version)
     if flow_text(loaded.cartridge, loaded.version) is not None:
         raise taken

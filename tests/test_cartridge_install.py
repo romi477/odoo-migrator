@@ -305,3 +305,16 @@ def test_a_refused_smoke_run_on_the_stock_flow_leaves_no_row_behind(
     with database.connection_context():
         assert not CartridgeInstall.select().where(CartridgeInstall.cartridge_id == "stock").exists()
         assert smoke_allows_batch(Migration.get_by_id(migration["id"]))
+
+
+@pytest.mark.parametrize(("cartridge_id", "version"), [("acme/custom", "1.0.0"), ("acme", "1.0@beta")])
+def test_an_import_refuses_an_id_or_version_a_fork_would_refuse(client, cartridge_id, version):
+    """The card's select splits `id@version` at the first `@`, and the
+    viewer's address cannot carry a `/`: a flow imported under such a name
+    could not be chosen again or opened."""
+    from odoo_migrator.runner.cartridge import CartridgeError
+
+    with pytest.raises(CartridgeError, match="not allowed"):
+        install_from_text(_variant(cartridge_id, version))
+    with database.connection_context():
+        assert not CartridgeInstall.select().where(CartridgeInstall.cartridge_id == cartridge_id).exists()
