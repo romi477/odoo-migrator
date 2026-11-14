@@ -12,7 +12,7 @@ import contextlib
 import time
 
 from odoo_migrator.runner.context import check_stop
-from odoo_migrator.sheller.errors import ShellerError
+from odoo_migrator.sheller.errors import ShellerError, ShellerNeedsHuman, ShellerNotOwner
 
 # How often to ask whether a busy session is free again, and for how long
 # before giving up on the command it is running.
@@ -78,6 +78,11 @@ def open_sides_patiently(
                     open_side(ctx, side)
 
             return None
+        except (ShellerNeedsHuman, ShellerNotOwner) as exc:
+            # A switch still off, or a key refused: waiting does not change
+            # either, and the person is told now rather than in three minutes.
+
+            return str(exc) or type(exc).__name__
         except ShellerError as exc:
             reason = str(exc) or type(exc).__name__
         if clock.monotonic() >= deadline:

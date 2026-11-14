@@ -92,3 +92,24 @@ def test_the_module_state_reset_works_on_every_version():
 
     assert "button_reset_state" in _RESET
     assert "hasattr" in _RESET
+
+
+@pytest.mark.parametrize("refusal", ["needs_a_human", "not_owner"])
+def test_a_refusal_waiting_cannot_change_is_said_at_once(refusal):
+    """The commit switch still off, or a key the daemon refuses: three
+    minutes of retries changed nothing, and the person waited them out."""
+    from odoo_migrator.sheller.errors import ShellerNeedsHuman, ShellerNotOwner
+
+    error = ShellerNeedsHuman if refusal == "needs_a_human" else ShellerNotOwner
+
+    class Refusing(FakeShellerClient):
+        def open_session(self, **kwargs):
+            raise error(refusal)
+
+    clock = Clock()
+    ctx = Ctx(Refusing())
+
+    failure = open_sides_patiently(ctx, wait=180, poll=5, clock=clock)
+
+    assert refusal in failure
+    assert clock.now == 0
