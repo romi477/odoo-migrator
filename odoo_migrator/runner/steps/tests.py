@@ -356,6 +356,9 @@ def _browser(ctx: StepContext, name: str, js: dict, files: list[dict]) -> StepRe
             f"{len(files)} JS test file(s) are unproven."
         ),
         "source": "tests: browser",
+        # The same for every module of a container with no browser: told, and
+        # not a reason to stop the queue at every wave.
+        "quiet": True,
     }
     if finding not in ctx.findings:
         ctx.findings.append(finding)

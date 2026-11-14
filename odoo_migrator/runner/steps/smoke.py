@@ -388,7 +388,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
     for problem in problems:
         if problem.get("own"):
             continue
-        finding = {"text": f"{problem.get('where')}: {problem.get('error')}", "source": "smoke: another module"}
+        finding = {"text": f"{problem.get('where')}: {problem.get('error')}", "source": "smoke: another module", "quiet": True}
         if finding not in ctx.findings:
             ctx.findings.append(finding)
     checked = _checked(report.get("checked") or {})
@@ -404,6 +404,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
             finding = {
                 "text": f"{problem.get('where')}: {problem.get('error')}",
                 "source": "smoke: the source too",
+                "quiet": True,
             }
             if finding not in ctx.findings:
                 ctx.findings.append(finding)
@@ -522,7 +523,7 @@ def _checked(checked: dict) -> str:
 def _unrun(ctx: StepContext, reason: str) -> StepResult:
     """The checks did not run to the end. That says nothing about the module,
     and the lap is not failed on it: the review is told instead."""
-    finding = {"text": f"The smoke checks did not run: {reason}", "source": "smoke"}
+    finding = {"text": f"The smoke checks did not run: {reason}", "source": "smoke", "quiet": True}
     if finding not in ctx.findings:
         ctx.findings.append(finding)
 

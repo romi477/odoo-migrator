@@ -313,7 +313,7 @@ def test_a_break_in_the_module_fails_smoke_with_where_and_why(ctx_for, sheller):
     assert "sale_order.py" in result.output
     # Another module's break is not this port's to fix: the review is told.
     assert "$o-brand" not in result.output
-    assert any("$o-brand" in finding["text"] for finding in ctx.findings)
+    assert any("$o-brand" in finding["text"] and finding["quiet"] for finding in ctx.findings)
 
 
 def test_a_break_the_source_has_too_is_a_finding_and_not_the_ports(ctx_for, sheller):
@@ -348,7 +348,7 @@ def test_a_break_the_source_has_too_is_a_finding_and_not_the_ports(ctx_for, shel
     assert "broke 1 time(s)" in result.output and "mig_colour" in result.output
     assert "sale.custom.wizard" not in result.output
     assert any(
-        "sale.custom.wizard" in finding["text"] and "source too" in finding["source"]
+        "sale.custom.wizard" in finding["text"] and "source too" in finding["source"] and finding["quiet"]
         for finding in ctx.findings
     )
     assert [(call[0], call[1]) for call in calls] == [("smoke", "target"), ("smoke", "source")]
@@ -399,7 +399,7 @@ def test_checks_that_could_not_run_do_not_fail_the_lap(ctx_for, sheller):
 
     assert result.ok is True
     assert result.output.startswith("not run: ImportError")
-    assert any(finding["source"] == "smoke" for finding in ctx.findings)
+    assert any(finding["source"] == "smoke" and finding["quiet"] for finding in ctx.findings)
     assert ctx.sessions["target"] in sheller.rollbacks
 
 

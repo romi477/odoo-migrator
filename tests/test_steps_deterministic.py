@@ -582,6 +582,9 @@ def test_a_skipped_browser_suite_is_a_finding_and_never_a_pass(
     assert "browser tests did not run: chrome_not_found" in result.output
     assert "passed" not in result.output.splitlines()[-1]
     assert [finding["source"] for finding in ctx.findings] == ["tests: browser"]
+    # The same for every module of a container with no browser: it does not
+    # stop the queue at every wave.
+    assert ctx.findings[0]["quiet"] is True
 
 
 def test_a_container_that_cannot_run_a_browser_is_not_asked_to(

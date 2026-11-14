@@ -408,7 +408,9 @@ passed and no run left a finding or an assumption: there is nothing to review, a
 ran on its own from its play button or the queue was stopped while it ran. A running
 queue stops for a step that left one, as it does for a failure. A quiet finding does
 not count for either: what the environment kept from being proved, said of every module
-alike (the clickbot with no browser in the container, menus a run could not reach). It
+alike (the clickbot or the browser tests with no browser in the container, menus a run
+could not reach, smoke checks that did not run or broke in another module, a break the
+source has too). It
 stays on the job and is read on its result. The
 banner under the card says which modules were migrated, once; a reload does not
 draw it again, and the next run takes it down. One that failed, or was stopped, waits here, and its module's
