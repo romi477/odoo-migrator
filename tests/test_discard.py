@@ -358,3 +358,15 @@ def test_dismiss_discard_and_override_say_what_they_do_on_hover(client, tmp_path
     ):
         button = re.search(rf"<button\b[^>]*>{label}</button>", page, re.DOTALL)
         assert button and words in button.group(0), label
+
+
+def test_a_discard_leaves_no_connection_open_on_its_thread(migration):
+    """Every operation inside its own connection_context: the deletes ran on
+    a connection opened by itself, and it stayed open on the threadpool."""
+    from odoo_migrator.db import database
+
+    _run_of("sale_x")
+
+    discard_run(_module("sale_x").id, migration["id"])
+
+    assert database.is_closed()

@@ -89,7 +89,7 @@ def discard_run(module_id: int, migration_id: str, hub: EventHub | None = None) 
             )
         if files:
             discard_hand_edits(migration_id, module_id)
-    with database.atomic():
+    with database.connection_context(), database.atomic():
         _delete_runs(module)
         module.status = "queued"
         module.has_assumptions = False
