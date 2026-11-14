@@ -467,7 +467,9 @@ hash other than the one the container carries, so a file saved with an edited
 comment asks for nothing. A copied directory is not compared, or every edit
 of a module would ask for a rebuild. Its **Restart**,
 **Rebuild** and **Stop**, which are seldom wanted and each ask first, sit
-behind **⋯** at the end of its heading. Every action keeps the migration
+behind **⋯** at the end of its heading; while a module of the migration is
+running they are refused, since the run holds sessions on both containers.
+A compose command that does not finish in an hour is stopped and said. Every action keeps the migration
 name and the side as its accessible name, read out in full and shown on
 hover.
 

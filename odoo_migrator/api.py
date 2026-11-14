@@ -87,7 +87,7 @@ from odoo_migrator.migrations import (
     save_side_container,
     suggest_accent,
 )
-from odoo_migrator.models import ACCENTS
+from odoo_migrator.models import ACCENTS, Module
 from odoo_migrator.module_paths import addon_directories
 from odoo_migrator.paths import rules_dir as default_rules_dir
 from odoo_migrator.paths import static_dir, templates_dir
@@ -1847,6 +1847,15 @@ def create_app(
 
         return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 
+    def _module_running(migration_id: str) -> bool:
+        with database.connection_context():
+
+            return (
+                Module.select()
+                .where((Module.migration == migration_id) & (Module.status == "running"))
+                .exists()
+            )
+
     @app.post("/migrations/{migration_id}/containers/{side}/{action}")
     def provision_container(
         request: Request, migration_id: str, side: str, action: str
@@ -1883,6 +1892,18 @@ def create_app(
             else migration["old_project_path"]
         )
         sibling = Path(other) if (other or "").strip() else None
+        if action != "up" and _module_running(migration_id):
+            # A job holds sessions on both sides: taken away under it, the
+            # step it was in fails on what a person pressed.
+
+            return _overview(
+                request,
+                expanded=migration_id,
+                error=(
+                    f"A module of this migration is running; {action} would take its "
+                    "container away mid-step. Stop the run first. Nothing changed."
+                ),
+            )
         try:
             result = handler(request.app.state.compose, path, sibling_path=sibling)
         except ComposeError as exc:

@@ -311,3 +311,42 @@ def test_a_container_action_on_a_side_with_no_project_directory_touches_nothing(
 
     assert "names no target project directory" in page.text
     assert compose.ups == []
+
+
+def test_a_container_a_running_job_holds_is_not_taken_away(client, tmp_path, compose):
+    """Restart, Rebuild and Stop under a job that holds sessions on it killed
+    them mid-step, and the lap failed on what a person had pressed."""
+    from odoo_migrator.models import Module
+
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _running(compose, new, "new-odoo-1", 8070)
+    _, row = _open_migration(client, old=old, new=new)
+    with database.connection_context():
+        Module.create(migration=row.id, technical_name="sale_x", status="running")
+
+    for action in ("restart", "rebuild", "stop"):
+        page = client.post(f"/migrations/{row.id}/containers/target/{action}", follow_redirects=True)
+        assert "is running" in page.text
+
+    assert compose.restarts == [] and compose.rebuilds == [] and compose.stops == []
+
+
+def test_a_compose_command_that_hangs_is_given_up_on(monkeypatch, tmp_path):
+    import subprocess
+
+    import pytest
+
+    from odoo_migrator.provision.engine import _run_compose
+    from odoo_migrator.provision.errors import ComposeFailed
+
+    def hang(*args, **kwargs):
+        assert kwargs.get("timeout")
+        raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", hang)
+
+    with pytest.raises(ComposeFailed, match="did not finish"):
+        _run_compose(tmp_path, tmp_path / "compose.yaml", ["restart"])

@@ -251,14 +251,26 @@ def _host_ports(container) -> list[int]:
     return ports
 
 
+# A rebuild pulls and builds; an hour is long for that and short for a hang
+# that would hold the request, and the page, for good.
+COMPOSE_TIMEOUT = 3600.0
+
+
 def _run_compose(project_dir: Path, compose_file: Path, args: list[str]) -> None:
     cmd = ["docker", "compose", "-f", str(compose_file), *args]
-    result = subprocess.run(
-        cmd,
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=COMPOSE_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ComposeFailed(
+            f"docker compose {' '.join(args)} did not finish in {COMPOSE_TIMEOUT:.0f}s; "
+            "it was stopped. Look at the containers with docker compose ps."
+        ) from exc
     if result.returncode != 0:
         raise ComposeFailed(result.stderr.strip() or result.stdout.strip() or "compose failed")
