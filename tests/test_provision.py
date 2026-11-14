@@ -424,3 +424,41 @@ def test_a_compose_file_that_is_not_valid_yaml_is_a_state_naming_the_file(tmp_pa
     assert "compose.yaml" in status.detail
     with pytest.raises(ComposeError, match="compose.yaml"):
         up(FakeComposeEngine(), tmp_path)
+
+
+def test_a_project_named_odoo_does_not_make_its_database_the_odoo_container(tmp_path):
+    """Every container of `odoo-17` has "odoo" in its name, and the database
+    came first in Docker's listing: every probe and session went to it."""
+    from odoo_migrator.provision.engine import SERVICE_LABEL
+
+    project = tmp_path / "odoo-17"
+    _compose(project)
+    engine = FakeComposeEngine()
+    for name, image, service in (
+        ("odoo-17-db-1", "postgres:15", "db"),
+        ("odoo-17-web-1", "acme/erp:17", "web"),
+    ):
+        engine.add_container(
+            name=name, image=image, status="running",
+            labels={WORKING_DIR_LABEL: str(project), SERVICE_LABEL: service}, host_ports=[],
+        )
+
+    assert describe_side(engine, project).container == "odoo-17-web-1"
+
+
+def test_the_odoo_image_wins_over_a_name(tmp_path):
+    from odoo_migrator.provision.engine import SERVICE_LABEL
+
+    project = tmp_path / "odoo-17"
+    _compose(project)
+    engine = FakeComposeEngine()
+    for name, image, service in (
+        ("odoo-17-worker-1", "busybox", "worker"),
+        ("odoo-17-app-1", "odoo:17.0", "app"),
+    ):
+        engine.add_container(
+            name=name, image=image, status="running",
+            labels={WORKING_DIR_LABEL: str(project), SERVICE_LABEL: service}, host_ports=[],
+        )
+
+    assert describe_side(engine, project).container == "odoo-17-app-1"

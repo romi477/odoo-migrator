@@ -284,12 +284,33 @@ def _pick_odoo(containers: list[RunningContainer]) -> RunningContainer | None:
     be handed to ``odoo-bin shell``. The probe in task 7 can say for
     certain; until then, say we do not know.
     """
-    for container in containers:
-        if looks_like_odoo(container):
+    # The image says the most, then the compose service, then the name: a
+    # project directory called `odoo-17` puts "odoo" in every container's
+    # name, its database's included. A database image is never the answer.
+    candidates = [container for container in containers if not _is_database(container)]
+    for says in (
+        lambda container: container.image,
+        lambda container: container.labels.get(SERVICE_LABEL) or "",
+        lambda container: container.name,
+    ):
+        for container in candidates:
+            if "odoo" in says(container).lower():
 
-            return container
+                return container
 
     return None
+
+
+_DATABASE_IMAGES = ("postgres", "postgis", "pgbouncer", "redis", "mariadb", "mysql")
+
+
+def _is_database(container: RunningContainer) -> bool:
+    """Whether the container runs a database image, by the image's own name
+    (`postgres:15`, `docker.io/library/postgres`, `postgis/postgis`)."""
+    repository = container.image.lower().split("@", 1)[0].rsplit(":", 1)[0]
+    last = repository.rsplit("/", 1)[-1]
+
+    return any(last.startswith(name) for name in _DATABASE_IMAGES)
 
 
 def _stolen_detail(
