@@ -48,6 +48,11 @@ def _now() -> datetime:
 class BaseModel(Model):
     class Meta:
         database = database
+        # `save()` writes the fields this row's writer set, not every column.
+        # The job thread, the queue and the pages save rows they read a moment
+        # earlier: written whole, Build graph during a run wrote a module's
+        # stale `running` back over the `passed` a job had just recorded.
+        only_save_dirty = True
 
 
 class AppSettings(BaseModel):
