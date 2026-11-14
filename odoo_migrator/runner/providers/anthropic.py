@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 
 from odoo_migrator.runner.cartridge import Budget
@@ -104,6 +105,10 @@ class AnthropicProvider:
                 # for one more turn it had no use for, and paid for it.
                 reported = _report_input(message, report)
                 if reported is not None:
+                    # The SDK runs a turn's tools only when the loop asks for
+                    # the next turn, which this one does not: a last
+                    # `write_file` sent beside `report` was never written.
+                    _run_the_rest(message, tools, report)
                     captured.clear()
                     captured.update(reported)
                     break
@@ -225,6 +230,27 @@ def _report_input(message, report: ReportTool) -> dict | None:
             return payload
 
     return None
+
+
+def _run_the_rest(message, tools: list[BoundTool], report: ReportTool) -> None:
+    """The turn's other tool calls, in the order the model made them.
+
+    Their answers go nowhere: the step has ended. A call that fails is the
+    model's last word, not a crash of the step, so it is let go as a tool error
+    would have been.
+    """
+    by_name = {tool.name: tool for tool in tools}
+    for block in getattr(message, "content", None) or []:
+        if getattr(block, "type", "") != "tool_use":
+            continue
+        name = getattr(block, "name", "")
+        tool = by_name.get(name)
+        if name == report.name or tool is None:
+            continue
+        payload = getattr(block, "input", None)
+        # The SDK hands any tool error back to the model; there is no next turn.
+        with contextlib.suppress(Exception):
+            tool(**(dict(payload) if isinstance(payload, dict) else {}))
 
 
 def _counts(usage: dict) -> dict:

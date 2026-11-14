@@ -160,3 +160,32 @@ def test_no_budget_means_no_early_stop(monkeypatch, budget):
     result = _run(provider, budget)
 
     assert result.tokens_in == 4000
+
+
+def test_a_tool_called_in_the_same_turn_as_report_still_runs(monkeypatch):
+    """The SDK runs a turn's tools when the iterator is advanced again, and the
+    loop stops at `report`: a last `write_file` beside it was never written."""
+    from odoo_migrator.runner.tools import BoundTool
+
+    written = []
+    write = BoundTool("write_file", lambda **payload: written.append(payload) or "written")
+    message = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=1, output_tokens=1, cache_read_input_tokens=0),
+        content=[
+            SimpleNamespace(
+                type="tool_use", name="write_file",
+                input={"side": "target", "path": "m/x.py", "content": "x"},
+            ),
+            SimpleNamespace(type="tool_use", name="report", input={"answer": "done"}),
+        ],
+    )
+    turn = SimpleNamespace(get_final_message=lambda: message)
+    provider = _provider(monkeypatch, [turn])
+
+    result = provider.run_step(
+        system="s", prompt="p", tools=[write], report=report_tool(_step()),
+        model="claude-sonnet-5-5", budget=Budget(),
+    )
+
+    assert result.ok is True
+    assert written == [{"side": "target", "path": "m/x.py", "content": "x"}]
