@@ -1562,15 +1562,18 @@ def create_app(
     @app.post("/settings")
     async def settings_save(request: Request):
         form = await request.form()
-        values = {
-            key.removeprefix("provider_").replace("_", "__", 1): str(form.get(key) or "")
-            for key in form
-            if key.startswith("provider_")
-        }
-        cleared = form.get("clear_provider")
         # A field the form did not carry is kept: the bins post from a form
         # of their own, with nothing in it but the key to remove.
         stored = get_app_settings()
+        # Each input's name read back through the fields that drew it: split
+        # at the first underscore, a provider whose name holds one saved its
+        # key under another provider's name.
+        named = {
+            field["input_name"]: f"{field['provider']}__{field['key']}"
+            for field in stored["provider_fields"]
+        }
+        values = {named[key]: str(form.get(key) or "") for key in form if key in named}
+        cleared = form.get("clear_provider")
 
         def sent(name: str) -> str:
 

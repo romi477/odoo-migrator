@@ -588,3 +588,27 @@ def test_a_provider_with_no_model_picked_says_which_is_missing(client):
     )
 
     assert "Pick a model for local" in refused.text
+
+
+def test_a_provider_whose_name_holds_an_underscore_saves_under_its_own_name(client, monkeypatch):
+    """`provider_<name>_<key>` was split at the first underscore: a provider
+    named `open_router` would have saved its key as `open`'s `router_api_key`."""
+    from types import SimpleNamespace
+
+    from odoo_migrator.runner.providers import REGISTRY
+    from odoo_migrator.runner.providers.base import SettingField
+    from odoo_migrator.settings import provider_setting
+
+    monkeypatch.setitem(
+        REGISTRY,
+        "open_router",
+        SimpleNamespace(name="open_router", settings=(SettingField("api_key", "OpenRouter API key"),)),
+    )
+
+    client.post(
+        "/settings",
+        data={"sheller_base_url": "http://127.0.0.1:8765", "provider_open_router_api_key": "or-secret"},
+    )
+
+    assert provider_setting("open_router", "api_key") == "or-secret"
+    assert provider_setting("open", "router_api_key") == ""
