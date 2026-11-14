@@ -1,6 +1,7 @@
 """HTTP client for a Sheller daemon, and the helper that must not invent an MCP command."""
 
 import json
+import threading
 from typing import Protocol
 
 import httpx2
@@ -469,3 +470,24 @@ def _raise_http(response: httpx2.Response) -> None:
         status=response.status_code,
         detail=detail,
     )
+
+
+_shared: dict[str, HttpShellerClient] = {}
+_shared_lock = threading.Lock()
+
+
+def shared_client(base_url: str) -> HttpShellerClient:
+    """One client per daemon URL for the life of the process.
+
+    A client per request and per job, none closed, left an HTTP connection
+    pool behind each. A URL saved later gets its own; the old one is kept,
+    since a job may still be talking through it. httpx's client is safe to
+    share between threads.
+    """
+    key = base_url.rstrip("/")
+    with _shared_lock:
+        client = _shared.get(key)
+        if client is None:
+            client = _shared[key] = HttpShellerClient(key)
+
+    return client

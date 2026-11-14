@@ -830,3 +830,14 @@ def test_a_daemon_before_the_browser_fields_answers_without_them():
 
     assert "js_tests" not in fake.get_session(opened["id"])
     assert "js" not in fake.list_tests(opened["id"], module="m", write_key="k")
+
+
+def test_one_client_per_daemon_url_is_shared():
+    """A client per request and per job, none closed: every page view left an
+    HTTP connection pool behind."""
+    from odoo_migrator.sheller.client import shared_client
+
+    first = shared_client("http://127.0.0.1:8765")
+
+    assert shared_client("http://127.0.0.1:8765/") is first
+    assert shared_client("http://127.0.0.1:9876") is not first

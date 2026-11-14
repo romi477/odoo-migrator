@@ -114,7 +114,7 @@ from odoo_migrator.provision.actions import rebuild, restart, stop, up
 from odoo_migrator.rules import RulesError, stack_versions, supported_versions
 from odoo_migrator.runner.cartridge import CartridgeError
 from odoo_migrator.settings import get_app_settings, save_app_settings
-from odoo_migrator.sheller import HttpShellerClient
+from odoo_migrator.sheller.client import shared_client
 from odoo_migrator.web_guard import LocalOnly
 
 STATIC = static_dir()
@@ -220,7 +220,7 @@ def _choose_executor(*, sheller, hub, progress, result):
 
         def current_sheller():
 
-            return HttpShellerClient(get_app_settings()["sheller_base_url"])
+            return shared_client(get_app_settings()["sheller_base_url"])
 
         return NativeRunner(
             sheller=sheller,
@@ -247,7 +247,7 @@ def _close_left_sessions(sheller) -> threading.Thread | None:
         if not ShellerSession.select().exists():
 
             return None
-    client = sheller or HttpShellerClient(get_app_settings()["sheller_base_url"])
+    client = sheller or shared_client(get_app_settings()["sheller_base_url"])
 
     def close() -> None:
         with contextlib.suppress(Exception):
@@ -360,7 +360,7 @@ def create_app(
 
             return request.app.state.sheller
 
-        return HttpShellerClient(get_app_settings()["sheller_base_url"])
+        return shared_client(get_app_settings()["sheller_base_url"])
 
     def _tree_page(
         request: Request,
