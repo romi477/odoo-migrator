@@ -465,18 +465,25 @@ class FakeShellerClient:
         self.execs.append(code)
         if self.hangs_on is not None and self.hangs_on in code:
             session["commands"].append(
-                {"kind": "exec", "id": self._next_command + 1, "code": code, "status": "running"}
+                {
+                    "kind": "exec", "id": self._next_command + 1, "code": code,
+                    "status": "running", "ts": self._tick(),
+                }
             )
             self._next_command += 1
+            # Odoo logs while the command runs; the journal keeps it whether
+            # or not anybody waits for the answer.
+            self._journal_stderr(session, code)
             session["hung_polls"] = 0
 
             raise ShellerTimeout(f"no answer within the timeout for {session_id}")
         self._next_command += 1
         command_id = self._next_command
         session["commands"].append(
-            {"kind": "exec", "id": command_id, "code": code, "status": "done"}
+            {"kind": "exec", "id": command_id, "code": code, "status": "done", "ts": self._tick()}
         )
         session["pending_commands"] += 1
+        self._journal_stderr(session, code)
         result = "None"
         failed = None
         if "_os_read()" in code:
@@ -525,6 +532,20 @@ class FakeShellerClient:
                 answer.update(fields)
 
         return answer
+
+    def _tick(self) -> str:
+        """A journal timestamp, later than the one before: the real ones are
+        ISO strings, compared as strings."""
+        self._clock = getattr(self, "_clock", 0) + 1
+
+        return f"2026-11-14T00:00:00.{self._clock:06d}Z"
+
+    def _journal_stderr(self, session: dict, code: str) -> None:
+        """What the exec printed to stderr, as the history's `logs` carries it."""
+        for fragment, fields in self.exec_answers.items():
+            if fragment in code:
+                for line in fields.get("stderr") or []:
+                    session.setdefault("logs", []).append({"ts": self._tick(), "line": line})
 
     def run_test(
         self,

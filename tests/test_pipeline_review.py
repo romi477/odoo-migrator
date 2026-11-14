@@ -543,6 +543,27 @@ def test_an_upgrade_that_outlives_the_call_is_waited_for(ctx_for, sheller):
     assert "outlived" in result.output
 
 
+def test_what_an_upgrade_logged_after_the_call_gave_up_still_reaches_the_verdict(ctx_for, sheller):
+    """Its answer is lost, stderr with it; the session's journal kept the
+    lines. An ERROR an upgrade of an hour logged is not dropped for that."""
+    sheller.hangs_on = "button_immediate"
+    sheller.hangs_for = 3
+    earlier = "2026-09-27 09:00:00,001 7 ERROR acme odoo.sql_db: before the upgrade"
+    sheller.exec_answers["probe_before"] = {"stderr": [earlier]}
+    sheller.exec_answers["button_immediate"] = {
+        "stderr": ["2026-09-27 10:00:00,001 7 ERROR acme odoo.modules.loading: a view broke"]
+    }
+    sheller.exec_answers["search_count"] = {"result": "('installed', 0)"}
+    ctx = ctx_for()
+    sheller.exec(ctx.sessions["target"], "probe_before", write_key=ctx.write_keys["target"])
+
+    result = upgrade.run(Step(kind="upgrade"), ctx)
+
+    assert result.ok is True
+    assert [line for line in ctx.log_errors if "a view broke" in line]
+    assert not [line for line in ctx.log_errors if "before the upgrade" in line]
+
+
 def test_a_stop_reaches_an_upgrade_that_outlived_the_call(ctx_for, sheller):
     """The wait for it lasts up to an hour, and a Stop pressed during it was
     heard only at its end. Now it is heard, the upgrade is interrupted and the

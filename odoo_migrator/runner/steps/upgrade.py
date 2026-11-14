@@ -199,6 +199,7 @@ def _outlived(ctx: StepContext, name: str) -> StepResult:
             f"the upgrade of {name} ran past {UPGRADE_WAIT:.0f}s and the session "
             f"is {state}; it was interrupted",
         )
+    _note_journaled_log(ctx)
     try:
         executed = ctx.sheller.exec(
             ctx.sessions["target"], _STATE.format(name=name), write_key=ctx.write_keys["target"]
@@ -219,6 +220,30 @@ def _outlived(ctx: StepContext, name: str) -> StepResult:
     return StepResult(
         ok=True,
         output=f"upgraded {name} (it outlived the daemon's exec ceiling; checked its state after)",
+    )
+
+
+def _note_journaled_log(ctx: StepContext) -> None:
+    """What the upgrade logged, from the session's journal: the answer that
+    carried its stderr was abandoned. Only the lines since the upgrade was
+    sent; best effort, as a log that cannot be read says nothing."""
+    try:
+        feed = ctx.sheller.feed(ctx.sessions["target"], logs=True, log_tail=0)
+    except ShellerError:
+
+        return
+    upgrades = [
+        entry for entry in feed.get("entries") or []
+        if entry.get("kind") == "exec" and "button_immediate" in str(entry.get("code") or "")
+    ]
+    since = str(upgrades[-1].get("ts") or "") if upgrades else ""
+    note_log_errors(
+        ctx,
+        [
+            record.get("line", "")
+            for record in feed.get("logs") or []
+            if isinstance(record, dict) and str(record.get("ts") or "") >= since
+        ],
     )
 
 
