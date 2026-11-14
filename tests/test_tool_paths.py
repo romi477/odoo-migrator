@@ -27,6 +27,9 @@ def ctx(tmp_path):
     for directory in (old_host / "sale_x" / "models", ext_host / "queue_x", conf_host, new_host / "sale_x"):
         directory.mkdir(parents=True)
     (old_host / "sale_x" / "models" / "sale.py").write_text("OLD = 1\n")
+    (old_host / "sale_x" / "__manifest__.py").write_text("{'name': 'X'}\n")
+    (new_host / "sale_x" / "__manifest__.py").write_text("{'name': 'X'}\n")
+    (old_host / ".env").write_text("API_KEY=secret\n")
     (conf_host / "odoo.conf").write_text("admin_passwd = secret\n")
     (tmp_path / "outside.txt").write_text("nope\n")
     created = create_migration(
@@ -85,6 +88,30 @@ def test_a_write_lands_in_the_module_on_the_new_side(ctx, tmp_path):
 
 def test_a_relative_path_keeps_working(ctx):
     assert _read_file(ctx, "source", "sale_x/models/sale.py") == "OLD = 1\n"
+
+
+def test_a_relative_path_is_held_to_the_addons_mounts_too(ctx, tmp_path):
+    """The project root is mounted here, and holds more than addons: a file at
+    its root is no module's, by either kind of path."""
+    for given in (".env", "/opt/project/.env", "sale_x/../.env"):
+        with pytest.raises(ToolRefused, match="addon"):
+            _read_file(ctx, "source", given)
+
+
+def test_a_relative_path_outside_every_mount_is_refused(ctx, tmp_path):
+    (tmp_path / "old-src" / "notes").mkdir()
+    (tmp_path / "old-src" / "notes" / "todo.txt").write_text("x\n")
+    with database.connection_context():
+        Migration.update(
+            old_mounts=json.dumps([
+                {"host": str(tmp_path / "old-src" / "sale_x"), "container": "/opt/project/sale_x", "read_only": True}
+            ])
+        ).where(Migration.id == ctx.migration.id).execute()
+        ctx.migration = Migration.get_by_id(ctx.migration.id)
+
+    assert _read_file(ctx, "source", "sale_x/models/sale.py") == "OLD = 1\n"
+    with pytest.raises(ToolRefused):
+        _read_file(ctx, "source", "notes/todo.txt")
 
 
 def test_the_prompt_names_the_container_path(ctx):

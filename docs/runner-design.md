@@ -1117,7 +1117,7 @@ is a migrator that cannot check its own work.
 | `interrupt` | stop a command that is taking too long |
 | `rollback` | discard the session's transaction |
 | `reopen(side)` | close and reopen a session, for when the module's code changed |
-| `read_file` | a file of the project on the host disk, on either side, inside the configured project roots |
+| `read_file` | a file of the project on the host disk, on either side, inside the configured project roots, and once the mounts are known inside an addon of a mount that carries a plan module |
 | `write_file` | a file in the module's directory on the target. Host disk, not Sheller |
 | `write_source_test` | `tests/` of the module on the source side only, create-only, for a module that had no tests; see override 6 |
 

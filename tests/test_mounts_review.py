@@ -104,6 +104,7 @@ def test_a_relative_write_cannot_reach_a_guessed_directory_when_mounts_are_known
     ext18 = tmp_path / "ext18"
     (ext18 / "sale_x").mkdir(parents=True)
     (new_project / "sale_x").mkdir(parents=True)
+    (ext18 / "sale_x" / "__manifest__.py").write_text("{}\n")
     init_db(tmp_path / "write.sqlite")
     created = create_migration(
         name="Acme", accent="violet", source_version="17.0", target_version="18.0",

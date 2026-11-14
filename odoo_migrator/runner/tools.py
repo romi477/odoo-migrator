@@ -577,15 +577,51 @@ def _project_root(ctx, side: str) -> Path:
 
 def _inside(ctx, side: str, given: str) -> Path:
     """An absolute path is a container path; a relative one is under the
-    project directory, as before mounts were known."""
+    project directory. Once the mounts are known, both are held to the same
+    rule: inside a mount that carries a plan module, and inside an addon
+    there. The project root holds more than addons (`.env`, `odoo.conf`,
+    `.git/`), and none of it is the agent's to read through a host tool."""
     if given.startswith("/"):
+        path, root = _inside_mounts(ctx, side, given)
+    else:
+        from odoo_migrator.module_paths import allowed_roots
 
-        return _inside_mounts(ctx, side, given)
+        path = _inside_project(ctx, side, given)
+        roots = allowed_roots(ctx.migration, side)
+        if not roots:
 
-    return _inside_project(ctx, side, given)
+            return path
+        hosts = [Path(mount["host"]).expanduser().resolve() for mount in roots]
+        root = next((host for host in hosts if path.is_relative_to(host)), None)
+        if root is None:
+            listed = ", ".join(mount["container"] for mount in roots)
+            raise ToolRefused(
+                f"{given} is outside the addons directories of the {side} side "
+                f"({listed}). Read it with `source` from the container."
+            )
+    if not _in_an_addon(path, root):
+        raise ToolRefused(
+            f"{given} is not inside an addon: a file at the root of a project is "
+            "not the agent's to read or write."
+        )
+
+    return path
 
 
-def _inside_mounts(ctx, side: str, given: str) -> Path:
+def _in_an_addon(path: Path, root: Path) -> bool:
+    """Whether `path`, or a directory above it under `root`, is an addon."""
+    for directory in (path, *path.parents):
+        if not directory.is_relative_to(root):
+
+            return False
+        if (directory / "__manifest__.py").is_file():
+
+            return True
+
+    return False
+
+
+def _inside_mounts(ctx, side: str, given: str) -> tuple[Path, Path]:
     """Translate a container path to the host, inside an allowed root, or refuse.
 
     Resolved before the check, so `..` and a symlink cannot climb out of the
@@ -612,7 +648,7 @@ def _inside_mounts(ctx, side: str, given: str) -> Path:
     if not candidate.is_relative_to(root):
         raise ToolRefused(f"path escapes its addons directory: {given}")
 
-    return candidate
+    return candidate, root
 
 
 def _inside_project(ctx, side: str, relative: str) -> Path:

@@ -174,7 +174,10 @@ host.
   sent from another site's page, is refused. Tests talk to
   `http://127.0.0.1`, not Starlette's `testserver`.
 - `read_file` and `write_file` stay under the configured source and target
-  project roots. A path that escapes them is refused, not clamped.
+  project roots. Once a side's mounts are known, a path of either kind,
+  container or relative, must also land inside a mount that carries a plan
+  module and inside an addon there: `.env`, `odoo.conf` and `.git/` at the
+  project root are refused. A path that escapes is refused, not clamped.
 - Provider secrets are `ProviderSetting` rows. The settings page reports
   whether one is set and never renders the value. A blank save keeps the
   stored value. Do not print a key: this tool gets demonstrated on a
