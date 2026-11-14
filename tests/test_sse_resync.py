@@ -1,13 +1,12 @@
 """What a page is told when its stream (re)opens, and what it is sent at all.
-
 The app restarts on every edit during development. EventSource reconnects
 on its own, but whatever happened while it was down was lost: the hello
 carried the lamp and the queue count, and the pipeline card, the queue
 and the statuses on Tree and Result stayed as they were until a reload.
 """
 
+import asyncio
 import json
-import queue
 import re
 
 from odoo_migrator import api
@@ -106,11 +105,19 @@ def test_only_what_a_page_listens_to_goes_down_the_stream(client, monkeypatch):
     every tab, with nothing listening for it."""
     _short(monkeypatch)
     hub = client.app.state.hub
-    primed: queue.Queue = queue.Queue()
-    primed.put(("tool_called", {"job_id": "x"}))
-    primed.put(("step_started", {"job_id": "x"}))
-    primed.put(("lamp", {"state": "idle"}))
-    monkeypatch.setattr(hub, "subscribe", lambda: primed)
+
+    def primed():
+        waiting: asyncio.Queue = asyncio.Queue()
+        for item in (
+            ("tool_called", {"job_id": "x"}),
+            ("step_started", {"job_id": "x"}),
+            ("lamp", {"state": "idle"}),
+        ):
+            waiting.put_nowait(item)
+
+        return waiting
+
+    monkeypatch.setattr(hub, "subscribe_async", primed)
 
     text = client.get("/sse").text
 

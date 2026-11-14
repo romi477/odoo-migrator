@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import queue
 import threading
 from collections import deque
@@ -17,10 +18,27 @@ RECENT = 512
 CLOSED = object()
 
 
+class _LoopQueue(asyncio.Queue):
+    """A subscriber that waits on its event loop. `put` is called from any
+    thread, and hands the item to the loop that owns the queue."""
+
+    def __init__(self, loop: asyncio.AbstractEventLoop):
+        super().__init__()
+        self._owner = loop
+
+    def put(self, item) -> None:  # type: ignore[override]
+        try:
+            self._owner.call_soon_threadsafe(self.put_nowait, item)
+        except RuntimeError:
+            # The loop is gone: nobody is reading, and the stream's own
+            # `finally` unsubscribes it when it can.
+            pass
+
+
 class EventHub:
     def __init__(self):
         self._lock = threading.Lock()
-        self._subscribers: list[queue.Queue] = []
+        self._subscribers: list[queue.Queue | _LoopQueue] = []
         self.closed = False
         self.published: deque[tuple[str, dict]] = deque(maxlen=RECENT)
 
@@ -31,7 +49,20 @@ class EventHub:
 
         return subscribed
 
-    def unsubscribe(self, subscribed: queue.Queue) -> None:
+    def subscribe_async(self) -> asyncio.Queue:
+        """For a stream on the event loop: `await get()` takes no thread, where
+        a blocking get through `asyncio.to_thread` held one of the default
+        executor's per open page. Call it on the loop that reads it."""
+        subscribed = _LoopQueue(asyncio.get_running_loop())
+        with self._lock:
+            self._subscribers.append(subscribed)
+            closed = self.closed
+        if closed:
+            subscribed.put_nowait(CLOSED)
+
+        return subscribed
+
+    def unsubscribe(self, subscribed: queue.Queue | asyncio.Queue) -> None:
         with self._lock:
             if subscribed in self._subscribers:
                 self._subscribers.remove(subscribed)

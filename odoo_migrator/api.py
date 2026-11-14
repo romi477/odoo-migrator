@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import json
 import os
-import queue
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -1926,7 +1925,7 @@ def create_app(
         """
 
         async def events():
-            subscribed = request.app.state.hub.subscribe()
+            subscribed = request.app.state.hub.subscribe_async()
             try:
                 yield f"retry: {SSE_RETRY_MS}\n\n"
                 # Hello with the current state, not a fixed zero: the stream
@@ -1960,10 +1959,10 @@ def create_app(
                     if await request.is_disconnected():
                         break
                     try:
-                        item = await asyncio.to_thread(
-                            subscribed.get, True, SSE_HEARTBEAT_SECONDS
+                        item = await asyncio.wait_for(
+                            subscribed.get(), SSE_HEARTBEAT_SECONDS
                         )
-                    except queue.Empty:
+                    except TimeoutError:
                         yield ": ping\n\n"
                         continue
                     if item is CLOSED:
