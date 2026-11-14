@@ -15,13 +15,6 @@
         <p class="field-hint">The app's own client and the observer iframe.
         The daemon publishes to loopback; this process is the only client.</p>
       </li>
-      <li>
-        <label>Sheller image tag
-          <input class="mono" name="sheller_image_tag" value="{{ settings.sheller_image_tag }}" autocomplete="off">
-        </label>
-        <p class="field-hint">Docker image tag when the app must spawn Sheller
-        because nothing answers on the base URL above.</p>
-      </li>
       {% for field in settings.provider_fields %}
       <li>
         <label>{{ field.label }}

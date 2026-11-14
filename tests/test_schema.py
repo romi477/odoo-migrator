@@ -92,3 +92,24 @@ def test_the_rows_of_that_table_survive_losing_its_retired_columns(tmp_path):
     with database.connection_context():
         row = CartridgeInstall.get(CartridgeInstall.cartridge_id == "kept")
     assert (row.version, row.smoke_status, row.sha256, row.body) == ("1.0.0", "passed", "abc", "text")
+
+
+def test_settings_can_be_saved_in_a_database_that_kept_the_version_floor(tmp_path):
+    """The resolver's version floor and image tag went with the resolver.
+    Their NOT NULL columns, left behind, would refuse a new settings row."""
+    from odoo_migrator.models import AppSettings
+    from odoo_migrator.settings import save_app_settings
+
+    path = tmp_path / "old.sqlite"
+    init_db(path)
+    with database.connection_context():
+        AppSettings.delete().execute()
+        for column in ("min_sheller_version", "sheller_image_tag"):
+            database.execute_sql(f"ALTER TABLE appsettings ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+
+    init_db(path)
+    save_app_settings(sheller_base_url="http://127.0.0.1:8765")
+
+    with database.connection_context():
+        columns = {column.name for column in database.get_columns("appsettings")}
+    assert "min_sheller_version" not in columns and "sheller_image_tag" not in columns

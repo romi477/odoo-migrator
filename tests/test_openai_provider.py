@@ -135,7 +135,6 @@ def test_the_key_is_stored_and_never_shown_back(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "latest",
             "provider_openai_api_key": KEY,
         },
         follow_redirects=False,

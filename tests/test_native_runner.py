@@ -200,7 +200,7 @@ def test_a_sheller_url_saved_in_settings_reaches_the_next_job(tmp_path, monkeypa
     monkeypatch.setenv("ODOO_MIGRATOR_RUNNER", "native")
     app = create_app(tmp_path / "native.sqlite")
 
-    save_app_settings(sheller_base_url="http://127.0.0.1:9876", sheller_image_tag="")
+    save_app_settings(sheller_base_url="http://127.0.0.1:9876")
 
     assert str(app.state.executor.job_sheller()._http.base_url).startswith(
         "http://127.0.0.1:9876"

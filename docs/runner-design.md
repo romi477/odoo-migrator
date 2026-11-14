@@ -1445,9 +1445,9 @@ Three differences decide what it costs:
    against either of those recollections.
 2. **It needs a second long-lived local process with a port and a password.**
    On a branch that has just deleted every machine-facing surface, that is a
-   step back even on loopback. The machinery exists: `sheller/resolve.py`
-   already attaches to a running daemon or starts one, and a second daemon
-   fits the same three steps.
+   step back even on loopback. Nothing here starts a daemon: the app attaches
+   to Sheller at the URL in Settings, and a second daemon would need the
+   starting, the health check and the port handling written for it.
 3. **A provider inside a provider.** OpenCode is itself model-agnostic
    (`providerID` plus `modelID`), so a cartridge saying `provider: opencode`
    has to carry both in the model name — `name: "anthropic/claude-sonnet-5-5"`.

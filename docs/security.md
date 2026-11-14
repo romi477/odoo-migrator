@@ -18,8 +18,8 @@ seriously.
 **The Sheller daemon is never published beyond loopback.** That address
 is the whole security boundary around an API that executes arbitrary code
 as `SUPERUSER_ID` with no authentication. The migrator is a client: it
-attaches to a daemon already on 8765, or spawns one, and never stops a
-daemon that may not be ours.
+attaches to the daemon at the URL in Settings, never starts one, and never
+stops a daemon that may not be ours.
 
 **Nothing else in this app talks to 8765.** The runner is in this
 process, so it is already on the host. There is no second process to

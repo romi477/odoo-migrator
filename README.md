@@ -81,7 +81,7 @@ The reasoning behind each of these is in [docs/security.md](docs/security.md).
 | Package manager | [uv](https://docs.astral.sh/uv/) (preferred) or pip + venv |
 | Docker | Docker Engine, for the two Odoo compose projects |
 | Odoo | two live containers — source version and new — each with its own compose project |
-| [odoo-sheller](https://github.com/romi477/odoo-sheller) | a daemon on `127.0.0.1:8765`, or one the app can spawn |
+| [odoo-sheller](https://github.com/romi477/odoo-sheller) | a daemon on `127.0.0.1:8765`, started by you; the app attaches to it |
 
 Without `ODOO_MIGRATOR_RUNNER=native` the app uses an in-process stub
 executor, so the UI and the suite run without Docker, Odoo, or a model key.
@@ -148,9 +148,8 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
 1. **Create a migration** on Overview — name, accent, source and target
    versions, old and target project paths. Same-version and downgrade are
    refused here, where they were typed.
-2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`),
-   the image tag when the app must spawn the daemon, and a provider
-   secret when the native runner should call a model. A saved key shows
+2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`)
+   and a provider secret when the native runner should call a model. A saved key shows
    as dots. The bin at the end of the field removes it.
 3. **This migration** — Start the two compose projects (one already
    running is linked by itself), pin a

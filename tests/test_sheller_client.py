@@ -17,7 +17,6 @@ from odoo_migrator.sheller import (
     ShellerSessionDead,
     ShellerTimeout,
     ShellerUnreachable,
-    mcp_for_ui,
 )
 from odoo_migrator.sheller.client import SESSION_OPEN_TIMEOUT
 
@@ -467,22 +466,6 @@ def test_wrong_write_key_is_not_owner(sheller):
 
     with pytest.raises(ShellerNotOwner):
         sheller.exec(opened["id"], "1", write_key="someone-elses-key")
-
-
-def test_null_mcp_is_hidden_not_invented():
-    health = {"ok": True, "version": "1.7.0", "container": True, "mcp": None}
-
-    assert mcp_for_ui(health) is None
-
-
-def test_mcp_object_is_returned_verbatim():
-    mcp = {
-        "command": "docker",
-        "args": ["exec", "-i", "9f31c2ab77e1", "python", "-m", "odoo_sheller.mcp"],
-    }
-    health = {"ok": True, "version": "1.7.0", "container": True, "mcp": mcp}
-
-    assert mcp_for_ui(health) is mcp
 
 
 def test_http_client_never_sends_an_admin_key():

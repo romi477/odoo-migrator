@@ -18,7 +18,7 @@ def _save_sheller(client, **headers):
 
     return client.post(
         "/settings",
-        data={"sheller_base_url": ELSEWHERE, "sheller_image_tag": ""},
+        data={"sheller_base_url": ELSEWHERE},
         headers=headers,
         follow_redirects=False,
     )

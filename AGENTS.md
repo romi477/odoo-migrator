@@ -120,9 +120,9 @@ never Alembic.
 
 ## Sheller
 
-The migrator is a client of odoo-sheller, a sibling project. Its daemon
-is resolved in three steps: attach to one already serving on 8765, spawn
-a locally installed core, or `docker run` the published image. Its
+The migrator is a client of odoo-sheller, a sibling project. It attaches
+to the daemon at the URL in Settings (`http://127.0.0.1:8765` by default)
+and never starts, stops or provisions one: a person runs Sheller. Its
 contract — the five mandatory flags, the labels, the health check, the
 exit codes — is `docs/container.md` in that repo, and it is written to be
 coded against.

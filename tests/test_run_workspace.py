@@ -53,7 +53,6 @@ def _save_urls(client, *, sheller="http://sheller.test:8765"):
         "/settings",
         data={
             "sheller_base_url": sheller,
-            "sheller_image_tag": "",
         },
         follow_redirects=True,
     )
@@ -266,7 +265,6 @@ def test_a_settings_url_that_is_not_http_never_becomes_a_frame_src(client):
         "/settings",
         data={
             "sheller_base_url": "javascript:alert(2)",
-            "sheller_image_tag": "",
         },
         follow_redirects=True,
     )

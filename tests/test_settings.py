@@ -93,7 +93,6 @@ def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "latest",
             "provider_cursor_api_key": "cursor-secret",
             "provider_anthropic_api_key": "anthropic-secret",
         },
@@ -111,7 +110,6 @@ def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "latest",
             "provider_cursor_api_key": SECRET_MASK,
             "provider_anthropic_api_key": SECRET_MASK,
         },
@@ -123,7 +121,6 @@ def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "latest",
             "provider_cursor_api_key": SECRET_MASK,
             "provider_anthropic_api_key": SECRET_MASK,
             "clear_provider": "cursor__api_key",
@@ -146,19 +143,16 @@ def test_sheller_base_url_saves_and_stays_off_other_pages(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "1.7.0",
         },
     )
     saved = client.get("/settings")
 
     assert saved.status_code == 200
     assert 'value="http://127.0.0.1:8765"' in saved.text
-    assert "1.7.0" not in client.get("/").text
-    assert "1.7.0" not in client.get("/tree").text
+    assert "127.0.0.1:8765" not in client.get("/tree").text
     with database.connection_context():
         stored = AppSettings.get()
         assert stored.sheller_base_url == "http://127.0.0.1:8765"
-        assert stored.sheller_image_tag == "1.7.0"
 
 
 def test_migration_settings_save_on_the_open_migration(client):
@@ -405,7 +399,6 @@ def _save(client, **extra):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "latest",
             **extra,
         },
         follow_redirects=False,
@@ -488,7 +481,6 @@ def test_a_bin_alone_keeps_every_other_setting(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:9999",
-            "sheller_image_tag": "1.2.3",
             "provider_cursor_api_key": "cursor-secret",
             "provider_anthropic_api_key": "anthropic-secret",
         },
@@ -505,7 +497,6 @@ def test_a_bin_alone_keeps_every_other_setting(client):
     assert provider_setting("anthropic", "api_key") == "anthropic-secret"
     kept = get_app_settings()
     assert kept["sheller_base_url"] == "http://127.0.0.1:9999"
-    assert kept["sheller_image_tag"] == "1.2.3"
 
 
 def test_a_saved_local_model_stays_on_the_card_while_its_server_is_off(client):

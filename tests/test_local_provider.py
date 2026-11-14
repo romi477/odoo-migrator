@@ -205,7 +205,6 @@ def test_the_server_url_is_a_setting_shown_as_written(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "sheller_image_tag": "latest",
             "provider_local_base_url": URL,
         },
         # Where it lands may list the providers' models, which would ask

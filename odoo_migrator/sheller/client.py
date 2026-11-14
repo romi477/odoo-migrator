@@ -33,20 +33,6 @@ DAEMON_CLICK_TIMEOUT = 900.0
 HTTP_MARGIN = 30.0
 
 
-def mcp_for_ui(health: dict) -> dict | None:
-    """The MCP spawn command for *this* daemon, or None.
-
-    ``"mcp": null`` means the daemon cannot say. Inventing ``docker exec``
-    on its behalf would only fail later; hide it instead.
-    """
-    mcp = health.get("mcp")
-    if mcp is None:
-
-        return None
-
-    return mcp
-
-
 def with_js_capability(answer: dict, session: dict) -> dict:
     """Put whether this session can run a browser suite beside the module's JS.
 

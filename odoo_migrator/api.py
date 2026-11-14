@@ -1578,7 +1578,6 @@ def create_app(
 
         save_app_settings(
             sheller_base_url=sent("sheller_base_url"),
-            sheller_image_tag=sent("sheller_image_tag"),
             provider_values=values,
             cleared={str(cleared)} if cleared else set(),
         )

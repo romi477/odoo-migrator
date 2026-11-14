@@ -57,7 +57,13 @@ def _drop_retired_columns() -> None:
     tables = set(database.get_tables())
     # Split so the source does not spell the retired column names.
     retired = {
-        "appsettings": ("n" + "8n_base_url", "n" + "8n_api_key", "app_" + "base_url"),
+        "appsettings": (
+            "n" + "8n_base_url",
+            "n" + "8n_api_key",
+            "app_" + "base_url",
+            "min_sheller" + "_version",
+            "sheller_image" + "_tag",
+        ),
         "cartridgeinstall": ("contract_" + "version", "web" + "hook_path"),
     }
     operations = []

@@ -427,7 +427,7 @@ def test_anthropic_reads_a_key_saved_in_either_place(tmp_path):
     assert _key() == "sk-legacy"
 
     save_app_settings(
-        sheller_base_url="", sheller_image_tag="", provider_values={"anthropic__api_key": "sk-new"}
+        sheller_base_url="", provider_values={"anthropic__api_key": "sk-new"}
     )
 
     assert _key() == "sk-new"
