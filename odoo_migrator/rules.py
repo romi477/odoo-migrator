@@ -144,12 +144,20 @@ def check_versions(source: str, target: str) -> None:
     The shape is checked first, so `17.2` still gets the message that says
     why a minor is refused.
     """
-    _versions(source, target)
+    stack = _versions(source, target)
     known = supported_versions()
     for version in (source, target):
         if known and version not in known:
             raise RulesError(
                 f"{version} is not supported. Choose one of: {', '.join(known)}."
+            )
+    # Every version between them is in the stack too: a hole in the middle
+    # assembles no more than a missing end does.
+    for version in stack[1:-1]:
+        if known and version not in known:
+            raise RulesError(
+                f"{source} → {target} needs rules for {version}, and there is no "
+                f"{version}.md. Add it, or choose a pair that does not cross it."
             )
 
 

@@ -253,3 +253,44 @@ def test_a_checkout_has_no_overlay_and_promote_lands_in_git():
     from odoo_migrator.paths import rules_overlay_dir
 
     assert rules_overlay_dir() is None
+
+
+def test_a_hole_in_the_middle_of_the_stack_is_refused_where_the_pair_is_typed(tmp_path, monkeypatch):
+    """16.0 to 19.0 assembles four version files. Checking only the two ends
+    let a migration be created that no job could ever start."""
+    from odoo_migrator.rules import RulesError, check_versions
+
+    build = tmp_path / "bundled"
+    for version in ("16.0", "17.0", "19.0"):
+        _write(build, version, f"{version}\n")
+    (build / "common.md").write_text("shared\n", encoding="utf-8")
+    monkeypatch.setattr("odoo_migrator.rules.default_rules_dir", lambda: build)
+    _overlay(monkeypatch, None)
+
+    with pytest.raises(RulesError, match="18.0"):
+        check_versions("16.0", "19.0")
+
+
+def test_a_rules_file_gone_at_start_is_a_contract_error(tmp_path, monkeypatch):
+    """The routes and the queue catch ContractError. A RulesError went past
+    them as a 500, or abandoned the job that had just finished."""
+    from odoo_migrator.contract import ContractError, build_trigger
+    from odoo_migrator.db import database, init_db
+    from odoo_migrator.migrations import create_migration
+    from odoo_migrator.models import Module
+
+    init_db(tmp_path / "rules.sqlite")
+    created = create_migration(
+        name="Acme", accent="violet", source_version="17.0", target_version="18.0",
+        old_project_path=str(tmp_path / "old"), new_project_path=str(tmp_path / "new"),
+    )
+    with database.connection_context():
+        module = Module.create(migration=created["id"], technical_name="sale_x")
+    build = tmp_path / "bundled"
+    _write(build, "17.0", "17\n")
+    (build / "common.md").write_text("shared\n", encoding="utf-8")
+    monkeypatch.setattr("odoo_migrator.rules.default_rules_dir", lambda: build)
+    _overlay(monkeypatch, None)
+
+    with pytest.raises(ContractError, match="18.0"):
+        build_trigger(migration_id=created["id"], job_id="job-1", module_id=module.id)

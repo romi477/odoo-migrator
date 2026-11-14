@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from odoo_migrator.db import database
 from odoo_migrator.models import Migration, Module
-from odoo_migrator.rules import assemble_rules, load_system_prompt
+from odoo_migrator.rules import RulesError, assemble_rules, load_system_prompt
 
 CONTRACT_VERSION = "1"
 DEFAULT_CARTRIDGE = {"id": "stock", "version": "1.0.0"}
@@ -166,7 +166,14 @@ def build_trigger(
         raise ContractError("unknown migration")
     if module is None:
         raise ContractError("unknown module")
-    docs = assemble_rules(migration.source_version, migration.target_version)
+    try:
+        docs = assemble_rules(migration.source_version, migration.target_version)
+        system_prompt = load_system_prompt()
+    except RulesError as exc:
+        # A file gone since the migration was created: the routes and the
+        # queue refuse a ContractError; anything else is a 500, or a job
+        # abandoned as `unknown`.
+        raise ContractError(str(exc)) from exc
     rules = [{"version": doc.version, "role": doc.role, "text": doc.text} for doc in docs]
     old_path = module.old_path or str(Path(migration.old_project_path) / module.technical_name)
     new_path = module.new_path or str(Path(migration.new_project_path) / module.technical_name)
@@ -186,7 +193,7 @@ def build_trigger(
         "source_version": migration.source_version,
         "target_version": migration.target_version,
         "containers": {"source": migration.old_container, "target": migration.new_container},
-        "system_prompt": load_system_prompt(),
+        "system_prompt": system_prompt,
         "rules": rules,
         "module_notes": notes,
         "strictness_level": module.strictness or migration.strictness_default,
