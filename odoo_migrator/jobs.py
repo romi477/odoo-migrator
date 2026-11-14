@@ -1677,7 +1677,7 @@ def _discard_offer(job: Job) -> dict | None:
 
         return None
 
-    return {"files": discard_preview(module)}
+    return discard_preview(module)
 
 
 def latest_checkpoint(migration_id: str) -> dict | None:

@@ -464,3 +464,61 @@ def test_run_shows_a_persons_commits_and_only_the_way_that_keeps_them(client, tm
     assert "keep the shop margin" in panel and "Ann" in panel
     assert f'action="/run/modules/{sale["id"]}/keep"' in panel
     assert f'action="/run/modules/{sale["id"]}/discard"' not in panel
+
+
+def test_a_directory_git_never_held_is_said_to_go_whole(migration, repo):
+    """With no tracked file there is nothing to restore: discard removes the
+    whole directory, and the question counted only 'files to put back'."""
+    from odoo_migrator.discard import discard_preview
+    from odoo_migrator.port_guard import hand_edits
+
+    fresh = repo / "fresh_x"
+    fresh.mkdir()
+    (fresh / "__manifest__.py").write_text("{'name': 'fresh_x'}\n")
+    with database.connection_context():
+        Module.create(migration=migration["id"], technical_name="fresh_x", new_path=str(fresh))
+    (repo / "sale_x" / "models.py").write_text("EDITED = 1\n")
+
+    assert discard_preview(_module("fresh_x"))["never_committed"] is True
+    assert discard_preview(_module("sale_x"))["never_committed"] is False
+    rows = {row["technical_name"]: row for row in hand_edits(migration["id"], [_module("fresh_x").id])}
+    assert rows["fresh_x"]["never_committed"] is True
+
+
+def test_discard_is_refused_in_a_repository_at_or_above_home(migration, repo, monkeypatch):
+    """`commit_module` refuses a repository that holds the home directory; a
+    `git clean` there was not refused."""
+    from pathlib import Path
+
+    from odoo_migrator.contract import ContractError
+    from odoo_migrator.port_guard import discard_hand_edits
+
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: repo))
+    (repo / "sale_x" / "models.py").write_text("EDITED = 1\n")
+
+    with pytest.raises(ContractError, match="home"):
+        discard_hand_edits(migration["id"], _module("sale_x").id)
+    assert (repo / "sale_x" / "models.py").read_text() == "EDITED = 1\n"
+
+
+def test_the_hand_edit_question_says_the_whole_directory_goes(client, tmp_path):
+    root = tmp_path / "new"
+    fresh = root / "sale_custom"
+    fresh.mkdir(parents=True)
+    _git(root, "init", "-q")
+    (root / "README").write_text("x")
+    _git(root, "add", "README")
+    _git(root, "commit", "-qm", "base")
+    (fresh / "__manifest__.py").write_text("{'name': 'sale_custom'}\n")
+    created = create_migration(
+        name="Acme", accent="violet", source_version="19.0", target_version="20.0",
+        old_project_path=str(tmp_path / "old"), new_project_path=str(root),
+    )
+    with database.connection_context():
+        module = Module.create(
+            migration=created["id"], technical_name="sale_custom", new_path=str(fresh)
+        )
+    from odoo_migrator.port_guard import hand_edits
+
+    (row,) = hand_edits(created["id"], [module.id])
+    assert row["never_committed"] is True

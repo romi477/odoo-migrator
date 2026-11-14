@@ -33,24 +33,29 @@ from odoo_migrator.models import (
     ToolCall,
 )
 from odoo_migrator.module_paths import module_root
-from odoo_migrator.port_guard import changed_files, discard_hand_edits
+from odoo_migrator.port_guard import changed_files, discard_hand_edits, never_committed
 
 # The runs that did not pass: nothing of theirs is committed.
 DISCARDABLE = ("stopped", "failed", "unknown")
 
 
-def discard_preview(module: Module) -> int | None:
-    """How many files in the module's directory a discard would put back, for
-    the question asked first. None when it cannot say (not a git checkout)."""
+def discard_preview(module: Module) -> dict:
+    """What the question asked first says: `files`, how many in the module's
+    directory a discard would put back (None when it cannot say, not a git
+    checkout), and `never_committed`, when git holds nothing there and the
+    whole directory goes with no commit to bring it back."""
     with database.connection_context():
         migration = Migration.get_by_id(module.migration_id)
         directory = module_root(migration, module, "target")
     if not _exists(directory):
 
-        return 0
+        return {"files": 0, "never_committed": False}
     files = changed_files(directory)
+    if files is None:
 
-    return None if files is None else len(files)
+        return {"files": None, "never_committed": False}
+
+    return {"files": len(files), "never_committed": bool(files) and never_committed(directory)}
 
 
 def discard_run(module_id: int, migration_id: str, hub: EventHub | None = None) -> Module:

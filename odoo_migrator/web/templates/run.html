@@ -455,7 +455,7 @@
             {% if module.files %}
             <form method="post" action="/run/modules/{{ module.id }}/discard"
                   data-confirm-title="Discard the changes in {{ module.technical_name }}?"
-                  data-confirm-text="Every file listed goes back to its last commit, and files git does not track are deleted — in this module's directory only. This cannot be undone. Then the queue runs."
+                  data-confirm-text="{% if module.never_committed %}This module's directory was never committed: the whole directory is deleted, and no commit can bring it back.{% else %}Every file listed goes back to its last commit, and files git does not track are deleted — in this module's directory only.{% endif %} This cannot be undone. Then the queue runs."
                   data-confirm-go="Discard and run">
               <button type="submit"
                       title="git restore and git clean in this module's directory, then run"
@@ -566,7 +566,8 @@
       <form method="post" action="/run/modules/{{ job.module_id }}/discard-run"
             data-confirm-title="Discard the run of {{ job.module }}?"
             data-confirm-text="Every run of this module is deleted with its log, findings and thread, and the module is queued again.
-            {%- if job.discard.files %} {{ job.discard.files }} changed file{{ '' if job.discard.files == 1 else 's' }} in its directory in the target project {{ 'is' if job.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
+            {%- if job.discard.never_committed %} Its directory in the target project was never committed: the whole directory is deleted, and no commit can bring it back.
+            {%- elif job.discard.files %} {{ job.discard.files }} changed file{{ '' if job.discard.files == 1 else 's' }} in its directory in the target project {{ 'is' if job.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
             {%- else %} Its directory in the target project has no changes.{% endif %} The target container's database is not touched."
             data-confirm-go="Discard run">
         <button type="submit" class="discard-run" aria-label="Discard the run of {{ job.module }}"

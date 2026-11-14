@@ -42,7 +42,8 @@
   <form method="post" action="/run/modules/{{ mod.id }}/discard-run"
         data-confirm-title="Discard the run of {{ mod.technical_name }}?"
         data-confirm-text="Every run of this module is deleted with its log, findings and thread, and the module is queued again.
-        {%- if mod.review.discard.files %} {{ mod.review.discard.files }} changed file{{ '' if mod.review.discard.files == 1 else 's' }} in its directory in the target project {{ 'is' if mod.review.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
+        {%- if mod.review.discard.never_committed %} Its directory in the target project was never committed: the whole directory is deleted, and no commit can bring it back.
+            {%- elif mod.review.discard.files %} {{ mod.review.discard.files }} changed file{{ '' if mod.review.discard.files == 1 else 's' }} in its directory in the target project {{ 'is' if mod.review.discard.files == 1 else 'are' }} put back to the last commit, and files git does not know are removed.
         {%- else %} Its directory in the target project has no changes.{% endif %} The target container's database is not touched."
         data-confirm-go="Discard run">
     <button type="submit" class="discard-run" aria-label="Discard the run of {{ mod.technical_name }}"

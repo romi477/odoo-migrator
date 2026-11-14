@@ -25,7 +25,7 @@ from odoo_migrator.db import database
 from odoo_migrator.models import Job, Migration, Module
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.snapshot import module_files
-from odoo_migrator.target_git import person_commits
+from odoo_migrator.target_git import _too_broad, person_commits
 
 # Odoo imports a mounted module and leaves these beside the source. They
 # are not anyone's work, and a repository that does not ignore them would
@@ -189,6 +189,7 @@ def hand_edits(migration_id: str, module_ids: list[int]) -> list[dict]:
                 "directory": str(directory),
                 "files": files,
                 "commits": commits,
+                "never_committed": bool(files) and never_committed(Path(directory)),
             }
         )
 
@@ -271,6 +272,14 @@ def discard_hand_edits(migration_id: str, module_id: int) -> None:
             f"{module.technical_name} is not in a git repository; there is no "
             "commit to go back to."
         )
+    top = _repository_top(directory)
+    if top is not None and _too_broad(top):
+        # As `commit_module` refuses: a repository that holds the home
+        # directory is not a project's, and `git clean` in it is not ours.
+        raise ContractError(
+            f"{module.technical_name} is in a git repository at {top}, which holds "
+            "your home directory; its files are not put back from here."
+        )
     # `restore` has nothing to do, and says so as an error, in a directory git
     # has never seen: the first port of a module writes exactly that.
     commands = [["git", "clean", "-fdq", "--", "."]]
@@ -286,6 +295,25 @@ def discard_hand_edits(migration_id: str, module_id: int) -> None:
             raise ContractError(
                 f"{' '.join(command[:2])} failed in {directory}: {answer.stderr.strip()}"
             )
+
+
+def never_committed(directory: Path) -> bool:
+    """Whether git holds nothing under ``directory``: a discard then removes it
+    whole, and no commit can bring it back."""
+
+    return not _known_to_git(Path(directory))
+
+
+def _repository_top(directory: Path) -> Path | None:
+    answer = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=directory, capture_output=True, text=True, timeout=20, check=False,
+    )
+    if answer.returncode != 0 or not answer.stdout.strip():
+
+        return None
+
+    return Path(answer.stdout.strip())
 
 
 def _known_to_git(directory: Path) -> bool:
