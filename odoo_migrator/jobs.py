@@ -1816,18 +1816,32 @@ def promote_finding(
         text = finding.text
         came_from = finding.job.module.technical_name
         job_ref = finding.job.job_id
+        # Claimed before the write, in one statement: checked here and marked
+        # after the write, two quick presses both passed and both appended.
+        claimed = (
+            Finding.update(promoted_to_version=named)
+            .where(
+                (Finding.id == finding_id)
+                & (Finding.promoted_to_version.is_null() | (Finding.promoted_to_version == ""))
+            )
+            .execute()
+        )
+    if not claimed:
+        with database.connection_context():
+            taken = Finding.get_by_id(finding_id).promoted_to_version
+        raise ContractError(f"Already promoted to {taken}.")
     try:
         append_finding(
             named, text, rules_dir=rules_dir, module=came_from, job_id=job_ref
         )
     except RulesError as refused:
+        # Nothing was written: the finding can be promoted again.
+        with database.connection_context():
+            Finding.update(promoted_to_version=None).where(Finding.id == finding_id).execute()
         raise ContractError(str(refused)) from refused
     with database.connection_context():
-        finding = Finding.get_by_id(finding_id)
-        finding.promoted_to_version = named
-        finding.save()
 
-    return finding
+        return Finding.get_by_id(finding_id)
 
 
 def batch_is_checkpoint(job_id: str) -> bool:

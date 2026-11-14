@@ -400,3 +400,73 @@ def test_stopping_a_parked_job_nothing_here_runs_frees_its_batch(client):
         assert job.status == "unknown"
         assert Batch.get_by_id(job.batch_id).status == "unknown"
         assert Module.get_by_id(sale["id"]).status == "unknown"
+
+
+def test_a_second_press_of_promote_during_the_first_appends_nothing(
+    tmp_path, compose, fake_sheller, monkeypatch
+):
+    """The check and the mark were apart, with the file write between them:
+    two quick presses both passed the check and both appended."""
+    from fastapi.testclient import TestClient
+
+    from odoo_migrator import jobs
+    from odoo_migrator.api import create_app
+    from odoo_migrator.contract import ContractError
+
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    for version in ("17.0", "18.0"):
+        (rules / f"{version}.md").write_text(f"# {version}\n", encoding="utf-8")
+    app = create_app(tmp_path / "cp.sqlite", compose=compose, sheller=fake_sheller, rules_dir=rules)
+    client = TestClient(app, base_url="http://127.0.0.1")
+    _failed_checkpoint(client)
+    with database.connection_context():
+        finding = Finding.select().get()
+        migration_id = str(finding.job.batch.migration_id)
+    real = jobs.append_finding
+    second = []
+
+    def pressed_again(*args, **kwargs):
+        try:
+            jobs.promote_finding(finding.id, "18.0", migration_id, rules_dir=rules)
+        except ContractError as refused:
+            second.append(str(refused))
+
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(jobs, "append_finding", pressed_again)
+
+    jobs.promote_finding(finding.id, "18.0", migration_id, rules_dir=rules)
+
+    assert second and "Already promoted" in second[0]
+    assert (rules / "18.0.md").read_text(encoding="utf-8").count(FINDING) == 1
+
+
+def test_a_promote_the_file_refuses_can_be_pressed_again(tmp_path, compose, fake_sheller, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from odoo_migrator import jobs
+    from odoo_migrator.api import create_app
+    from odoo_migrator.contract import ContractError
+    from odoo_migrator.rules import RulesError
+
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    for version in ("17.0", "18.0"):
+        (rules / f"{version}.md").write_text(f"# {version}\n", encoding="utf-8")
+    app = create_app(tmp_path / "cp.sqlite", compose=compose, sheller=fake_sheller, rules_dir=rules)
+    client = TestClient(app, base_url="http://127.0.0.1")
+    _failed_checkpoint(client)
+    with database.connection_context():
+        finding = Finding.select().get()
+        migration_id = str(finding.job.batch.migration_id)
+
+    def refuse(*args, **kwargs):
+        raise RulesError("read-only")
+
+    monkeypatch.setattr(jobs, "append_finding", refuse)
+    with pytest.raises(ContractError):
+        jobs.promote_finding(finding.id, "18.0", migration_id, rules_dir=rules)
+
+    with database.connection_context():
+        assert Finding.get_by_id(finding.id).promoted_to_version is None
