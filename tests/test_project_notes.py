@@ -229,3 +229,32 @@ def test_understand_is_told_how_to_read_a_dependencys_notes():
 
     assert "source(side='source', path='<module>/README.rst')" in prompt
     assert "depends" in prompt
+
+
+def test_the_module_source_stops_reading_once_its_budget_is_spent(ctx, monkeypatch):
+    """Every file was read, `static/` and a large data file included, and then
+    all but the first 120,000 characters thrown away."""
+    from pathlib import Path
+
+    from odoo_migrator.runner import prompting
+
+    module = _module(ctx)
+    (module / "models").mkdir()
+    (module / "models" / "shop.py").write_text("class Shop: margin = 1\n" + "#" * 200)
+    (module / "static").mkdir()
+    (module / "static" / "big.js").write_text("x" * 50)
+    monkeypatch.setattr(prompting, "MAX_SOURCE_CHARS", 100)
+    read = []
+    real = Path.read_text
+
+    def spy(self, *args, **kwargs):
+        read.append(self.name)
+
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", spy)
+
+    source = _source(ctx)
+
+    assert "class Shop" in source and "truncated at 100" in source
+    assert "big.js" not in read

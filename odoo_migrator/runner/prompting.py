@@ -18,7 +18,7 @@ from odoo_migrator.rules import (
 )
 from odoo_migrator.runner.cartridge import CONTEXT_ITEMS, Budget, Step
 from odoo_migrator.runner.context import StepContext, StepResult, check_stop
-from odoo_migrator.runner.snapshot import module_files
+from odoo_migrator.runner.snapshot import MAX_FILE_BYTES, module_files
 
 # The ceiling a cartridge cannot raise. "A cartridge may narrow, never widen"
 # is the one rule that keeps an uploaded file from granting itself something,
@@ -384,12 +384,20 @@ def _module_source(ctx: StepContext) -> str:
         relative = path.relative_to(root).as_posix()
         files.append((_source_rank(relative, notes), relative, path))
     chunks = []
+    taken = 0
     for _rank, relative, path in sorted(files):
+        # In rank order, so what is left once the budget is spent is the
+        # least of it: reading it only to clip it away cost the whole module.
+        if taken > MAX_SOURCE_CHARS:
+            break
         try:
+            if path.stat().st_size > MAX_FILE_BYTES:
+                continue
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         chunks.append(f"### {relative}\n{text}")
+        taken += len(chunks[-1]) + 2
     rendered = "\n\n".join(chunks) or "(empty)"
 
     return _clipped(rendered, MAX_SOURCE_CHARS)

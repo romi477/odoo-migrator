@@ -10,6 +10,7 @@ from pathlib import Path
 from odoo_migrator.module_paths import module_root
 from odoo_migrator.runner.cartridge import Step
 from odoo_migrator.runner.context import StepContext, StepResult
+from odoo_migrator.runner.snapshot import module_files
 
 # A manifest Odoo will not load is missing its name. `depends` is how the
 # graph is read; a file without it is not a module manifest.
@@ -26,9 +27,7 @@ def run(step: Step, ctx: StepContext) -> StepResult:
 
         return StepResult(ok=False, flags={"lint_failed"}, output=f"no module directory at {root}")
     problems: list[str] = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or "__pycache__" in path.parts:
-            continue
+    for path in module_files(root):
         relative = path.relative_to(root).as_posix()
         if path.suffix == ".py":
             problems.extend(_python(path, relative, ctx.migration.target_version or ""))

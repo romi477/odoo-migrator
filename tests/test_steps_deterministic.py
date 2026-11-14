@@ -788,3 +788,19 @@ def test_retest_does_not_run_the_browser_suite_a_second_time(
     tests.run(Step(kind="tests", id="retest", when="no_tests"), ctx)
 
     assert SUITE not in [row["test"] for row in sheller_fake.tests_run]
+
+
+def test_lint_does_not_walk_what_the_snapshot_prunes(tmp_path, step_context):
+    """`node_modules` and `.git` are not the module's code; walked, a broken
+    file in one failed the lap, and the walk itself cost more than the module."""
+    module_dir = tmp_path / "new" / "sale_custom"
+    module_dir.mkdir(parents=True)
+    (module_dir / "__manifest__.py").write_text("{'name': 'x', 'depends': ['base']}", encoding="utf-8")
+    for pruned in ("node_modules/pkg", ".git/hooks"):
+        (module_dir / pruned).mkdir(parents=True)
+        (module_dir / pruned / "broken.py").write_text("def (:\n", encoding="utf-8")
+    ctx = step_context(new_module_path=module_dir)
+
+    result = lint.run(Step(kind="lint"), ctx)
+
+    assert result.ok is True, result.output
