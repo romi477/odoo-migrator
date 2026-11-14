@@ -124,72 +124,6 @@
       <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">
     <ol class="settings-fields">
       <li>
-        <label>Strictness
-          <select name="strictness_default">
-            <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
-            <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
-          </select>
-        </label>
-        <p class="field-hint">How hard a rewrite is checked. An error in Odoo's
-        log during upgrade and tests is a finding at <code>basic</code> — on a
-        shared database it is often another module's — and fails the lap at
-        <code>enhanced</code>.</p>
-      </li>
-      <li>
-        <label>Retry limit
-          <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
-        </label>
-        <p class="field-hint">How many times one module is retried before the
-        batch stops on it.</p>
-      </li>
-      <li>
-        <label>Ask-human mode
-          <select name="ask_human_mode">
-            <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
-            <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
-          </select>
-        </label>
-        <p class="field-hint"><code>sync</code> stops and waits for your answer on
-        Runner or Tree. <code>batch_defer</code> records the question as an
-        assumption and keeps going; you read it at the checkpoint, and the
-        module carries an <code>assumptions</code> mark until then.</p>
-      </li>
-      <li>
-        <label>Source database
-          <input type="text" name="old_database" value="{{ expanded.old_database }}"
-                 placeholder="from the container's odoo.conf" autocomplete="off">
-        </label>
-        <label>Target database
-          <input type="text" name="new_database" value="{{ expanded.new_database }}"
-                 placeholder="from the container's odoo.conf" autocomplete="off">
-        </label>
-        <p class="field-hint">Leave blank to use the database each container's
-        own <code>odoo.conf</code> names. One Postgres often holds dozens, and a
-        config without <code>db_name</code> is ordinary — then this is the only
-        way to say which one. A name that is not there is refused when the run
-        starts, and the refusal lists what the container does have.</p>
-      </li>
-      <li>
-        <label>Flow
-          <span class="field-with-action">
-          <select name="cartridge_id">
-            {% for item in cartridges %}
-            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
-            {% else %}
-            <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
-            {% endfor %}
-          </select>
-          {# Reads the file, changes nothing. Follows the select above (see
-             flow_viewer.js), so it shows the one about to be saved. #}
-          <button type="button" class="flow-view-button" data-flow-view data-flow-url="/api/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
-                  data-flow-name="{{ expanded.cartridge_id or 'stock' }} {{ expanded.cartridge_version or '1.0.0' }}"
-                  title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
-          </span>
-        </label>
-        <p class="field-hint">The flow package that does the rewrite, pinned by
-        id and version. The pin is recorded on every job.</p>
-      </li>
-      <li>
         {% set chosen_provider = expanded.provider_override or flow_default.provider or "anthropic" %}
         <label>Provider
           <select name="provider_override" onchange="filterModels(this)">
@@ -214,6 +148,78 @@
         </label>
         <p class="field-hint">Models of the provider above. A step that names
         its own model still wins.</p>
+      </li>
+      <li>
+        <label>Flow
+          <span class="field-with-action">
+          <select name="cartridge_id">
+            {% for item in cartridges %}
+            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
+            {% else %}
+            <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
+            {% endfor %}
+          </select>
+          {# Reads the file, changes nothing. Follows the select above (see
+             flow_viewer.js), so it shows the one about to be saved. #}
+          <button type="button" class="flow-view-button" data-flow-view data-flow-url="/api/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
+                  data-flow-name="{{ expanded.cartridge_id or 'stock' }} {{ expanded.cartridge_version or '1.0.0' }}"
+                  title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
+          </span>
+        </label>
+        <p class="field-hint">The flow package that does the rewrite, pinned by
+        id and version. The pin is recorded on every job.</p>
+      </li>
+      <li>
+        <label>Source database
+          <input type="text" name="old_database" value="{{ expanded.old_database }}"
+                 placeholder="from the container's odoo.conf" autocomplete="off">
+        </label>
+        <label>Target database
+          <input type="text" name="new_database" value="{{ expanded.new_database }}"
+                 placeholder="from the container's odoo.conf" autocomplete="off">
+        </label>
+        <p class="field-hint">Leave blank to use the database each container's
+        own <code>odoo.conf</code> names. One Postgres often holds dozens, and a
+        config without <code>db_name</code> is ordinary — then this is the only
+        way to say which one. A name that is not there is refused when the run
+        starts, and the refusal lists what the container does have.</p>
+      </li>
+      <li>
+        <label>Strictness
+          <select name="strictness_default">
+            <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
+            <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
+          </select>
+        </label>
+        <p class="field-hint">What a lap does with an <code>ERROR</code> line in
+        Odoo's log during upgrade and tests. At <code>basic</code> the module
+        still passes and the lines become a finding, which stops the queue at
+        the batch checkpoint — on a shared database they are often another
+        module's. At <code>enhanced</code> the lap fails and goes to diagnosis,
+        within the retry limit. A failed test, behaviour that differs from the
+        source or a button that breaks fails the lap at both.</p>
+      </li>
+      <li>
+        <label>Ask-human mode
+          <select name="ask_human_mode">
+            <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
+            <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
+          </select>
+        </label>
+        <p class="field-hint">What happens when diagnosis decides a failure needs
+        a person — a decision, a container setting, a rule. Other failures are
+        retried without asking. <code>sync</code> parks the job until you answer
+        on Runner or Tree. <code>batch_defer</code> does not wait: the question
+        is recorded as an assumption, the agent goes on with its own judgement,
+        the module carries an <code>assumptions</code> mark, and the queue stops
+        at the batch checkpoint for you to read it.</p>
+      </li>
+      <li>
+        <label>Retry limit
+          <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
+        </label>
+        <p class="field-hint">How many times one module is retried before the
+        batch stops on it.</p>
       </li>
     </ol>
     <button type="submit" class="primary settings-save">Save</button>

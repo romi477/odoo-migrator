@@ -81,7 +81,7 @@ The reasoning behind each of these is in [docs/security.md](docs/security.md).
 | Package manager | [uv](https://docs.astral.sh/uv/) (preferred) or pip + venv |
 | Docker | Docker Engine, for the two Odoo compose projects |
 | Odoo | two live containers — source version and new — each with its own compose project |
-| [odoo-sheller](https://github.com/romi477/odoo-sheller) | a daemon on `127.0.0.1:8765`, started by you; the app attaches to it |
+| [odoo-sheller](https://github.com/romi477/odoo-sheller) | a daemon on `127.0.0.1:8765`, started by you ([how](#sheller-daemon)); the app attaches to it |
 
 Without `ODOO_MIGRATOR_RUNNER=native` the app uses an in-process stub
 executor, so the UI and the suite run without Docker, Odoo, or a model key.
@@ -116,6 +116,44 @@ python3 -m venv .venv
 The `dev` extra (pytest, httpx2, ruff) matches uv's default `dev` group. It
 is `httpx2`, not `httpx`: `starlette.testclient` imports `httpx2` and warns
 that `httpx` is deprecated there.
+
+### Sheller daemon
+
+The app never starts Sheller: it attaches to the daemon at the URL in
+Settings (`http://127.0.0.1:8765` by default). First check whether one is
+already serving:
+
+```bash
+curl -s http://127.0.0.1:8765/health
+```
+
+An answer means a daemon is running. Use it, and do not stop it: it may not
+be yours. With no answer, and Sheller not installed on this machine, run the
+published image. The command is Sheller's own, from its
+[container contract](https://github.com/romi477/odoo-sheller/blob/main/docs/container.md):
+
+```bash
+docker run -d \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$HOME/.odoo-sheller:/data/.odoo-sheller" \
+  -e ODOO_SHELLER_UID="$(id -u)" -e ODOO_SHELLER_GID="$(id -g)" \
+  -p 127.0.0.1:8765:8765 \
+  ghcr.io/romi477/odoo-sheller:<version>
+```
+
+- All five flags are required. `-p 127.0.0.1:8765:8765` is the whole
+  security boundary around an API that runs code as `SUPERUSER_ID` with no
+  authentication. Never publish it on another address.
+- The Docker socket gives the container the host's whole Engine, which is
+  root-equivalent. A container is no isolation in that direction.
+- With rootless Docker, mount `"$XDG_RUNTIME_DIR/docker.sock"` in place of
+  `/var/run/docker.sock`. The path inside the container stays the same.
+- The image is private on GHCR: `docker login ghcr.io` with a token that
+  carries `read:packages` first.
+- Wait for `healthy` before starting a run:
+  `docker inspect --format '{{.State.Health.Status}}' <container>`.
+- If `docker run` fails with `address already in use`, it leaves a container
+  in `created` state. Remove it before you retry.
 
 ## Usage
 
