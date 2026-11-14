@@ -9,6 +9,11 @@ class ComposeMissing(ComposeError):
     """The project path has no compose file. The app does not generate one."""
 
 
+class ComposeUnreadable(ComposeError):
+    """The compose file is not YAML this app can read: saved half-edited, or
+    not a mapping at the top. The message names the file."""
+
+
 class PortStolen(ComposeError):
     """The published port is held by a container that is not this project."""
 

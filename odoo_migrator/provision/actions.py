@@ -18,7 +18,12 @@ from odoo_migrator.provision.engine import (
     WORKING_DIR_LABEL,
     RunningContainer,
 )
-from odoo_migrator.provision.errors import ComposeMissing, NothingRunning, PortStolen
+from odoo_migrator.provision.errors import (
+    ComposeMissing,
+    ComposeUnreadable,
+    NothingRunning,
+    PortStolen,
+)
 
 
 @dataclass(frozen=True)
@@ -115,7 +120,11 @@ def describe_side(engine, project_path: Path, *, sibling_path: Path | None = Non
             compose_file=str(compose),
             stale=_stale(engine, picked, compose, project_path),
         )
-    thief = _thief(engine, project_path, compose)
+    try:
+        thief = _thief(engine, project_path, compose)
+    except ComposeUnreadable as exc:
+
+        return SideStatus(state="stopped", container="", compose_file=str(compose), detail=str(exc))
     if thief is not None:
 
         return SideStatus(

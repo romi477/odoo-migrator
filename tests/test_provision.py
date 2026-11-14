@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from odoo_migrator.provision import (
+    ComposeError,
     ComposeMissing,
     FakeComposeEngine,
     NothingRunning,
@@ -409,3 +410,17 @@ def test_a_compose_file_touched_but_not_changed_asks_for_nothing(tmp_path):
 
     engine.config_hashes["odoo"] = "def"
     assert describe_side(engine, tmp_path).stale == ("compose.yaml",)
+
+
+@pytest.mark.parametrize("text", ["services: [odoo\n", "- odoo\n- db\n"])
+def test_a_compose_file_that_is_not_valid_yaml_is_a_state_naming_the_file(tmp_path, text):
+    """Saved half-edited, or a top-level list: the card said 500, and nothing
+    said which file."""
+    (tmp_path / "compose.yaml").write_text(text, encoding="utf-8")
+
+    status = describe_side(FakeComposeEngine(), tmp_path)
+
+    assert status.state == "stopped"
+    assert "compose.yaml" in status.detail
+    with pytest.raises(ComposeError, match="compose.yaml"):
+        up(FakeComposeEngine(), tmp_path)

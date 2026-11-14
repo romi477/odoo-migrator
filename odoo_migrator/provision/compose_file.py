@@ -4,6 +4,8 @@ from pathlib import Path
 
 import yaml
 
+from odoo_migrator.provision.errors import ComposeUnreadable
+
 # Compose's own default order: compose.yaml preferred, docker-compose.* last.
 COMPOSE_FILENAMES = (
     "compose.yaml",
@@ -23,8 +25,23 @@ def find_compose_file(project_path: Path) -> Path | None:
     return None
 
 
+def load_compose(compose_file: Path) -> dict:
+    """The compose file as a mapping, or ComposeUnreadable naming it."""
+    try:
+        data = yaml.safe_load(compose_file.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise ComposeUnreadable(f"{compose_file} cannot be read as YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ComposeUnreadable(
+            f"{compose_file} is not a compose file: its top level is a "
+            f"{type(data).__name__}, not a mapping of services."
+        )
+
+    return data
+
+
 def published_host_ports(compose_file: Path) -> list[int]:
-    data = yaml.safe_load(compose_file.read_text(encoding="utf-8")) or {}
+    data = load_compose(compose_file)
     ports: list[int] = []
     for service in (data.get("services") or {}).values():
         if not isinstance(service, dict):
@@ -95,7 +112,7 @@ def build_inputs(compose_file: Path) -> dict[str, list[Path]]:
     of `--from`. Only what exists is listed.
     """
     found: dict[str, list[Path]] = {"container": [compose_file], "image": []}
-    data = yaml.safe_load(compose_file.read_text(encoding="utf-8")) or {}
+    data = load_compose(compose_file)
     base = compose_file.parent
     for service in (data.get("services") or {}).values():
         build = service.get("build") if isinstance(service, dict) else None
