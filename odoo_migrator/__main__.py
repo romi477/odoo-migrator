@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import uvicorn
+from uvicorn.supervisors import ChangeReload
 
 from odoo_migrator.db import default_env_path
 
@@ -34,10 +35,27 @@ class _Server(uvicorn.Server):
     """
 
     def handle_exit(self, sig, frame):
-        hub = getattr(getattr(self.config.app, "state", None), "hub", None)
+        hub = _hub(self.config)
         if hub is not None:
             hub.close()
         super().handle_exit(sig, frame)
+
+
+def _hub(config: uvicorn.Config):
+    """The app's event hub. Under --reload the config holds an import string,
+    and the worker serves `loaded_app`, inside uvicorn's own middleware."""
+    app = getattr(config, "loaded_app", None) or config.app
+    for _ in range(8):
+        state = getattr(app, "state", None)
+        if state is not None:
+
+            return getattr(state, "hub", None)
+        app = getattr(app, "app", None)
+        if app is None:
+
+            return None
+
+    return None
 
 
 def load_env_file(path: Path) -> None:
@@ -80,7 +98,10 @@ def main() -> None:
     print(f"runner: {runner}", flush=True)
 
     if args.reload:
-        uvicorn.run(
+        # uvicorn.run's own reload branch, on this module's server: the worker
+        # it starts wakes the streams on the signal, as a plain start does, and
+        # a restart after an edit does not wait out a stream's window.
+        config = uvicorn.Config(
             "odoo_migrator.api:create_app",
             factory=True,
             host=host,
@@ -88,7 +109,9 @@ def main() -> None:
             reload=True,
             reload_dirs=[str(Path(__file__).parent)],
             reload_excludes=["web/*"],
+            timeout_graceful_shutdown=10,
         )
+        ChangeReload(config, target=_Server(config).run, sockets=[config.bind_socket()]).run()
 
         return
 
