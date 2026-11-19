@@ -575,12 +575,16 @@ def _project_root(ctx, side: str) -> Path:
     return Path(raw.strip()).expanduser().resolve()
 
 
-def _inside(ctx, side: str, given: str) -> Path:
+def _inside(ctx, side: str, given: str, *, needs_addon: bool = True) -> Path:
     """An absolute path is a container path; a relative one is under the
     project directory. Once the mounts are known, both are held to the same
     rule: inside a mount that carries a plan module, and inside an addon
     there. The project root holds more than addons (`.env`, `odoo.conf`,
-    `.git/`), and none of it is the agent's to read through a host tool."""
+    `.git/`), and none of it is the agent's to read through a host tool.
+
+    A write passes `needs_addon=False`: the target starts empty, and the first
+    file of a module is what makes its directory an addon. A write is held to
+    the module's own directory by `_inside_module` instead."""
     if given.startswith("/"):
         path, root = _inside_mounts(ctx, side, given)
     else:
@@ -599,7 +603,7 @@ def _inside(ctx, side: str, given: str) -> Path:
                 f"{given} is outside the addons directories of the {side} side "
                 f"({listed}). Read it with `source` from the container."
             )
-    if not _in_an_addon(path, root):
+    if needs_addon and not _in_an_addon(path, root):
         raise ToolRefused(
             f"{given} is not inside an addon: a file at the root of a project is "
             "not the agent's to read or write."
@@ -883,7 +887,7 @@ def _note_source_run(ctx, name: str, side: str, value, spec: str = "") -> None:
 
 
 def _write_file(ctx, side: str, relative: str, content: str) -> str:
-    path = _inside(ctx, side, relative)
+    path = _inside(ctx, side, relative, needs_addon=False)
     _inside_module(ctx, path, relative)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")

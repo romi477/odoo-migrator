@@ -1,6 +1,7 @@
 """read_file and write_file take container paths when the mounts are known."""
 
 import json
+import shutil
 
 import pytest
 
@@ -84,6 +85,22 @@ def test_a_write_lands_in_the_module_on_the_new_side(ctx, tmp_path):
     assert written.endswith("sale_x/models/sale.py")
     with pytest.raises(ToolRefused):
         _write_file(ctx, "target", "/opt/project/other_x/x.py", "")
+
+
+def test_a_clean_target_gets_its_module_written_from_nothing(ctx, tmp_path):
+    """The target starts empty: the port makes the module's directory and its
+    manifest. A guard that wanted a manifest there first refused every file of
+    the first module."""
+    shutil.rmtree(tmp_path / "new-src" / "sale_x")
+
+    _write_file(ctx, "target", "/opt/project/sale_x/__manifest__.py", "{'name': 'X'}\n")
+    _write_file(ctx, "target", "/opt/project/sale_x/models/sale.py", "NEW = 1\n")
+
+    assert (tmp_path / "new-src" / "sale_x" / "models" / "sale.py").read_text() == "NEW = 1\n"
+    # What is not the module's stays refused, manifest or no manifest.
+    for given in ("/opt/project/.env", "/opt/project/odoo.conf", "/opt/project/other_x/x.py"):
+        with pytest.raises(ToolRefused):
+            _write_file(ctx, "target", given, "")
 
 
 def test_a_relative_path_keeps_working(ctx):
