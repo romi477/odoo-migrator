@@ -484,10 +484,14 @@ hover.
 
 ## Guide (in-app)
 
-**Guide** in the chrome opens `/styleguide`: Tree, Runner, Sheller,
-Result, in that order, with the controls that exist today. Flow follows
-that list and names each stock block. This file is the long-form
-reference.
+**Guide** in the chrome opens `/styleguide`, in two parts. *Menus* is Tree,
+Runner, Flow, Sheller and Result, in menu order, with the controls that exist
+today. *Cartridge language* is the vocabulary of a flow file: its keys, the
+step kinds, the steps of the stock flow, the tools, the context items and the
+flags. A name is coloured by what it is (button, step, tool, YAML key, flag,
+context item), with a legend under the title. A test keeps every step kind,
+tool, context item and built-in flag the code knows on the page. This file is
+the long-form reference.
 
 `/components` is how CSS gets reviewed: badges, row cards, pipeline,
 checkpoint, forms, the lamp, the switcher. Add a row in the same change

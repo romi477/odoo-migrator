@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 import pytest
 
@@ -140,40 +141,63 @@ def test_inline_styles_carry_only_custom_properties(client, path, active, headin
     assert offenders == []
 
 
-def test_guide_lists_the_menu_steps_in_order(client):
-    """The guide is the four steps under the migration, numbered like the
-    menu. The component catalog is a different page."""
+def test_guide_has_two_parts_and_lists_the_menus_in_order(client):
+    """Menus first, numbered like the menu, then the language of a flow file.
+    The component catalog is a different page."""
     html = client.get("/styleguide").text
-    steps = html.split('class="guide-steps"', 1)[1].split("</ol>", 1)[0]
+    menus = html.split('id="menus"', 1)[1].split('id="cartridge"', 1)[0]
+    steps = menus.split('class="guide-steps"', 1)[1].split("</ol>", 1)[0]
 
-    assert re.findall(r"<h2>(.*?)</h2>", steps) == [
+    assert re.findall(r"<h3>(.*?)</h3>", steps) == [
         "Tree",
         "Runner",
+        "Flow",
         "Sheller",
         "Result",
     ]
     assert "Status badges" not in html
     assert "Create migration" not in html
-    # Flow is described after the four steps, block by block. It is not a
-    # fifth item in the numbered list.
-    flow = html.split('class="guide-flow"', 1)[1]
-    assert "<h2>Flow</h2>" in flow
-    for block in (
-        "understand",
-        "port",
-        "lint",
-        "upgrade",
-        "tests",
-        "probe",
-        "write_test",
-        "verdict",
-        "diagnose",
-        "ask_human",
-        "reprobe",
-        "patch",
-        "rewrite",
-    ):
-        assert f"<strong>{block}</strong>" in flow
+    assert 'class="guide-part-title">2. Cartridge language<' in html
+
+
+def _guide_names(client, css_class: str) -> set[str]:
+    html = client.get("/styleguide").text
+    language = html.split('id="cartridge"', 1)[1]
+
+    return set(re.findall(rf'<dt class="{css_class}">(.*?)</dt>', language))
+
+
+def test_guide_names_every_step_kind_tool_context_item_and_flag(client):
+    """The page is what a person writing a flow reads first; a name the code
+    accepts and the page lacks is a name nobody finds."""
+    from odoo_migrator.runner.cartridge import BUILTIN_FLAGS, CONTEXT_ITEMS, KINDS
+    from odoo_migrator.runner.tools import TOOL_SIDES
+
+    assert set(KINDS) <= _guide_names(client, "g-step")
+    assert set(TOOL_SIDES) <= _guide_names(client, "g-tool")
+    assert set(CONTEXT_ITEMS) <= _guide_names(client, "g-ctx")
+    assert set(BUILTIN_FLAGS) <= _guide_names(client, "g-flag")
+
+
+def test_guide_names_every_step_of_the_stock_flow(client):
+    import yaml
+
+    stock = yaml.safe_load(Path("cartridges/stock.yaml").read_text(encoding="utf-8"))
+    ids = {
+        step.get("id") or step["step"]
+        for step in stock["pipeline"] + stock["on_failure"]["pipeline"]
+    }
+
+    assert ids <= _guide_names(client, "g-step")
+
+
+def test_guide_names_every_key_a_step_can_carry(client):
+    from odoo_migrator.runner.cartridge import Cartridge, Step
+
+    keys = {field.alias or name for name, field in Step.model_fields.items()}
+    keys |= {field.alias or name for name, field in Cartridge.model_fields.items()}
+
+    assert keys - {"sha256"} <= _guide_names(client, "g-key")
 
 
 def test_components_page_renders_the_catalog(client):
@@ -220,7 +244,7 @@ def test_the_guide_reads_as_one_column_in_the_middle(client):
     """It hugged the left edge with the rest of a wide screen empty."""
     page = client.get("/styleguide").text
     css = client.get("/static/style.css").text
-    rule = css.split(".screen-guide > .guide-flow {")[1].split("}")[0]
+    rule = css.split(".screen-guide > .guide-part {")[1].split("}")[0]
 
     assert 'class="screen screen-guide"' in page
     assert "margin-left: auto" in rule and "margin-right: auto" in rule

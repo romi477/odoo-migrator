@@ -1,200 +1,523 @@
 {% extends "base.html" %}
 {% block title %}odoo-migrator — guide{% endblock %}
+{# Words are coloured by what they are, so a name can be told from the prose
+   around it: a button or screen (ui), a step, a tool, a YAML key, a flag, a
+   context item. The legend is the first thing under the title. #}
 {% block screen %}
 <section class="screen screen-guide">
   <header class="screen-head">
     <div>
       <h1>Guide</h1>
-      <p>The steps under the open migration, in menu order. For field-level
-      detail and settings, see <span class="mono">docs/ui-guide.md</span> in the repo.</p>
+      <p>Two parts. <a href="#menus">Menus</a> says what each screen under the
+      open migration is for. <a href="#cartridge">Cartridge language</a> says
+      what a flow file is made of: its keys, steps, tools, context and flags.
+      Field-level detail and settings are in
+      <span class="g-file">docs/ui-guide.md</span> and
+      <span class="g-file">docs/cartridge-reference.md</span> in the repo.</p>
     </div>
   </header>
 
-  <ol class="guide-steps">
-    <li>
-      <h2>Tree</h2>
-      <p>The dependency graph for this migration. Colour is the step (wave).
-      A later wave cannot run until every module on earlier waves is passed
-      or left out.</p>
-      <ul>
-        <li><strong>Build graph</strong> reads installed custom modules and
-        <span class="mono">depends</span> from the source Odoo (via Sheller) and
-        redraws the graph and steps.</li>
-        <li><strong>Step buttons</strong> above the canvas select every module
-        on one wave; optional help sits under the node card.</li>
-        <li><strong>Node card</strong> (dashed panel under the step buttons):
-        <span class="mono">#rank/step</span>, name, status, and
-        <strong>Exclude</strong> or <strong>Include</strong> for the
-        current selection. A whole step or multi-select shows both buttons.
-        <strong>Exclude all</strong> and <strong>Include all</strong> apply
-        to the whole migration.</li>
-        <li><strong>Exclude / Include</strong> follow the graph: exclude
-        hits the selection and everything downstream; include walks each
-        module's depends chain upward. A lone <strong>leaf</strong> (nothing
-        depends on it) is excluded on its own — parents stay in the plan.</li>
-        <li><strong>Drag</strong> one node onto another to put them in the
-        same batch group. Runs start on Runner, not here.</li>
-        <li><strong>Answer</strong> appears on the card when status is
-        <span class="mono">waiting_for_human</span> and the module is still
-        in the plan.</li>
-        <li>Struck nodes show <span class="mono">(out)</span>, dashed borders,
-        and faded colour. The attention lamp opens Tree with
-        <span class="mono">?focus=</span> on the stalled node.</li>
-      </ul>
-    </li>
-    <li>
-      <h2>Runner</h2>
-      <p>Where you queue work and watch the live stage. When a batch finishes,
-      checkpoint review is on this screen too.</p>
-      <ul>
-        <li><strong>Selection</strong> — a chip for each step (same waves as
-        Tree). Point at one to see its modules; press the one with the arrow to
-        put every module of it in the queue, or press <strong>Add all</strong>
-        for every step. A step opens once the steps it depends on are in the
-        queue. Duplicate steps are ignored.</li>
-        <li><strong>Queue</strong> (FIFO) — pending modules in migration order
-        (<span class="mono">#rank/step</span> on each row). Collapsed view
-        shows the next module only; click the queue header (chevron) to
-        expand or collapse the numbered list. <strong>Run</strong> /
-        <strong>Stop</strong> stay separate.
-        <strong>Run</strong> / <strong>Stop</strong> drive the pipe (you can
-        add steps while running; Stop waits for the current module).
-        <strong>Clear</strong> drops the list when the pipe is stopped and no
-        module is still running. The active row pulses.</li>
-        <li><strong>Live panel</strong> below — module name, status, stage,
-        attempt. At rest the machine is drawn with empty slots. SSE updates without a
-        reload.</li>
-        <li>When the batch hits checkpoint, a banner asks you to reload for
-        review. Then <strong>Continue</strong> (disabled while failed or
-        waiting jobs are unread), <strong>Continue anyway</strong>,
-        <strong>Dismiss</strong> per stalled job, and <strong>Promote</strong>
-        to append a finding to a rules file you choose.</li>
-      </ul>
-    </li>
-    <li>
-      <h2>Sheller</h2>
-      <p>Odoo in observer mode: Sheller's <span class="mono">/web</span> iframe
-      edge to edge. The frame has no write key.</p>
-      <ul>
-        <li>Pick the live session inside Sheller's own UI. Do not append
-        <span class="mono">?session=</span> — Sheller ignores it.</li>
-      </ul>
-    </li>
-    <li>
-      <h2>Result</h2>
-      <p>The migration scoreboard: progress for modules still in the plan, then
-      one column per dependency wave.</p>
-      <ul>
-        <li><strong>Columns</strong> are <span class="mono">L0</span>,
-        <span class="mono">L1</span>, … — the same waves as Tree. More than
-        four waves paginate: four columns per page, dashes in the panel header
-        (one dash per page; active is cyan).</li>
-        <li><strong>Each card</strong> uses the step colour on the full
-        outline. A filled corner badge marks <strong>passed</strong> (green
-        check), <strong>waiting for you</strong> (warning, pause bars), or
-        <strong>excluded</strong> (left out on Tree). Running, queued, or
-        failed modules use a small inline badge instead.</li>
-        <li>Subtitle is parent depends, or <em>excluded — skipped on Tree</em>.
-        Skipped modules stay in their wave with the name struck through.</li>
-        <li>SSE updates cards while this screen is open. With no graph yet,
-        resolve on Tree first.</li>
-      </ul>
-    </li>
-  </ol>
+  <p class="guide-legend" aria-label="Colour legend">
+    <span class="g-ui">button or screen</span>
+    <span class="g-step">step</span>
+    <span class="g-tool">tool</span>
+    <span class="g-key">YAML key</span>
+    <span class="g-flag">flag</span>
+    <span class="g-ctx">context item</span>
+  </p>
 
-  <div class="guide-flow">
-    <h2>Flow</h2>
-    <p>The pinned flow, drawn. Nothing on that screen is stored; the picture
-    is computed from the file each time it is opened. The names below are the
-    stock flow. An imported flow draws its own steps and is read the same way.</p>
-    <p>Two frames. <strong>Pipeline</strong> is the lap every module takes.
-    <strong>On failure</strong> is the side lane, entered when any pipeline
-    step fails — the dashed arrow is labelled <span class="mono">any step fails</span>,
-    and it leaves the frame, not one block. Orange blocks are a model turn.
-    Quiet blocks are the app itself, with no model. A dashed border and
-    <span class="mono">if …</span> means the block is skipped unless an earlier
-    step raised that flag. The cut rectangle stops the run and waits for you.
-    Solid arrows are the order inside a frame. The orange dashed arrow
-    <span class="mono">retry</span> leaves the side lane once, into
-    <span class="mono">lint</span>, and the lap continues from there. How many
-    laps are allowed is the retry limit on the migration.</p>
+  <section class="guide-part" id="menus">
+    <h2 class="guide-part-title">1. Menus</h2>
+    <p class="guide-part-lead">The screens under the open migration, in menu
+    order.</p>
 
-    <h3>Pipeline</h3>
-    <ul>
-      <li><strong>understand</strong> reads the module on the source Odoo, through
-      a live session on that container. It describes current behaviour, what
-      the module overrides, and what will break on the target. It also builds
-      the smallest set of records the module needs, proves that recipe works,
-      and rolls it back. The recipe is the answer later steps replay.</li>
-      <li><strong>port</strong> writes the ported module into the target project.
-      Both sessions stay open, so it can check what the original does. It sees
-      the version rules, the module source, and the understand answer.</li>
-      <li><strong>lint</strong> does not touch a container. It checks that the
-      new module's Python parses, its XML parses, and its manifest is a dict
-      with <span class="mono">name</span> and <span class="mono">depends</span>.
-      A problem fails the lap.</li>
-      <li><strong>upgrade</strong> installs the module on the target container, or
-      upgrades it if it is already installed, then commits. The source container
-      is never committed.</li>
-      <li><strong>tests</strong> runs the module's own test classes on the new
-      container. No test classes is a success that raises
-      <span class="mono">no_tests</span>, which is what opens the next two
-      blocks. A failing test leaves the pipeline for the side lane.</li>
-      <li><strong>smoke</strong> uses the module the way a person would, with
-      no model and nothing written: a new record of each of its models, its
-      fields read on existing ones, each action's domain, each report, and the
-      asset bundles it adds to, compiled. Tests prove only what they assert;
-      this is what they do not try. A break in the module fails the lap.</li>
-      <li><strong>click</strong> <span class="mono">if has_buttons</span>
-      presses every button the module puts in a view, on a record it shows
-      on, as a person would, and rolls back. A button that reaches outside
-      the database is not pressed. One that breaks on the new version and
-      works on the old one fails the lap.</li>
-      <li><strong>probe</strong> <span class="mono">if no_tests</span> replays
-      the understand recipe on both versions, calls the same methods, and
-      reports every difference. A recipe that will not replay on the new
-      version is a failure of its own.</li>
-      <li><strong>write_test</strong> <span class="mono">if no_tests</span> turns
-      that recipe into a real test in the ported module, asserting what the
-      source version did, and runs the test before it finishes.</li>
-      <li><strong>verdict</strong> judges the lap. At strictness
-      <span class="mono">strict</span> it fails when probe left no answer.
-      <span class="mono">basic</span> and <span class="mono">enhanced</span> do
-      not add a check of their own.</li>
-    </ul>
+    <ol class="guide-steps">
+      <li>
+        <h3>Tree</h3>
+        <p>The dependency graph for this migration. Colour is the step (wave).
+        A later wave cannot run until every module on earlier waves is passed
+        or left out.</p>
+        <ul>
+          <li><span class="g-ui">Build graph</span> reads installed custom modules and
+          <span class="g-key">depends</span> from the source Odoo (via Sheller) and
+          redraws the graph and steps.</li>
+          <li><span class="g-ui">Step buttons</span> above the canvas select every module
+          on one wave; optional help sits under the node card.</li>
+          <li><span class="g-ui">Node card</span> (dashed panel under the step buttons):
+          <span class="g-file">#rank/step</span>, name, status, and
+          <span class="g-ui">Exclude</span> or <span class="g-ui">Include</span> for the
+          current selection. A whole step or multi-select shows both buttons.
+          <span class="g-ui">Exclude all</span> and <span class="g-ui">Include all</span> apply
+          to the whole migration.</li>
+          <li><span class="g-ui">Exclude / Include</span> follow the graph: exclude
+          hits the selection and everything downstream; include walks each
+          module's depends chain upward. A lone <span class="g-ui">leaf</span> (nothing
+          depends on it) is excluded on its own — parents stay in the plan.</li>
+          <li><span class="g-ui">Drag</span> one node onto another to put them in the
+          same batch group. Runs start on Runner, not here.</li>
+          <li><span class="g-ui">Answer</span> appears on the card when status is
+          <span class="g-file">waiting_for_human</span> and the module is still
+          in the plan.</li>
+          <li>Struck nodes show <span class="g-file">(out)</span>, dashed borders,
+          and faded colour. The attention lamp opens Tree with
+          <span class="g-file">?focus=</span> on the stalled node.</li>
+        </ul>
+      </li>
+      <li>
+        <h3>Runner</h3>
+        <p>Where you queue work and watch the live stage. When a batch finishes,
+        checkpoint review is on this screen too.</p>
+        <ul>
+          <li><span class="g-ui">Selection</span> — a chip for each step (same waves as
+          Tree). Point at one to see its modules; press the one with the arrow to
+          put every module of it in the queue, or press <span class="g-ui">Add all</span>
+          for every step. A step opens once the steps it depends on are in the
+          queue. Duplicate steps are ignored.</li>
+          <li><span class="g-ui">Queue</span> (FIFO) — pending modules in migration order
+          (<span class="g-file">#rank/step</span> on each row). Collapsed view
+          shows the next module only; click the queue header (chevron) to
+          expand or collapse the numbered list.
+          <span class="g-ui">Run</span> / <span class="g-ui">Stop</span> drive the pipe
+          (you can add steps while running; Stop waits for the current module).
+          <span class="g-ui">Clear</span> drops the list when the pipe is stopped and no
+          module is still running. The active row pulses.</li>
+          <li><span class="g-ui">Live panel</span> below — module name, status, stage,
+          attempt. At rest the machine is drawn with empty slots. SSE updates without a
+          reload.</li>
+          <li>When the batch hits checkpoint, a banner asks you to reload for
+          review. Then <span class="g-ui">Continue</span> (disabled while failed or
+          waiting jobs are unread), <span class="g-ui">Continue anyway</span>,
+          <span class="g-ui">Dismiss</span> per stalled job, and
+          <span class="g-ui">Promote</span> to append a finding to a rules file you
+          choose.</li>
+        </ul>
+      </li>
+      <li>
+        <h3>Flow</h3>
+        <p>The pinned flow, drawn. Nothing on that screen is stored; the picture
+        is computed from the file each time it is opened. An imported flow
+        draws its own steps and is read the same way. What the steps are called
+        and do is in <a href="#cartridge">Cartridge language</a>.</p>
+        <ul>
+          <li>Two frames. <span class="g-ui">Pipeline</span> is the lap every module
+          takes. <span class="g-ui">On failure</span> is the side lane, entered when any
+          pipeline step fails — the dashed arrow is labelled
+          <span class="g-file">any step fails</span> and it leaves the frame, not one
+          block.</li>
+          <li>Orange blocks are a model turn. Quiet blocks are the app itself, with
+          no model.</li>
+          <li>A dashed border and <span class="g-file">if …</span> means the block is
+          skipped unless an earlier step raised that flag. The cut rectangle stops
+          the run and waits for you.</li>
+          <li>Solid arrows are the order inside a frame. The orange dashed arrow
+          <span class="g-file">retry</span> leaves the side lane once, into
+          <span class="g-step">lint</span>, and the lap continues from there. How many
+          laps are allowed is the retry limit on the migration.</li>
+          <li>The eye beside the Flow field on the migration card opens the file;
+          <span class="g-ui">Fork</span> copies it into editable text and
+          <span class="g-ui">Save fork</span> stores the copy as a new flow.</li>
+        </ul>
+      </li>
+      <li>
+        <h3>Sheller</h3>
+        <p>Odoo in observer mode: Sheller's <span class="g-file">/web</span> iframe
+        edge to edge. The frame has no write key.</p>
+        <ul>
+          <li>Pick the live session inside Sheller's own UI. Do not append
+          <span class="g-file">?session=</span> — Sheller ignores it.</li>
+        </ul>
+      </li>
+      <li>
+        <h3>Result</h3>
+        <p>The migration scoreboard: progress for modules still in the plan, then
+        one column per dependency wave.</p>
+        <ul>
+          <li><span class="g-ui">Columns</span> are <span class="g-file">L0</span>,
+          <span class="g-file">L1</span>, … — the same waves as Tree. More than
+          four waves paginate: four columns per page, dashes in the panel header
+          (one dash per page; active is cyan).</li>
+          <li><span class="g-ui">Each card</span> uses the step colour on the full
+          outline. A filled corner badge marks <span class="g-ui">passed</span> (green
+          check), <span class="g-ui">waiting for you</span> (warning, pause bars), or
+          <span class="g-ui">excluded</span> (left out on Tree). Running, queued, or
+          failed modules use a small inline badge instead.</li>
+          <li>Subtitle is parent depends, or <em>excluded — skipped on Tree</em>.
+          Skipped modules stay in their wave with the name struck through.</li>
+          <li>SSE updates cards while this screen is open. With no graph yet,
+          build it on Tree first.</li>
+        </ul>
+      </li>
+    </ol>
+  </section>
 
-    <h3>On failure</h3>
-    <p>The lane runs top to bottom. A block with a flag runs only when
-    <strong>diagnose</strong> raised it, so a small fix and a rewrite are
+  <section class="guide-part" id="cartridge">
+    <h2 class="guide-part-title">2. Cartridge language</h2>
+    <p class="guide-part-lead">A cartridge is a YAML file that says how one
+    module is migrated: which steps run, in what order, what each may touch and
+    what it is told. It is pinned per migration and recorded on every job. The
+    stock one ships with the app as <span class="g-file">cartridges/stock.yaml</span>.
+    The vocabulary is closed: a file picks names from the lists below and never
+    adds to them.</p>
+    <p class="guide-note">A key the loader does not know is ignored, not
+    refused. A misspelt <span class="g-key">contexts:</span> does nothing and
+    raises no error, so after editing a file open it on Flow and check that the
+    step shows what you wrote.</p>
+
+    <h3>The file</h3>
+    <pre class="guide-code"><span class="g-key">cartridge</span>: mine
+<span class="g-key">version</span>: "1.0.0"
+<span class="g-key">schema</span>: 1
+<span class="g-key">model</span>: {provider: anthropic, name: claude-sonnet-5-5}
+<span class="g-key">pipeline</span>:
+  - <span class="g-key">step</span>: <span class="g-step">agent</span>
+    <span class="g-key">id</span>: port
+    <span class="g-key">sessions</span>: [source, target]
+    <span class="g-key">tools</span>: [<span class="g-tool">exec</span>, <span class="g-tool">source</span>, <span class="g-tool">read_file</span>, <span class="g-tool">write_file</span>]
+    <span class="g-key">context</span>: [<span class="g-ctx">rules</span>, <span class="g-ctx">module_source</span>]
+    <span class="g-key">prompt</span>: |
+      Port the module to the target version.
+  - <span class="g-key">step</span>: <span class="g-step">lint</span>
+  - <span class="g-key">step</span>: <span class="g-step">upgrade</span>
+  - <span class="g-key">step</span>: <span class="g-step">tests</span>
+  - <span class="g-key">step</span>: <span class="g-step">verdict</span>
+<span class="g-key">on_failure</span>:
+  <span class="g-key">pipeline</span>: []
+  <span class="g-key">retry</span>:
+    <span class="g-key">resume_at</span>: lint</pre>
+
+    <h3>Top-level keys</h3>
+    <dl class="guide-defs">
+      <dt class="g-key">cartridge</dt>
+      <dd>The flow's id. Identity is this plus <span class="g-key">version</span>.
+      Fork accepts letters, digits and <span class="g-file">. _ + -</span>, 40 at most.</dd>
+      <dt class="g-key">version</dt>
+      <dd>The flow's version. Quote it when it looks like a number: a bare
+      <span class="g-file">1.0</span> is a float, not a string.</dd>
+      <dt class="g-key">schema</dt>
+      <dd>The file format. This build implements <span class="g-file">1</span>; any
+      other is refused.</dd>
+      <dt class="g-key">model</dt>
+      <dd>The model the flow was written for: <span class="g-key">provider</span>
+      (<span class="g-file">anthropic</span>, <span class="g-file">openai</span>,
+      <span class="g-file">cursor</span> or <span class="g-file">local</span>) and
+      <span class="g-key">name</span>. A provider or name the app does not know is
+      refused. See "Which model runs a step" below.</dd>
+      <dt class="g-key">pipeline</dt>
+      <dd>The ordered list of steps of one lap.</dd>
+      <dt class="g-key">on_failure</dt>
+      <dd>What happens when a step fails: <span class="g-key">pipeline</span>, a
+      list of steps (the side lane), and
+      <span class="g-key">retry.resume_at</span>, the id of a pipeline step the lap
+      restarts from after the lane.</dd>
+    </dl>
+
+    <h3>Step keys</h3>
+    <p>A step is one entry of <span class="g-key">pipeline</span> or of
+    <span class="g-key">on_failure.pipeline</span>.</p>
+    <dl class="guide-defs">
+      <dt class="g-key">step</dt>
+      <dd>Required. The kind: one of the step kinds below.</dd>
+      <dt class="g-key">id</dt>
+      <dd>Required on an <span class="g-step">agent</span> step, optional on the
+      others. The step's name on Flow and the key its answer is stored under.
+      Unique across the whole file. A step without one is named by its kind.</dd>
+      <dt class="g-key">when</dt>
+      <dd>A flag name. The step runs only if that flag was raised earlier in the
+      same lap; otherwise it is skipped, and the run log says why.</dd>
+      <dt class="g-key">sessions</dt>
+      <dd><span class="g-step">agent</span> only. <span class="g-file">source</span>,
+      <span class="g-file">target</span> or both: which containers the step may reach.</dd>
+      <dt class="g-key">tools</dt>
+      <dd><span class="g-step">agent</span> only. Names from the tool list below. A
+      tool that none of the step's sessions allows is refused.</dd>
+      <dt class="g-key">context</dt>
+      <dd><span class="g-step">agent</span> only. Names from the context list below,
+      rendered above the prompt in a fixed order whatever order you list them in.</dd>
+      <dt class="g-key">raises</dt>
+      <dd><span class="g-step">agent</span> only. The flags the step may set. They become
+      the fields of its <span class="g-tool">report</span> tool.</dd>
+      <dt class="g-key">prompt</dt>
+      <dd>Required on an <span class="g-step">agent</span> step, forbidden on the
+      others.</dd>
+      <dt class="g-key">model</dt>
+      <dd><span class="g-step">agent</span> only. <span class="g-key">provider</span> and
+      <span class="g-key">name</span> for this step alone. Wins over everything else.</dd>
+      <dt class="g-key">budget</dt>
+      <dd><span class="g-step">agent</span> only. <span class="g-key">tool_calls</span> and
+      <span class="g-key">tokens</span>: ceilings for one run of the step, honoured
+      only when lower than the app's own (60 calls, 400000 tokens).</dd>
+      <dt class="g-key">fresh</dt>
+      <dd>Boolean. The module's directory on the target is emptied before the step
+      runs. Only on an <span class="g-step">agent</span> step whose tools include
+      <span class="g-tool">write_file</span>.</dd>
+    </dl>
+
+    <h3>Step kinds</h3>
+    <p>The value of <span class="g-key">step</span>. Everything but
+    <span class="g-step">agent</span> is the app itself: no model, no prompt, no tools,
+    and only <span class="g-key">step</span>, <span class="g-key">id</span> and
+    <span class="g-key">when</span> as keys.</p>
+    <dl class="guide-defs">
+      <dt class="g-step">agent</dt>
+      <dd>One model turn-loop: the prompt, the tools and the context the step declares.
+      It ends when the model calls <span class="g-tool">report</span>. Raises what its
+      <span class="g-key">raises</span> lists.</dd>
+      <dt class="g-step">lint</dt>
+      <dd>No container. The module's Python parses, its XML parses, its manifest is a
+      dict with <span class="g-file">name</span> and <span class="g-file">depends</span>.
+      Raises <span class="g-flag">lint_failed</span>.</dd>
+      <dt class="g-step">upgrade</dt>
+      <dd>Installs the module on the target container, or upgrades it if it is already
+      installed, then commits. The source container is never committed.</dd>
+      <dt class="g-step">tests</dt>
+      <dd>Runs the module's own Python tests with Odoo's runner, and its browser suite
+      where the source ships one. Raises <span class="g-flag">no_tests</span> when the
+      module declares no Python test classes and
+      <span class="g-flag">tests_failed</span> when a test fails, a characterization test
+      is missing or browser tests did not reach the target. A suite the target cannot run
+      is a finding, never a pass.</dd>
+      <dt class="g-step">clickbot</dt>
+      <dd>Odoo's own clickbot over the module's menus on the target, as admin with debug
+      on, in a test transaction (Sheller 1.12.0 or later, Chromium in the container). A
+      menu the port broke fails the lap; one that fails on the source too, menus it did not
+      reach and a run that could not happen are findings.</dd>
+      <dt class="g-step">smoke</dt>
+      <dd>No model, nothing written. On the target it makes a new record of each model the
+      module declares fields on, evaluates each window action's domain, renders each
+      report, compiles each asset bundle, and lists every button and every action a person
+      runs from the Action menu. A break in the module's own code fails the step, unless
+      the same break shows on the source: then it is a finding. Raises
+      <span class="g-flag">has_buttons</span> when the module puts a button in a view.</dd>
+      <dt class="g-step">verdict</dt>
+      <dd>Judges the lap against the migration's strictness. Reads
+      <span class="g-flag">behaviour_differs</span> and
+      <span class="g-flag">button_broken</span>.</dd>
+      <dt class="g-step">ask_human</dt>
+      <dd>Parks the job and opens a checkpoint. The diagnosis in the last answer is the
+      question. Both sessions close while it waits; you answer on Tree and the same run
+      continues.</dd>
+    </dl>
+
+    <h3>Steps of the stock flow</h3>
+    <p>The names on Flow are the <span class="g-key">id</span> of each step, or its
+    kind when it has none.</p>
+    <h4>Pipeline</h4>
+    <dl class="guide-defs">
+      <dt class="g-step">understand</dt>
+      <dd>Reads the module on the source Odoo through a live session: current behaviour,
+      what it overrides, what will break on the target. Builds the smallest set of records
+      the module needs, proves that recipe works and rolls it back. Raises
+      <span class="g-flag">needs_tests</span> when the module ships no tests.</dd>
+      <dt class="g-step">characterize</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">needs_tests</span>. Writes a
+      characterization test of the source's behaviour, on a branch of its own in the
+      source project. The only write the source side ever gets.</dd>
+      <dt class="g-step">port</dt>
+      <dd>Writes the ported module into the target project. Both sessions stay open, so it
+      can check what the original does. Sees the version rules, the module source, the
+      <span class="g-step">understand</span> answer and any hand changes.</dd>
+      <dt class="g-step">lint</dt>
+      <dd>The <span class="g-step">lint</span> kind.</dd>
+      <dt class="g-step">upgrade</dt>
+      <dd>The <span class="g-step">upgrade</span> kind.</dd>
+      <dt class="g-step">tests</dt>
+      <dd>The <span class="g-step">tests</span> kind.</dd>
+      <dt class="g-step">clickbot</dt>
+      <dd>The <span class="g-step">clickbot</span> kind.</dd>
+      <dt class="g-step">smoke</dt>
+      <dd>The <span class="g-step">smoke</span> kind.</dd>
+      <dt class="g-step">click</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">has_buttons</span>. Presses every
+      button the module puts in a view, on a record it shows on, as a person would, and
+      rolls back. A button that reaches outside the database is not pressed. One that breaks
+      on the new version and works on the old one raises
+      <span class="g-flag">button_broken</span>.</dd>
+      <dt class="g-step">probe</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">no_tests</span>. Replays the
+      <span class="g-step">understand</span> recipe on both versions, calls the same methods
+      and reports every difference. Raises <span class="g-flag">behaviour_differs</span>.</dd>
+      <dt class="g-step">write_test</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">no_tests</span>. Turns that
+      recipe into a real test in the ported module, asserting what the source did, and runs
+      it before it finishes.</dd>
+      <dt class="g-step">retest</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">no_tests</span>. The
+      <span class="g-step">tests</span> kind again, so the test just written is run.</dd>
+      <dt class="g-step">verdict</dt>
+      <dd>The <span class="g-step">verdict</span> kind. At strictness
+      <span class="g-file">strict</span> it also fails when probe left no answer.</dd>
+    </dl>
+    <h4>On failure</h4>
+    <p>The lane runs top to bottom. A step with a flag runs only when
+    <span class="g-step">diagnose</span> raised it, so a small fix and a rewrite are
     alternatives, not a sequence. Then the lap resumes at
-    <span class="mono">lint</span>: understand and port are not repeated.</p>
-    <ul>
-      <li><strong>diagnose</strong> works out why the lap failed, from the log,
-      the journal, the source, and a live session on the target container. It
-      raises the flags that open the blocks under it:
-      <span class="mono">needs_human</span>,
-      <span class="mono">reexamine_source</span>,
-      <span class="mono">small_fix</span>,
-      <span class="mono">start_over</span>.</li>
-      <li><strong>ask_human</strong> <span class="mono">if needs_human</span>
-      parks the job. The question is the diagnosis. Both sessions close while
-      it waits. You answer on Tree, and the same run continues. If the thread
-      that was waiting is gone, the answer is kept and the job becomes
-      <span class="mono">unknown</span>.</li>
-      <li><strong>reprobe</strong> <span class="mono">if reexamine_source</span>
-      goes back to the source version with the question the diagnosis raised.</li>
-      <li><strong>patch</strong> <span class="mono">if small_fix</span> applies
-      that fix on the target side. It has the previous diff and is told to change
-      what is wrong and leave the rest.</li>
-      <li><strong>rewrite</strong> <span class="mono">if start_over</span>
-      writes the module again from the source version. It is not given the
-      previous attempt.</li>
-    </ul>
-    <p>The picture and nothing else. The tool calls a run made are the run
-    log on Runner, which had them already; a second list under the diagram
-    meant reading one job on two screens. Opening a tool-call line there
-    fetches the command's whole record from Sheller's journal, which is what
-    this list used to be the only way to reach.</p>
-  </div>
+    <span class="g-step">lint</span>: understand and port are not repeated.</p>
+    <dl class="guide-defs">
+      <dt class="g-step">diagnose</dt>
+      <dd>Works out why the lap failed, from the log, the journal, the source and a live
+      session on the target. Raises <span class="g-flag">needs_human</span>,
+      <span class="g-flag">reexamine_source</span>, <span class="g-flag">small_fix</span>
+      or <span class="g-flag">start_over</span>.</dd>
+      <dt class="g-step">ask_human</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">needs_human</span>. The
+      <span class="g-step">ask_human</span> kind.</dd>
+      <dt class="g-step">reprobe</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">reexamine_source</span>. Goes
+      back to the source version with the question the diagnosis raised.</dd>
+      <dt class="g-step">patch</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">small_fix</span>. Applies that
+      fix on the target. It has the previous diff and is told to change what is wrong and
+      leave the rest.</dd>
+      <dt class="g-step">rewrite</dt>
+      <dd><span class="g-key">when</span> <span class="g-flag">start_over</span>. Writes the
+      module again from the source version, without the previous attempt.</dd>
+    </dl>
+
+    <h3>Tools</h3>
+    <p>A step declares tool names; the catalog is code and a file can pick from it and
+    never extend it. A tool is valid on a side only if both the tool and the step's
+    <span class="g-key">sessions</span> allow it, and every call carries
+    <span class="g-file">side</span>. <span class="g-tool">report</span> ends the step, is
+    given to every agent step and is not listed in a file.</p>
+    <h4>Sheller: the live Odoo shell</h4>
+    <dl class="guide-defs">
+      <dt class="g-tool">exec</dt>
+      <dd>Run Python in the session's Odoo shell, with <span class="g-file">env</span>
+      bound. Source or target.</dd>
+      <dt class="g-tool">source</dt>
+      <dd>Read code in the container: a file or directory by path, or the code a model
+      method runs by model and method.</dd>
+      <dt class="g-tool">journal</dt>
+      <dd>What Odoo logged in the session.</dd>
+      <dt class="g-tool">history</dt>
+      <dd>The commands the session has run.</dd>
+      <dt class="g-tool">run_test</dt>
+      <dd>Run a module, a test class or one test method; answers with counts and what
+      failed. <span class="g-file">params</span> is Hoot's filter for a browser suite.</dd>
+      <dt class="g-tool">list_tests</dt>
+      <dd>The test classes a module declares on disk, each with a ready spec, and its
+      browser test files.</dd>
+      <dt class="g-tool">click_module</dt>
+      <dd>Odoo's clickbot over the menus of one installed module, as admin with debug on,
+      in a test transaction. Always the whole module, up to 15 minutes.</dd>
+      <dt class="g-tool">interrupt</dt>
+      <dd>Stop the command the session is running.</dd>
+      <dt class="g-tool">rollback</dt>
+      <dd>Discard what the session holds uncommitted.</dd>
+    </dl>
+    <h4>Held by the app</h4>
+    <dl class="guide-defs">
+      <dt class="g-tool">test_result</dt>
+      <dd>The report of the last <span class="g-tool">run_test</span>. Target only.</dd>
+      <dt class="g-tool">reopen</dt>
+      <dd>Close the session and open a fresh one. Needed after a file changes, because the
+      running process does not re-import it.</dd>
+    </dl>
+    <h4>Files on the host disk</h4>
+    <p>Always inside the configured project roots; a path that escapes them is refused,
+    not clamped.</p>
+    <dl class="guide-defs">
+      <dt class="g-tool">read_file</dt>
+      <dd>Read a file of the project, by container path or relative to the project root.
+      Source or target.</dd>
+      <dt class="g-tool">write_file</dt>
+      <dd>Write a file in the module's directory on the target. Target only.</dd>
+      <dt class="g-tool">write_source_test</dt>
+      <dd>Create a file under <span class="g-file">tests/</span> of the module on the
+      source, only for a module that had no test when the step began, on a branch of its
+      own. Source only.</dd>
+    </dl>
+
+    <h3>Context items</h3>
+    <p>What is rendered above a step's prompt, each under a heading with its name. You pick
+    from this list and never write an expression. Every agent step also gets the standing
+    prompt, the shell notes from the daemon and a "This run" block; none of that is set in
+    the file.</p>
+    <dl class="guide-defs">
+      <dt class="g-ctx">rules</dt>
+      <dd>The rules stack for this migration: the shared rules, then one file per version
+      from the source's next to the target's. They describe what the target changes.</dd>
+      <dt class="g-ctx">project_notes</dt>
+      <dd><span class="g-file">AGENTS.md</span>, <span class="g-file">CLAUDE.md</span> and
+      READMEs of the source project, of each addons directory of the plan and of the
+      module itself; clipped.</dd>
+      <dt class="g-ctx">module_source</dt>
+      <dd>The module's text files as they are on the source, code first; clipped.</dd>
+      <dt class="g-ctx">prior_answers</dt>
+      <dd>The answers earlier agent steps of this job gave, by step id.</dd>
+      <dt class="g-ctx">previous_diff</dt>
+      <dd>The module now, against the module as the job found it.</dd>
+      <dt class="g-ctx">hand_changes</dt>
+      <dd>What a person committed in the module's directory on the target since the app's
+      last commit there.</dd>
+      <dt class="g-ctx">last_failure</dt>
+      <dd>The output of the step that failed: test report, traceback, lint findings.</dd>
+      <dt class="g-ctx">test_guide</dt>
+      <dd>What to pin, what to assert on, how to write and name a test.</dd>
+      <dt class="g-ctx">buttons</dt>
+      <dd>The buttons <span class="g-step">smoke</span> found in the module's views, one line
+      each: model, method or action, label, when it is hidden, its confirmation, the view.</dd>
+    </dl>
+
+    <h3>Flags</h3>
+    <p>A flag is a name one step raises and another step's <span class="g-key">when</span>
+    reads. Nothing is parsed out of prose: an agent step raises a flag by setting it in
+    <span class="g-tool">report</span>. Flags are collected per lap and start empty on each.
+    <span class="g-flag">small_fix</span> and <span class="g-flag">start_over</span> cannot be
+    raised in one report: they ask for different repairs.</p>
+    <dl class="guide-defs">
+      <dt class="g-flag">no_tests</dt>
+      <dd>Raised by <span class="g-step">tests</span>: the module declares no Python test
+      classes. Browser tests do not count.</dd>
+      <dt class="g-flag">tests_failed</dt>
+      <dd>Raised by <span class="g-step">tests</span> (and by
+      <span class="g-step">clickbot</span> for a menu the port broke).</dd>
+      <dt class="g-flag">lint_failed</dt>
+      <dd>Raised by <span class="g-step">lint</span>.</dd>
+      <dt class="g-flag">has_buttons</dt>
+      <dd>Raised by <span class="g-step">smoke</span>: the module puts a button in a view or
+      defines an action a person runs.</dd>
+      <dt class="g-flag">behaviour_differs</dt>
+      <dd>Read by <span class="g-step">verdict</span>: the lap fails at every strictness. An
+      agent step raises it (<span class="g-step">probe</span> does).</dd>
+      <dt class="g-flag">button_broken</dt>
+      <dd>Read by <span class="g-step">verdict</span>: the lap fails at every strictness.
+      <span class="g-step">click</span> raises it.</dd>
+      <dt class="g-flag">needs_tests</dt>
+      <dd>Declared by the stock flow. <span class="g-step">understand</span> raises it,
+      <span class="g-step">characterize</span> reads it.</dd>
+      <dt class="g-flag">needs_human</dt>
+      <dd>Declared by the stock flow. <span class="g-step">diagnose</span> raises it,
+      <span class="g-step">ask_human</span> reads it. A lane step that lists it and raises
+      none of its flags has decided nothing: the app raises it for the step.</dd>
+      <dt class="g-flag">reexamine_source</dt>
+      <dd>Declared by the stock flow. <span class="g-step">diagnose</span> raises it,
+      <span class="g-step">reprobe</span> reads it.</dd>
+      <dt class="g-flag">small_fix</dt>
+      <dd>Declared by the stock flow. <span class="g-step">diagnose</span> raises it,
+      <span class="g-step">patch</span> reads it.</dd>
+      <dt class="g-flag">start_over</dt>
+      <dd>Declared by the stock flow. <span class="g-step">diagnose</span> raises it,
+      <span class="g-step">rewrite</span> reads it.</dd>
+    </dl>
+
+    <h3>Which model runs a step</h3>
+    <p>The first that applies: the step's own <span class="g-key">model</span>; the migration
+    card's provider and model pair; the card's model alone, under the cartridge's provider;
+    the cartridge's <span class="g-key">model</span>. Prompts are tuned against a model, so
+    the file names the one it was written for, and a card can still replace it.</p>
+
+    <h3>The lap</h3>
+    <ol class="guide-lap">
+      <li>The steps of <span class="g-key">pipeline</span> run in order. A step whose
+      <span class="g-key">when</span> flag is not in the lap's flags is skipped.</li>
+      <li>A step that fails runs the lane: each step of
+      <span class="g-key">on_failure.pipeline</span> in order, with its
+      <span class="g-key">when</span>.</li>
+      <li>The lap restarts from the earlier of <span class="g-key">resume_at</span> and the
+      step that failed, with the flags cleared. The retry limit on the migration card bounds
+      the laps, and a retry that would repeat the failure it just had stops.</li>
+    </ol>
+  </section>
 </section>
 {% endblock %}

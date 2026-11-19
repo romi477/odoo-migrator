@@ -821,25 +821,13 @@ pre,
   color: var(--cyan);
 }
 
-.guide-steps,
-.guide-flow {
-  margin: 4px 0 0;
-  padding-left: 1.5rem;
-  max-width: 42rem;
-}
-
-.guide-flow {
-  padding-left: 0;
-  margin-top: 8px;
-}
-
-/* One reading column in the middle of the screen. It hugged the left edge
-   with the rest of a wide screen empty. The lines stay left-aligned inside
-   it: centred prose with lists in it is hard to read. */
+/* The guide is one reading column in the middle of the screen. It hugged the
+   left edge with the rest of a wide screen empty. The lines stay left-aligned
+   inside it: centred prose with lists in it is hard to read. */
 .screen-guide > .screen-head,
-.screen-guide > .guide-steps,
-.screen-guide > .guide-flow {
-  max-width: 42rem;
+.screen-guide > .guide-legend,
+.screen-guide > .guide-part {
+  max-width: 44rem;
   margin-left: auto;
   margin-right: auto;
 }
@@ -850,45 +838,167 @@ pre,
   text-align: center;
 }
 
-.guide-steps > li {
-  margin: 0 0 22px;
-  padding-left: 0.35rem;
+.screen-guide a {
+  color: var(--cyan);
 }
 
-.guide-steps > li > h2,
-.guide-flow > h2 {
+/* Prose is muted, headings are bright, and a name is coloured by what it is.
+   White on every line made the commands the same as the words around them. */
+.screen-guide li,
+.screen-guide dd {
+  color: var(--muted);
+}
+
+.guide-part {
+  margin-top: 28px;
+  padding-top: 4px;
+  scroll-margin-top: 16px;
+}
+
+.guide-part-title {
   margin: 0 0 4px;
+  padding-bottom: 6px;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--amber);
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-part-lead {
+  margin: 8px 0 14px;
+}
+
+.guide-part h3 {
+  margin: 22px 0 6px;
   font-size: 15px;
   font-weight: 650;
   color: var(--text);
 }
 
-.guide-flow > h3 {
+.guide-part h4 {
   margin: 16px 0 4px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
-  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-low);
 }
 
-.guide-steps p,
-.guide-flow p {
-  margin: 0;
+.guide-part p {
+  margin: 0 0 8px;
 }
 
-.guide-flow p + p,
-.guide-flow h3 + p {
-  margin-top: 8px;
+.guide-note {
+  padding: 8px 12px;
+  border-left: 2px solid var(--amber);
+  background: var(--panel);
+  border-radius: 0 var(--chrome-radius-inner) var(--chrome-radius-inner) 0;
+}
+
+.guide-steps {
+  margin: 4px 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.guide-steps > li {
+  margin: 0 0 18px;
+}
+
+.guide-steps h3 {
+  margin-top: 0;
 }
 
 .guide-steps ul,
-.guide-flow ul {
+.guide-lap {
   margin: 8px 0 0;
   padding-left: 1.15rem;
 }
 
 .guide-steps ul li,
-.guide-flow ul li {
-  margin: 3px 0;
+.guide-lap li {
+  margin: 4px 0;
+}
+
+.guide-defs {
+  margin: 8px 0 0;
+}
+
+.guide-defs dt {
+  margin: 12px 0 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.guide-defs dd {
+  margin: 2px 0 0 1rem;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.guide-code {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--chrome-radius-inner);
+}
+
+/* One colour per kind of word. Used on a name wherever it appears, in prose
+   or as a term, so the same word is the same colour on the whole page. */
+.g-ui,
+.g-step,
+.g-tool,
+.g-key,
+.g-flag,
+.g-ctx,
+.g-file {
+  font-family: var(--mono);
+  font-size: 0.93em;
+}
+
+.g-ui {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+.g-step {
+  color: var(--cyan);
+}
+
+.g-tool {
+  color: var(--green);
+}
+
+.g-key {
+  color: var(--step-5-edge);
+}
+
+.g-flag {
+  color: var(--step-4-edge);
+}
+
+.g-ctx {
+  color: var(--step-7-edge);
+}
+
+.g-file {
+  color: var(--text);
+}
+
+.guide-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 4px;
+  margin-bottom: 0;
 }
 
 .nav-divider {
