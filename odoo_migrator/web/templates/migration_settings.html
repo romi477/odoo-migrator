@@ -124,6 +124,7 @@
           <input type="text" name="{{ 'old_database' if side == 'source' else 'new_database' }}"
                  value="{{ expanded.old_database if side == 'source' else expanded.new_database }}"
                  form="settings-{{ expanded.id }}"
+                 aria-label="{{ side | capitalize }} database of {{ expanded.name }}"
                  placeholder="from the container's odoo.conf" autocomplete="off">
         </label>
         <p class="field-hint">Blank uses the database this container's own

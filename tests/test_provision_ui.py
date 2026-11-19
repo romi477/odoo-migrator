@@ -350,3 +350,19 @@ def test_a_compose_command_that_hangs_is_given_up_on(monkeypatch, tmp_path):
 
     with pytest.raises(ComposeFailed, match="did not finish"):
         _run_compose(tmp_path, tmp_path / "compose.yaml", ["restart"])
+
+
+def test_the_two_database_fields_are_named_for_their_side(client, tmp_path):
+    """Both said just "Database": a screen reader could not tell the source's
+    from the target's."""
+    old, new = tmp_path / "old", tmp_path / "new"
+    old.mkdir()
+    new.mkdir()
+    _compose(old, 8069)
+    _compose(new, 8070)
+    _, row = _open_migration(client, old=old, new=new)
+
+    page = client.get(f"/?settings={row.id}").text
+
+    assert 'aria-label="Source database of Acme"' in page
+    assert 'aria-label="Target database of Acme"' in page
