@@ -1504,13 +1504,7 @@ form:has(> label textarea) > .primary {
   min-width: 0;
 }
 
-.stack-form input {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 8px;
-  background: var(--panel-raised);
-}
-
+.stack-form input,
 /* Picking a file and importing it are one act, so they share one outline
    and the title sits in a break of it. */
 .stack-form .import-flow {
