@@ -103,6 +103,31 @@ def test_a_clean_target_gets_its_module_written_from_nothing(ctx, tmp_path):
             _write_file(ctx, "target", given, "")
 
 
+def test_a_clean_target_takes_a_relative_write_and_reads_it_back(ctx, tmp_path):
+    """The relative path goes by `_inside_project`, not the mounts. What the
+    model wrote a moment ago is readable before any manifest exists."""
+    shutil.rmtree(tmp_path / "new-src" / "sale_x")
+
+    _write_file(ctx, "target", "sale_x/models/sale.py", "NEW = 1\n")
+
+    assert _read_file(ctx, "target", "sale_x/models/sale.py") == "NEW = 1\n"
+    assert _read_file(ctx, "target", "/opt/project/sale_x/models/sale.py") == "NEW = 1\n"
+    with pytest.raises(ToolRefused, match="addon"):
+        _read_file(ctx, "target", "/opt/project/.env")
+
+
+def test_the_modules_own_directory_is_not_a_file_to_write(ctx, tmp_path):
+    """A path equal to the module's directory used to pass as inside itself,
+    and `write_text` made a plain file there that every later write tripped on."""
+    shutil.rmtree(tmp_path / "new-src" / "sale_x")
+
+    for given in ("/opt/project/sale_x", "sale_x", "/opt/project/sale_x/"):
+        with pytest.raises(ToolRefused):
+            _write_file(ctx, "target", given, "x\n")
+
+    assert not (tmp_path / "new-src" / "sale_x").exists()
+
+
 def test_a_relative_path_keeps_working(ctx):
     assert _read_file(ctx, "source", "sale_x/models/sale.py") == "OLD = 1\n"
 

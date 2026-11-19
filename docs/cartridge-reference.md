@@ -111,8 +111,8 @@ listed here.
 | `interrupt` | source, target | `side*` | stop the command the session is running. Sheller |
 | `rollback` | source, target | `side*` | discard what the session holds uncommitted. Sheller |
 | `reopen` | source, target | `side*` | close the session and open a fresh one; needed after a file changes, because the running process does not re-import it |
-| `read_file` | source, target | `side*`, `path*`, `first`, `last` | read a file of the project on the host disk, by container path or relative to the project root; once the mounts are known, only inside an addon of a mount that carries a plan module. Not Sheller |
-| `write_file` | target | `side*`, `path*`, `content*` | write a file in the module's directory on the target. Not Sheller |
+| `read_file` | source, target | `side*`, `path*`, `first`, `last` | read a file of the project on the host disk, by container path or relative to the project root; once the mounts are known, only inside an addon of a mount that carries a plan module (on the target, the module's own directory counts before its manifest exists). Not Sheller |
+| `write_file` | target | `side*`, `path*`, `content*` | write a file in the module's directory on the target; a clean target gets the directory made, the directory itself is refused. Not Sheller |
 | `write_source_test` | source | `side*`, `path*`, `content*` | create a file under `tests/` of the module on the source, for a module that had no tests; see below. Not Sheller |
 
 `read_file`, `write_file` and `write_source_test` touch the host disk, inside

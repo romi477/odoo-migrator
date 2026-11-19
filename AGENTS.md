@@ -177,7 +177,10 @@ host.
   project roots. Once a side's mounts are known, a path of either kind,
   container or relative, must also land inside a mount that carries a plan
   module and inside an addon there: `.env`, `odoo.conf` and `.git/` at the
-  project root are refused. A path that escapes is refused, not clamped.
+  project root are refused. On the target, the module's own directory counts
+  as an addon before its manifest is written (the target starts empty), and a
+  write is held to that directory; the directory itself is no file. A path
+  that escapes is refused, not clamped.
 - Provider secrets are `ProviderSetting` rows. The settings page reports
   whether one is set and shows its last six characters, never the rest. A blank save keeps the
   stored value. Do not print a key: this tool gets demonstrated on a
