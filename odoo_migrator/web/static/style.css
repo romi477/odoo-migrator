@@ -1828,6 +1828,21 @@ h2 {
   background: var(--panel-raised);
 }
 
+/* A block of a card's settings shows its edge in cyan under the pointer, so
+   it is plain which block a field belongs to: a side, the common settings or
+   the import. A thin line, the same width as the one it replaces. */
+.card-settings .container-side,
+.card-settings .settings-common > form.card,
+.card-settings .settings-common .import-flow {
+  transition: border-color 0.12s ease;
+}
+
+.card-settings .container-side:hover,
+.card-settings .settings-common > form.card:hover,
+.card-settings .settings-common .import-flow:hover {
+  border-color: var(--cyan);
+}
+
 /* What is common to both sides, under them, in one reading column. */
 .settings-common {
   display: grid;
