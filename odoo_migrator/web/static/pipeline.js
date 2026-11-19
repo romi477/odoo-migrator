@@ -487,10 +487,8 @@
     }
     if (clearBtn) {
       const pending = (data.steps && data.steps.length) || data.modules.length;
-      clearBtn.disabled = !data.idle || !pending || !!data.review;
-      clearBtn.title = data.review
-        ? "The last batch waits for review: Continue, or Discard its run, on the module's card, then Clear."
-        : "";
+      clearBtn.disabled = !!data.clear_refusal || !pending;
+      clearBtn.title = data.clear_refusal || "";
     }
     const meta = panel.querySelector("[data-pipeline-queue-meta]");
     if (meta) {

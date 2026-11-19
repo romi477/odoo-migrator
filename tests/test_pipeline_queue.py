@@ -237,9 +237,57 @@ def test_clear_drops_the_queue_when_nothing_is_running(client):
         )
 
 
-def test_clear_waits_for_the_review_of_a_batch(client):
-    """A module a run left waiting on a person is answered first, Continue or
-    Discard; Clear is not the way out of it."""
+def _failed_run_in_review(client):
+    """A module played on its own that failed, its batch closed to review: the
+    module is still on a card of the queue, and Continue and Discard are there."""
+    from odoo_migrator.jobs import close_batch
+    from odoo_migrator.models import Batch, Job
+    from odoo_migrator.pipeline_queue import after_batch_checkpoint
+
+    row = _queue_both_steps(client)
+    _hold(client)
+    first = queue_snapshot(row.id)["modules"][0]
+    _play(client, first["id"])
+    with database.connection_context():
+        job = Job.select().order_by(Job.id.desc()).get()
+        job.status = "failed"
+        job.save()
+        batch = Batch.get_by_id(job.batch_id)
+    close_batch(batch.id)
+    after_batch_checkpoint(row.id, batch.id, client.app.state.executor, client.app.state.hub)
+
+    return row
+
+
+def _queued(migration_id):
+    with database.connection_context():
+        return PipelineQueueItem.select().where(PipelineQueueItem.migration == migration_id).count()
+
+
+def test_clear_waits_for_a_review_on_a_card(client):
+    """The module a run left on a person is answered first, Continue or
+    Discard on its card. Clear is not the way out of it: the page, the live
+    update and the refusal say the same sentence."""
+    row = _failed_run_in_review(client)
+    snapshot = queue_snapshot(row.id)
+
+    assert any(module["review"] for module in snapshot["modules"])
+    assert "waits for review" in snapshot["clear_refusal"]
+    page = client.get("/run").text
+    clear_button = page.split('action="/run/queue/clear"', 1)[1].split("</button>", 1)[0]
+    assert "disabled" in clear_button
+    assert snapshot["clear_refusal"] in clear_button
+    before = _queued(row.id)
+
+    refused = client.post("/run/queue/clear", follow_redirects=True)
+
+    assert snapshot["clear_refusal"] in refused.text
+    assert _queued(row.id) == before
+
+
+def test_clear_is_not_held_by_a_review_with_no_card(client):
+    """A batch from Tree waits for review below the rows, and the queue holds
+    other steps. Nothing on a card is lost, so Clear goes ahead."""
     from odoo_migrator.models import Batch
 
     row, _sale = _prepared(client)
@@ -247,26 +295,30 @@ def test_clear_waits_for_the_review_of_a_batch(client):
     with database.connection_context():
         Batch.create(migration=row.id, status="checkpoint")
 
-    page = client.post("/run/queue/clear", follow_redirects=True)
-
-    assert "waits for review" in page.text
-    assert 'aria-label="Clear the pipeline queue"' in page.text
-    clear_button = page.text.split('action="/run/queue/clear"', 1)[1].split("</button>", 1)[0]
-    assert "disabled" in clear_button
-    with database.connection_context():
-        assert (
-            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
-            == 1
-        )
-
-    with database.connection_context():
-        Batch.update(status="done").where(Batch.migration == row.id).execute()
+    assert queue_snapshot(row.id)["clear_refusal"] == ""
     client.post("/run/queue/clear", follow_redirects=True)
-    with database.connection_context():
-        assert (
-            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
-            == 0
-        )
+
+    assert _queued(row.id) == 0
+
+
+def test_clear_names_the_real_reason_when_a_run_and_a_review_meet(client):
+    """A pipe that runs refuses for that, whatever else is open."""
+    from odoo_migrator.pipeline_queue import set_run_state
+
+    row = _failed_run_in_review(client)
+    set_run_state(row.id, "running")
+
+    refused = client.post("/run/queue/clear", follow_redirects=True)
+
+    assert "still working" in refused.text
+    assert "waits for review" not in refused.text.split('class="form-error"', 1)[1].split("</p>", 1)[0]
+
+
+def test_the_live_update_takes_clear_off_the_one_sentence(client):
+    script = client.get("/static/pipeline.js").text
+
+    assert "clearBtn.disabled = !!data.clear_refusal" in script
+    assert "clearBtn.title = data.clear_refusal" in script
 
 
 def test_clear_refuses_while_the_pipe_is_running(client):

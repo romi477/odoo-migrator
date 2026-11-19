@@ -363,6 +363,9 @@ def queue_snapshot(migration_id: str) -> dict:
         # or Discard on the card of the module whose run it is.
         "review": review is not None,
         "review_unread": unread,
+        "clear_refusal": clear_refusal(
+            state, live, any(module["review"] for module in modules)
+        ),
     }
 
 
@@ -656,19 +659,14 @@ def _batch_block_reason(migration_id: str) -> str | None:
     if _batch_running(migration_id):
 
         return "A batch is already running on this migration."
-    with database.connection_context():
-        if (
-            Batch.select()
-            .where((Batch.migration == migration_id) & (Batch.status == "checkpoint"))
-            .exists()
-        ):
+    if _review_waiting(migration_id):
 
-            return "Review the last batch before starting another."
+        return "Review the last batch before starting another."
 
     return None
 
 
-def review_waiting(migration_id: str) -> bool:
+def _review_waiting(migration_id: str) -> bool:
     with database.connection_context():
 
         return (
@@ -749,19 +747,44 @@ def stop(migration_id: str, hub: EventHub) -> None:
     publish_queue(hub, migration_id)
 
 
-def clear(migration_id: str, hub: EventHub) -> bool:
-    """Drop every queued step when nothing is in flight and nothing waits.
+def clear_refusal(state: str, live, carded: bool) -> str:
+    """Why Clear is off, or "" when it may run. One sentence for the page, the
+    live update and the refusal, so the three cannot say different things.
 
-    A running pipe, or a module still finishing after Stop, keeps the list.
-    So does a batch waiting for review: its module is in a state a person has
-    not answered yet, and Continue or Discard comes before the list goes.
+    A module a run left on a person has Continue and Discard on its card, and
+    they come before the list goes. A review with no card in the queue (a run
+    from Tree, or modules that left it) holds nothing there to lose.
     """
-    if run_state(migration_id) == "running" or live_run(migration_id) is not None:
+    if state == "running" or live is not None:
 
-        return False
-    if review_waiting(migration_id):
+        return "The queue is still working. Stop it and wait for the current module."
+    if carded:
 
-        return False
+        return (
+            "A module of the last batch waits for review: Continue, or Discard "
+            "its run, on its card, then Clear."
+        )
+
+    return ""
+
+
+def clear(migration_id: str, hub: EventHub) -> str:
+    """Drop every queued step when nothing is in flight and no card waits.
+
+    Returns the reason it did not, or "". A running pipe, or a module still
+    finishing after Stop, keeps the list; so does a card with an open review.
+    """
+    with database.connection_context():
+        queued = {module["id"] for module in _pending_modules_sorted(migration_id)}
+    review, _unread = _open_review(migration_id, queued)
+    reason = clear_refusal(
+        run_state(migration_id),
+        live_run(migration_id),
+        any(review.values()) if review else False,
+    )
+    if reason:
+
+        return reason
     with database.connection_context():
         PipelineQueueItem.delete().where(
             PipelineQueueItem.migration == migration_id
@@ -771,7 +794,7 @@ def clear(migration_id: str, hub: EventHub) -> bool:
         ).execute()
     publish_queue(hub, migration_id)
 
-    return True
+    return ""
 
 
 def should_advance_modules(migration_id: str) -> bool:

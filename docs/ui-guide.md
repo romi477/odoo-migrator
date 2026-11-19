@@ -292,7 +292,7 @@ Only the end can be taken back, so a card a later one may wait on stays, and
 the module that is running stays too. A step missing a card does not count
 as queued for the steps after it; pressing its chip again brings the card
 back, and **Clear** forgets what was taken off. **Clear** empties the list when the pipe is
-stopped, no module is still running and no batch waits for review (Continue or Discard comes first). Passed
+stopped, no module is still running and no card of the queue waits for review (Continue or Discard comes first). Passed
 modules drop off the list and show on **Result**. The live panel below is the step and attempt the run is in, and a ribbon of the
 cartridge's steps, framed by the module's old version on the left and its new one on the right, with an arrow into the first step and out of the last (amber while a module runs), each with how it went in the attempt on screen: done,
 failed, running, not yet run, or — dashed green — passed in an earlier
