@@ -1094,6 +1094,99 @@ tools offered: exec, read_file, report, source</pre>
   </section>
 
   <section class="guide-row">
+    <h2>Settings blocks</h2>
+    <p>On an open migration card each side owns one setting, its database, in
+    its own card (<span class="mono">.side-database</span>). What is common to
+    both sides sits under them in <span class="mono">.settings-common</span>:
+    a title, the numbered form, and Import a flow. Each block shows its edge in
+    cyan under the pointer: point at one.</p>
+    <div class="card-settings">
+      <div class="migration-settings-cols">
+        <div class="migration-settings-col">
+          <div class="card container-side">
+            <div class="side-head">
+              <h3>source</h3>
+              <span class="badge running">running</span>
+              <span class="mono side-container">mig17</span>
+            </div>
+            <p class="mono side-path">/opt/projects/sandbox/17</p>
+            <label class="side-database">Database
+              <input type="text" value="" placeholder="from the container's odoo.conf"
+                     aria-label="Source database of Acme" autocomplete="off">
+            </label>
+            <p class="field-hint">Blank uses the database this container's own
+            <code>odoo.conf</code> names.</p>
+          </div>
+        </div>
+        <div class="migration-settings-col">
+          <div class="card container-side">
+            <div class="side-head">
+              <h3>target</h3>
+              <span class="badge stopped">stopped</span>
+            </div>
+            <p class="mono side-path">/opt/projects/sandbox/18</p>
+            <label class="side-database">Database
+              <input type="text" value="acme_18" aria-label="Target database of Acme" autocomplete="off">
+            </label>
+          </div>
+        </div>
+      </div>
+      <section class="settings-common">
+        <h3 class="settings-common-title">Common</h3>
+        <form class="card stack-form">
+          <ol class="settings-fields">
+            <li>
+              <label>Retry limit
+                <input class="mono" type="number" value="5">
+              </label>
+              <p class="field-hint">How many times one module is retried before the
+              batch stops on it.</p>
+            </li>
+          </ol>
+          <button type="button" class="primary settings-save">Save</button>
+        </form>
+        <form class="stack-form">
+          <fieldset class="import-flow">
+            <legend>Import a flow</legend>
+            <input type="file" aria-label="Flow file">
+            <button type="button" class="primary settings-save">Import</button>
+          </fieldset>
+        </form>
+      </section>
+    </div>
+  </section>
+
+  <section class="guide-row">
+    <h2>Guide parts</h2>
+    <p>The Guide page is two parts. A part has a centred cyan title on a
+    hairline (<span class="mono">.guide-part-title</span>), a lead line, a note
+    (<span class="mono">.guide-note</span>), a code sample
+    (<span class="mono">.guide-code</span>) and terms with their meaning
+    (<span class="mono">.guide-defs</span>). A name is coloured by what it is:
+    <span class="mono">.g-ui</span>, <span class="mono">.g-step</span>,
+    <span class="mono">.g-tool</span>, <span class="mono">.g-key</span>,
+    <span class="mono">.g-flag</span>, <span class="mono">.g-ctx</span>,
+    <span class="mono">.g-file</span>.</p>
+    <div class="screen-guide">
+      <section class="guide-part">
+        <h2 class="guide-part-title">Cartridge Language</h2>
+        <p class="guide-part-lead">A cartridge is a YAML file that says how one
+        module is migrated.</p>
+        <p class="guide-note">A key the loader does not know is ignored, not
+        refused.</p>
+        <pre class="guide-code"><span class="g-key">step</span>: <span class="g-step">agent</span>
+<span class="g-key">tools</span>: [<span class="g-tool">exec</span>]
+<span class="g-key">context</span>: [<span class="g-ctx">rules</span>]</pre>
+        <dl class="guide-defs">
+          <dt class="g-step">lint</dt>
+          <dd>No container. Raises <span class="g-flag">lint_failed</span>. Press
+          <span class="g-ui">Build graph</span> on <span class="g-file">Tree</span>.</dd>
+        </dl>
+      </section>
+    </div>
+  </section>
+
+  <section class="guide-row">
     <h2>Migration row, settings open</h2>
     <p>A migration row is collapsed until you click it; the chevron says
     so. Name, status and the version pair are one line, and the accent is
