@@ -340,6 +340,10 @@ def reconcile_jobs() -> None:
         if parked:
             running = running & Batch.id.not_in(parked)
         Batch.update(status="unknown").where(running).execute()
+        # The smoke-run is gone, and a database made while it existed still
+        # holds batches it started. Nothing ends them now: they would stay
+        # `smoke` for good.
+        Batch.update(status="unknown").where(Batch.status == "smoke").execute()
     # A queue is driven by the end of its batch, and no batch is left to end.
     # One with a parked job stays: the person still owes it an answer.
     from odoo_migrator.pipeline_queue import release_idle_queues

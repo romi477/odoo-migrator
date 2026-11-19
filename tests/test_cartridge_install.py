@@ -214,3 +214,18 @@ def test_the_card_has_no_smoke_run_and_a_batch_needs_none(client, migration):
     assert "/smoke" not in card
     assert "Smoke-run" not in card
     assert client.post(f"/migrations/{migration['id']}/smoke").status_code in (404, 405)
+
+
+def test_a_restart_closes_the_batches_a_smoke_run_left_behind(client, migration):
+    """The smoke-run is gone. A database made while it existed still holds its
+    `smoke` batches, and nothing ends them any more."""
+    from odoo_migrator.jobs import reconcile_jobs
+    from odoo_migrator.models import Batch
+
+    with database.connection_context():
+        batch = Batch.create(migration=migration["id"], status="smoke")
+
+    reconcile_jobs()
+
+    with database.connection_context():
+        assert Batch.get_by_id(batch.id).status == "unknown"
