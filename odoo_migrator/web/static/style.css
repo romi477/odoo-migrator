@@ -859,13 +859,15 @@ pre,
 }
 
 .guide-part-title {
-  margin: 0 0 20px;
+  margin: 0;
   padding-bottom: 8px;
   text-align: center;
   font-size: 18px;
   font-weight: 650;
   color: var(--cyan);
-  border-bottom: 1px solid var(--cyan);
+  /* Half a pixel: a hairline on a dense screen, the thinnest line there is.
+     A plain 1px read as a bar next to 14px text. */
+  border-bottom: 0.5px solid color-mix(in oklch, var(--cyan) 70%, transparent);
 }
 
 .guide-part-lead {
