@@ -444,7 +444,7 @@ Shared by every migration.
 | Field | What it is |
 |---|---|
 | Sheller base URL | This process's client and the observer iframe. |
-| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor, OpenAI). A saved key shows as dots and its last six characters (all dots when it is shorter than 16), never as the key. The bin at the end of the field removes it. |
+| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor, OpenAI). A saved key shows as dots and its last six characters (all dots when it is shorter than 16), never as the key. The bin at the end of the field removes it. A field that still shows its mask with more typed after it is refused as a whole, with a message; clear the field and paste the whole key. |
 
 ### This migration
 
@@ -473,11 +473,23 @@ A compose command that does not finish in an hour is stopped and said. Every act
 name and the side as its accessible name, read out in full and shown on
 hover.
 
+Each side's card ends with its **Database**: blank uses the database that
+container's own `odoo.conf` names. One Postgres often holds dozens, and a
+config without `db_name` is ordinary; then this is the only way to say which
+one. A name that is not there is refused when the run starts, and the refusal
+lists what the container does have. The field belongs to the common form below
+(it is saved with it) and is named for its side and migration, "Source
+database of …".
+
+Under both sides is **Common**: what is not about one container. It is
+numbered, one setting per row. Each block (a side, Common, Import a flow)
+shows its edge in cyan under the pointer, so it is plain what a field belongs
+to.
+
 | Field | What it is |
 |---|---|
 | Provider / Model | The flow file names a default. The card shows it and can replace it; the model list is the models of the selected provider. The saved pair is always listed, also while the local model server is off and lists nothing. The job records the pair that was on the card. A step that names its own model still wins. |
 | Flow | The pinned cartridge, `id@version`. Recorded on every job. Import replaces the pin. The eye after the field opens the flow file in a dialog over the page: an outline of its keys and steps on the left, the text on the right, read-only. Clicking a node highlights the lines it covers; Escape, the × or a press outside closes it. The eye follows the select, so it opens the flow about to be saved. **Fork** at the right of the dialog's head (the hash sits by the title; **Save fork** and **Cancel** take Fork's place once a fork is open) copies the flow into an editable text with the next free version (`1.0.0` → `1.0.1`); the Flow and Version fields above it edit the first lines of that text, and the other way round. **Save fork** stores the copy as a new flow and reloads the page, and the new flow is in the select, not picked. A name that is taken is refused with the next free version in the message, so the flow the copy came from, `stock` included, is never overwritten. Cancel, Escape and × ask before dropping typed text. The select always lists the flow that ships with the app. |
-| Source / Target database | Blank uses the database each container's own `odoo.conf` names. One Postgres often holds dozens, and a config without `db_name` is ordinary; then this is the only way to say which one. A name that is not there is refused when the run starts, and the refusal lists what the container does have. |
 | Strictness | Read by the verdict step, and only for an `ERROR` or `CRITICAL` line in Odoo's log during upgrade and tests. At `basic` the module passes and the lines are a finding that stops the queue at the batch checkpoint; at `enhanced` the lap fails and goes to the failure lane. A failed test, `behaviour_differs` and `button_broken` fail the lap at both. |
 | Ask-human mode | Applies only when diagnosis raises `needs_human`; other failures are retried without asking. `sync` parks the job until you answer. `batch_defer` records the question as an assumption and continues without asking; the module carries an `assumptions` mark and the queue stops at the batch checkpoint for you to read it. |
 | Retry limit | How many laps the failure lane may take. Not a cap inside one model call. |
