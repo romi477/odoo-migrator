@@ -3567,6 +3567,13 @@ button.queue-play:disabled {
   margin: 0;
 }
 
+/* Continue closes the batch: under the rows, in the middle. */
+.checkpoint-continue {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 0;
+}
+
 .checkpoint .screen-note {
   margin: 0;
   text-align: center;

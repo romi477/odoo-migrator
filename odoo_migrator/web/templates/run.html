@@ -503,14 +503,6 @@
   <div class="checkpoint">
     <p class="screen-note">Review this batch before the next one. Flow
     <span class="mono">{{ checkpoint.cartridge_id }} {{ checkpoint.cartridge_version }}</span>.</p>
-    {% if not carded %}
-    <div class="row">
-      <form method="post" action="/run/continue">
-        <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
-                aria-label="Continue {{ current.name }}">Continue</button>
-      </form>
-    </div>
-    {% endif %}
     {# Continue anyway acts on the whole batch, so it is on one row only: the first
        run still unread. #}
     {% set first_unread = checkpoint.jobs | selectattr('stalled') | rejectattr('reviewed') | first %}
@@ -624,6 +616,13 @@
       {% endfor %}
     </article>
     {% endfor %}
+    {# Under the rows it ends: read them, then go on. #}
+    {% if not carded %}
+    <form method="post" action="/run/continue" class="checkpoint-continue">
+      <button type="submit"{% if checkpoint.unread %} disabled{% endif %}
+              aria-label="Continue {{ current.name }}">Continue</button>
+    </form>
+    {% endif %}
   </div>
   {% endif %}
   {# The log is the bottom canvas of the screen, after everything else, so

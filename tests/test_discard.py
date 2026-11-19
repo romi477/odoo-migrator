@@ -276,7 +276,9 @@ def _actions(page):
 
 
 def _continue_button(page):
-    start = page.index('action="/run/continue"')
+    # The one under the rows. Continue anyway posts to the same address, from
+    # a row of its own.
+    start = page.index('class="checkpoint-continue"')
 
     return page[start : page.index("</button>", start)]
 
@@ -284,7 +286,7 @@ def _continue_button(page):
 def test_continue_is_said_once_for_a_run_with_no_card_in_the_queue(client, tmp_path):
     """Continue stood above the cards and again on each, two buttons for one
     answer. A run of a queued module answers on its queue card; this one was
-    started from Tree and has none, so Continue is the one above the cards and
+    started from Tree and has none, so Continue is the one under the rows and
     Discard run stays on the run's own card."""
     _row, sale = _failed_checkpoint(client)
     _in_git(sale, tmp_path)
@@ -296,6 +298,8 @@ def test_continue_is_said_once_for_a_run_with_no_card_in_the_queue(client, tmp_p
     assert ">Continue anyway<" in _actions(page)
     assert ">Continue anyway<" not in page.split('class="job-review-line"', 1)[0]
     assert page.count(">Continue<") == 1
+    # Under the rows, where reading them ends.
+    assert page.index('class="checkpoint-continue"') > page.rindex('class="job-review"')
     assert ">Discard run<" in _actions(page)
 
 
