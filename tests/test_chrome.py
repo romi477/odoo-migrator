@@ -157,7 +157,7 @@ def test_guide_has_two_parts_and_lists_the_menus_in_order(client):
     ]
     assert "Status badges" not in html
     assert "Create migration" not in html
-    assert '<span class="guide-part-num">2.</span> Cartridge language</h2>' in html
+    assert 'class="guide-part-title">Cartridge Language</h2>' in html
 
 
 def _guide_names(client, css_class: str) -> set[str]:

@@ -856,16 +856,13 @@ pre,
 }
 
 .guide-part-title {
-  margin: 0 0 4px;
-  padding-bottom: 6px;
+  margin: 0 0 20px;
+  padding-bottom: 8px;
+  text-align: center;
   font-size: 18px;
   font-weight: 650;
   color: var(--cyan);
   border-bottom: 1px solid var(--border);
-}
-
-.guide-part-num {
-  color: var(--text);
 }
 
 .guide-part-lead {
