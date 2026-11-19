@@ -1014,7 +1014,7 @@ class NativeRunner:
             row.tokens_cached = result.tokens_cached
             # An agent step ends with an answer and no output: what it found
             # and what it changed. Result reads this column, and it was blank.
-            row.output = (result.output or result.answer or "")[:4000]
+            row.output = runlog.clip(result.output or result.answer or "", 4000)
             row.save()
 
 
@@ -1055,14 +1055,16 @@ def _clipped(line: str, width: int = 160) -> str:
 
 
 def _step_body(result) -> str:
-    """What opens under the step's line: the answer the agent gave, then the
-    provider's account of the turn. The answer is the part a person reads; a
-    patch that fixed a test said what it changed there and nowhere else."""
+    """What opens under the step's line: the answer the agent gave, the reason
+    it failed, then the provider's account of the turn. The answer is the part
+    a person reads; a patch that fixed a test said what it changed there and
+    nowhere else. A step that failed after it reported has all three."""
     parts = []
     if result.answer and result.answer != result.output:
         parts.append(f"What the step said:\n{result.answer.strip()}")
-    if result.detail or result.output:
-        parts.append(result.detail or result.output)
+    for text in (result.output, result.detail):
+        if text and text not in parts:
+            parts.append(text)
 
     return "\n\n".join(parts)
 

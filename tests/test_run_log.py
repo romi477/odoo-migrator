@@ -142,16 +142,39 @@ def test_the_line_of_an_agent_step_names_the_change_and_opens_on_the_rest(job):
     assert "turns: 6" in body
     # A step with no answer keeps its old body, and a long line is clipped.
     assert _step_body(StepResult(ok=True, detail="turns: 1")) == "turns: 1"
+    # A step that failed after it reported has all three, the reason included.
+    failed = _step_body(
+        StepResult(ok=False, answer="what it tried", output="the target refused", detail="turns: 3")
+    )
+    assert "what it tried" in failed
+    assert "the target refused" in failed
+    assert "turns: 3" in failed
     assert len(_outcome_line(StepResult(ok=True, answer="x" * 500))) < 200
 
 
-def test_diagnose_and_patch_are_asked_to_say_what_they_did():
-    from odoo_migrator.cartridges import cartridges_dir
+def test_the_summary_folds_what_an_agent_said_past_its_first_line(client):
+    script = client.get("/static/result.js").text
 
-    text = (cartridges_dir() / "stock.yaml").read_text(encoding="utf-8")
+    assert "result-summary-more" in script
+    # A failed step is the thing to read and stays open.
+    assert 'step.ok !== false' in script
+    assert "result-summary-more" in client.get("/components").text
 
-    assert "Say the cause in your answer" in text
-    assert "End with an answer that says what you changed" in text
+
+def test_a_long_answer_says_it_was_clipped(app, job, fake_sheller):
+    """Eight files and, last, the spec's result: the tail is what a reader looks
+    for, so a cut says it cut."""
+    with database.connection_context():
+        step_run = StepRun.create(job=job, attempt=1, step_id="patch", kind="agent")
+
+    NativeRunner(sheller=fake_sheller, hub=app.state.hub)._close_step(
+        step_run.id, StepResult(ok=True, answer="line\n" * 2000)
+    )
+
+    with database.connection_context():
+        stored = StepRun.get_by_id(step_run.id).output
+    assert stored.endswith("characters)")
+    assert "(+" in stored[-40:]
 
 
 def test_a_long_body_is_clipped_rather_than_stored_whole(job):

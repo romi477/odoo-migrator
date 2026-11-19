@@ -729,6 +729,13 @@ tools offered: exec, read_file, report, source</pre>
       <p class="result-summary-line mono">tokens · 111,802 in · 1,905 out · 45,000 cached</p>
       <ol class="result-summary-steps">
         <li>2 · port · 98,400+1,200 tokens</li>
+        <li>1 · patch · 33,027+5,488 tokens — models/res_partner.py: name_search now tries code first.
+          <details class="result-summary-more">
+            <summary>more</summary>
+            <pre>tests/test_sale_custom.py: the assertion keeps the source's order.
+The failed spec passes after reopen.</pre>
+          </details>
+        </li>
         <li class="is-failed">2 · tests — 1 failure</li>
         <li class="is-skipped">2 · probe — skipped: runs only when no_tests is raised, and tests ran and did not raise it</li>
       </ol>

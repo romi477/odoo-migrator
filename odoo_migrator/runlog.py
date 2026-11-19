@@ -36,8 +36,8 @@ def write(
     tool_call_id: int | None = None,
 ) -> None:
     """Record one line, and put it on the stream the page is watching."""
-    clipped = _clip(text, MAX_TEXT)
-    body = _clip(detail, MAX_DETAIL)
+    clipped = clip(text, MAX_TEXT)
+    body = clip(detail, MAX_DETAIL)
     row_id = 0
     module = ""
     migration_id = ""
@@ -156,7 +156,7 @@ def tool_call_of(line_id: int) -> tuple[str, str] | None:
         return (call.session_id or "", call.command_id or "")
 
 
-def _clip(text: str, limit: int) -> str:
+def clip(text: str, limit: int) -> str:
     value = (text or "").strip()
     if len(value) <= limit:
 

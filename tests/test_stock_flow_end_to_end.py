@@ -210,3 +210,46 @@ def test_a_menu_the_port_broke_sends_the_module_to_repair_and_the_next_lap_click
     assert [run["container"] for run in fake_sheller.clicks] == ["odoo-new", "odoo-old", "odoo-new"]
     with database.connection_context():
         assert Job.get_by_id(job.id).status == "passed"
+
+
+def test_a_patch_says_what_it_changed_through_the_whole_run(client, app, fake_sheller, sandbox):
+    """From the provider's report to the screen: the answer of an agent step
+    reaches StepRun.output, the log line and its body, and Result's summary.
+    If the runner ever hands a result on without it, Result is empty again and
+    this is the test that says so."""
+    from odoo_migrator import runlog
+
+    fake_sheller.clickbot_answers["odoo-new"] = {
+        "failed": [{"xmlid": "sale_custom.menu_a", "root": "sale_custom.menu_root", "reason": "boom"}],
+        "roots": [{"xmlid": "sale_custom.menu_root", "success": False, "error": None}],
+    }
+
+    class Saying(StepScript):
+        def run_step(self, **kwargs):
+            result = super().run_step(**kwargs)
+            step = kwargs["system"].split("Step: ", 1)[1].splitlines()[0].strip()
+            if step == "patch":
+                result.answer = "models.py: X was 1, now 2.\nthe failed spec passes."
+
+            return result
+
+    script = Saying(on_step={"patch": lambda: fake_sheller.clickbot_answers.pop("odoo-new")})
+
+    job = _run(app, fake_sheller, sandbox, script)
+
+    with database.connection_context():
+        stored = Job.get_by_id(job.id)
+        patch = StepRun.select().where((StepRun.job == stored) & (StepRun.step_id == "patch")).get()
+        migration_id, module_id = stored.batch.migration_id, stored.module_id
+    assert patch.output.startswith("models.py: X was 1, now 2.")
+    line = next(
+        one
+        for one in runlog.lines(job.job_id)
+        if one["source"] == "patch" and one["text"].startswith("ok")
+    )
+    assert line["text"].endswith("— models.py: X was 1, now 2.")
+    assert "the failed spec passes." in runlog.detail_of(line["id"])
+    client.cookies.set("open_migration", migration_id)
+    summary = client.get(f"/api/result/modules/{module_id}/summary").json()
+    shown = next(step for step in summary["steps"] if step["id"] == "patch")
+    assert shown["output"].startswith("models.py: X was 1, now 2.")

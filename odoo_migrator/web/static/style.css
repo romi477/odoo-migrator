@@ -4853,6 +4853,24 @@ a.ribbon-box:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* What an agent step said past its first line: closed, and the same type as
+   the line it hangs from. */
+.result-summary-more {
+  margin-top: 2px;
+}
+
+.result-summary-more summary {
+  cursor: pointer;
+  color: var(--muted-low);
+}
+
+.result-summary-more pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
 .result-summary-steps li.is-failed {
   color: var(--red);
 }

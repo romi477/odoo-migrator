@@ -62,6 +62,12 @@
       data.steps.forEach(function (step) {
         const item = document.createElement("li");
         item.className = step.ok === false ? "is-failed" : step.skipped ? "is-skipped" : "";
+        /* A step is one line. What an agent said runs to a recipe or a list of
+           files, so the first line stays on the step and the rest opens on a
+           click; a failed step is the thing to read and is left open. */
+        const output = step.output || "";
+        const cut = output.indexOf("\n");
+        const folds = cut !== -1 && step.ok !== false;
         item.textContent =
           (step.attempt || "?") +
           " · " +
@@ -69,7 +75,18 @@
           (step.tokens
             ? " · " + count(step.tokens.in) + "+" + count(step.tokens.out) + " tokens"
             : "") +
-          (step.output ? " — " + step.output : "");
+          (output ? " — " + (folds ? output.slice(0, cut) : output) : "");
+        if (folds && output.slice(cut).trim()) {
+          const more = document.createElement("details");
+          more.className = "result-summary-more";
+          const label = document.createElement("summary");
+          label.textContent = "more";
+          const rest = document.createElement("pre");
+          rest.textContent = output.slice(cut).trim();
+          more.appendChild(label);
+          more.appendChild(rest);
+          item.appendChild(more);
+        }
         steps.appendChild(item);
       });
       body.appendChild(steps);
