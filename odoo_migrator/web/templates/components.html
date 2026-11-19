@@ -1077,11 +1077,11 @@ tools offered: exec, read_file, report, source</pre>
 
   <section class="guide-row">
     <h2>Saved secret</h2>
-    <p>A stored provider key is dots in the field, never the key. The bin
-    at the end of the field removes it.</p>
+    <p>A stored provider key is dots and its last six characters, never the
+    key. The bin at the end of the field removes it.</p>
     <label>Cursor API key
       <span class="secret-field">
-        <input class="mono" type="text" value="••••••••" autocomplete="off">
+        <input class="mono" type="text" value="••••••••a1b2c3" autocomplete="off">
         <button type="button" class="icon-danger" title="Remove Cursor API key"
                 aria-label="Remove Cursor API key">
           <svg class="bin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

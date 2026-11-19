@@ -41,8 +41,8 @@
           </span>
         </label>
         {% if field.secret %}
-        <p class="field-hint">Dots mean a key is saved. The bin removes it.
-        A secret is never shown again.</p>
+        <p class="field-hint">Dots mean a key is saved; the last six characters tell
+        which one. The bin removes it. The rest is never shown again.</p>
         {% else %}
         <p class="field-hint">An OpenAI-compatible server on this machine:
         LM Studio, Ollama, llama.cpp. The bin removes it.</p>

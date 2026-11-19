@@ -80,8 +80,10 @@ def test_app_settings_are_a_gear_and_a_migration_settings_live_in_its_row(client
 
 
 def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
-    from odoo_migrator.settings import SECRET_MASK, provider_setting
+    from odoo_migrator.settings import SECRET_MASK, mask_secret, provider_setting
 
+    cursor_key = "cursor-secret-0123456789-abcdef"
+    anthropic_key = "anthropic-secret-0123456789-uvwxyz"
     page = client.get("/settings").text
 
     assert re.search(
@@ -93,43 +95,43 @@ def test_a_saved_secret_is_dots_and_the_bin_removes_it(client):
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "provider_cursor_api_key": "cursor-secret",
-            "provider_anthropic_api_key": "anthropic-secret",
+            "provider_cursor_api_key": cursor_key,
+            "provider_anthropic_api_key": anthropic_key,
         },
     )
     saved = client.get("/settings")
 
-    assert f'value="{SECRET_MASK}"' in saved.text
-    assert saved.text.count(f'value="{SECRET_MASK}"') == 2
-    assert "cursor-secret" not in saved.text
-    assert "anthropic-secret" not in saved.text
+    assert f'value="{SECRET_MASK}abcdef"' in saved.text
+    assert f'value="{SECRET_MASK}uvwxyz"' in saved.text
+    assert cursor_key not in saved.text
+    assert anthropic_key not in saved.text
     assert 'aria-label="Remove Cursor API key"' in saved.text
     assert 'aria-label="Remove Anthropic API key"' in saved.text
-    assert provider_setting("cursor", "api_key") == "cursor-secret"
+    assert provider_setting("cursor", "api_key") == cursor_key
     kept = client.post(
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "provider_cursor_api_key": SECRET_MASK,
-            "provider_anthropic_api_key": SECRET_MASK,
+            "provider_cursor_api_key": mask_secret(cursor_key),
+            "provider_anthropic_api_key": mask_secret(anthropic_key),
         },
     )
 
-    assert provider_setting("cursor", "api_key") == "cursor-secret"
-    assert provider_setting("anthropic", "api_key") == "anthropic-secret"
+    assert provider_setting("cursor", "api_key") == cursor_key
+    assert provider_setting("anthropic", "api_key") == anthropic_key
     cleared = client.post(
         "/settings",
         data={
             "sheller_base_url": "http://127.0.0.1:8765",
-            "provider_cursor_api_key": SECRET_MASK,
-            "provider_anthropic_api_key": SECRET_MASK,
+            "provider_cursor_api_key": mask_secret(cursor_key),
+            "provider_anthropic_api_key": mask_secret(anthropic_key),
             "clear_provider": "cursor__api_key",
         },
         follow_redirects=True,
     )
 
     assert provider_setting("cursor", "api_key") == ""
-    assert provider_setting("anthropic", "api_key") == "anthropic-secret"
+    assert provider_setting("anthropic", "api_key") == anthropic_key
     assert re.search(
         r'name="provider_cursor_api_key"[^>]*value=""', cleared.text
     )
@@ -612,3 +614,10 @@ def test_a_provider_whose_name_holds_an_underscore_saves_under_its_own_name(clie
 
     assert provider_setting("open_router", "api_key") == "or-secret"
     assert provider_setting("open", "router_api_key") == ""
+
+
+def test_a_short_key_is_all_dots_and_a_long_one_gives_up_six_characters():
+    from odoo_migrator.settings import SECRET_MASK, mask_secret
+
+    assert mask_secret("short-key") == SECRET_MASK
+    assert mask_secret("sk-ant-api03-" + "x" * 30 + "abc123") == SECRET_MASK + "abc123"

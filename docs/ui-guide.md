@@ -444,7 +444,7 @@ Shared by every migration.
 | Field | What it is |
 |---|---|
 | Sheller base URL | This process's client and the observer iframe. |
-| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor, OpenAI). A saved key shows as dots, never as the key. The bin at the end of the field removes it. |
+| Provider secrets | One password field per secret a registered provider declares (Anthropic, Cursor, OpenAI). A saved key shows as dots and its last six characters (all dots when it is shorter than 16), never as the key. The bin at the end of the field removes it. |
 
 ### This migration
 

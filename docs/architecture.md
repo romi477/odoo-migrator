@@ -115,8 +115,8 @@ Providers registered today:
 | `scripted` | The test double. A cartridge cannot select it. |
 
 Keys live in `ProviderSetting` rows (`provider`, `key`, `value`), not
-one column per SDK. The settings page shows whether a secret is set and
-never renders the value. A blank save keeps the stored one. The local
+one column per SDK. The settings page shows whether a secret is set, with
+its last six characters, and never renders the rest. A blank save keeps the stored one. The local
 server's URL is not a secret and is shown as written.
 
 The tool catalog and its JSON schemas live in `runner/tools.py`. A

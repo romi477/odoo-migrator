@@ -50,8 +50,9 @@ only form accepted, under the same rule. Writes land only inside the
 ported module's own directory on the target side.
 
 **Provider secrets are stored and never rendered.** A key is a
-`ProviderSetting` row. The settings page reports whether it is set. A
-blank save keeps the stored value. The process does not print it. OpenAI's
+`ProviderSetting` row. The settings page reports whether it is set and shows
+its last six characters, so two keys can be told apart (a key under 16
+characters is all dots). A blank save keeps the stored value. The process does not print it. OpenAI's
 401 message quotes the start and end of the key it was sent, so the runner
 replaces it with its own sentence instead of passing it on to the run log.
 

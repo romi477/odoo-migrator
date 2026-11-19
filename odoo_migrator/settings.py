@@ -3,9 +3,23 @@
 from odoo_migrator.db import database
 from odoo_migrator.models import AppSettings
 
-# Shown in a password field when a secret is stored. It is not the secret.
-# A save that posts it back leaves the stored value alone.
+# Shown in a password field when a secret is stored. It is not the secret:
+# bullets, then the last few characters so two keys can be told apart. Every
+# key of one provider starts the same way, so the tail is what differs. A
+# key too short to give up a tail without giving up much is all bullets.
+# A save that posts a mask back leaves the stored value alone.
 SECRET_MASK = "\u2022" * 8
+SECRET_TAIL = 6
+SECRET_TAIL_MIN_LENGTH = 16
+
+
+def mask_secret(value: str) -> str:
+    """What a field shows in place of a stored secret."""
+    if len(value) < SECRET_TAIL_MIN_LENGTH:
+
+        return SECRET_MASK
+
+    return SECRET_MASK + value[-SECRET_TAIL:]
 
 
 def _row(settings: AppSettings) -> dict:
@@ -23,7 +37,7 @@ def _row(settings: AppSettings) -> dict:
                     "secret": field.secret,
                     "input_name": f"provider_{provider.name}_{field.key}",
                     "set": bool(stored),
-                    "mask": SECRET_MASK,
+                    "mask": mask_secret(stored),
                     # A URL is not a secret: shown as written, so a typo in
                     # it can be seen. A key is never rendered.
                     "value": "" if field.secret else stored,
@@ -70,7 +84,9 @@ def save_app_settings(
                 continue
             provider, _, key = name.partition("__")
             text = value.strip()
-            if provider and key and text and text != SECRET_MASK:
+            # A mask is never a key: no key holds a bullet, so whatever the
+            # page showed (bullets and a tail) is the field left alone.
+            if provider and key and text and not text.startswith(SECRET_MASK[0]):
                 _store_setting(provider, key, text)
         row.save()
 

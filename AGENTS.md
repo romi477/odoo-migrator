@@ -179,7 +179,7 @@ host.
   module and inside an addon there: `.env`, `odoo.conf` and `.git/` at the
   project root are refused. A path that escapes is refused, not clamped.
 - Provider secrets are `ProviderSetting` rows. The settings page reports
-  whether one is set and never renders the value. A blank save keeps the
+  whether one is set and shows its last six characters, never the rest. A blank save keeps the
   stored value. Do not print a key: this tool gets demonstrated on a
   projector.
 - Mounting the Docker socket into the Sheller container grants the host's

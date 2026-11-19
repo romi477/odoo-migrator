@@ -188,7 +188,7 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    refused here, where they were typed.
 2. **App settings** — Sheller base URL (default `http://127.0.0.1:8765`)
    and a provider secret when the native runner should call a model. A saved key shows
-   as dots. The bin at the end of the field removes it.
+   as dots and its last six characters. The bin at the end of the field removes it.
 3. **This migration** — Start the two compose projects (one already
    running is linked by itself), pin a
    flow and optionally override its model.
