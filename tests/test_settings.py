@@ -621,3 +621,29 @@ def test_a_short_key_is_all_dots_and_a_long_one_gives_up_six_characters():
 
     assert mask_secret("short-key") == SECRET_MASK
     assert mask_secret("sk-ant-api03-" + "x" * 30 + "abc123") == SECRET_MASK + "abc123"
+
+
+def test_a_key_typed_after_the_mask_is_refused_and_nothing_is_saved(client):
+    """Pasting at the end of the mask posts bullets, the old tail and the new
+    key. It used to be dropped without a word and the old key stayed."""
+    from odoo_migrator.settings import mask_secret, provider_setting
+
+    old = "anthropic-secret-0123456789-uvwxyz"
+    client.post(
+        "/settings",
+        data={"sheller_base_url": "http://127.0.0.1:8765", "provider_anthropic_api_key": old},
+    )
+
+    refused = client.post(
+        "/settings",
+        data={
+            "sheller_base_url": "http://127.0.0.1:9999",
+            "provider_anthropic_api_key": mask_secret(old) + "sk-new-key-0123456789",
+        },
+    )
+
+    assert refused.status_code == 400
+    assert "clear the field" in refused.text
+    assert "sk-new-key" not in refused.text
+    assert provider_setting("anthropic", "api_key") == old
+    assert "9999" not in client.get("/settings").text

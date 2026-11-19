@@ -8,7 +8,8 @@ from odoo_migrator.models import AppSettings
 # key of one provider starts the same way, so the tail is what differs. A
 # key too short to give up a tail without giving up much is all bullets.
 # A save that posts a mask back leaves the stored value alone.
-SECRET_MASK = "\u2022" * 8
+BULLET = "\u2022"
+SECRET_MASK = BULLET * 8
 SECRET_TAIL = 6
 SECRET_TAIL_MIN_LENGTH = 16
 
@@ -71,6 +72,9 @@ def save_app_settings(
         row = AppSettings.select().first()
         if row is None:
             row = AppSettings.create()
+        # Before anything is written: a refused save leaves every field as it
+        # was, not half of them.
+        _refuse_a_damaged_mask(provider_values or {})
         row.sheller_base_url = sheller_base_url.strip()
         if anthropic_api_key:
             _store_setting("anthropic", "api_key", anthropic_api_key.strip())
@@ -84,13 +88,36 @@ def save_app_settings(
                 continue
             provider, _, key = name.partition("__")
             text = value.strip()
-            # A mask is never a key: no key holds a bullet, so whatever the
-            # page showed (bullets and a tail) is the field left alone.
-            if provider and key and text and not text.startswith(SECRET_MASK[0]):
+            # The mask the page showed is the field left alone. Anything else
+            # that starts with a bullet was refused above.
+            if provider and key and text and not text.startswith(BULLET):
                 _store_setting(provider, key, text)
         row.save()
 
         return _row(row)
+
+
+def _refuse_a_damaged_mask(provider_values: dict[str, str]) -> None:
+    """A field that still shows its mask with something typed after it.
+
+    Pasting a key at the end of the mask posts bullets, the old tail and the
+    new key. No key holds a bullet, so it was never taken for one, and it was
+    not the mask either: the old key stayed, silently, and the person went on
+    believing the new one was saved.
+    """
+    from odoo_migrator.contract import ContractError
+
+    for name, value in provider_values.items():
+        text = value.strip()
+        provider, _, key = name.partition("__")
+        if not (provider and key and text.startswith(BULLET)):
+            continue
+        if text != mask_secret(provider_setting(provider, key)):
+            raise ContractError(
+                "A key field holds the saved key's mask with more typed after "
+                "it. Nothing was saved: clear the field, paste the whole key "
+                "and save again."
+            )
 
 
 def _store_setting(provider: str, key: str, value: str) -> None:

@@ -1577,13 +1577,23 @@ def create_app(
 
             return str(form.get(name) or "") if name in form else stored[name]
 
-        save_app_settings(
-            sheller_base_url=sent("sheller_base_url"),
-            provider_values=values,
-            cleared={str(cleared)} if cleared else set(),
-        )
-
         back = _return_screen(request, str(form.get("back") or "")) or "/"
+        try:
+            save_app_settings(
+                sheller_base_url=sent("sheller_base_url"),
+                provider_values=values,
+                cleared={str(cleared)} if cleared else set(),
+            )
+        except ContractError as exc:
+            refused = _page(
+                request,
+                "settings.html",
+                "settings",
+                {"settings": stored, "back": back, "error": str(exc)},
+            )
+            refused.status_code = 400
+
+            return refused
         if cleared:
             # Removing a key is not leaving the page.
             return RedirectResponse(f"/settings?back={quote(back, safe='')}", status_code=303)

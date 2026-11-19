@@ -7,6 +7,9 @@
      the gear that brought you here already says where you are. #}
   <form class="card stack-form settings-form" method="post" action="/settings">
     <h2>App settings<span class="settings-star" aria-hidden="true">*</span></h2>
+    {% if error %}
+    <p class="form-error" role="alert">{{ error }}</p>
+    {% endif %}
     <ol class="settings-fields">
       <li>
         <label>Sheller base URL
