@@ -191,8 +191,7 @@ Then open <http://127.0.0.1:8000/>. Typical loop:
    as dots. The bin at the end of the field removes it.
 3. **This migration** — Start the two compose projects (one already
    running is linked by itself), pin a
-   flow and optionally override its model, smoke-run one module before
-   a batch.
+   flow and optionally override its model.
 4. **Tree** — Build graph from the live source Odoo. Skip, group,
    Migrate one module or Batch a group.
 5. **Run** — watch the pipeline, observe Sheller without a write key.
@@ -246,7 +245,7 @@ ask nobody for a key.
 | `GET` | `/sheller` | Sheller observer |
 | `GET` | `/result` | Migration outcomes dashboard |
 | `GET` | `/settings` | App settings |
-| `GET` | `/settings/migration` | This migration: containers, flow, model, smoke-run |
+| `GET` | `/settings/migration` | This migration: containers, flow, model |
 | `GET` | `/sse` | One named-event stream per page |
 | `GET` | `/styleguide` | What each migration step is for |
 | `GET` | `/components` | Every CSS component, rendered once |
@@ -263,7 +262,7 @@ How it works internally — source of truth, cartridges, sessions, diffs:
 | `odoo_migrator/jobs.py` | Start a job, apply a result, resume, sequential batch |
 | `odoo_migrator/runner/` | Cartridge language, loop, tools, providers, native thread |
 | `odoo_migrator/contract.py` | Job payload and result validation |
-| `odoo_migrator/cartridges.py` | Import, fork, pin, smoke-run |
+| `odoo_migrator/cartridges.py` | Import, fork, pin |
 | `odoo_migrator/source_git.py` | The migration's branch in the source project; commit or delete of a characterization test |
 | `odoo_migrator/diffs.py` | Unified diffs recorded on the in-flight job |
 | `odoo_migrator/rules.py` | Per-version files, assembled stack, promote |
@@ -291,7 +290,6 @@ custom properties (`--accent`).
 |---|---|
 | Job becomes `unknown` after an answer | The thread that was waiting is gone, usually after a restart. The answer stays on the checkpoint thread |
 | Answered, and the row is `running` but nothing continues | The stub reports that it can resume and then has no thread left to run. A real continuation needs `ODOO_MIGRATOR_RUNNER=native` and the same process that parked the job |
-| `A smoke-run must pass before a batch.` | An installed cartridge whose smoke-run is not `passed`. With nothing installed the stub is allowed |
 | `database is locked` | A Peewee connection crossed a thread. Every operation is its own `connection_context()` |
 | `address already in use` on start | Another copy is already serving. uvicorn prints "Application startup complete" before it reports the bind failure, so a failed start reads like a successful one — check `lsof -nP -iTCP:8000 -sTCP:LISTEN` |
 | The process survives Ctrl-C / SIGTERM | Fixed: open SSE streams are woken on the signal. Before that the port was freed and the process stayed up for the rest of the stream's window |

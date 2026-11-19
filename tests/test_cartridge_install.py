@@ -170,34 +170,6 @@ def _variant(cartridge_id: str, version: str = "1.0.0", note: str = "") -> str:
     return text + (f"\n# {note}\n" if note else "")
 
 
-def test_importing_a_flow_does_not_lock_the_stock_flow_out(client, migration):
-    """The stock file ships with the app and has no install row. Once any
-    flow was imported, the gate asked for that missing row and every
-    migration on stock answered "A smoke-run must pass before a batch"."""
-    from odoo_migrator.cartridges import smoke_allows_batch
-
-    install_from_text(_variant("acme_flow"))
-
-    with database.connection_context():
-        on_stock = Migration.get_by_id(migration["id"])
-
-    assert smoke_allows_batch(on_stock)
-
-
-def test_the_card_offers_a_smoke_run_for_a_pin_that_has_not_passed(client, migration):
-    """The gate asks for a passed smoke-run, and nothing on any screen
-    started one: an imported flow could never run."""
-    client.post(
-        f"/migrations/{migration['id']}/cartridge",
-        files={"file": ("acme.yaml", _variant("acme_flow").encode())},
-    )
-
-    card = client.get(f"/?settings={migration['id']}").text
-
-    assert f'action="/migrations/{migration["id"]}/smoke"' in card
-    assert "untested" in card
-
-
 def test_import_pins_the_flow_it_imported(client, migration):
     """The newest row by id is not the one just imported when that flow was
     imported before: the row is updated in place and keeps its old id."""
@@ -214,99 +186,6 @@ def test_import_pins_the_flow_it_imported(client, migration):
     assert pinned.cartridge_id == "first_flow"
 
 
-def test_a_changed_text_needs_a_new_smoke_run(client, migration):
-    """A smoke-run passed one text. The same id and version with another
-    text is not what was tried."""
-    row = install_from_text(_variant("acme_flow"))
-    with database.connection_context():
-        CartridgeInstall.update(smoke_status="passed").where(
-            CartridgeInstall.id == row.id
-        ).execute()
-
-    again = install_from_text(_variant("acme_flow", note="edited"))
-
-    assert again.smoke_status == "untested"
-
-
-def _smoke_status(migration_id):
-    with database.connection_context():
-        row = Migration.get_by_id(migration_id)
-
-        return CartridgeInstall.get(
-            (CartridgeInstall.cartridge_id == (row.cartridge_id or "stock"))
-            & (CartridgeInstall.version == (row.cartridge_version or "1.0.0"))
-        ).smoke_status
-
-
-def test_a_smoke_run_that_could_not_start_leaves_the_verdict_as_it_was(
-    client, migration, monkeypatch
-):
-    """'running' was written first. A start refused over a hand edit left it
-    there, the card said batches may start, and the batch refused."""
-    from odoo_migrator import jobs
-    from odoo_migrator.cartridges import record_smoke, smoke_run
-    from odoo_migrator.contract import ContractError
-
-    with database.connection_context():
-        Module.create(migration=migration["id"], technical_name="sale_custom")
-    record_smoke(migration["id"], "untested")
-
-    def refuse(**_kw):
-        raise ContractError("edited by hand")
-
-    monkeypatch.setattr(jobs, "start_job", refuse)
-
-    with pytest.raises(ContractError):
-        smoke_run(migration["id"], client.app.state.executor, client.app.state.hub)
-
-    assert _smoke_status(migration["id"]) == "untested"
-
-
-def test_a_restart_does_not_leave_a_smoke_run_running(client, migration):
-    """The job that was to give the verdict is `unknown` after a restart, and
-    nothing else ever writes one."""
-    from odoo_migrator.cartridges import record_smoke
-    from odoo_migrator.jobs import reconcile_jobs
-    from odoo_migrator.models import Batch, Job
-
-    with database.connection_context():
-        module = Module.create(migration=migration["id"], technical_name="sale_custom")
-        batch = Batch.create(migration=migration["id"], status="smoke")
-        Job.create(batch=batch, module=module, status="running")
-    record_smoke(migration["id"], "running")
-
-    reconcile_jobs()
-
-    assert _smoke_status(migration["id"]) == "untested"
-
-
-def test_a_refused_smoke_run_on_the_stock_flow_leaves_no_row_behind(
-    client, migration, monkeypatch
-):
-    """`running` created a row for stock, and the refusal wrote `untested`
-    into it: from then on every migration on stock was told a smoke-run must
-    pass before a batch."""
-    from odoo_migrator import jobs
-    from odoo_migrator.cartridges import smoke_allows_batch, smoke_run
-    from odoo_migrator.contract import ContractError
-
-    install_from_text(_variant("acme_flow"))
-    with database.connection_context():
-        Module.create(migration=migration["id"], technical_name="sale_custom")
-
-    def refuse(**_kw):
-        raise ContractError("edited by hand")
-
-    monkeypatch.setattr(jobs, "start_job", refuse)
-
-    with pytest.raises(ContractError):
-        smoke_run(migration["id"], client.app.state.executor, client.app.state.hub)
-
-    with database.connection_context():
-        assert not CartridgeInstall.select().where(CartridgeInstall.cartridge_id == "stock").exists()
-        assert smoke_allows_batch(Migration.get_by_id(migration["id"]))
-
-
 @pytest.mark.parametrize(("cartridge_id", "version"), [("acme/custom", "1.0.0"), ("acme", "1.0@beta")])
 def test_an_import_refuses_an_id_or_version_a_fork_would_refuse(client, cartridge_id, version):
     """The card's select splits `id@version` at the first `@`, and the
@@ -318,3 +197,20 @@ def test_an_import_refuses_an_id_or_version_a_fork_would_refuse(client, cartridg
         install_from_text(_variant(cartridge_id, version))
     with database.connection_context():
         assert not CartridgeInstall.select().where(CartridgeInstall.cartridge_id == cartridge_id).exists()
+
+
+def test_the_card_has_no_smoke_run_and_a_batch_needs_none(client, migration):
+    """A pinned flow nobody tried first used to hold every batch back, behind
+    a button that ran one module. The gate and the button are gone: an
+    imported flow is pinned and a batch starts."""
+    client.post(
+        f"/migrations/{migration['id']}/cartridge",
+        files={"file": ("acme.yaml", _variant("acme_flow").encode())},
+    )
+
+    card = client.get(f"/?settings={migration['id']}").text
+
+    assert "acme_flow" in card
+    assert "/smoke" not in card
+    assert "Smoke-run" not in card
+    assert client.post(f"/migrations/{migration['id']}/smoke").status_code in (404, 405)

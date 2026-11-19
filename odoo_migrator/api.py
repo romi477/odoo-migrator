@@ -25,8 +25,6 @@ from markupsafe import Markup, escape
 from odoo_migrator.cartridges import (
     install_from_text,
     list_installs,
-    smoke_run,
-    smoke_state,
     unreadable_flow,
 )
 from odoo_migrator.contract import ContractError
@@ -1692,7 +1690,6 @@ def create_app(
                 "flow_default": _flow_default(migration),
                 "provision": provision,
                 "cartridges": list_installs() if migration else [],
-                "smoke": smoke_state(migration) if migration else None,
                 # Only here: the local provider's list is a request to its
                 # server, and every page used to make it for a select only
                 # this card has.
@@ -1813,40 +1810,6 @@ def create_app(
                 migration.cartridge_id = row.cartridge_id
                 migration.cartridge_version = row.version
                 migration.save()
-
-        return RedirectResponse(f"/?settings={migration_id}", status_code=303)
-
-    @app.post("/migrations/{migration_id}/smoke")
-    def migration_smoke(request: Request, migration_id: str):
-        if get_active(migration_id) is None:
-
-            return _overview(request, error="No such migration.")
-        try:
-            status = smoke_run(
-                migration_id, request.app.state.executor, request.app.state.hub
-            )
-        except ContractError as exc:
-
-            return _overview(request, expanded=migration_id, error=str(exc))
-        if status not in ("passed", "failed"):
-            # A real cartridge answers minutes later. Calling that a failure
-            # was how every batch ended up blocked for ever.
-
-            return _overview(
-                request,
-                expanded=migration_id,
-                error=(
-                    "Smoke-run started. A batch will not start until its "
-                    "result arrives and passes."
-                ),
-            )
-        if status != "passed":
-
-            return _overview(
-                request,
-                expanded=migration_id,
-                error="Smoke-run failed. A batch will not start until it passes.",
-            )
 
         return RedirectResponse(f"/?settings={migration_id}", status_code=303)
 

@@ -72,7 +72,6 @@ def test_a_fork_is_stored_under_the_id_and_version_its_text_names(client):
 
     assert (row.cartridge_id, row.version) == ("stock", "1.0.1")
     assert flow_text("stock", "1.0.1") == text
-    assert row.smoke_status == "untested"
 
 
 def test_a_fork_may_start_a_flow_of_its_own(client):
@@ -100,15 +99,15 @@ def test_an_installed_flow_is_never_replaced(client):
     assert flow_text("acme", "1.0.0") == original
 
 
-def test_a_smoke_row_without_a_body_still_holds_its_name(client):
+def test_a_row_without_a_body_still_holds_its_name(client):
     with database.connection_context():
-        CartridgeInstall.create(cartridge_id="ghost", version="1.0.0", smoke_status="passed")
+        CartridgeInstall.create(cartridge_id="ghost", version="1.0.0")
 
     with pytest.raises(FlowTaken):
         fork_from_text(_as("ghost", "1.0.0"))
 
     with database.connection_context():
-        assert CartridgeInstall.get(CartridgeInstall.cartridge_id == "ghost").smoke_status == "passed"
+        assert CartridgeInstall.get(CartridgeInstall.cartridge_id == "ghost").body == ""
 
 
 def test_a_file_that_is_not_a_flow_is_refused(client):
@@ -362,7 +361,6 @@ def test_a_stored_flow_in_the_old_side_words_is_refused_when_pinned(client, tmp_
             cartridge_id="legacy",
             version="1.0.0",
             body=STOCK.replace("sessions: [source, target]", "sessions: [old, new]", 1),
-            smoke_status="untested",
         )
 
     response = client.post(

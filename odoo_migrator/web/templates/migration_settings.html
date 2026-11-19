@@ -154,7 +154,7 @@
           <span class="field-with-action">
           <select name="cartridge_id">
             {% for item in cartridges %}
-            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }} (smoke {{ item.smoke_status }})</option>
+            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }}</option>
             {% else %}
             <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
             {% endfor %}
@@ -231,22 +231,6 @@
           <button type="submit">Import</button>
         </fieldset>
       </form>
-      {# A batch waits for the pinned flow to pass one module first. Without
-         this button nothing on any screen started that run, and an imported
-         flow could never run at all. #}
-      {% if smoke %}
-      <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/smoke">
-        <fieldset class="import-flow">
-          <legend>Smoke-run</legend>
-          <p class="field-hint">The pinned flow:
-            <span class="badge{% if smoke.status == 'passed' %} passed{% elif smoke.status == 'failed' %} failed{% elif smoke.status == 'running' %} running{% endif %}">{{ smoke.status }}</span>.
-            {% if smoke.owed %}A batch starts once one module has run through it and passed.{% else %}Batches may start.{% endif %}</p>
-          <button type="submit"{% if smoke.owed %} class="primary"{% endif %}
-                  title="Run the first module through the pinned flow"
-                  aria-label="Smoke-run the pinned flow of {{ expanded.name }}">Smoke-run</button>
-        </fieldset>
-      </form>
-      {% endif %}
       {% endif %}
     </div>
     {% endfor %}

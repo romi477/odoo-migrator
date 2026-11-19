@@ -64,7 +64,11 @@ def _drop_retired_columns() -> None:
             "min_sheller" + "_version",
             "sheller_image" + "_tag",
         ),
-        "cartridgeinstall": ("contract_" + "version", "web" + "hook_path"),
+        "cartridgeinstall": (
+            "contract_" + "version",
+            "web" + "hook_path",
+            "smoke_" + "status",
+        ),
     }
     operations = []
     for table, names in retired.items():

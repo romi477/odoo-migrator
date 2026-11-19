@@ -161,8 +161,7 @@ The id and version may hold only letters, digits and `. _ + -` (40 at most):
 the select splits `id@version` at the first `@` and the address carries the
 version as a path segment. The body is cut off at 256 KB before it is read as
 YAML. The route is a change, so `web_guard` refuses it from another site's
-page like any other. A stored fork starts `untested`: a batch waits for its
-smoke-run.
+page like any other.
 
 ## A job that cannot start
 

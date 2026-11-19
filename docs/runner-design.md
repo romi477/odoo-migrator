@@ -1078,10 +1078,11 @@ single rule that keeps an uploaded file from granting itself anything.
 ### Cartridge identity
 
 `CartridgeInstall` survives, with its predicate changed: id, version, the
-SHA-256 of the file, the smoke-run status, and the pin recorded on every job.
+SHA-256 of the file, and the pin recorded on every job.
 "Which cartridge did this run use" is the first question a second client
-project will ask. The smoke-run survives too: run one module end to end
-before turning a batch loose on a hundred.
+project will ask.
+The smoke-run that once gated a batch is gone: a button that ran one module
+before a batch, removed because nothing needed it.
 
 ## Agent steps
 
@@ -1725,8 +1726,8 @@ runner, is the bulk of the work.
 and everything that validated it.
 
 **Kept, predicate changed:** `CartridgeInstall` (now a YAML cartridge's id,
-version, hash, smoke status, pin), `contract.py` (now the cartridge schema),
-`cartridges.py` (now load, validate and smoke-run a YAML cartridge).
+version, hash, pin), `contract.py` (now the cartridge schema),
+`cartridges.py` (now load and validate a YAML cartridge).
 
 **Untouched:** the module graph and tree, the queue, batches, checkpoints,
 findings, notes, diffs, provisioning, the Sheller client and resolver, the

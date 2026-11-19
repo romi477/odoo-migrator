@@ -99,16 +99,6 @@ One module, one run of the cartridge. Attempts are laps of the failure
 lane, gated by `retry_limit`, not by how many tools one model call may
 make.
 
-**Why can't I Batch before a smoke-run?**
-
-Once a cartridge is installed, an untested pin does not get to run two
-hundred modules. Smoke-run takes the first unstruck module by name; the
-verdict is the job's result, not the instant the run was started. The
-button is on the migration card, under Import a flow. With nothing
-installed the app uses its own stub and a batch is allowed — that is how
-the suite runs with no model and no containers. The stock flow ships
-with the app and needs no smoke-run.
-
 **A module passed and the checkpoint diff is empty.**
 
 No step that was allowed to call `write_file` changed a file under the
@@ -152,8 +142,7 @@ Not in place. The eye next to the Flow field opens the file read-only; Fork
 copies it into an editable text with the next free version, and Save fork
 stores it as a new flow. The flow you copied from, `stock` included, is never
 overwritten: a name that is taken is refused. The copy appears in the Flow
-select and is not picked for you, and it needs its own smoke-run before a
-batch.
+select and is not picked for you, and a batch can use it at once.
 
 ## Rules and findings
 

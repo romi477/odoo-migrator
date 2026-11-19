@@ -277,7 +277,7 @@ Excluded modules stay out. **Add all** skips finished waves. Duplicates are igno
 drive the sequential pipe (you can add steps while it runs; Stop finishes
 the current module first, and is there only while the queue runs). The queue
 stops by itself when its next step cannot start — a module not found on disk,
-a hand edit, a smoke-run still owed — and the run log says why in a line that
+a hand edit — and the run log says why in a line that
 begins `The queue stopped:`; it is stopped, too, when nothing is left to run
 it, after a restart or a run whose result could not be recorded. A batch
 started on Tree is not the queue's: it does not stop the queue when it fails. Every card ends in a **play** button, the usual triangle: it runs that one
@@ -403,7 +403,7 @@ graph yet, the page points you at Tree → Build graph.
 
 ### Checkpoint
 
-A finished batch (not a smoke-run) stops here, except one in which every module
+A finished batch stops here, except one in which every module
 passed and no run left a finding or an assumption: there is nothing to review, and it closes by itself, whether the module
 ran on its own from its play button or the queue was stopped while it ran. A running
 queue stops for a step that left one, as it does for a failure. A quiet finding does
@@ -481,14 +481,6 @@ hover.
 | Strictness | Read by the verdict step, and only for an `ERROR` or `CRITICAL` line in Odoo's log during upgrade and tests. At `basic` the module passes and the lines are a finding that stops the queue at the batch checkpoint; at `enhanced` the lap fails and goes to the failure lane. A failed test, `behaviour_differs` and `button_broken` fail the lap at both. |
 | Ask-human mode | Applies only when diagnosis raises `needs_human`; other failures are retried without asking. `sync` parks the job until you answer. `batch_defer` records the question as an assumption and continues without asking; the module carries an `assumptions` mark and the queue stops at the batch checkpoint for you to read it. |
 | Retry limit | How many laps the failure lane may take. Not a cap inside one model call. |
-
-**Smoke-run**, under Import a flow, shows the pin's smoke status and
-starts the first unstruck module by name through the pinned flow. The
-button says the run started; the verdict is whatever the job ends as. An
-untested or failed smoke-run blocks Batch. With nothing installed the app
-is on its stub and a batch is allowed; once a flow exists, an unknown pin
-is refused — except stock, which ships with the app. Importing a changed
-text under the same id and version needs a new smoke-run.
 
 ## Guide (in-app)
 

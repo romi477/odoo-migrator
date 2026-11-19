@@ -140,7 +140,7 @@ it clips module source.
 | `odoo_migrator/models.py` | Peewee. `create_tables` plus `_ensure_columns` |
 | `odoo_migrator/jobs.py` | Start a job, apply results, resume, checkpoint |
 | `odoo_migrator/runner/` | Cartridge language, loop, tools, providers, native thread |
-| `odoo_migrator/cartridges.py` | Import, fork, pin, smoke-run |
+| `odoo_migrator/cartridges.py` | Import, fork, pin |
 | `odoo_migrator/source_git.py` | The migration's branch in the source project; commit or delete of a characterization test |
 | `odoo_migrator/sheller/` | HTTP client and the fake that answers like the daemon |
 | `odoo_migrator/provision/` | Docker SDK compose up / restart / rebuild / stop, and whether a running side is older than what it was built from |

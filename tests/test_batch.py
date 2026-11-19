@@ -470,19 +470,17 @@ def test_two_starts_at_once_make_one_job(client, monkeypatch):
         assert Job.select().where(Job.module == sale["id"]).count() == 1
 
 
-def test_a_batch_whose_first_module_cannot_start_leaves_no_batch(client, monkeypatch):
-    """A smoke-run still on the module: start_batch wrote its batch, then
+def test_a_batch_whose_first_module_cannot_start_leaves_no_batch(client):
+    """A run still on the module: start_batch wrote its batch, then
     start_job refused the module. The batch stayed `running` with no job in
     it, and every later Run answered that a batch was already running."""
-    from odoo_migrator import cartridges
     from odoo_migrator.contract import ContractError
     from odoo_migrator.jobs import start_batch
 
     row, sale = _prepared(client)
-    monkeypatch.setattr(cartridges, "smoke_allows_batch", lambda _migration: True)
     with database.connection_context():
-        smoke = Batch.create(migration=row.id, status="smoke")
-        Job.create(batch=smoke, module=sale["id"], status="running", job_id="smoke-1")
+        earlier = Batch.create(migration=row.id, status="idle")
+        Job.create(batch=earlier, module=sale["id"], status="running", job_id="earlier-1")
     step = _named(row.id, "sale_custom")["step"]
 
     with pytest.raises(ContractError, match="already being migrated"):

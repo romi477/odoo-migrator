@@ -80,7 +80,6 @@ class CartridgeInstall(BaseModel):
     # The file as imported, so a pin can be loaded without the original path.
     body = TextField(default="")
     capabilities = TextField(default="{}")
-    smoke_status = CharField(default="untested")
 
 
 class Migration(BaseModel):

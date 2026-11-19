@@ -321,20 +321,10 @@ def reconcile_jobs() -> None:
     stay queued. Only a module that belonged to a non-terminal job is
     marked unknown, so a restart does not paint the whole tree as a crash.
     """
-    from odoo_migrator.cartridges import abandon_smoke
-
     with database.connection_context():
         module_ids = [
             job.module_id for job in Job.select().where(Job.status.in_(NON_TERMINAL))
         ]
-        smoking = {
-            str(batch.migration_id)
-            for batch in Batch.select()
-            .join(Job)
-            .where((Batch.status == "smoke") & Job.status.in_(NON_TERMINAL))
-        }
-        for migration_id in smoking:
-            abandon_smoke(migration_id)
         Job.update(status="unknown").where(Job.status.in_(NON_TERMINAL)).execute()
         if module_ids:
             Module.update(status="unknown").where(Module.id.in_(module_ids)).execute()
@@ -364,7 +354,6 @@ def start_job(
     executor,
     hub: EventHub,
     batch_id: int | None = None,
-    smoke: bool = False,
     cartridge=None,
     auto_continue: bool = False,
 ) -> Job:
@@ -393,7 +382,7 @@ def start_job(
     # stopped a mixed Group: stock (step 2) waited for every step-1
     # module on the tree, including ones the operator left out of the batch.
     blocked = None
-    if not smoke and batch_id is None:
+    if batch_id is None:
         blocked = earlier_steps_blocking(migration_id, step, names=[name])
     if blocked:
         raise ContractError(blocked)
@@ -435,10 +424,7 @@ def start_job(
             if owns_batch:
                 batch = Batch.create(
                     migration=migration,
-                    # A smoke-run is not a batch to review, and its verdict
-                    # has to be written when its result lands rather than
-                    # read back a millisecond after the trigger left.
-                    status="smoke" if smoke else "running",
+                    status="running",
                     auto_continue=auto_continue,
                     cartridge_id=migration.cartridge_id or "stock",
                     cartridge_version=migration.cartridge_version or "1.0.0",
@@ -682,10 +668,6 @@ def start_batch(
         raise ContractError(blocked)
     with database.connection_context():
         migration = Migration.get_by_id(migration_id)
-    from odoo_migrator.cartridges import smoke_allows_batch
-
-    if not smoke_allows_batch(migration):
-        raise ContractError("A smoke-run must pass before a batch.")
     # Checked and written under one write lock: two presses of Run both
     # found no batch running, and both started one.
     with database.connection_context(), database.atomic("IMMEDIATE"):
@@ -729,8 +711,8 @@ def start_batch(
             batch_id=batch_id,
         )
     except ContractError:
-        # Refused before anything ran: a smoke-run or a Migrate on Tree
-        # still on the module, a hand edit since the check above. A batch
+        # Refused before anything ran: a Migrate on Tree still on the
+        # module, a hand edit since the check above. A batch
         # with no job in it stayed `running`, and every later Run answered
         # that one already was.
         _drop_empty_batch(batch_id)
@@ -820,10 +802,7 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
 
             return
         batch = job.batch
-        smoke_result = None
-        if batch.status == "smoke":
-            smoke_result = "passed" if job.status == "passed" else "failed"
-        elif batch.status != "running":
+        if batch.status != "running":
 
             return
         batch_id = batch.id
@@ -837,12 +816,6 @@ def _advance_one(job_id: str, executor, hub: EventHub) -> None:
     if waiting:
         # The human still owes an answer. Closing would hide the rest of
         # the group behind a checkpoint they cannot resume.
-
-        return
-    if smoke_result is not None:
-        from odoo_migrator.cartridges import record_smoke
-
-        record_smoke(migration_id, smoke_result)
 
         return
     if stopped or (group is None and wave is None):

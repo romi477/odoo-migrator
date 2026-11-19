@@ -91,7 +91,10 @@ def test_the_rows_of_that_table_survive_losing_its_retired_columns(tmp_path):
 
     with database.connection_context():
         row = CartridgeInstall.get(CartridgeInstall.cartridge_id == "kept")
-    assert (row.version, row.smoke_status, row.sha256, row.body) == ("1.0.0", "passed", "abc", "text")
+    assert (row.version, row.sha256, row.body) == ("1.0.0", "abc", "text")
+    with database.connection_context():
+        columns = {column.name for column in database.get_columns("cartridgeinstall")}
+    assert "smoke_status" not in columns
 
 
 def test_settings_can_be_saved_in_a_database_that_kept_the_version_floor(tmp_path):
