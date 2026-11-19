@@ -237,6 +237,38 @@ def test_clear_drops_the_queue_when_nothing_is_running(client):
         )
 
 
+def test_clear_waits_for_the_review_of_a_batch(client):
+    """A module a run left waiting on a person is answered first, Continue or
+    Discard; Clear is not the way out of it."""
+    from odoo_migrator.models import Batch
+
+    row, _sale = _prepared(client)
+    client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)
+    with database.connection_context():
+        Batch.create(migration=row.id, status="checkpoint")
+
+    page = client.post("/run/queue/clear", follow_redirects=True)
+
+    assert "waits for review" in page.text
+    assert 'aria-label="Clear the pipeline queue"' in page.text
+    clear_button = page.text.split('action="/run/queue/clear"', 1)[1].split("</button>", 1)[0]
+    assert "disabled" in clear_button
+    with database.connection_context():
+        assert (
+            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
+            == 1
+        )
+
+    with database.connection_context():
+        Batch.update(status="done").where(Batch.migration == row.id).execute()
+    client.post("/run/queue/clear", follow_redirects=True)
+    with database.connection_context():
+        assert (
+            PipelineQueueItem.select().where(PipelineQueueItem.migration == row.id).count()
+            == 0
+        )
+
+
 def test_clear_refuses_while_the_pipe_is_running(client):
     row, _sale = _prepared(client)
     client.post("/run/queue/add", data={"step": "1"}, follow_redirects=True)

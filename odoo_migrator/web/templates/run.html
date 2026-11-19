@@ -253,7 +253,8 @@
           </form>
           <form method="post" action="/run/queue/clear">
             <button type="submit"
-                    {% if not pipeline_queue.idle or not pipeline_queue.steps %}disabled{% endif %}
+                    {% if not pipeline_queue.idle or not pipeline_queue.steps or pipeline_queue.review %}disabled{% endif %}
+                    {% if pipeline_queue.review %}title="The last batch waits for review: Continue, or Discard its run, on the module's card, then Clear."{% endif %}
                     aria-label="Clear the pipeline queue">Clear</button>
           </form>
         </div>

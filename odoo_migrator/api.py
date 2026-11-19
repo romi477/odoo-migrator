@@ -92,7 +92,7 @@ from odoo_migrator.paths import static_dir, templates_dir
 from odoo_migrator.pipeline_queue import add_all_steps as queue_add_all_steps
 from odoo_migrator.pipeline_queue import add_step as queue_add_step
 from odoo_migrator.pipeline_queue import clear as queue_clear
-from odoo_migrator.pipeline_queue import nav_count, queue_snapshot
+from odoo_migrator.pipeline_queue import nav_count, queue_snapshot, review_waiting
 from odoo_migrator.pipeline_queue import remove_last_module as queue_remove_last_module
 from odoo_migrator.pipeline_queue import remove_step as queue_remove_step
 from odoo_migrator.pipeline_queue import run_one as queue_run_one
@@ -1428,7 +1428,12 @@ def create_app(
 
             return _run_page(
                 request,
-                error="The queue is still working. Stop it and wait for the current module.",
+                error=(
+                    "The last batch waits for review: Continue, or Discard its run, "
+                    "before the queue is cleared."
+                    if review_waiting(current["id"])
+                    else "The queue is still working. Stop it and wait for the current module."
+                ),
             )
 
         return RedirectResponse("/run", status_code=303)

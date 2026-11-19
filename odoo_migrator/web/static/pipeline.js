@@ -487,7 +487,10 @@
     }
     if (clearBtn) {
       const pending = (data.steps && data.steps.length) || data.modules.length;
-      clearBtn.disabled = !data.idle || !pending;
+      clearBtn.disabled = !data.idle || !pending || !!data.review;
+      clearBtn.title = data.review
+        ? "The last batch waits for review: Continue, or Discard its run, on the module's card, then Clear."
+        : "";
     }
     const meta = panel.querySelector("[data-pipeline-queue-meta]");
     if (meta) {

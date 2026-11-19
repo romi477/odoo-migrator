@@ -668,6 +668,16 @@ def _batch_block_reason(migration_id: str) -> str | None:
     return None
 
 
+def review_waiting(migration_id: str) -> bool:
+    with database.connection_context():
+
+        return (
+            Batch.select()
+            .where((Batch.migration == migration_id) & (Batch.status == "checkpoint"))
+            .exists()
+        )
+
+
 def _batch_blocking(migration_id: str) -> bool:
 
     return _batch_block_reason(migration_id) is not None
@@ -740,11 +750,16 @@ def stop(migration_id: str, hub: EventHub) -> None:
 
 
 def clear(migration_id: str, hub: EventHub) -> bool:
-    """Drop every queued step when nothing is in flight.
+    """Drop every queued step when nothing is in flight and nothing waits.
 
     A running pipe, or a module still finishing after Stop, keeps the list.
+    So does a batch waiting for review: its module is in a state a person has
+    not answered yet, and Continue or Discard comes before the list goes.
     """
     if run_state(migration_id) == "running" or live_run(migration_id) is not None:
+
+        return False
+    if review_waiting(migration_id):
 
         return False
     with database.connection_context():
