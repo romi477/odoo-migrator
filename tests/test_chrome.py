@@ -1,5 +1,4 @@
 import re
-from pathlib import Path
 
 import pytest
 
@@ -182,7 +181,9 @@ def test_guide_names_every_step_kind_tool_context_item_and_flag(client):
 def test_guide_names_every_step_of_the_stock_flow(client):
     import yaml
 
-    stock = yaml.safe_load(Path("cartridges/stock.yaml").read_text(encoding="utf-8"))
+    from odoo_migrator.paths import cartridges_dir
+
+    stock = yaml.safe_load((cartridges_dir() / "stock.yaml").read_text(encoding="utf-8"))
     ids = {
         step.get("id") or step["step"]
         for step in stock["pipeline"] + stock["on_failure"]["pipeline"]
