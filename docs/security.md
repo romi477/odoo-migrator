@@ -49,7 +49,7 @@ mounts known, a path relative to the old or the target project path is the
 only form accepted, under the same rule. Writes land only inside the
 ported module's own directory on the target side.
 
-**Provider secrets are stored and never rendered.** A key is a
+**Provider secrets are stored and never rendered in full.** A key is a
 `ProviderSetting` row. The settings page reports whether it is set and shows
 its last six characters, so two keys can be told apart (a key under 16
 characters is all dots). A blank save keeps the stored value. The process does not print it. OpenAI's
