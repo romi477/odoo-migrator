@@ -1812,9 +1812,45 @@ h2 {
   min-width: 0;
 }
 
-.migration-settings-col .stack-form {
+/* The one setting a side owns, inside that side's card. */
+.side-database {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.side-database input {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: var(--panel-raised);
+}
+
+/* What is common to both sides, under them, in one reading column. */
+.settings-common {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.settings-common-title {
+  margin: 0;
+  padding-bottom: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-common .stack-form {
   width: 100%;
-  max-width: none;
+  max-width: 40rem;
+  margin-inline: auto;
 }
 
 @media (max-width: 640px) {

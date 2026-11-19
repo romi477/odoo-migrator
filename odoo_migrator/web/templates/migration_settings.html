@@ -117,123 +117,126 @@
           </form>
         </div>
         {% endif %}
+        {# The one setting that belongs to a side. It is a field of the common
+           form below (the `form` attribute), because a form cannot hold the
+           Restart and Rebuild forms above it. #}
+        <label class="side-database">Database
+          <input type="text" name="{{ 'old_database' if side == 'source' else 'new_database' }}"
+                 value="{{ expanded.old_database if side == 'source' else expanded.new_database }}"
+                 form="settings-{{ expanded.id }}"
+                 placeholder="from the container's odoo.conf" autocomplete="off">
+        </label>
+        <p class="field-hint">Blank uses the database this container's own
+        <code>odoo.conf</code> names. A config without <code>db_name</code> is
+        ordinary; then this is the only way to say which one. A name that is not
+        there is refused when the run starts, and the refusal lists what the
+        container does have.</p>
       </div>
-      {% if side == "source" %}
-      {# One numbered setting per row, each with a plain-language line under it,
-         so the form explains itself instead of being five bare selects. #}
-      <form class="card stack-form" method="post" action="/migrations/{{ expanded.id }}/settings">
-    <ol class="settings-fields">
-      <li>
-        {% set chosen_provider = expanded.provider_override or flow_default.provider or "anthropic" %}
-        <label>Provider
-          <select name="provider_override" onchange="filterModels(this)">
-            {% for item in providers %}
-            <option value="{{ item.name }}"{% if chosen_provider == item.name %} selected{% endif %}>{{ item.name }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <p class="field-hint">The flow names a default. A pair saved here
-        replaces it, and the job records this pair.</p>
-        <label>Model
-          <select name="model_override">
-            {% for item in providers %}
-            {% if not item.models %}
-            <option value="" data-provider="{{ item.name }}" disabled{% if item.name != chosen_provider %} hidden{% endif %}>Nothing listed — is its server running?</option>
-            {% endif %}
-            {% for name in item.models %}
-            <option value="{{ name }}" data-provider="{{ item.name }}"{% if item.name != chosen_provider %} hidden disabled{% endif %}{% if item.name == chosen_provider and ((expanded.model_override or flow_default.model) == name or (not expanded.model_override and not flow_default.model and name == item.models[0])) %} selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-            {% endfor %}
-          </select>
-        </label>
-        <p class="field-hint">Models of the provider above. A step that names
-        its own model still wins.</p>
-      </li>
-      <li>
-        <label>Flow
-          <span class="field-with-action">
-          <select name="cartridge_id">
-            {% for item in cartridges %}
-            <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }}</option>
-            {% else %}
-            <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
-            {% endfor %}
-          </select>
-          {# Reads the file, changes nothing. Follows the select above (see
-             flow_viewer.js), so it shows the one about to be saved. #}
-          <button type="button" class="flow-view-button" data-flow-view data-flow-url="/api/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
-                  data-flow-name="{{ expanded.cartridge_id or 'stock' }} {{ expanded.cartridge_version or '1.0.0' }}"
-                  title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
-          </span>
-        </label>
-        <p class="field-hint">The flow package that does the rewrite, pinned by
-        id and version. The pin is recorded on every job.</p>
-      </li>
-      <li>
-        <label>Source database
-          <input type="text" name="old_database" value="{{ expanded.old_database }}"
-                 placeholder="from the container's odoo.conf" autocomplete="off">
-        </label>
-        <label>Target database
-          <input type="text" name="new_database" value="{{ expanded.new_database }}"
-                 placeholder="from the container's odoo.conf" autocomplete="off">
-        </label>
-        <p class="field-hint">Leave blank to use the database each container's
-        own <code>odoo.conf</code> names. One Postgres often holds dozens, and a
-        config without <code>db_name</code> is ordinary — then this is the only
-        way to say which one. A name that is not there is refused when the run
-        starts, and the refusal lists what the container does have.</p>
-      </li>
-      <li>
-        <label>Strictness
-          <select name="strictness_default">
-            <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
-            <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
-          </select>
-        </label>
-        <p class="field-hint">What a lap does with an <code>ERROR</code> line in
-        Odoo's log during upgrade and tests. At <code>basic</code> the module
-        still passes and the lines become a finding, which stops the queue at
-        the batch checkpoint — on a shared database they are often another
-        module's. At <code>enhanced</code> the lap fails and goes to diagnosis,
-        within the retry limit. A failed test, behaviour that differs from the
-        source or a button that breaks fails the lap at both.</p>
-      </li>
-      <li>
-        <label>Ask-human mode
-          <select name="ask_human_mode">
-            <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
-            <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
-          </select>
-        </label>
-        <p class="field-hint">What happens when diagnosis decides a failure needs
-        a person — a decision, a container setting, a rule. Other failures are
-        retried without asking. <code>sync</code> parks the job until you answer
-        on Runner or Tree. <code>batch_defer</code> does not wait: the question
-        is recorded as an assumption, the agent goes on with its own judgement,
-        the module carries an <code>assumptions</code> mark, and the queue stops
-        at the batch checkpoint for you to read it.</p>
-      </li>
-      <li>
-        <label>Retry limit
-          <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
-        </label>
-        <p class="field-hint">How many times one module is retried before the
-        batch stops on it.</p>
-      </li>
-    </ol>
-    <button type="submit" class="primary settings-save">Save</button>
-      </form>
-      <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
-        <fieldset class="import-flow">
-          <legend>Import a flow</legend>
-          <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file" required>
-          <button type="submit">Import</button>
-        </fieldset>
-      </form>
-      {% endif %}
     </div>
     {% endfor %}
   </div>
+  {# What is not about one container: the model, the flow, how a lap behaves.
+     It applies to the whole migration, so it sits under both sides and not
+     under the first of them. #}
+  <section class="settings-common">
+    <h3 class="settings-common-title">Common</h3>
+      {# One numbered setting per row, each with a plain-language line under it,
+       so the form explains itself instead of being five bare selects. #}
+    <form class="card stack-form" id="settings-{{ expanded.id }}" method="post" action="/migrations/{{ expanded.id }}/settings">
+    <ol class="settings-fields">
+    <li>
+      {% set chosen_provider = expanded.provider_override or flow_default.provider or "anthropic" %}
+      <label>Provider
+        <select name="provider_override" onchange="filterModels(this)">
+          {% for item in providers %}
+          <option value="{{ item.name }}"{% if chosen_provider == item.name %} selected{% endif %}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <p class="field-hint">The flow names a default. A pair saved here
+      replaces it, and the job records this pair.</p>
+      <label>Model
+        <select name="model_override">
+          {% for item in providers %}
+          {% if not item.models %}
+          <option value="" data-provider="{{ item.name }}" disabled{% if item.name != chosen_provider %} hidden{% endif %}>Nothing listed — is its server running?</option>
+          {% endif %}
+          {% for name in item.models %}
+          <option value="{{ name }}" data-provider="{{ item.name }}"{% if item.name != chosen_provider %} hidden disabled{% endif %}{% if item.name == chosen_provider and ((expanded.model_override or flow_default.model) == name or (not expanded.model_override and not flow_default.model and name == item.models[0])) %} selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+          {% endfor %}
+        </select>
+      </label>
+      <p class="field-hint">Models of the provider above. A step that names
+      its own model still wins.</p>
+    </li>
+    <li>
+      <label>Flow
+        <span class="field-with-action">
+        <select name="cartridge_id">
+          {% for item in cartridges %}
+          <option value="{{ item.cartridge_id }}@{{ item.version }}"{% if expanded.cartridge_id == item.cartridge_id and expanded.cartridge_version == item.version %} selected{% endif %}>{{ item.cartridge_id }} {{ item.version }}</option>
+          {% else %}
+          <option value="stock@1.0.0"{% if expanded.cartridge_id == "stock" %} selected{% endif %}>stock 1.0.0</option>
+          {% endfor %}
+        </select>
+        {# Reads the file, changes nothing. Follows the select above (see
+           flow_viewer.js), so it shows the one about to be saved. #}
+        <button type="button" class="flow-view-button" data-flow-view data-flow-url="/api/flows/{{ (expanded.cartridge_id or 'stock') | urlencode }}/{{ (expanded.cartridge_version or '1.0.0') | urlencode }}"
+                data-flow-name="{{ expanded.cartridge_id or 'stock' }} {{ expanded.cartridge_version or '1.0.0' }}"
+                title="View the flow file" aria-label="View the flow file">{% include "_eye_icon.svg" %}</button>
+        </span>
+      </label>
+      <p class="field-hint">The flow package that does the rewrite, pinned by
+      id and version. The pin is recorded on every job.</p>
+    </li>
+    <li>
+      <label>Strictness
+        <select name="strictness_default">
+          <option value="basic"{% if expanded.strictness_default == "basic" %} selected{% endif %}>basic</option>
+          <option value="enhanced"{% if expanded.strictness_default == "enhanced" %} selected{% endif %}>enhanced</option>
+        </select>
+      </label>
+      <p class="field-hint">What a lap does with an <code>ERROR</code> line in
+      Odoo's log during upgrade and tests. At <code>basic</code> the module
+      still passes and the lines become a finding, which stops the queue at
+      the batch checkpoint — on a shared database they are often another
+      module's. At <code>enhanced</code> the lap fails and goes to diagnosis,
+      within the retry limit. A failed test, behaviour that differs from the
+      source or a button that breaks fails the lap at both.</p>
+    </li>
+    <li>
+      <label>Ask-human mode
+        <select name="ask_human_mode">
+          <option value="sync"{% if expanded.ask_human_mode == "sync" %} selected{% endif %}>sync</option>
+          <option value="batch_defer"{% if expanded.ask_human_mode == "batch_defer" %} selected{% endif %}>batch_defer</option>
+        </select>
+      </label>
+      <p class="field-hint">What happens when diagnosis decides a failure needs
+      a person — a decision, a container setting, a rule. Other failures are
+      retried without asking. <code>sync</code> parks the job until you answer
+      on Runner or Tree. <code>batch_defer</code> does not wait: the question
+      is recorded as an assumption, the agent goes on with its own judgement,
+      the module carries an <code>assumptions</code> mark, and the queue stops
+      at the batch checkpoint for you to read it.</p>
+    </li>
+    <li>
+      <label>Retry limit
+        <input class="mono" type="number" name="retry_limit" min="1" value="{{ expanded.retry_limit }}" required>
+      </label>
+      <p class="field-hint">How many times one module is retried before the
+      batch stops on it.</p>
+    </li>
+    </ol>
+    <button type="submit" class="primary settings-save">Save</button>
+    </form>
+    <form class="stack-form" method="post" action="/migrations/{{ expanded.id }}/cartridge" enctype="multipart/form-data">
+      <fieldset class="import-flow">
+        <legend>Import a flow</legend>
+        <input type="file" name="file" accept=".yaml,.yml,.json" aria-label="Flow file" required>
+        <button type="submit" class="primary settings-save">Import</button>
+      </fieldset>
+    </form>
+  </section>
   {% endif %}
 </div>
