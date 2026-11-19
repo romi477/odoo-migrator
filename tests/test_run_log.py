@@ -112,6 +112,48 @@ def test_a_step_keeps_the_reason_it_ended(app, job, fake_sheller):
         assert "without calling report" in StepRun.get_by_id(step_run.id).output
 
 
+def test_an_agent_step_keeps_what_it_said_it_changed(app, job, fake_sheller):
+    """A patch that fixed a test was a black box: the model's answer, the one
+    place it says what it changed, was kept in memory for the next prompt and
+    then dropped. Result shows the step's output, so that is where it goes."""
+    answer = "models/res_partner.py: name_search tried code last; now it tries code first.\nspec passes."
+    with database.connection_context():
+        step_run = StepRun.create(job=job, attempt=1, step_id="patch", kind="agent")
+
+    runner = NativeRunner(sheller=fake_sheller, hub=app.state.hub)
+    runner._close_step(step_run.id, StepResult(ok=True, answer=answer))
+
+    with database.connection_context():
+        assert StepRun.get_by_id(step_run.id).output == answer
+
+
+def test_the_line_of_an_agent_step_names_the_change_and_opens_on_the_rest(job):
+    from odoo_migrator.runner.native import _outcome_line, _step_body
+
+    answer = "res_partner.py: name_search tried code last; now first.\nspec passes."
+    result = StepResult(
+        ok=True, answer=answer, tokens_in=10, tokens_out=2, detail="turns: 6\n\nlast text: (none)"
+    )
+
+    assert _outcome_line(result).endswith("— res_partner.py: name_search tried code last; now first.")
+    body = _step_body(result)
+    assert body.startswith("What the step said:\nres_partner.py")
+    assert "spec passes." in body
+    assert "turns: 6" in body
+    # A step with no answer keeps its old body, and a long line is clipped.
+    assert _step_body(StepResult(ok=True, detail="turns: 1")) == "turns: 1"
+    assert len(_outcome_line(StepResult(ok=True, answer="x" * 500))) < 200
+
+
+def test_diagnose_and_patch_are_asked_to_say_what_they_did():
+    from odoo_migrator.cartridges import cartridges_dir
+
+    text = (cartridges_dir() / "stock.yaml").read_text(encoding="utf-8")
+
+    assert "Say the cause in your answer" in text
+    assert "End with an answer that says what you changed" in text
+
+
 def test_a_long_body_is_clipped_rather_than_stored_whole(job):
     runlog.write(job.job_id, source="port", text="x", detail="y" * (runlog.MAX_DETAIL * 2))
     line_id = runlog.lines(job.job_id)[0]["id"]

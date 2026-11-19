@@ -400,6 +400,11 @@ or **Reopen finished modules…** in the migration's settings on Overview (behin
 The old jobs stay. Nothing is deleted at the click: the next run empties the module's
 directory in the target project as it starts, and the whole flow runs again. With no
 graph yet, the page points you at Tree → Build graph.
+The summary a card opens lists every step of the last run, and an agent step
+carries its own answer there: the diagnosis names the cause, the patch says
+which file it changed and what it does now. The same text opens under the
+step's line in the run log (the first line is on the line itself). It is the
+model's account, not a diff: the diff stays on the attempt.
 
 ### Checkpoint
 

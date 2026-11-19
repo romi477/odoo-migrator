@@ -283,6 +283,11 @@ on_failure:
         session are all available. When a test failed and its log does not
         say why, run that one spec again on its own — not the module.
 
+        Say the cause in your answer, in plain words: what the failure showed,
+        in which file and line, and why the target version behaves
+        differently. A person reads it in the run's summary, so it names the
+        thing and does not retell the log.
+
         Then decide, and raise what you decided and nothing else:
 
         - `small_fix`: a targeted change to the port repairs it.
@@ -366,6 +371,11 @@ on_failure:
         For a clickbot failure, fix the XML or the code and do not try to see
         the menu pass: the `upgrade` step loads the change, `clickbot` runs
         again after it, and its outcome is the one recorded.
+
+        End with an answer that says what you changed, one line a file: the
+        file, what was wrong there and what it does now. Add the result of the
+        spec you ran. This is what a person reads in the run's summary, in
+        place of the diff.
 
     - step: agent
       id: rewrite

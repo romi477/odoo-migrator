@@ -335,7 +335,7 @@ class NativeRunner:
                     job_id,
                     label,
                     _outcome_line(result),
-                    detail=result.detail or result.output,
+                    detail=_step_body(result),
                     level="info" if result.ok else "error",
                 )
                 self.hub.publish(
@@ -1012,7 +1012,9 @@ class NativeRunner:
             row.tokens_in = result.tokens_in
             row.tokens_out = result.tokens_out
             row.tokens_cached = result.tokens_cached
-            row.output = (result.output or "")[:4000]
+            # An agent step ends with an answer and no output: what it found
+            # and what it changed. Result reads this column, and it was blank.
+            row.output = (result.output or result.answer or "")[:4000]
             row.save()
 
 
@@ -1040,10 +1042,29 @@ def _outcome_line(result) -> str:
     spent = ""
     if result.tokens_in or result.tokens_out:
         spent = f", {result.tokens_in}+{result.tokens_out} tokens"
-    reason = (result.output or "").strip().splitlines()
-    tail = f" — {reason[0]}" if reason else ""
+    reason = (result.output or result.answer or "").strip().splitlines()
+    tail = f" — {_clipped(reason[0])}" if reason else ""
 
     return f"{head}{f' [{flags}]' if flags else ''}{spent}{tail}"
+
+
+def _clipped(line: str, width: int = 160) -> str:
+    line = line.strip()
+
+    return line if len(line) <= width else line[: width - 1].rstrip() + "…"
+
+
+def _step_body(result) -> str:
+    """What opens under the step's line: the answer the agent gave, then the
+    provider's account of the turn. The answer is the part a person reads; a
+    patch that fixed a test said what it changed there and nowhere else."""
+    parts = []
+    if result.answer and result.answer != result.output:
+        parts.append(f"What the step said:\n{result.answer.strip()}")
+    if result.detail or result.output:
+        parts.append(result.detail or result.output)
+
+    return "\n\n".join(parts)
 
 
 def _commit_switch_question(sheller, container: str) -> str | None:
