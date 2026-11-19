@@ -860,8 +860,12 @@ pre,
   padding-bottom: 6px;
   font-size: 18px;
   font-weight: 650;
-  color: var(--amber);
+  color: var(--cyan);
   border-bottom: 1px solid var(--border);
+}
+
+.guide-part-num {
+  color: var(--text);
 }
 
 .guide-part-lead {
