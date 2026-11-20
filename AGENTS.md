@@ -26,6 +26,9 @@ development); `uv run pytest`.
 | `docs_/sheller-dind-ru.md` | historical: the spec handed to Sheller for its container mode, now implemented |
 | `/opt/projects/odoo-sheller/docs/container.md` | Sheller's runtime contract — code against this, not against the spec that asked for it |
 
+The `docs_/` rows above are local working notes: the directory is git-ignored and
+not in the repository, so a fresh clone does not have them.
+
 This file is the short version for working sessions. Where it and the
 design spec disagree, **the spec wins**. Where the spec and the plan
 disagree, the plan says so explicitly under "Overrides vs the written
