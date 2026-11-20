@@ -71,6 +71,18 @@
     });
   }
 
+  /* Every step on one line: a wrapped ribbon puts the last step lower than the
+     first. The boxes are all the same height and centred, so their tops agree
+     on one line, give or take a rounding pixel. */
+  function oneLine(nodes) {
+    return nodes[nodes.length - 1].getBoundingClientRect().top - nodes[0].getBoundingClientRect().top < 2;
+  }
+
+  /* The sum of the steps' widths at full size is a promise the screen does not
+     always keep: a zoomed step is rounded up to the device's pixel, and on a
+     screen whose scale is not whole thirteen steps add a pixel or two to the
+     sum. So the scale is a guess, and each guess is checked on the page and
+     lowered a hundredth until the steps stand on one line. */
   function fit(ribbon) {
     const nodes = Array.prototype.slice.call(ribbon.querySelectorAll(":scope > .ribbon-node"));
     ribbon.style.setProperty("--fit", "1");
@@ -80,18 +92,19 @@
     }
     const style = getComputedStyle(ribbon);
     const room = ribbon.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    if (room <= 0) {
+      return;
+    }
     let natural = 0;
     nodes.forEach(function (node) {
       natural += node.getBoundingClientRect().width;
     });
-    if (room <= 0 || natural <= room) {
-      return;
-    }
-    const scale = Math.floor((room / natural) * 100) / 100;
-    if (scale >= SMALLEST) {
+    const first = natural <= room ? 1 : Math.floor((room / natural) * 100) / 100;
+    for (let scale = first; scale >= SMALLEST; scale = Math.round((scale - 0.01) * 100) / 100) {
       ribbon.style.setProperty("--fit", String(scale));
-
-      return;
+      if (oneLine(nodes)) {
+        return;
+      }
     }
     ribbon.style.setProperty("--fit", String(SMALLEST));
     /* The grid's columns are as wide as their widest step, so a guess from

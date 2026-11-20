@@ -1657,6 +1657,11 @@ def test_a_long_flow_is_scaled_to_one_line_and_snakes_past_that(client):
     assert "const SMALLEST = 0.78" in script
     assert 'setProperty("--fit"' in script
     assert "zoom: var(--fit, 1)" in css
+    # A scale that fits on paper can still wrap on a screen whose rounding adds
+    # a pixel: each guess is checked on the page and lowered until the steps
+    # stand on one line.
+    assert "if (oneLine(nodes))" in script
+    assert "scale - 0.01" in script
     # The snake: columns on a grid, the first down, the next up.
     assert 'classList.add("is-snake")' in script
     assert "grid-template-columns: repeat(var(--snake-columns), auto)" in css
