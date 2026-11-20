@@ -911,3 +911,14 @@ def test_the_glow_selector_matches_how_the_page_nests_the_machine_and_the_live_p
     assert "</div>" in page[machine_at:live_at]
     css = client.get("/static/style.css").text
     assert ".workspace-panel:has(.pipeline-live:not([hidden])):has(.machine[data-machine=\"run\"])::after" in css
+
+
+def test_the_migration_menu_opens_above_the_sticky_selection_bar(client):
+    """The Selection bar is sticky at z-index 2 and comes after the header in
+    the page, so a menu at 2 was painted under it: the list dropped from the
+    header and the bar's chips covered it."""
+    css = client.get("/static/style.css").text
+    bar = int(css.split(".runner-bar {", 1)[1].split("}", 1)[0].split("z-index:", 1)[1].split(";", 1)[0])
+    menu = int(css.split(".switcher-menu {", 1)[1].split("}", 1)[0].split("z-index:", 1)[1].split(";", 1)[0])
+
+    assert menu > bar

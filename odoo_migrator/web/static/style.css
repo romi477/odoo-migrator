@@ -2144,7 +2144,9 @@ h2 {
 
 .switcher-menu {
   position: absolute;
-  z-index: 2;
+  /* Above the Selection bar (z-index 2), which is sticky and comes later in the
+     page: at the same level that bar was painted over the list. */
+  z-index: 3;
   /* The switcher is only the first row. 100% would drop the menu onto
      Tree / Run. Clear that row, and the bar's bottom padding, so the list
      opens under the header. */
