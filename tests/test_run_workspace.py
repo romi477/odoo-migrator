@@ -794,7 +794,7 @@ def test_a_new_job_starts_the_log_on_a_clean_page():
     assert script.count("takeJob(") == 3
 
 
-def test_the_card_of_the_run_has_a_cyan_edge_and_an_amber_glow_that_breathes(client):
+def test_the_card_of_the_run_has_an_amber_edge_and_an_amber_glow_that_breathes(client):
     css = client.get("/static/style.css").text
     live = ".workspace-panel:has(.pipeline-live:not([hidden]))"
     edge = css.split(live + " {")[1].split("}")[0]
@@ -804,7 +804,7 @@ def test_the_card_of_the_run_has_a_cyan_edge_and_an_amber_glow_that_breathes(cli
     breathing = css.split(caught + "::after {")[1].split("}")[0]
     frames = css.split("@keyframes work-breathe")[1].split("}\n\n.")[0]
 
-    assert "border-color: var(--cyan)" in edge
+    assert "border-color: var(--amber)" in edge
     # A glow inside the one edge, not a second line.
     assert "box-shadow: inset" in edge
     assert "::after" not in css.split(live)[1].split("}")[0]

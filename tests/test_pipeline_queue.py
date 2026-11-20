@@ -814,14 +814,24 @@ def test_the_cable_to_the_run_carries_a_pulse_while_the_queue_runs(client):
     assert "animation: none" in reduced.split("}\n}")[0]
 
 
-def test_the_cable_to_the_run_stays_cyan_and_only_its_pulse_turns_amber(client):
-    """The card it enters has a cyan edge, so the cable is one colour. What it
-    carries is paler and takes the amber of the work on the way."""
+def test_the_cable_to_the_run_runs_from_cyan_to_the_amber_of_the_engine(client):
+    """The Engine's edge is amber, so the cable that leads into it is a
+    gradient: the queue's cyan at the plug, the Engine's amber at the
+    arrowhead. What it carries is paler and takes the amber on the way."""
     _prepared(client)
     page = client.get("/run").text
     css = client.get("/static/style.css").text
+    link = page.split('class="runner-link"', 1)[1].split("</span></span>", 1)[0]
+    wire = css.split(".runner-link-wire {", 1)[1].split("}", 1)[0]
 
-    assert "runner-link-wire" not in page and "runner-link-wire" not in css
+    assert 'class="runner-link-wire"' in link
+    assert "linear-gradient(to bottom, var(--cable), var(--cable-end, var(--cable)))" in wire
+    # A gradient does not follow a rounded border: the wire is a ring cut by a
+    # mask, and the plug and the arrowhead stay outside it.
+    assert "mask-composite: exclude" in wire
+    assert "border-left: 5px solid var(--cable-end, var(--cable))" in css
+    # The far end is amber only while the Engine's live part shows, like its edge.
+    assert "--cable-end: var(--amber)" in css.split(".workspace:has(.pipeline-live:not([hidden])) {", 1)[1].split("}", 1)[0]
     frames = css.split("@keyframes link-pulse")[1].split("@media")[0]
 
     assert "var(--cyan) 50%, white" in frames

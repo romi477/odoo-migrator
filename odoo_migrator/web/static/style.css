@@ -2676,6 +2676,10 @@ h2 {
   position: relative;
 }
 
+.workspace:has(.pipeline-live:not([hidden])) {
+  --cable-end: var(--amber);
+}
+
 .runner-link {
   position: absolute;
   left: -26px;
@@ -2683,10 +2687,30 @@ h2 {
   width: 20px;
   height: 62px;
   box-sizing: border-box;
-  border: 1px solid var(--cable);
+  /* The line itself is the wire's: this border only keeps the box where the
+     plug, the pulse and the arrowhead measure from. */
+  border: 1px solid transparent;
   border-right: 0;
   border-radius: 9px 0 0 9px;
   pointer-events: none;
+}
+
+/* The cable runs from the queue's colour to the Engine's: cyan at the plug,
+   amber at the arrowhead, the heat it is carrying the module into. A gradient
+   cannot follow a rounded border, so the wire is a ring cut out of a gradient
+   box: the mask keeps the border's width and drops the middle. The plug and the
+   arrowhead are drawn outside the wire, so the mask does not cut them. */
+.runner-link-wire {
+  position: absolute;
+  inset: -1px 0 -1px -1px;
+  border: 1px solid transparent;
+  border-right: 0;
+  border-radius: 9px 0 0 9px;
+  background: linear-gradient(to bottom, var(--cable), var(--cable-end, var(--cable))) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
 }
 
 /* The plug sits across the queue card's left edge, lying down. */
@@ -2713,7 +2737,7 @@ h2 {
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 5px solid var(--cable);
+  border-left: 5px solid var(--cable-end, var(--cable));
 }
 
 /* The pulse: a short bar, paler than the cable, that leaves the plug cyan and
@@ -3707,8 +3731,9 @@ button.queue-play:disabled {
   background: var(--panel);
 }
 
-/* The card of the module in work has one edge, cyan like the queue's and the
-   cable's, and it is always whole. The work shows as light inside it: an amber
+/* The card of the module in work has one edge, amber: an engine is a hot thing,
+   and the cable that leads into it runs from the queue's cyan to this amber.
+   The edge is always whole. The work shows as light inside it: an amber
    glow along the inner side of the edge that breathes while the module runs, at
    the pace of the lamps in the bar. It never changes what is drawn, only how
    bright, so the boundary does not flicker. A module waiting for a person keeps
@@ -3719,7 +3744,7 @@ button.queue-play:disabled {
 }
 
 .workspace-panel:has(.pipeline-live:not([hidden])) {
-  border-color: var(--cyan);
+  border-color: var(--amber);
   box-shadow: inset 0 0 10px 0 color-mix(in oklch, var(--amber) 9%, transparent);
 }
 

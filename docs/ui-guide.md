@@ -251,10 +251,11 @@ gutter and enters the card of the run. Both, and the Queue card's edge, are colo
 and cyan once it holds something; a pulse of light travels down each
 cable, from the bar to the queue and from the queue to the run, while the queue runs.
 The pulse is paler than the cable, and turns from cyan to amber on its way
-into the run. The card of the module in work has one cyan edge, the queue's
-colour, that is always whole, and an amber glow along its inner side that
-breathes while the module runs and stays quiet and still while it waits for a
-person. The log is not a card: it is the canvas at the bottom of
+into the run. The cable into the run is a gradient too, cyan at the queue and
+amber at the Engine: it ends in the colour of the card it enters. The card of
+the module in work has one amber edge, an engine being a hot thing, that is
+always whole, and an amber glow along its inner side that breathes while the
+module runs and stays quiet and still while it waits for a person. The log is not a card: it is the canvas at the bottom of
 the screen, edge to edge, folded to its head or filling what is left of the
 window. The log follows one job and starts each on a clean page: the moment a
 new job begins, by the queue taking the next module or by a module started by
