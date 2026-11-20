@@ -3731,9 +3731,10 @@ button.queue-play:disabled {
   background: var(--panel);
 }
 
-/* The card of the module in work has one edge, amber: an engine is a hot thing,
-   and the cable that leads into it runs from the queue's cyan to this amber.
-   The edge is always whole. The work shows as light inside it: an amber
+/* The card of the module in work has one edge, amber where the cable enters it
+   and turning cyan toward the output: an engine is a hot thing, and the cable
+   that leads into it runs from the queue's cyan to this amber. The edge is
+   always whole. The work shows as light inside it: an amber
    glow along the inner side of the edge that breathes while the module runs, at
    the pace of the lamps in the bar. It never changes what is drawn, only how
    bright, so the boundary does not flicker. A module waiting for a person keeps
@@ -3744,7 +3745,15 @@ button.queue-play:disabled {
 }
 
 .workspace-panel:has(.pipeline-live:not([hidden])) {
-  border-color: var(--amber);
+  /* The edge is a gradient along the card, amber where the module goes in and
+     cyan where it comes out, the colours of the two slots. A border cannot be a
+     gradient and keep its radius, so the gradient is painted behind the whole
+     border box and the panel colour over the padding box, leaving the edge. */
+  border-color: transparent;
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(90deg in oklab, var(--amber) 0 30%, var(--cyan) 100%) border-box;
+  background-origin: border-box;
   box-shadow: inset 0 0 10px 0 color-mix(in oklch, var(--amber) 9%, transparent);
 }
 
